@@ -95,6 +95,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { themePreferences.setTheme(theme) }
 
+    fun setCutoutEnabled(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCutoutEnabled(enabled)
+    }
+
     fun setNormalDurationSeconds(seconds: Int) = viewModelScope.launch {
         behaviourPreferences.setNormalDurationSeconds(seconds)
     }

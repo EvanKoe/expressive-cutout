@@ -8,12 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,13 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 
 /**
  * "Profile" destination: the app-wide theme choice and build metadata. The selected theme
  * is persisted and applied at the root of the activity.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileTab(
     viewModel: AppViewModel,
@@ -63,20 +59,12 @@ fun ProfileTab(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            AppTheme.entries.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = theme == option,
-                    onClick = { viewModel.setTheme(option) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = AppTheme.entries.size,
-                    ),
-                ) {
-                    Text(stringResource(option.labelRes))
-                }
-            }
-        }
+        ExpressiveSegmentedRow(
+            options = AppTheme.entries.map { stringResource(it.labelRes) },
+            selectedIndex = theme.ordinal,
+            onSelect = { viewModel.setTheme(AppTheme.entries[it]) },
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 

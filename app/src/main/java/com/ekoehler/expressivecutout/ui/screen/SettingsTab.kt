@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,13 +55,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -106,6 +102,7 @@ import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.toImageBitmap
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -126,12 +123,17 @@ fun SettingsTab(
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     when (route) {
-        SettingsRoute.List -> SettingsList(
-            contentPadding = contentPadding,
-            onOpenSizePosition = onOpenSizePosition,
-            onOpenEventIcons = onOpenEventIcons,
-            onOpenBehaviour = onOpenBehaviour,
-        )
+        SettingsRoute.List -> {
+            val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+            SettingsList(
+                contentPadding = contentPadding,
+                cutoutEnabled = behaviour.cutoutEnabled,
+                onCutoutEnabledChange = viewModel::setCutoutEnabled,
+                onOpenSizePosition = onOpenSizePosition,
+                onOpenEventIcons = onOpenEventIcons,
+                onOpenBehaviour = onOpenBehaviour,
+            )
+        }
 
         SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
         SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
@@ -143,40 +145,87 @@ fun SettingsTab(
  *  switch to a back pill on the detail screens. */
 enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour }
 
+/** Grouped-list item shape: large outer corners at the group ends, small between items. */
+private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
+    topStart = if (isFirst) 32.dp else 4.dp,
+    topEnd = if (isFirst) 32.dp else 4.dp,
+    bottomStart = if (isLast) 32.dp else 4.dp,
+    bottomEnd = if (isLast) 32.dp else 4.dp,
+)
+
 // region Settings list
 
 @Composable
 private fun SettingsList(
     contentPadding: PaddingValues,
+    cutoutEnabled: Boolean,
+    onCutoutEnabledChange: (Boolean) -> Unit,
     onOpenSizePosition: () -> Unit,
     onOpenEventIcons: () -> Unit,
     onOpenBehaviour: () -> Unit,
 ) {
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(contentPadding)
-            .clip(shape = RoundedCornerShape(24.dp)),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SettingsListItem(
-            icon = Icons.Rounded.Tune,
-            title = stringResource(R.string.appearance_title),
-            subtitle = stringResource(R.string.settings_size_subtitle),
-            onClick = onOpenSizePosition,
-        )
-        SettingsListItem(
-            icon = Icons.Rounded.Palette,
-            title = stringResource(R.string.section_icons_title),
-            subtitle = stringResource(R.string.settings_icons_subtitle),
-            onClick = onOpenEventIcons,
-        )
-        SettingsListItem(
-            icon = Icons.Rounded.Timer,
-            title = stringResource(R.string.behaviour_title),
-            subtitle = stringResource(R.string.settings_behaviour_subtitle),
-            onClick = onOpenBehaviour,
-        )
+        CutoutEnableCard(enabled = cutoutEnabled, onEnabledChange = onCutoutEnabledChange)
+
+        Column(
+            modifier = Modifier.clip(RoundedCornerShape(24.dp)),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.Tune,
+                title = stringResource(R.string.appearance_title),
+                subtitle = stringResource(R.string.settings_size_subtitle),
+                onClick = onOpenSizePosition,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.Palette,
+                title = stringResource(R.string.section_icons_title),
+                subtitle = stringResource(R.string.settings_icons_subtitle),
+                onClick = onOpenEventIcons,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.Timer,
+                title = stringResource(R.string.behaviour_title),
+                subtitle = stringResource(R.string.settings_behaviour_subtitle),
+                onClick = onOpenBehaviour,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CutoutEnableCard(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.cutout_enable_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.cutout_enable_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        }
     }
 }
 
@@ -269,18 +318,15 @@ private fun SizePositionScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TabRow(selectedTabIndex = tab) {
-            Tab(
-                selected = tab == 0,
-                onClick = { tab = 0 },
-                text = { Text(stringResource(R.string.tab_normal)) },
-            )
-            Tab(
-                selected = tab == 1,
-                onClick = { tab = 1 },
-                text = { Text(stringResource(R.string.tab_expanded)) },
-            )
-        }
+        ExpressiveSegmentedRow(
+            options = listOf(
+                stringResource(R.string.tab_normal),
+                stringResource(R.string.tab_expanded),
+            ),
+            selectedIndex = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.fillMaxWidth(),
+        )
         when (tab) {
             0 -> DimensionsEditor(
                 dimensions = layout.collapsed,
@@ -323,53 +369,45 @@ private fun BehaviourScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        AdjustableSlider(
+        // Grouped list: the first item's top corners and the last item's bottom corners round.
+        BehaviourSliderRow(
+            shape = groupedShape(isFirst = true, isLast = false),
             label = stringResource(R.string.behaviour_normal_duration),
             valueText = "${normalSeconds.roundToInt()} s",
             value = normalSeconds,
             valueRange = BehaviourSettings.MIN_NORMAL_SECONDS.toFloat()..
                 BehaviourSettings.MAX_NORMAL_SECONDS.toFloat(),
-            step = 1f,
             onValueChange = { normalSeconds = it },
             onCommit = { viewModel.setNormalDurationSeconds(normalSeconds.roundToInt()) },
         )
         BehaviourToggle(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_auto_collapse),
             description = stringResource(R.string.behaviour_auto_collapse_desc),
             checked = behaviour.expandedAutoCollapse,
             onCheckedChange = viewModel::setExpandedAutoCollapse,
         )
         if (behaviour.expandedAutoCollapse) {
-            Card(
-                modifier = Modifier.clip(
-                    shape = RoundedCornerShape(
-                        topStart = 4.dp,
-                        topEnd = 4.dp,
-                        bottomStart = 8.dp,
-                        bottomEnd = 8.dp
-                    ),
-                ),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                AdjustableSlider(
-                    label = stringResource(R.string.behaviour_collapse_delay),
-                    valueText = "${seconds.roundToInt()} s",
-                    value = seconds,
-                    valueRange = BehaviourSettings.MIN_COLLAPSE_SECONDS.toFloat()..
-                            BehaviourSettings.MAX_COLLAPSE_SECONDS.toFloat(),
-                    step = 1f,
-                    onValueChange = { seconds = it },
-                    onCommit = { viewModel.setExpandedCollapseSeconds(seconds.roundToInt()) },
-                )
-            }
+            BehaviourSliderRow(
+                shape = groupedShape(isFirst = false, isLast = false),
+                label = stringResource(R.string.behaviour_collapse_delay),
+                valueText = "${seconds.roundToInt()} s",
+                value = seconds,
+                valueRange = BehaviourSettings.MIN_COLLAPSE_SECONDS.toFloat()..
+                    BehaviourSettings.MAX_COLLAPSE_SECONDS.toFloat(),
+                onValueChange = { seconds = it },
+                onCommit = { viewModel.setExpandedCollapseSeconds(seconds.roundToInt()) },
+            )
         }
         BehaviourToggle(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_disappear),
             description = stringResource(R.string.behaviour_disappear_desc),
             checked = behaviour.expandedDisappearOnShrink,
             onCheckedChange = viewModel::setExpandedDisappearOnShrink,
         )
         BehaviourToggle(
+            shape = groupedShape(isFirst = false, isLast = true),
             title = stringResource(R.string.behaviour_notif_auto_expand),
             description = stringResource(R.string.behaviour_notif_auto_expand_desc),
             checked = behaviour.notificationsAutoExpand,
@@ -379,7 +417,37 @@ private fun BehaviourScreen(
 }
 
 @Composable
+private fun BehaviourSliderRow(
+    shape: Shape,
+    label: String,
+    valueText: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            AdjustableSlider(
+                label = label,
+                valueText = valueText,
+                value = value,
+                valueRange = valueRange,
+                step = 1f,
+                onValueChange = onValueChange,
+                onCommit = onCommit,
+            )
+        }
+    }
+}
+
+@Composable
 private fun BehaviourToggle(
+    shape: Shape,
     title: String,
     description: String,
     checked: Boolean,
@@ -387,6 +455,7 @@ private fun BehaviourToggle(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -520,7 +589,9 @@ private fun DimensionsEditor(
     var cornerBl by remember(dimensions.cornerBottomLeftDp) { mutableStateOf(dimensions.cornerBottomLeftDp.toFloat()) }
     var cornerBr by remember(dimensions.cornerBottomRightDp) { mutableStateOf(dimensions.cornerBottomRightDp.toFloat()) }
     var cornerMode by remember { mutableStateOf(CornerMode.All) }
-    var previewDark by remember { mutableStateOf(true) }
+    // Default the preview backdrop to the phone's current light/dark setting.
+    val systemInDark = isSystemInDarkTheme()
+    var previewDark by remember { mutableStateOf(systemInDark) }
 
     fun commit() = onChange(
         IslandDimensions.of(
@@ -729,7 +800,6 @@ private fun IslandPreviewPanel(
 
 private enum class CornerMode { All, TopBottom, Each }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CornerRadiusControls(
     cornerTl: Float,
@@ -752,23 +822,18 @@ private fun CornerRadiusControls(
             text = stringResource(R.string.appearance_corner),
             style = MaterialTheme.typography.bodyMedium,
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            modes.forEachIndexed { index, cornerMode ->
-                SegmentedButton(
-                    selected = mode == cornerMode,
-                    onClick = { onModeChange(cornerMode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                ) {
-                    Text(
-                        text = when (cornerMode) {
-                            CornerMode.All -> stringResource(R.string.corner_mode_all)
-                            CornerMode.TopBottom -> stringResource(R.string.corner_mode_split)
-                            CornerMode.Each -> stringResource(R.string.corner_mode_each)
-                        },
-                    )
+        ExpressiveSegmentedRow(
+            options = modes.map { cornerMode ->
+                when (cornerMode) {
+                    CornerMode.All -> stringResource(R.string.corner_mode_all)
+                    CornerMode.TopBottom -> stringResource(R.string.corner_mode_split)
+                    CornerMode.Each -> stringResource(R.string.corner_mode_each)
                 }
-            }
-        }
+            },
+            selectedIndex = mode.ordinal,
+            onSelect = { onModeChange(modes[it]) },
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         when (mode) {
             CornerMode.All -> CornerSlider(
@@ -918,7 +983,7 @@ private fun EventIconCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Tapping this area opens the icon chooser; dimmed when the event is disabled.

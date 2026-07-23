@@ -41,6 +41,11 @@ import kotlinx.coroutines.launch
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
  * destroyed by the accessibility service, whose context is required to add a
  * TYPE_ACCESSIBILITY_OVERLAY window without the SYSTEM_ALERT_WINDOW permission.
+ *
+ * The window is a fixed, full-width band (its height only changes when the layout config
+ * changes). The island's size, position and corners are animated inside it by Compose, so
+ * expand/collapse never resizes the window per frame — that was the source of the jank. The
+ * window is made non-touchable while nothing is showing so it doesn't block the screen.
  */
 class IslandOverlayController(private val context: Context) {
 
@@ -54,7 +59,7 @@ class IslandOverlayController(private val context: Context) {
     private val eventPreferences = EventPreferences(context)
     private val density = context.resources.displayMetrics.density
 
-    // The true full display width in px — the reference the width percentage is applied to.
+    // Full display width, used by the island to size itself as a percentage of the screen.
     private val displayWidthPx: Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             windowManager.maximumWindowMetrics.bounds.width()
@@ -62,7 +67,7 @@ class IslandOverlayController(private val context: Context) {
             @Suppress("DEPRECATION")
             context.resources.displayMetrics.widthPixels
         }
-    private val horizontalPaddingPx: Int = (16 * density).toInt()
+    private val displayWidthDp: Int = (displayWidthPx / density).toInt()
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
@@ -98,6 +103,7 @@ class IslandOverlayController(private val context: Context) {
         observeEventPreferences()
         observePreviewPin()
         observeSignals()
+        observeVisibility()
     }
 
     fun stop() {
@@ -121,6 +127,7 @@ class IslandOverlayController(private val context: Context) {
                     event = event,
                     collapsed = layout.collapsed,
                     expanded = layout.expanded,
+                    displayWidthDp = displayWidthDp,
                     forcedExpanded = forced,
                     autoCollapse = behaviour.expandedAutoCollapse,
                     autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
@@ -154,24 +161,48 @@ class IslandOverlayController(private val context: Context) {
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
             layoutState.value = layout
-            applyWindowSize()
+            applyWindowHeight()
         }
     }
 
+    /** Only intercept touches while the island is actually on screen. */
+    private fun observeVisibility() = scope.launch {
+        currentEvent.collect { setTouchable(it != null) }
+    }
+
     /**
-     * Width and position are window-level concerns for whichever state is showing. The width
-     * is set explicitly in pixels (a percentage of the real display width) rather than left to
-     * WRAP_CONTENT, which the system clamps to the safe/rounded-corner area — the cause of the
-     * island never growing past a fraction of the screen.
+     * The window is a fixed full-width band tall enough for whichever state extends lowest, so
+     * the island can be positioned/sized freely inside without ever resizing the window.
      */
-    private fun applyWindowSize() {
+    private fun applyWindowHeight() {
         val view = composeView ?: return
         val params = layoutParams ?: return
-        val dims = if (expanded) layoutState.value.expanded else layoutState.value.collapsed
-        params.width = (displayWidthPx * dims.widthPercent / 100) + horizontalPaddingPx
-        params.x = (dims.offsetXDp * density).toInt()
-        params.y = (dims.offsetYDp * density).toInt()
-        windowManager.updateViewLayout(view, params)
+        val targetHeight = windowHeightPx(layoutState.value)
+        if (params.height != targetHeight) {
+            params.height = targetHeight
+            runCatching { windowManager.updateViewLayout(view, params) }
+        }
+    }
+
+    private fun setTouchable(touchable: Boolean) {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        val flag = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        val newFlags = if (touchable) params.flags and flag.inv() else params.flags or flag
+        if (newFlags != params.flags) {
+            params.flags = newFlags
+            runCatching { windowManager.updateViewLayout(view, params) }
+        }
+    }
+
+    private fun windowHeightPx(layout: IslandLayout): Int {
+        val collapsed = layout.collapsed
+        val expanded = layout.expanded
+        val lowestDp = maxOf(
+            collapsed.offsetYDp + collapsed.heightDp,
+            expanded.offsetYDp + expanded.heightDp,
+        )
+        return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
@@ -185,7 +216,6 @@ class IslandOverlayController(private val context: Context) {
                     forcedExpanded.value = expandedTab
                     expanded = expandedTab
                     currentEvent.value = previewEvent
-                    applyWindowSize()
                 } else {
                     forcedExpanded.value = null
                     expanded = false
@@ -196,6 +226,8 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
+            // Master switch: nothing shows when the cutout is disabled.
+            if (!behaviourState.value.cutoutEnabled) return@collect
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
 
@@ -205,7 +237,6 @@ class IslandOverlayController(private val context: Context) {
             expanded = autoExpand
             currentEvent.value = resolver.resolve(signal, customIcons)
                 .copy(initiallyExpanded = autoExpand)
-            applyWindowSize()
             scheduleDismiss()
         }
     }
@@ -214,7 +245,6 @@ class IslandOverlayController(private val context: Context) {
     private fun onExpandedChanged(isExpanded: Boolean) {
         val wasExpanded = expanded
         expanded = isExpanded
-        applyWindowSize()
         when {
             isExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
@@ -236,34 +266,33 @@ class IslandOverlayController(private val context: Context) {
             expanded = if (previewPinned) previewExpanded else false
             forcedExpanded.value = if (previewPinned) previewExpanded else null
             currentEvent.value = if (previewPinned) previewEvent else null
-            applyWindowSize()
         }
     }
 
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         @Suppress("DEPRECATION")
         val overlayType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-        // Explicit width (set per state in applyWindowSize); the height still wraps the pill so
-        // only the island's band intercepts touches, never the whole screen.
-        val initialWidth =
-            (displayWidthPx * IslandLayout.DEFAULT.collapsed.widthPercent / 100) + horizontalPaddingPx
+        // Full-width, fixed-height band. Starts non-touchable (nothing showing) and becomes
+        // touchable only while the island is visible (so tap-to-expand works).
         return WindowManager.LayoutParams(
-            initialWidth,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            windowHeightPx(IslandLayout.DEFAULT),
             overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            // Seed with the collapsed default until the persisted layout arrives.
-            x = (IslandLayout.DEFAULT.collapsed.offsetXDp * density).toInt()
-            y = (IslandLayout.DEFAULT.collapsed.offsetYDp * density).toInt()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             }
         }
+    }
+
+    private companion object {
+        const val WINDOW_MARGIN_DP = 24
     }
 }

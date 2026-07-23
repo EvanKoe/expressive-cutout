@@ -17,10 +17,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -58,19 +59,17 @@ private val PillSecondaryColor = Color(0xB3F5F5F5)
 private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /**
- * The interactive overlay island. Collapsed it shows just the icon at the user's collapsed
- * size; tapping expands it to the user's expanded size (revealing label + detail) and tapping
- * again collapses it. Size and corner radius animate between the two states.
- *
- * When [forcedExpanded] is non-null the island is locked to that state and ignores taps — used
- * by the settings preview so the tab selection drives which state is shown.
- * [onExpandedChange] lets the host switch window position and pause auto-dismiss.
+ * The interactive overlay island. The hosting window is a fixed size; the island's size,
+ * position and corners are all animated here in Compose, so expand/collapse never resizes the
+ * window (which caused per-frame relayout jank). Tapping toggles expanded; [forcedExpanded]
+ * locks the state (used by the settings preview).
  */
 @Composable
 fun DynamicIsland(
     event: IslandEvent?,
     collapsed: IslandDimensions,
     expanded: IslandDimensions,
+    displayWidthDp: Int,
     forcedExpanded: Boolean?,
     autoCollapse: Boolean,
     autoCollapseMs: Long,
@@ -80,20 +79,70 @@ fun DynamicIsland(
     if (event != null) {
         lastEvent = event
     }
+    val shownEvent = lastEvent
 
-    // The overlay window's width is set explicitly by the host, so the pill fills that width;
-    // this composable only drives height, corner and content.
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        // Draw-only enter/exit (alpha + scale) so the window is relaid out only when the island
-        // appears/disappears, not on every animation frame.
-        AnimatedVisibility(
-            visible = event != null,
-            enter = fadeIn(tween(150)) + scaleIn(tween(220, easing = EmphasizedEasing), initialScale = 0.85f),
-            exit = fadeOut(tween(120)) + scaleOut(tween(150), targetScale = 0.9f),
+    // Keyed on the shown event so tapping persists during that event and resets for a new one.
+    var tapExpanded by remember(shownEvent?.id) { mutableStateOf(shownEvent?.initiallyExpanded ?: false) }
+    val isExpanded = forcedExpanded ?: tapExpanded
+    val boopScale = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(isExpanded, event != null) {
+        if (event != null) onExpandedChange(isExpanded)
+    }
+    // User-expanded (not the pinned preview) optionally collapses after the delay.
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs) {
+        if (forcedExpanded == null && tapExpanded && autoCollapse) {
+            delay(autoCollapseMs)
+            tapExpanded = false
+        }
+    }
+
+    val dims = if (isExpanded) expanded else collapsed
+    val spec = tween<Dp>(durationMillis = 220, easing = EmphasizedEasing)
+    val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
+    val height by animateDpAsState(dims.heightDp.dp, spec, label = "islandHeight")
+    val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
+    val offsetY by animateDpAsState(dims.offsetYDp.dp, spec, label = "islandOffsetY")
+    val topLeft by animateDpAsState(dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
+    val topRight by animateDpAsState(dims.cornerTopRightDp.dp, spec, label = "cornerTR")
+    val bottomLeft by animateDpAsState(dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
+    val bottomRight by animateDpAsState(dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Position the island in the full-size (non-clipping) window; then animate visibility.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(x = offsetX, y = offsetY),
         ) {
-            lastEvent?.let {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    IslandContent(it, collapsed, expanded, forcedExpanded, autoCollapse, autoCollapseMs, onExpandedChange)
+            AnimatedVisibility(
+                visible = event != null,
+                enter = fadeIn(tween(150)) + scaleIn(tween(220, easing = EmphasizedEasing), initialScale = 0.85f),
+                exit = fadeOut(tween(120)) + scaleOut(tween(150), targetScale = 0.9f),
+            ) {
+                IslandSurface(
+                    modifier = Modifier
+                        .width(width)
+                        .height(height)
+                        .graphicsLayer { this.scaleX = boopScale.value }
+                        .pointerInput(forcedExpanded) {
+                            if (forcedExpanded != null) return@pointerInput
+                            detectTapGestures {
+                                tapExpanded = !tapExpanded
+                                scope.launch {
+                                    boopScale.animateTo(1.02f, tween(durationMillis = 120, easing = EmphasizedEasing))
+                                    boopScale.animateTo(1f, tween(durationMillis = 220, easing = EmphasizedEasing))
+                                }
+                            }
+                        },
+                    shape = cornerShape(topLeft, topRight, bottomLeft, bottomRight),
+                ) {
+                    Crossfade(targetState = isExpanded, animationSpec = tween(150), label = "islandContent") { showExpanded ->
+                        shownEvent?.let { e ->
+                            if (showExpanded) ExpandedContent(e) else CollapsedContent(e, collapsed.heightDp)
+                        }
+                    }
                 }
             }
         }
@@ -122,65 +171,6 @@ fun IslandPreview(
         ),
     ) {
         if (expanded) ExpandedContent(event) else CollapsedContent(event, heightDp)
-    }
-}
-
-@Composable
-private fun IslandContent(
-    event: IslandEvent,
-    collapsed: IslandDimensions,
-    expanded: IslandDimensions,
-    forcedExpanded: Boolean?,
-    autoCollapse: Boolean,
-    autoCollapseMs: Long,
-    onExpandedChange: (Boolean) -> Unit,
-) {
-    var tapExpanded by remember(event.id) { mutableStateOf(event.initiallyExpanded) }
-    val isExpanded = forcedExpanded ?: tapExpanded
-    val boopScale = remember { Animatable(1f) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(isExpanded) { onExpandedChange(isExpanded) }
-
-    // When the user expands it (not the pinned settings preview), optionally collapse back to
-    // the normal island after the configured delay. If auto-collapse is off it stays until the
-    // user taps again.
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs) {
-        if (forcedExpanded == null && tapExpanded && autoCollapse) {
-            delay(autoCollapseMs)
-            tapExpanded = false
-        }
-    }
-
-    val dims = if (isExpanded) expanded else collapsed
-    // Width is owned by the window (a percentage of the real display); the pill just fills it.
-    val sizeSpec = tween<Dp>(durationMillis = 220, easing = EmphasizedEasing)
-    val height by animateDpAsState(dims.heightDp.dp, sizeSpec, label = "islandHeight")
-    val topLeft by animateDpAsState(dims.cornerTopLeftDp.dp, sizeSpec, label = "cornerTL")
-    val topRight by animateDpAsState(dims.cornerTopRightDp.dp, sizeSpec, label = "cornerTR")
-    val bottomLeft by animateDpAsState(dims.cornerBottomLeftDp.dp, sizeSpec, label = "cornerBL")
-    val bottomRight by animateDpAsState(dims.cornerBottomRightDp.dp, sizeSpec, label = "cornerBR")
-
-    IslandSurface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .graphicsLayer { this.scaleX = boopScale.value }
-            .pointerInput(forcedExpanded) {
-                if (forcedExpanded != null) return@pointerInput
-                detectTapGestures {
-                    tapExpanded = !tapExpanded
-                    scope.launch {
-                        boopScale.animateTo(1.02f, tween(durationMillis = 120, easing = EmphasizedEasing))
-                        boopScale.animateTo(1f, tween(durationMillis = 220, easing = EmphasizedEasing))
-                    }
-                }
-            },
-        shape = cornerShape(topLeft, topRight, bottomLeft, bottomRight),
-    ) {
-        Crossfade(targetState = isExpanded, animationSpec = tween(150), label = "islandContent") { showExpanded ->
-            if (showExpanded) ExpandedContent(event) else CollapsedContent(event, collapsed.heightDp)
-        }
     }
 }
 

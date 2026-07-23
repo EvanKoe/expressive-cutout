@@ -66,6 +66,8 @@
     <string name="appearance_horizontal">Horizontal position</string>
     <string name="action_reset_layout">Reset to default</string>
     <string name="section_icons_title">Event icons</string>
+    <string name="cutout_enable_title">Dynamic cutout</string>
+    <string name="cutout_enable_desc">Show the island for notifications and system events</string>
     <string name="settings_size_subtitle">Island dimensions, position and live preview</string>
     <string name="settings_icons_subtitle">Pick an icon for each notification and system event</string>
     <string name="settings_behaviour_subtitle">How the expanded island collapses and dismisses</string>

@@ -19,6 +19,7 @@ private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDat
  * to the normal cutout (false).
  */
 data class BehaviourSettings(
+    val cutoutEnabled: Boolean = DEFAULT_CUTOUT_ENABLED,
     val normalDurationSeconds: Int = DEFAULT_NORMAL_SECONDS,
     val expandedAutoCollapse: Boolean = DEFAULT_AUTO_COLLAPSE,
     val expandedCollapseSeconds: Int = DEFAULT_COLLAPSE_SECONDS,
@@ -26,6 +27,7 @@ data class BehaviourSettings(
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
 ) {
     companion object {
+        const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_NORMAL_SECONDS = 3
         const val DEFAULT_AUTO_COLLAPSE = true
         const val DEFAULT_COLLAPSE_SECONDS = 5
@@ -43,6 +45,7 @@ class BehaviourPreferences(private val context: Context) {
 
     val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
         BehaviourSettings(
+            cutoutEnabled = prefs[CUTOUT_ENABLED] ?: BehaviourSettings.DEFAULT_CUTOUT_ENABLED,
             normalDurationSeconds = (prefs[NORMAL_SECONDS] ?: BehaviourSettings.DEFAULT_NORMAL_SECONDS)
                 .coerceIn(BehaviourSettings.MIN_NORMAL_SECONDS, BehaviourSettings.MAX_NORMAL_SECONDS),
             expandedAutoCollapse = prefs[AUTO_COLLAPSE] ?: BehaviourSettings.DEFAULT_AUTO_COLLAPSE,
@@ -51,6 +54,10 @@ class BehaviourPreferences(private val context: Context) {
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
         )
+    }
+
+    suspend fun setCutoutEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[CUTOUT_ENABLED] = enabled
     }
 
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
@@ -80,6 +87,7 @@ class BehaviourPreferences(private val context: Context) {
     }
 
     private companion object {
+        val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
         val AUTO_COLLAPSE = booleanPreferencesKey("expanded_auto_collapse")
         val COLLAPSE_SECONDS = intPreferencesKey("expanded_collapse_seconds")

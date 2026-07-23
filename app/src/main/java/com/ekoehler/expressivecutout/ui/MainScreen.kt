@@ -32,6 +32,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,6 +70,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var settingsRoute by rememberSaveable { mutableStateOf(SettingsRoute.List) }
     val tabs = HomeTab.entries
     val current = tabs[selectedIndex]
+    val haptics = LocalHapticFeedback.current
 
     // On a Settings detail screen the bottom bar becomes a back pill instead of the tab bar.
     val inSubScreen = current == HomeTab.Settings && settingsRoute != SettingsRoute.List
@@ -146,7 +149,12 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 ExpressiveNavBar(
                     items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
                     selectedIndex = selectedIndex,
-                    onSelect = { selectedIndex = it },
+                    onSelect = { index ->
+                        if (index != selectedIndex) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        selectedIndex = index
+                    },
                     modifier = barModifier,
                 )
             }
