@@ -1,0 +1,7 @@
+# Keep binaries intact and enforce correct line endings for the Gradle wrapper.
+*.jar binary
+*.keystore binary
+*.jks binary
+gradlew text eol=lf
+*.bat text eol=crlf
+* text=auto

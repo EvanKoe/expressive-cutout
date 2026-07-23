@@ -9,4 +9,10 @@
 .externalNativeBuild/
 .cxx/
 *.apk
+*.aab
 *.keystore
+*.jks
+keystore.properties
+key.properties
+.kotlin/
+google-services.json
