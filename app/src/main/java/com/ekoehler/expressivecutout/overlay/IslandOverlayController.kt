@@ -93,6 +93,7 @@ class IslandOverlayController(private val context: Context) {
     private var composeView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var dismissJob: Job? = null
+    private var windowResizeJob: Job? = null
 
     fun start() {
         lifecycleOwner.onCreate()
@@ -108,6 +109,7 @@ class IslandOverlayController(private val context: Context) {
 
     fun stop() {
         dismissJob?.cancel()
+        windowResizeJob?.cancel()
         removeOverlay()
         lifecycleOwner.onDestroy()
         scope.cancel()
@@ -161,7 +163,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
             layoutState.value = layout
-            applyWindowHeight()
+            syncWindowHeight()
         }
     }
 
@@ -171,15 +173,37 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * The window is a fixed full-width band tall enough for whichever state extends lowest, so
-     * the island can be positioned/sized freely inside without ever resizing the window.
+     * Resize the window to hug the current island state (collapsed vs expanded height), so the
+     * empty band below a collapsed pill stops swallowing touches. The pill itself is still
+     * animated inside Compose — this only changes the window at the two rest states, never per
+     * frame, so the expand/collapse animation stays smooth.
+     *
+     * Grow/shrink is asymmetric: growing (expand) happens immediately so the window always has
+     * room for the pill before it animates open; shrinking (collapse) is deferred until the pill
+     * has finished collapsing, so the window never clips it mid-animation.
      */
-    private fun applyWindowHeight() {
+    private fun syncWindowHeight() {
+        requestWindowHeight(windowHeightPx(layoutState.value, expanded))
+    }
+
+    private fun requestWindowHeight(targetHeightPx: Int) {
+        val params = layoutParams ?: return
+        windowResizeJob?.cancel()
+        if (targetHeightPx >= params.height) {
+            resizeWindowHeight(targetHeightPx)
+        } else {
+            windowResizeJob = scope.launch {
+                delay(WINDOW_SHRINK_DELAY_MS)
+                resizeWindowHeight(targetHeightPx)
+            }
+        }
+    }
+
+    private fun resizeWindowHeight(targetHeightPx: Int) {
         val view = composeView ?: return
         val params = layoutParams ?: return
-        val targetHeight = windowHeightPx(layoutState.value)
-        if (params.height != targetHeight) {
-            params.height = targetHeight
+        if (params.height != targetHeightPx) {
+            params.height = targetHeightPx
             runCatching { windowManager.updateViewLayout(view, params) }
         }
     }
@@ -195,6 +219,7 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /** Tall enough for whichever state extends lowest — used for the initial, safe window size. */
     private fun windowHeightPx(layout: IslandLayout): Int {
         val collapsed = layout.collapsed
         val expanded = layout.expanded
@@ -203,6 +228,12 @@ class IslandOverlayController(private val context: Context) {
             expanded.offsetYDp + expanded.heightDp,
         )
         return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
+    }
+
+    /** Height needed to contain just one state's pill. */
+    private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
+        val dims = if (expanded) layout.expanded else layout.collapsed
+        return ((dims.offsetYDp + dims.heightDp + WINDOW_MARGIN_DP) * density).toInt()
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
@@ -221,6 +252,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
+                syncWindowHeight()
             }
     }
 
@@ -237,6 +269,7 @@ class IslandOverlayController(private val context: Context) {
             expanded = autoExpand
             currentEvent.value = resolver.resolve(signal, customIcons)
                 .copy(initiallyExpanded = autoExpand)
+            syncWindowHeight()
             scheduleDismiss()
         }
     }
@@ -245,6 +278,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onExpandedChanged(isExpanded: Boolean) {
         val wasExpanded = expanded
         expanded = isExpanded
+        syncWindowHeight()
         when {
             isExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
@@ -266,6 +300,7 @@ class IslandOverlayController(private val context: Context) {
             expanded = if (previewPinned) previewExpanded else false
             forcedExpanded.value = if (previewPinned) previewExpanded else null
             currentEvent.value = if (previewPinned) previewEvent else null
+            syncWindowHeight()
         }
     }
 
@@ -294,5 +329,9 @@ class IslandOverlayController(private val context: Context) {
 
     private companion object {
         const val WINDOW_MARGIN_DP = 24
+
+        // Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
+        // animation, then shrink — so the collapse never clips and the freed area becomes tappable.
+        const val WINDOW_SHRINK_DELAY_MS = 300L
     }
 }
