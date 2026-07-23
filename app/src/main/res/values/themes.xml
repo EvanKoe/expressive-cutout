@@ -1,0 +1,13 @@
+<resources>
+    <!--
+        Minimal base theme. All in-app UI is themed by Compose (MaterialTheme);
+        this platform theme only removes the action bar and provides window defaults.
+    -->
+    <style name="Theme.ExpressiveCutout" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
