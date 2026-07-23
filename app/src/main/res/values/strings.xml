@@ -49,12 +49,37 @@
     <string name="appearance_preview">Preview</string>
     <string name="appearance_width">Width</string>
     <string name="appearance_height">Height</string>
+    <string name="appearance_corner">Corner radius</string>
+    <string name="corner_mode_all">All</string>
+    <string name="corner_mode_split">Top / Bottom</string>
+    <string name="corner_mode_each">Each</string>
+    <string name="appearance_corner_all">All corners</string>
+    <string name="appearance_corner_top">Top corners</string>
+    <string name="appearance_corner_bottom">Bottom corners</string>
+    <string name="appearance_corner_tl">Top left</string>
+    <string name="appearance_corner_tr">Top right</string>
+    <string name="appearance_corner_bl">Bottom left</string>
+    <string name="appearance_corner_br">Bottom right</string>
+    <string name="tab_normal">Normal</string>
+    <string name="tab_expanded">Expanded</string>
     <string name="appearance_vertical">Vertical position</string>
     <string name="appearance_horizontal">Horizontal position</string>
     <string name="action_reset_layout">Reset to default</string>
     <string name="section_icons_title">Event icons</string>
     <string name="settings_size_subtitle">Island dimensions, position and live preview</string>
     <string name="settings_icons_subtitle">Pick an icon for each notification and system event</string>
+    <string name="settings_behaviour_subtitle">How the expanded island collapses and dismisses</string>
+
+    <!-- Behaviour tab -->
+    <string name="behaviour_title">Behaviour</string>
+    <string name="behaviour_normal_duration">Normal cutout duration</string>
+    <string name="behaviour_auto_collapse">Collapse automatically</string>
+    <string name="behaviour_auto_collapse_desc">Shrink the expanded island after a delay. When off, it stays expanded until you tap it.</string>
+    <string name="behaviour_collapse_delay">Collapse after</string>
+    <string name="behaviour_disappear">Disappear when it shrinks</string>
+    <string name="behaviour_disappear_desc">When the island shrinks it disappears entirely, instead of returning to the normal cutout.</string>
+    <string name="behaviour_notif_auto_expand">Auto-expand notifications</string>
+    <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
     <string name="preview_label">Preview</string>
     <string name="preview_detail">Tap the island to expand or collapse</string>
     <string name="cd_decrease">Decrease</string>

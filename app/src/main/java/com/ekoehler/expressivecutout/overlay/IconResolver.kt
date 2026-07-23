@@ -40,11 +40,13 @@ class IconResolver(private val context: Context) {
             .map { IslandIcon.Raster(it) as IslandIcon }
             .getOrDefault(IslandIcon.Vector(SystemEventType.DEVICE_UNLOCKED.defaultIcon))
 
+        val title = signal.title?.takeIf { it.isNotBlank() }
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
-            label = appLabel,
-            detail = signal.title?.takeIf { it.isNotBlank() },
+            // Expanded shows the notification's title and text; the icon conveys the app.
+            label = title ?: appLabel,
+            detail = signal.text?.takeIf { it.isNotBlank() },
             accent = NOTIFICATION_ACCENT,
         )
     }

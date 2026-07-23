@@ -25,9 +25,12 @@ The in-app UI is a single screen with a floating, animated **expressive bottom n
 (`ui/components/ExpressiveNavBar`) and three tabs:
 
 - **Settings** — a list that opens two focused sub-screens:
-  - **Size & position** — island width/height & position with stepper sliders and a live
-    preview (switchable light/dark background) that draws the device's real camera cutout
-    to scale. Only this screen runs the live preview / pins the on-device overlay.
+  - **Size & position** — two tabs, **Normal** and **Expanded**, each with independent
+    width (as a **% of screen width**, so it scales to any device and can span the full
+    screen), height, corner radius and position (stepper sliders) and a live preview
+    (switchable light/dark background) that draws the device's real camera cutout to scale.
+    Only this screen runs the live preview / pins the on-device overlay, and the pinned
+    island mirrors the tab you're editing.
   - **Event icons** — a per-event icon override that can be an **image file or an installed
     app's icon**.
 - **Permissions** — notification access, overlay (accessibility) and battery-optimisation,

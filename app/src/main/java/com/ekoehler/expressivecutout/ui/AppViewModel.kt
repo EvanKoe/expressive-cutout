@@ -4,8 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.BehaviourPreferences
+import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.ThemePreferences
@@ -25,9 +29,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
+    private val behaviourPreferences = BehaviourPreferences(application)
+    private val eventPreferences = EventPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
+    val eventEnabled: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.enabled.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
@@ -47,6 +60,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = AppTheme.SYSTEM,
         )
 
+    val behaviour: StateFlow<BehaviourSettings> =
+        behaviourPreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = BehaviourSettings(),
+        )
+
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
         preferences.setIcon(type, IconSource.Image(uri))
     }
@@ -59,15 +79,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         preferences.clearIcon(type)
     }
 
-    fun setWidth(widthDp: Int) = viewModelScope.launch { layoutPreferences.setWidth(widthDp) }
+    fun setEventEnabled(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setEnabled(type, enabled)
+    }
 
-    fun setHeight(heightDp: Int) = viewModelScope.launch { layoutPreferences.setHeight(heightDp) }
+    fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
+        layoutPreferences.setCollapsed(dimensions)
+    }
 
-    fun setOffsetX(offsetXDp: Int) = viewModelScope.launch { layoutPreferences.setOffsetX(offsetXDp) }
-
-    fun setOffsetY(offsetYDp: Int) = viewModelScope.launch { layoutPreferences.setOffsetY(offsetYDp) }
+    fun setExpandedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
+        layoutPreferences.setExpanded(dimensions)
+    }
 
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { themePreferences.setTheme(theme) }
+
+    fun setNormalDurationSeconds(seconds: Int) = viewModelScope.launch {
+        behaviourPreferences.setNormalDurationSeconds(seconds)
+    }
+
+    fun setExpandedAutoCollapse(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setAutoCollapse(enabled)
+    }
+
+    fun setExpandedCollapseSeconds(seconds: Int) = viewModelScope.launch {
+        behaviourPreferences.setCollapseSeconds(seconds)
+    }
+
+    fun setExpandedDisappearOnShrink(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDisappearOnShrink(enabled)
+    }
+
+    fun setNotificationsAutoExpand(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setNotificationsAutoExpand(enabled)
+    }
 }

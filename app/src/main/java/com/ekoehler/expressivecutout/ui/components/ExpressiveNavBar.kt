@@ -52,8 +52,8 @@ fun ExpressiveNavBar(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
         tonalElevation = 0.dp,
         shadowElevation = 6.dp,
     ) {
@@ -81,7 +81,7 @@ private fun NavBarPill(
 ) {
     val containerColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.primary
+            MaterialTheme.colorScheme.surface
         } else {
             Color.Transparent
         },
@@ -90,9 +90,9 @@ private fun NavBarPill(
     )
     val contentColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.onPrimary
+            MaterialTheme.colorScheme.primary
         } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
+            MaterialTheme.colorScheme.surface
         },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "navPillContent",

@@ -1,39 +1,83 @@
 package com.ekoehler.expressivecutout.data
 
 /**
- * User-tunable geometry of the island. [widthDp]/[heightDp] set the pill's size directly
- * and independently; [offsetXDp]/[offsetYDp] shift it from its top-centre anchor (positive
- * X moves right, positive Y moves down). Every value is clamped to the ranges below so the
- * pill can never collapse or be pushed fully off-screen.
+ * Geometry for one island state. [widthPercent] is the width as a percentage of the screen
+ * width (so it scales to any device and can span the whole screen); [heightDp] is the height;
+ * [offsetXDp]/[offsetYDp] shift it from its top-centre anchor (positive X right, positive Y
+ * down); and the four corner radii round each corner independently. All values are clamped to
+ * the ranges below.
  */
-data class IslandLayout(
-    val widthDp: Int = DEFAULT_WIDTH_DP,
-    val heightDp: Int = DEFAULT_HEIGHT_DP,
-    val offsetXDp: Int = DEFAULT_OFFSET_X_DP,
-    val offsetYDp: Int = DEFAULT_OFFSET_Y_DP,
+data class IslandDimensions(
+    val widthPercent: Int,
+    val heightDp: Int,
+    val offsetXDp: Int,
+    val offsetYDp: Int,
+    val cornerTopLeftDp: Int,
+    val cornerTopRightDp: Int,
+    val cornerBottomLeftDp: Int,
+    val cornerBottomRightDp: Int,
 ) {
     companion object {
-        const val DEFAULT_WIDTH_DP = 132
-        const val DEFAULT_HEIGHT_DP = 34
-        const val DEFAULT_OFFSET_X_DP = 0
-        const val DEFAULT_OFFSET_Y_DP = 6
-
-        const val MIN_WIDTH_DP = 60
-        const val MAX_WIDTH_DP = 340
+        const val MIN_WIDTH_PERCENT = 10
+        const val MAX_WIDTH_PERCENT = 100
         const val MIN_HEIGHT_DP = 22
-        const val MAX_HEIGHT_DP = 96
-        const val MIN_OFFSET_X_DP = -180
-        const val MAX_OFFSET_X_DP = 180
+        const val MAX_HEIGHT_DP = 220
+        const val MIN_OFFSET_X_DP = -200
+        const val MAX_OFFSET_X_DP = 200
         const val MIN_OFFSET_Y_DP = 0
-        const val MAX_OFFSET_Y_DP = 160
+        const val MAX_OFFSET_Y_DP = 400
+        const val MIN_CORNER_DP = 0
+        const val MAX_CORNER_DP = 110
 
-        val DEFAULT = IslandLayout()
-
-        fun of(widthDp: Int, heightDp: Int, offsetXDp: Int, offsetYDp: Int) = IslandLayout(
-            widthDp = widthDp.coerceIn(MIN_WIDTH_DP, MAX_WIDTH_DP),
+        fun of(
+            widthPercent: Int,
+            heightDp: Int,
+            offsetXDp: Int,
+            offsetYDp: Int,
+            cornerTopLeftDp: Int,
+            cornerTopRightDp: Int,
+            cornerBottomLeftDp: Int,
+            cornerBottomRightDp: Int,
+        ) = IslandDimensions(
+            widthPercent = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT),
             heightDp = heightDp.coerceIn(MIN_HEIGHT_DP, MAX_HEIGHT_DP),
             offsetXDp = offsetXDp.coerceIn(MIN_OFFSET_X_DP, MAX_OFFSET_X_DP),
             offsetYDp = offsetYDp.coerceIn(MIN_OFFSET_Y_DP, MAX_OFFSET_Y_DP),
+            cornerTopLeftDp = cornerTopLeftDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
+            cornerTopRightDp = cornerTopRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
+            cornerBottomLeftDp = cornerBottomLeftDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
+            cornerBottomRightDp = cornerBottomRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
         )
+    }
+}
+
+/** The two independently configurable island states. */
+data class IslandLayout(
+    val collapsed: IslandDimensions = DEFAULT_COLLAPSED,
+    val expanded: IslandDimensions = DEFAULT_EXPANDED,
+) {
+    companion object {
+        val DEFAULT_COLLAPSED = IslandDimensions(
+            widthPercent = 38,
+            heightDp = 34,
+            offsetXDp = 0,
+            offsetYDp = 6,
+            cornerTopLeftDp = 17,
+            cornerTopRightDp = 17,
+            cornerBottomLeftDp = 17,
+            cornerBottomRightDp = 17,
+        )
+        val DEFAULT_EXPANDED = IslandDimensions(
+            widthPercent = 90,
+            heightDp = 108,
+            offsetXDp = 0,
+            offsetYDp = 6,
+            cornerTopLeftDp = 30,
+            cornerTopRightDp = 30,
+            cornerBottomLeftDp = 30,
+            cornerBottomRightDp = 30,
+        )
+
+        val DEFAULT = IslandLayout()
     }
 }

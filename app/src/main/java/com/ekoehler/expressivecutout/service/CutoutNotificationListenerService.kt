@@ -7,8 +7,8 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 
 /**
- * Mirrors freshly posted notifications onto the island. It keeps only the posting
- * package and title — never the message body — and filters out noise (its own posts,
+ * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
+ * title and text (shown when the island is expanded) and filters out noise (its own posts,
  * group summaries, and ongoing/system-managed notifications).
  */
 class CutoutNotificationListenerService : NotificationListenerService() {
@@ -17,11 +17,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val notification = sbn ?: return
         if (!notification.shouldSurface()) return
 
-        val title = notification.notification.extras
-            ?.getCharSequence(Notification.EXTRA_TITLE)
-            ?.toString()
+        val extras = notification.notification.extras
+        val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
-        IslandEventBus.emit(CutoutSignal.Notification(notification.packageName, title))
+        IslandEventBus.emit(CutoutSignal.Notification(notification.packageName, title, text))
     }
 
     private fun StatusBarNotification.shouldSurface(): Boolean {

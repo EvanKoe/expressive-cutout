@@ -25,6 +25,7 @@ sealed interface CutoutSignal {
     data class Notification(
         val packageName: String,
         val title: String?,
+        val text: String? = null,
     ) : CutoutSignal
 
     /** A device-level event occurred. */

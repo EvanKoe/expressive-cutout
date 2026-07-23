@@ -25,4 +25,5 @@ data class IslandEvent(
     val label: String,
     val detail: String? = null,
     val accent: Color,
+    val initiallyExpanded: Boolean = false,
 )
