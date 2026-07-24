@@ -53,6 +53,7 @@ fun SettingsTab(
     onOpenEventIcons: () -> Unit,
     onOpenBehaviour: () -> Unit,
     onOpenAppearance: () -> Unit,
+    onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
@@ -73,22 +74,23 @@ fun SettingsTab(
         SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
         SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
         SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
-        SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenActionButtons)
+        SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
+        SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
         SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance, Background, ActionButtons }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
- * but ActionButtons is reached from Appearance, so it steps back there first.
+ * but Background and ActionButtons are reached from Appearance, so they step back there first.
  */
 val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
-        SettingsRoute.ActionButtons -> SettingsRoute.Appearance
+        SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
         else -> SettingsRoute.List
     }
 

@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -168,6 +169,12 @@ fun DynamicIsland(
     val topRight by animateDpAsState(dims.cornerTopRightDp.dp, spec, label = "cornerTR")
     val bottomLeft by animateDpAsState(dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
     val bottomRight by animateDpAsState(dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
+    // Drives the background cross-fade between the normal and expanded fills, in step with the size.
+    val expandProgress by animateFloatAsState(
+        targetValue = if (isExpanded) 1f else 0f,
+        animationSpec = tween(durationMillis = 220, easing = EmphasizedEasing),
+        label = "islandBackgroundFade",
+    )
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Position the island in the full-size (non-clipping) window; then animate visibility.
@@ -223,6 +230,7 @@ fun DynamicIsland(
                         },
                     shape = cornerShape(topLeft, topRight, bottomLeft, bottomRight),
                     appearance = appearance,
+                    progress = expandProgress,
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(150), label = "islandContent") { showExpanded ->
                         shownEvent?.let { e ->
@@ -274,6 +282,8 @@ fun IslandPreview(
             bottomRight = cornerBottomRightDp.dp,
         ),
         appearance = appearance,
+        // A static preview shows one state outright, so snap the fill to it.
+        progress = if (expanded) 1f else 0f,
     ) {
         if (expanded) {
             ExpandedContent(
@@ -292,31 +302,58 @@ fun IslandPreview(
     }
 }
 
+/**
+ * The island's surface: shadow, optional stroke and the background fill. [progress] (0 = collapsed,
+ * 1 = expanded) cross-fades the normal fill into the expanded fill, so if the two states use
+ * different colours (or gradients) the background morphs in lockstep with the size animation.
+ */
 @Composable
 private fun IslandSurface(
     modifier: Modifier,
     shape: Shape,
     appearance: AppearanceSettings,
+    progress: Float,
     content: @Composable () -> Unit,
 ) {
-    val background = appearance.backgroundColor.resolve()
-    // Keep text/icons legible: dark ink on a light fill, otherwise the near-white default.
-    val contentColor = if (background.luminance() > 0.5f) PillTextColorDark else PillTextColor
+    val normalBrush = appearance.backgroundNormal.resolveBrush()
+    val expandedBrush = appearance.backgroundExpanded.resolveBrush()
+    // Keep text/icons legible: dark ink on a light fill, otherwise the near-white default. The
+    // reference colour tracks the fade so ink flips at the right moment when the states differ.
+    val repColor = lerp(
+        appearance.backgroundNormal.representativeColor(),
+        appearance.backgroundExpanded.representativeColor(),
+        progress,
+    )
+    val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
     val border = if (appearance.strokeEnabled) {
         BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
     } else {
         null
     }
+    // The Surface itself is transparent (so a gradient fill is possible); the fill is drawn by the
+    // opaque child below, which also keeps the layer opaque so the elevation shadow still renders.
     Surface(
         modifier = modifier,
         shape = shape,
-        color = background,
+        color = Color.Transparent,
         contentColor = contentColor,
         shadowElevation = if (appearance.shadowEnabled) 6.dp else 0.dp,
         tonalElevation = 0.dp,
         border = border,
-        content = content,
-    )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().background(normalBrush))
+            if (progress > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = progress }
+                        .background(expandedBrush),
+                )
+            }
+            content()
+        }
+    }
 }
 
 /** Builds a rounded shape with each corner independently sized (LTR-mapped). */

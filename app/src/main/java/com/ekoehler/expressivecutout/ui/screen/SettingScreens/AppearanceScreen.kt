@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -96,6 +97,7 @@ private val PresetColors = listOf(
 internal fun AppearanceScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -201,15 +203,56 @@ internal fun AppearanceScreen(
             )
         }
 
-        ColorPickerCard(
-            label = stringResource(R.string.appearance_background_color),
-            selected = appearance.backgroundColor,
-            onSelect = { it?.let(viewModel::setBackgroundColor) },
-        )
+        // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
+        // and gradients, one per state).
+        BackgroundCard(onClick = onOpenBackground)
 
         // Opens the dedicated screen for the expanded cutout's action chips and reply field
         // (including the send/cancel reply-button colours).
         ActionButtonsCard(onClick = onOpenActionButtons)
+    }
+}
+
+/** A clickable card that navigates to the dedicated background-fill screen. */
+@Composable
+private fun BackgroundCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.FormatColorFill,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.appearance_background_color),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_background_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

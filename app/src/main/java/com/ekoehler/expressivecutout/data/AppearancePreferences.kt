@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
 
@@ -34,6 +35,103 @@ sealed interface CutoutColor {
             value == null -> null
             value == DYNAMIC -> Dynamic
             else -> value.toLongOrNull()?.let(::Solid)
+        }
+    }
+}
+
+/** Which Material You colour-scheme role a [ColorSpec.Dynamic] follows. */
+enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
+
+/** Direction a [CutoutFill.Gradient] runs across the island. */
+enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
+
+/**
+ * A single resolvable colour used by a [CutoutFill] (as a solid fill or a gradient stop): either a
+ * [Fixed] ARGB value or a Material You [Dynamic] role resolved at render time. Both carry an
+ * opacity — [Fixed] in its ARGB alpha byte, [Dynamic] in [Dynamic.alpha] — so any colour can be
+ * made translucent. Serialized without the `:` used by [Fixed] so gradients can delimit on `|`.
+ */
+sealed interface ColorSpec {
+    data class Fixed(val argb: Long) : ColorSpec
+    data class Dynamic(val role: DynamicRole, val alpha: Float = 1f) : ColorSpec
+
+    /** 0f..1f opacity of this colour. */
+    val opacity: Float
+        get() = when (this) {
+            is Fixed -> ((argb ushr 24) and 0xFF) / 255f
+            is Dynamic -> alpha
+        }
+
+    /** A copy of this colour at the given [opacity] (0f..1f). */
+    fun withOpacity(opacity: Float): ColorSpec {
+        val a = (opacity.coerceIn(0f, 1f) * 255f).roundToInt().toLong()
+        return when (this) {
+            is Fixed -> Fixed((argb and 0x00FFFFFFL) or (a shl 24))
+            is Dynamic -> copy(alpha = opacity.coerceIn(0f, 1f))
+        }
+    }
+
+    fun serialize(): String = when (this) {
+        is Fixed -> argb.toString()
+        is Dynamic -> "$DYNAMIC:${role.name}:$alpha"
+    }
+
+    companion object {
+        private const val DYNAMIC = "dynamic"
+
+        fun deserialize(value: String?): ColorSpec? = when {
+            value == null -> null
+            // Legacy bare "dynamic" (from the old CutoutColor default).
+            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
+            value.startsWith("$DYNAMIC:") -> {
+                val parts = value.split(':')
+                val role = runCatching { DynamicRole.valueOf(parts[1]) }.getOrDefault(DynamicRole.PRIMARY)
+                val alpha = parts.getOrNull(2)?.toFloatOrNull() ?: 1f
+                Dynamic(role, alpha.coerceIn(0f, 1f))
+            }
+            // A bare ARGB number.
+            else -> value.toLongOrNull()?.let(::Fixed)
+        }
+    }
+}
+
+/**
+ * The fill painted behind the island. Richer than [CutoutColor] (it also allows a two-colour
+ * [Gradient]) and used only for the background, which has an independent value for the collapsed
+ * ([AppearanceSettings.backgroundNormal]) and expanded ([AppearanceSettings.backgroundExpanded])
+ * states. Serialized to a single string so it fits one preference key.
+ *
+ * [deserialize] also accepts the legacy [CutoutColor] encoding (`"dynamic"` or a bare ARGB number)
+ * so an existing single background colour migrates into both states with no data loss.
+ */
+sealed interface CutoutFill {
+    data class Solid(val color: ColorSpec) : CutoutFill
+    data class Gradient(
+        val start: ColorSpec,
+        val end: ColorSpec,
+        val direction: GradientDirection,
+    ) : CutoutFill
+
+    fun serialize(): String = when (this) {
+        is Solid -> color.serialize()
+        is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name).joinToString("|")
+    }
+
+    companion object {
+        private const val GRADIENT = "gradient"
+
+        fun deserialize(value: String?): CutoutFill? = when {
+            value == null -> null
+            value.startsWith("$GRADIENT|") -> {
+                val parts = value.split('|')
+                val start = ColorSpec.deserialize(parts.getOrNull(1))
+                val end = ColorSpec.deserialize(parts.getOrNull(2))
+                val direction = runCatching { GradientDirection.valueOf(parts[3]) }
+                    .getOrDefault(GradientDirection.VERTICAL)
+                if (start != null && end != null) Gradient(start, end, direction) else null
+            }
+            // Anything else is a single colour (incl. the legacy "dynamic" / bare-ARGB encodings).
+            else -> ColorSpec.deserialize(value)?.let(::Solid)
         }
     }
 }
@@ -87,7 +185,8 @@ data class AppearanceSettings(
     val strokeEnabled: Boolean = DEFAULT_STROKE_ENABLED,
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
-    val backgroundColor: CutoutColor = DEFAULT_BACKGROUND_COLOR,
+    val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
+    val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
     val cancelButtonColor: CutoutColor? = DEFAULT_CANCEL_BUTTON_COLOR,
     val actionButtonStyle: ActionButtonStyle = DEFAULT_ACTION_BUTTON_STYLE,
@@ -104,7 +203,7 @@ data class AppearanceSettings(
         const val MAX_STROKE_WIDTH_DP = 8
 
         // Match the pill's historical look: near-black fill, white stroke.
-        val DEFAULT_BACKGROUND_COLOR: CutoutColor = CutoutColor.Solid(0xFF0A0A0A)
+        val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
 
         // null keeps the historical reply-button look: the send button matches the
@@ -134,7 +233,12 @@ class AppearancePreferences(private val context: Context) {
             strokeWidthDp = (prefs[STROKE_WIDTH] ?: AppearanceSettings.DEFAULT_STROKE_WIDTH_DP)
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
-            backgroundColor = CutoutColor.deserialize(prefs[BACKGROUND_COLOR]) ?: AppearanceSettings.DEFAULT_BACKGROUND_COLOR,
+            // Fall back to the legacy single background colour so existing installs migrate into
+            // both states, then to the built-in default.
+            backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
+                ?: AppearanceSettings.DEFAULT_BACKGROUND_FILL,
+            backgroundExpanded = CutoutFill.deserialize(prefs[BACKGROUND_EXPANDED] ?: prefs[BACKGROUND_COLOR])
+                ?: AppearanceSettings.DEFAULT_BACKGROUND_FILL,
             sendButtonColor = CutoutColor.deserialize(prefs[SEND_BUTTON_COLOR]),
             cancelButtonColor = CutoutColor.deserialize(prefs[CANCEL_BUTTON_COLOR]),
             actionButtonStyle = ActionButtonStyle.deserialize(prefs[ACTION_BUTTON_STYLE])
@@ -167,8 +271,12 @@ class AppearancePreferences(private val context: Context) {
         it[STROKE_COLOR] = color.serialize()
     }
 
-    suspend fun setBackgroundColor(color: CutoutColor) = context.appearanceDataStore.edit {
-        it[BACKGROUND_COLOR] = color.serialize()
+    suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
+        it[BACKGROUND_NORMAL] = fill.serialize()
+    }
+
+    suspend fun setBackgroundExpanded(fill: CutoutFill) = context.appearanceDataStore.edit {
+        it[BACKGROUND_EXPANDED] = fill.serialize()
     }
 
     /** A null [color] clears the override, restoring the accent-following default. */
@@ -210,7 +318,10 @@ class AppearancePreferences(private val context: Context) {
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
+        // Legacy single-colour key, still read to migrate existing installs into the two new keys.
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
+        val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")
+        val BACKGROUND_EXPANDED = stringPreferencesKey("background_expanded")
         val SEND_BUTTON_COLOR = stringPreferencesKey("send_button_color")
         val CANCEL_BUTTON_COLOR = stringPreferencesKey("cancel_button_color")
         val ACTION_BUTTON_STYLE = stringPreferencesKey("action_button_style")

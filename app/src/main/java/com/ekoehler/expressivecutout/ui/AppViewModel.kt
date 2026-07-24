@@ -11,6 +11,7 @@ import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
@@ -156,8 +157,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setStrokeColor(color)
     }
 
-    fun setBackgroundColor(color: CutoutColor) = viewModelScope.launch {
-        appearancePreferences.setBackgroundColor(color)
+    fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {
+        appearancePreferences.setBackgroundNormal(fill)
+    }
+
+    fun setBackgroundExpanded(fill: CutoutFill) = viewModelScope.launch {
+        appearancePreferences.setBackgroundExpanded(fill)
     }
 
     fun setSendButtonColor(color: CutoutColor?) = viewModelScope.launch {

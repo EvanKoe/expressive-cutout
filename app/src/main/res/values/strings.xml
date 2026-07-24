@@ -98,6 +98,25 @@
     <string name="cd_color_tertiary">Tertiary colour</string>
     <string name="cd_color_error">Error colour</string>
 
+    <!-- Background screen -->
+    <string name="settings_background_subtitle">Separate colours or gradients for the normal and expanded cutout</string>
+    <string name="label_solid">Solid</string>
+    <string name="label_gradient">Gradient</string>
+    <string name="gradient_start">Start colour</string>
+    <string name="gradient_end">End colour</string>
+    <string name="gradient_direction">Direction</string>
+    <string name="opacity">Opacity</string>
+    <string name="gradient_vertical">Vertical</string>
+    <string name="gradient_diagonal">Diagonal</string>
+    <string name="gradient_horizontal">Horizontal</string>
+    <string name="cd_color_dynamic_primary">Material You primary</string>
+    <string name="cd_color_dynamic_secondary">Material You secondary</string>
+    <string name="cd_color_dynamic_tertiary">Material You tertiary</string>
+    <string name="cd_color_black">Black</string>
+    <string name="cd_color_dark_grey">Dark grey</string>
+    <string name="cd_color_light_grey">Light grey</string>
+    <string name="cd_color_white">White</string>
+
     <!-- Action buttons screen -->
     <string name="action_buttons_title">Action buttons</string>
     <string name="settings_action_buttons_subtitle">Style, colour and layout of the expanded cutout\'s buttons</string>
