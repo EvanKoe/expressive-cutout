@@ -70,8 +70,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -482,13 +484,20 @@ private fun Modifier.pressScale(
     }
 }
 
-/** An inline reply field with send/cancel affordances; requests focus so the keyboard appears. */
+/**
+ * An inline reply field with send/cancel affordances; requests focus so the keyboard appears.
+ * [inputStyle] shapes the text field (Expressive pill / Material You / Material 2), [cancelOnLeft]
+ * moves the cancel button to the leading edge, and [heightDp] sizes the field and buttons.
+ */
 @Composable
 private fun ReplyRow(
     hint: String?,
     accent: Color,
     sendColor: Color,
     cancelColor: Color?,
+    inputStyle: ReplyInputStyle,
+    cancelOnLeft: Boolean,
+    heightDp: Int,
     onSend: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -499,77 +508,133 @@ private fun ReplyRow(
 
     val cancelInteraction = remember { MutableInteractionSource() }
     val sendInteraction = remember { MutableInteractionSource() }
+    val fieldShape = when (inputStyle) {
+        ReplyInputStyle.EXPRESSIVE -> CircleShape
+        ReplyInputStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+        ReplyInputStyle.MATERIAL_2 -> RoundedCornerShape(4.dp)
+    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(48.dp)
-                .clip(CircleShape)
-                .background(LocalContentColor.current.copy(alpha = 0.12f))
-                .padding(horizontal = 18.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                textStyle = TextStyle(color = LocalContentColor.current, fontSize = 15.sp),
-                cursorBrush = SolidColor(accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                decorationBox = { inner ->
-                    if (text.isEmpty() && !hint.isNullOrBlank()) {
-                        Text(
-                            text = hint,
-                            color = LocalContentColor.current.copy(alpha = 0.5f),
-                            fontSize = 15.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    inner()
-                },
-            )
+        // Cancel can sit before the field (leading) or between the field and send (trailing).
+        if (cancelOnLeft) {
+            ReplyCancelButton(cancelColor, heightDp, cancelInteraction, onCancel)
         }
-        IconButton(
-            onClick = onCancel,
-            interactionSource = cancelInteraction,
-            modifier = Modifier
-                .size(48.dp)
-                .pressScale(cancelInteraction),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Close,
-                contentDescription = "Cancel reply",
-                tint = cancelColor ?: LocalContentColor.current.copy(alpha = 0.7f),
-                modifier = Modifier.size(24.dp),
-            )
+        ReplyField(
+            modifier = Modifier.weight(1f),
+            text = text,
+            onValueChange = { text = it },
+            hint = hint,
+            accent = accent,
+            shape = fieldShape,
+            heightDp = heightDp,
+            focusRequester = focusRequester,
+            onSend = send,
+        )
+        if (!cancelOnLeft) {
+            ReplyCancelButton(cancelColor, heightDp, cancelInteraction, onCancel)
         }
-        FilledIconButton(
-            onClick = send,
-            enabled = text.isNotBlank(),
-            interactionSource = sendInteraction,
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = sendColor,
-                contentColor = if (sendColor.luminance() > 0.5f) PillTextColorDark else PillTextColor,
-                disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
-                disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
-            ),
-            modifier = Modifier
-                .size(48.dp)
-                .pressScale(sendInteraction),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Send,
-                contentDescription = "Send reply",
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        ReplySendButton(sendColor, text.isNotBlank(), heightDp, sendInteraction, send)
+    }
+}
+
+@Composable
+private fun ReplyField(
+    modifier: Modifier,
+    text: String,
+    onValueChange: (String) -> Unit,
+    hint: String?,
+    accent: Color,
+    shape: Shape,
+    heightDp: Int,
+    focusRequester: FocusRequester,
+    onSend: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(heightDp.dp)
+            .clip(shape)
+            .background(LocalContentColor.current.copy(alpha = 0.12f))
+            .padding(horizontal = 18.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicTextField(
+            value = text,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(color = LocalContentColor.current, fontSize = 15.sp),
+            cursorBrush = SolidColor(accent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { onSend() }),
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+            decorationBox = { inner ->
+                if (text.isEmpty() && !hint.isNullOrBlank()) {
+                    Text(
+                        text = hint,
+                        color = LocalContentColor.current.copy(alpha = 0.5f),
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                inner()
+            },
+        )
+    }
+}
+
+@Composable
+private fun ReplyCancelButton(
+    cancelColor: Color?,
+    heightDp: Int,
+    interaction: MutableInteractionSource,
+    onCancel: () -> Unit,
+) {
+    IconButton(
+        onClick = onCancel,
+        interactionSource = interaction,
+        modifier = Modifier
+            .size(heightDp.dp)
+            .pressScale(interaction),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Close,
+            contentDescription = "Cancel reply",
+            tint = cancelColor ?: LocalContentColor.current.copy(alpha = 0.7f),
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
+private fun ReplySendButton(
+    sendColor: Color,
+    enabled: Boolean,
+    heightDp: Int,
+    interaction: MutableInteractionSource,
+    onSend: () -> Unit,
+) {
+    FilledIconButton(
+        onClick = onSend,
+        enabled = enabled,
+        interactionSource = interaction,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = sendColor,
+            contentColor = if (sendColor.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+            disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
+            disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
+        ),
+        modifier = Modifier
+            .size(heightDp.dp)
+            .pressScale(interaction),
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.Send,
+            contentDescription = "Send reply",
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

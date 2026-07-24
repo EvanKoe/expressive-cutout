@@ -354,7 +354,7 @@ private fun ColorPickerCard(
 }
 
 @Composable
-private fun ColorSwatch(
+internal fun ColorSwatch(
     color: Color,
     selected: Boolean,
     onClick: () -> Unit,
@@ -414,7 +414,7 @@ private fun ColorSwatch(
  * colour (with the selection ring) once one is set. Tapping it opens [ColorPickerDialog].
  */
 @Composable
-private fun CustomColorSwatch(
+internal fun CustomColorSwatch(
     selectedColor: Color?,
     onClick: () -> Unit,
 ) {
@@ -457,7 +457,7 @@ private fun CustomColorSwatch(
 
 /** An HSV colour picker (saturation/value field + hue bar) with a two-way hex field. */
 @Composable
-private fun ColorPickerDialog(
+internal fun ColorPickerDialog(
     initial: Color,
     onConfirm: (Color) -> Unit,
     onDismiss: () -> Unit,
