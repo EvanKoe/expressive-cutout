@@ -14,7 +14,8 @@ import com.ekoehler.expressivecutout.R
 enum class DynamicTile(
     val defaultIcon: ImageVector,
     @param:StringRes val labelRes: Int,
+    @param:StringRes val descriptionRes: Int,
     val accent: Long,
 ) {
-    MUSIC(Icons.Rounded.MusicNote, R.string.tile_music, 0xFFF472B6),
+    MUSIC(Icons.Rounded.MusicNote, R.string.tile_music, R.string.tile_music_desc, 0xFFF472B6),
 }

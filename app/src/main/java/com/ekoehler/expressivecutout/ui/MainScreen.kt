@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.components.BackNavBar
 import com.ekoehler.expressivecutout.ui.components.ExpressiveNavBar
 import com.ekoehler.expressivecutout.ui.components.NavBarItem
@@ -69,6 +70,9 @@ private enum class HomeTab(
 fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var settingsRoute by rememberSaveable { mutableStateOf(SettingsRoute.List) }
+    // Which tile's settings are open (saved by name so it survives config change / process death).
+    var selectedTileName by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedTile = selectedTileName?.let { name -> DynamicTile.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
     val current = tabs[selectedIndex]
     val haptics = LocalHapticFeedback.current
@@ -106,9 +110,14 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     viewModel = viewModel,
                     contentPadding = contentPadding,
                     route = settingsRoute,
+                    selectedTile = selectedTile,
                     onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
                     onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
                     onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
+                    onOpenTile = { tile ->
+                        selectedTileName = tile.name
+                        settingsRoute = SettingsRoute.DynamicTileDetail
+                    },
                     onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
                     onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                     onOpenBackground = { settingsRoute = SettingsRoute.Background },
@@ -143,6 +152,8 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 val title = when (settingsRoute) {
                     SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                     SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
+                    SettingsRoute.DynamicTileDetail ->
+                        selectedTile?.let { stringResource(it.labelRes) } ?: stringResource(R.string.dynamic_tiles_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                     SettingsRoute.Background -> stringResource(R.string.appearance_background_color)

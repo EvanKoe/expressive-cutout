@@ -13,6 +13,7 @@ import androidx.core.graphics.createBitmap
 
 private const val TAG = "BitmapUtils"
 private const val MAX_ICON_PX = 128
+private const val MAX_ART_PX = 256
 
 /** Rasterises any [Drawable] (e.g. an app launcher icon) into an [ImageBitmap]. */
 fun Drawable.toImageBitmap(): ImageBitmap {
@@ -40,9 +41,14 @@ fun Uri.loadImageBitmapOrNull(context: Context): ImageBitmap? = runCatching {
     }
 }.onFailure { Log.w(TAG, "Unable to load custom icon $this", it) }.getOrNull()
 
-private fun Bitmap.scaledToIcon(): Bitmap {
+private fun Bitmap.scaledToIcon(): Bitmap = scaledToMax(MAX_ICON_PX)
+
+/** Down-samples a media album-art [Bitmap] to a display-friendly [ImageBitmap]. */
+fun Bitmap.toArtImageBitmap(): ImageBitmap = scaledToMax(MAX_ART_PX).asImageBitmap()
+
+private fun Bitmap.scaledToMax(maxPx: Int): Bitmap {
     val longest = maxOf(width, height)
-    if (longest <= MAX_ICON_PX) return this
-    val scale = MAX_ICON_PX.toFloat() / longest
+    if (longest <= maxPx) return this
+    val scale = maxPx.toFloat() / longest
     return Bitmap.createScaledBitmap(this, (width * scale).toInt(), (height * scale).toInt(), true)
 }

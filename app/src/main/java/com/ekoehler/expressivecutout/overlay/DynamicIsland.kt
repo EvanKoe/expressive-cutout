@@ -38,6 +38,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -73,6 +78,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
@@ -153,10 +160,12 @@ fun DynamicIsland(
         }
     }
 
-    // Only pad the height when the expanded island will actually render action chips.
+    // Only pad the height when the expanded island will actually render a bottom row of controls —
+    // notification action chips, or the music tile's playback buttons.
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
+    val hasMediaControls = shownEvent?.media?.showControls == true
     val dims = if (isExpanded) expanded else collapsed
-    val heightBonus = if (isExpanded && hasActions) {
+    val heightBonus = if (isExpanded && (hasActions || hasMediaControls)) {
         expandedActionsExtraDp(appearance.actionButtonHeightDp)
     } else {
         0
@@ -368,15 +377,25 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
 
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
+    // The music tile shows the album art on the normal cutout (when enabled and available).
+    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val badgeSize = (heightDp * 0.72f).dp
+
     Box(modifier = Modifier.fillMaxSize()) {
-        IconBadge(
-            event = event,
-            badgeSize = (heightDp * 0.72f).dp,
-            iconSize = (heightDp * 0.46f).dp,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = (heightDp * 0.16f).dp),
-        )
+        val placement = Modifier
+            .align(Alignment.CenterStart)
+            .padding(start = (heightDp * 0.16f).dp)
+        if (albumArt != null) {
+            AlbumArt(bitmap = albumArt, size = badgeSize, modifier = placement)
+        } else {
+            IconBadge(
+                event = event,
+                badgeSize = badgeSize,
+                iconSize = (heightDp * 0.46f).dp,
+                modifier = placement,
+            )
+        }
     }
 }
 
@@ -391,6 +410,11 @@ private fun ExpandedContent(
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
 ) {
+    // The music tile has its own expanded layout (album art + playback controls).
+    if (event.media != null) {
+        MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
+        return
+    }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -820,6 +844,162 @@ private fun ReplySendButton(
             modifier = Modifier.size(22.dp),
         )
     }
+}
+
+/**
+ * The music tile's expanded layout: album art + track/artist, and (when enabled) a row of
+ * previous / play‑pause / next controls. Live state — art, the play vs pause icon and the
+ * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
+ */
+@Composable
+private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
+    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (albumArt != null) {
+                    AlbumArt(bitmap = albumArt, size = 44.dp)
+                } else {
+                    IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = event.label,
+                        color = LocalContentColor.current,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    event.detail?.let { detail ->
+                        Text(
+                            text = detail,
+                            color = LocalContentColor.current.copy(alpha = 0.70f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (event.media?.showControls == true) {
+                MediaControls(
+                    isPlaying = nowPlaying?.isPlaying == true,
+                    accent = event.accent,
+                    enabled = nowPlaying != null,
+                    heightDp = buttonHeightDp,
+                    onPrevious = { nowPlaying?.transport?.previous() },
+                    onPlayPause = { nowPlaying?.transport?.playPause() },
+                    onNext = { nowPlaying?.transport?.next() },
+                )
+            }
+        }
+    }
+}
+
+/** Previous / play‑pause / next. Play‑pause is a filled accent button; the others are plain. */
+@Composable
+private fun MediaControls(
+    isPlaying: Boolean,
+    accent: Color,
+    enabled: Boolean,
+    heightDp: Int,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MediaButton(
+            icon = Icons.Rounded.SkipPrevious,
+            contentDescription = "Previous track",
+            enabled = enabled,
+            heightDp = heightDp,
+            onClick = onPrevious,
+        )
+        val ppInteraction = remember { MutableInteractionSource() }
+        FilledIconButton(
+            onClick = onPlayPause,
+            enabled = enabled,
+            interactionSource = ppInteraction,
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = accent,
+                contentColor = if (accent.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
+                disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
+            ),
+            modifier = Modifier
+                .size(heightDp.dp)
+                .pressScale(ppInteraction),
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                contentDescription = if (isPlaying) "Pause" else "Play",
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        MediaButton(
+            icon = Icons.Rounded.SkipNext,
+            contentDescription = "Next track",
+            enabled = enabled,
+            heightDp = heightDp,
+            onClick = onNext,
+        )
+    }
+}
+
+/** A plain (unfilled) transport button with the shared press "squish". */
+@Composable
+private fun MediaButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    heightDp: Int,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        interactionSource = interaction,
+        modifier = Modifier
+            .size(heightDp.dp)
+            .pressScale(interaction),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = LocalContentColor.current,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+/** Album art rendered as a rounded square, cropped to fill. */
+@Composable
+private fun AlbumArt(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Image(
+        bitmap = bitmap,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.24f)),
+    )
 }
 
 @Composable

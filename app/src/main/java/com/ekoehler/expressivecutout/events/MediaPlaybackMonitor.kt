@@ -10,15 +10,19 @@ import android.util.Log
 import androidx.core.content.getSystemService
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.MediaTransport
+import com.ekoehler.expressivecutout.core.NowPlaying
+import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 
 /**
- * Watches the device's active media sessions and republishes "now playing" as a
- * [CutoutSignal.Music] on the [IslandEventBus] whenever a session starts (or changes track
- * while) playing. Access to media sessions is granted by the app's already-required
- * notification-listener binding — no extra permission is needed — so we pass that component to
- * [MediaSessionManager]. Like [SystemEventMonitor], all registration is dynamic and lives and
- * dies with the hosting service.
+ * Watches the device's active media sessions and drives the music tile. It keeps [NowPlayingBus]
+ * in sync with the current session (title, artist, album art, play/pause state and a transport
+ * handle) and republishes a [CutoutSignal.Music] whenever playback starts or the track changes, so
+ * the island pops up. Access to media sessions is granted by the app's already-required
+ * notification-listener binding — no extra permission is needed. Like [SystemEventMonitor], all
+ * registration is dynamic and lives and dies with the hosting service.
  */
 class MediaPlaybackMonitor(private val context: Context) {
 
@@ -28,8 +32,8 @@ class MediaPlaybackMonitor(private val context: Context) {
     // Controllers we're currently watching, paired with the callback registered on each.
     private val watched = mutableMapOf<MediaController, MediaController.Callback>()
 
-    // The controller last announced as playing, so we don't re-emit on every state tick.
-    private var announced: MediaController? = null
+    // The track last surfaced as a "show" signal, so we don't re-pop on every state tick.
+    private var lastShownKey: String? = null
 
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
@@ -48,7 +52,8 @@ class MediaPlaybackMonitor(private val context: Context) {
         sessionManager?.let { runCatching { it.removeOnActiveSessionsChangedListener(sessionsListener) } }
         watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
         watched.clear()
-        announced = null
+        lastShownKey = null
+        NowPlayingBus.update(null)
     }
 
     /** Attach callbacks to newly active sessions and detach ones that have gone away. */
@@ -58,55 +63,98 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         controllers.filter { it !in watched }.forEach { controller ->
             val callback = object : MediaController.Callback() {
-                override fun onPlaybackStateChanged(state: PlaybackState?) =
-                    handleState(controller, state)
-
-                override fun onMetadataChanged(metadata: MediaMetadata?) {
-                    // A new track on the already-playing session: refresh the tile.
-                    if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) {
-                        announced = controller
-                        emit(controller)
-                    }
-                }
-
+                override fun onPlaybackStateChanged(state: PlaybackState?) = sync()
+                override fun onMetadataChanged(metadata: MediaMetadata?) = sync()
                 override fun onSessionDestroyed() = detach(controller)
             }
             watched[controller] = callback
             controller.registerCallback(callback)
-            // Surface anything already playing the moment we start watching it.
-            handleState(controller, controller.playbackState)
         }
+        sync()
     }
 
     private fun detach(controller: MediaController) {
         watched.remove(controller)?.let { controller.unregisterCallback(it) }
-        if (announced == controller) announced = null
+        sync()
     }
 
-    private fun handleState(controller: MediaController, state: PlaybackState?) {
-        if (state?.state == PlaybackState.STATE_PLAYING) {
-            if (announced != controller) {
-                announced = controller
-                emit(controller)
-            }
-        } else if (announced == controller) {
-            announced = null
+    /**
+     * Recompute the surfaced session: prefer one that's actually playing, else any active one.
+     * Publishes its live state to [NowPlayingBus] and pops the island when a new track starts.
+     */
+    private fun sync() {
+        val primary = watched.keys.firstOrNull { it.isPlaying } ?: watched.keys.firstOrNull()
+        if (primary == null) {
+            NowPlayingBus.update(null)
+            lastShownKey = null
+            return
         }
-    }
 
-    private fun emit(controller: MediaController) {
-        val metadata = controller.metadata
+        val playing = primary.isPlaying
+        val metadata = primary.metadata
         val title = metadata?.getText(MediaMetadata.METADATA_KEY_TITLE)?.toString()
         val artist = metadata?.getText(MediaMetadata.METADATA_KEY_ARTIST)?.toString()
             ?: metadata?.getText(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.toString()
-        IslandEventBus.emit(
-            CutoutSignal.Music(
-                packageName = controller.packageName,
+        val albumArt = metadata?.albumArt()
+
+        NowPlayingBus.update(
+            NowPlaying(
+                packageName = primary.packageName,
                 title = title,
                 artist = artist,
-                contentIntent = controller.sessionActivity,
+                albumArt = albumArt,
+                isPlaying = playing,
+                transport = ControllerTransport(primary),
             ),
         )
+
+        // Pop the island when a fresh track begins playing; reset when paused so a resume re-pops.
+        if (!playing) {
+            lastShownKey = null
+            return
+        }
+        val key = "${primary.packageName}|$title|$artist"
+        if (key != lastShownKey) {
+            lastShownKey = key
+            IslandEventBus.emit(
+                CutoutSignal.Music(
+                    packageName = primary.packageName,
+                    title = title,
+                    artist = artist,
+                    contentIntent = primary.sessionActivity,
+                ),
+            )
+        }
+    }
+
+    private val MediaController.isPlaying: Boolean
+        get() = playbackState?.state == PlaybackState.STATE_PLAYING
+
+    private fun MediaMetadata.albumArt() = (
+        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        )?.toArtImageBitmap()
+
+    /** Bridges the tile's transport buttons to the active session's controls. */
+    private class ControllerTransport(private val controller: MediaController) : MediaTransport {
+        override fun previous() {
+            runCatching { controller.transportControls.skipToPrevious() }
+        }
+
+        override fun playPause() {
+            runCatching {
+                if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) {
+                    controller.transportControls.pause()
+                } else {
+                    controller.transportControls.play()
+                }
+            }
+        }
+
+        override fun next() {
+            runCatching { controller.transportControls.skipToNext() }
+        }
     }
 
     private companion object {

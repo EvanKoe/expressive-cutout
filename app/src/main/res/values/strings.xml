@@ -18,6 +18,7 @@
 
     <!-- Dynamic tile labels shown inside the island -->
     <string name="tile_music">Music</string>
+    <string name="tile_music_desc">Show what\'s playing on the cutout</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
@@ -83,8 +84,12 @@
 
     <!-- Dynamic tiles screen -->
     <string name="dynamic_tiles_title">Dynamic tiles</string>
-    <string name="music_preview_title">Now playing</string>
-    <string name="music_preview_artist">Preview track</string>
+
+    <!-- Music tile settings -->
+    <string name="music_show_art_title">Album art</string>
+    <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
+    <string name="music_show_controls_title">Playback controls</string>
+    <string name="music_show_controls_desc">Show previous, play/pause and next buttons on the expanded cutout.</string>
     <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>
 
     <!-- Appearance tab -->

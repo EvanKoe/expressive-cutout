@@ -20,6 +20,8 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.MusicTilePreferences
+import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,6 +43,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val appearancePreferences = AppearancePreferences(application)
     private val eventPreferences = EventPreferences(application)
     private val dynamicTilePreferences = DynamicTilePreferences(application)
+    private val musicTilePreferences = MusicTilePreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -61,6 +64,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
+        )
+
+    val musicTile: StateFlow<MusicTileSettings> =
+        musicTilePreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = MusicTileSettings(),
         )
 
     val layout: StateFlow<IslandLayout> =
@@ -109,6 +119,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {
         dynamicTilePreferences.setEnabled(tile, enabled)
+    }
+
+    fun setMusicShowAlbumArt(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setShowAlbumArt(enabled)
+    }
+
+    fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setShowControls(enabled)
     }
 
     fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {

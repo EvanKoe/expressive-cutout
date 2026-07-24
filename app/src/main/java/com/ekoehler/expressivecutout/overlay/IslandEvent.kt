@@ -35,6 +35,18 @@ data class IslandEvent(
     val contentIntent: PendingIntent? = null,
     /** Optional action buttons shown as chips in the expanded island. */
     val actions: List<IslandAction> = emptyList(),
+    /**
+     * When non-null this is the music tile: the island shows album art on the collapsed pill and
+     * playback controls when expanded (each gated by [MediaTileOptions]), reading live state from
+     * [com.ekoehler.expressivecutout.core.NowPlayingBus]. Null for every other event.
+     */
+    val media: MediaTileOptions? = null,
+)
+
+/** Which parts of the music tile to render, per the tile's own settings screen. */
+data class MediaTileOptions(
+    val showAlbumArt: Boolean,
+    val showControls: Boolean,
 )
 
 /**

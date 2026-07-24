@@ -41,6 +41,8 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.MusicTilePreferences
+import com.ekoehler.expressivecutout.data.MusicTileSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -81,6 +83,7 @@ class IslandOverlayController(private val context: Context) {
     private val appearancePreferences = AppearancePreferences(context)
     private val eventPreferences = EventPreferences(context)
     private val dynamicTilePreferences = DynamicTilePreferences(context)
+    private val musicTilePreferences = MusicTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen.
@@ -101,6 +104,7 @@ class IslandOverlayController(private val context: Context) {
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
+    private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -133,6 +137,7 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeTilePreferences()
+        observeMusicSettings()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -211,6 +216,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeTilePreferences() = scope.launch {
         dynamicTilePreferences.enabled.collect { tileEnabled = it }
+    }
+
+    private fun observeMusicSettings() = scope.launch {
+        musicTilePreferences.settings.collect { musicSettings = it }
     }
 
     private fun observeLayout() = scope.launch {
@@ -352,11 +361,12 @@ class IslandOverlayController(private val context: Context) {
         return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
     }
 
-    /** The extra height the expanded island claims for action chips, mirroring the composable. */
+    /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
     private fun expandedActionsBonusDp(): Int {
-        val showing = behaviourState.value.showActionButtons
-        val hasActions = currentEvent.value?.actions?.isNotEmpty() == true
-        return if (showing && hasActions) {
+        val event = currentEvent.value
+        val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
+        val hasMediaControls = event?.media?.showControls == true
+        return if (hasActions || hasMediaControls) {
             expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
         } else {
             0
@@ -400,7 +410,7 @@ class IslandOverlayController(private val context: Context) {
             }
             forcedExpanded.value = null
             expanded = autoExpand
-            currentEvent.value = resolver.resolve(signal, customIcons)
+            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings)
                 .copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
             scheduleDismiss()

@@ -10,6 +10,7 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.MusicTileSettings
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -24,10 +25,11 @@ class IconResolver(private val context: Context) {
     fun resolve(
         signal: CutoutSignal,
         customIcons: Map<SystemEventType, IconSource>,
+        musicSettings: MusicTileSettings,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
         is CutoutSignal.System -> resolveSystem(signal.type, customIcons)
-        is CutoutSignal.Music -> resolveMusic(signal)
+        is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
     }
 
     private fun resolveNotification(signal: CutoutSignal.Notification): IslandEvent {
@@ -64,14 +66,15 @@ class IconResolver(private val context: Context) {
         )
     }
 
-    private fun resolveMusic(signal: CutoutSignal.Music): IslandEvent {
+    private fun resolveMusic(signal: CutoutSignal.Music, settings: MusicTileSettings): IslandEvent {
         val packageManager = context.packageManager
         val appLabel = runCatching {
             val info = packageManager.getApplicationInfo(signal.packageName, 0)
             packageManager.getApplicationLabel(info).toString()
         }.getOrDefault(signal.packageName)
 
-        // The player's own launcher icon reads better than a generic note; fall back to the note.
+        // Fallback icon for the collapsed pill when there is no album art (or it's turned off):
+        // the player's own launcher icon reads better than a generic note.
         val icon = runCatching {
             packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
         }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
@@ -87,6 +90,10 @@ class IconResolver(private val context: Context) {
             detail = signal.artist?.takeIf { it.isNotBlank() } ?: appLabel,
             accent = Color(DynamicTile.MUSIC.accent),
             contentIntent = signal.contentIntent,
+            media = MediaTileOptions(
+                showAlbumArt = settings.showAlbumArt,
+                showControls = settings.showControls,
+            ),
         )
     }
 
