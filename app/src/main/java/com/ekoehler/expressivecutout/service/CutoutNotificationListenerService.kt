@@ -21,7 +21,38 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
-        IslandEventBus.emit(CutoutSignal.Notification(notification.packageName, title, text))
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = notification.packageName,
+                title = title,
+                text = text,
+                contentIntent = notification.notification.contentIntent,
+                actions = notification.notification.surfaceableActions(),
+            ),
+        )
+    }
+
+    /**
+     * The action buttons worth mirroring: those with a label and a fireable intent. Reply-style
+     * actions (those declaring a free-form [android.app.RemoteInput]) keep a [ReplyInput] so the
+     * island can offer an inline text field.
+     */
+    private fun Notification.surfaceableActions(): List<CutoutSignal.Notification.Action> =
+        actions.orEmpty().mapNotNull { action ->
+            val title = action.title?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val intent = action.actionIntent ?: return@mapNotNull null
+            CutoutSignal.Notification.Action(title, intent, action.toReplyInput())
+        }
+
+    /** Builds a [ReplyInput] if the action accepts free-form typed text, else null. */
+    private fun Notification.Action.toReplyInput(): CutoutSignal.Notification.ReplyInput? {
+        val inputs = remoteInputs?.toList().orEmpty()
+        val freeForm = inputs.firstOrNull { it.allowFreeFormInput } ?: return null
+        return CutoutSignal.Notification.ReplyInput(
+            resultKey = freeForm.resultKey,
+            remoteInputs = inputs,
+            hint = freeForm.label?.toString(),
+        )
     }
 
     private fun StatusBarNotification.shouldSurface(): Boolean {

@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.core
 
+import android.app.PendingIntent
+import android.app.RemoteInput
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryAlert
@@ -26,10 +28,40 @@ sealed interface CutoutSignal {
         val packageName: String,
         val title: String?,
         val text: String? = null,
-    ) : CutoutSignal
+        /** The notification's tap action, fired when the user taps the expanded island. */
+        val contentIntent: PendingIntent? = null,
+        /** The notification's action buttons (e.g. "Archive", "Mark read"), if any. */
+        val actions: List<Action> = emptyList(),
+    ) : CutoutSignal {
 
-    /** A device-level event occurred. */
-    data class System(val type: SystemEventType) : CutoutSignal
+        /**
+         * A single notification action button. When [reply] is non-null the action expects typed
+         * text (a messaging "Reply"); the island shows an inline text field and sends the result
+         * through [intent]. When null the action fires [intent] directly.
+         */
+        data class Action(
+            val title: String,
+            val intent: PendingIntent,
+            val reply: ReplyInput? = null,
+        )
+
+        /**
+         * The pieces needed to fulfil an inline reply: the [resultKey] the receiving app reads the
+         * text under, every [remoteInputs] the action declared (all must be filled in), and an
+         * optional [hint] to show in the field.
+         */
+        data class ReplyInput(
+            val resultKey: String,
+            val remoteInputs: List<RemoteInput>,
+            val hint: String?,
+        )
+    }
+
+    /**
+     * A device-level event occurred. [detail] carries an optional raw datum tied to the event
+     * (e.g. the connected Wi‑Fi network name); the overlay decides how, and whether, to show it.
+     */
+    data class System(val type: SystemEventType, val detail: String? = null) : CutoutSignal
 }
 
 /**

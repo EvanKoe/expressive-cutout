@@ -1,8 +1,14 @@
 package com.ekoehler.expressivecutout.overlay
 
+import android.app.ActivityOptions
+import android.app.PendingIntent
+import android.app.RemoteInput
 import android.content.Context
+import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.material.icons.Icons
@@ -20,6 +26,8 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.AppearancePreferences
+import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.EventPreferences
@@ -56,6 +64,7 @@ class IslandOverlayController(private val context: Context) {
     private val iconPreferences = IconPreferences(context)
     private val layoutPreferences = LayoutPreferences(context)
     private val behaviourPreferences = BehaviourPreferences(context)
+    private val appearancePreferences = AppearancePreferences(context)
     private val eventPreferences = EventPreferences(context)
     private val density = context.resources.displayMetrics.density
 
@@ -73,6 +82,7 @@ class IslandOverlayController(private val context: Context) {
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
     private val forcedExpanded = MutableStateFlow<Boolean?>(null)
     private val behaviourState = MutableStateFlow(BehaviourSettings())
+    private val appearanceState = MutableStateFlow(AppearanceSettings())
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var previewPinned = false
@@ -101,6 +111,7 @@ class IslandOverlayController(private val context: Context) {
         observeIconPreferences()
         observeLayout()
         observeBehaviour()
+        observeAppearance()
         observeEventPreferences()
         observePreviewPin()
         observeSignals()
@@ -125,6 +136,7 @@ class IslandOverlayController(private val context: Context) {
                 val layout by layoutState.collectAsStateWithLifecycle()
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
+                val appearance by appearanceState.collectAsStateWithLifecycle()
                 DynamicIsland(
                     event = event,
                     collapsed = layout.collapsed,
@@ -133,7 +145,13 @@ class IslandOverlayController(private val context: Context) {
                     forcedExpanded = forced,
                     autoCollapse = behaviour.expandedAutoCollapse,
                     autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
+                    appearance = appearance,
+                    showActions = behaviour.showActionButtons,
                     onExpandedChange = ::onExpandedChanged,
+                    onActivate = ::onActivate,
+                    onAction = ::onAction,
+                    onReply = ::onReply,
+                    onReplyActiveChange = ::onReplyActive,
                 )
             }
         }
@@ -154,6 +172,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeBehaviour() = scope.launch {
         behaviourPreferences.settings.collect { behaviourState.value = it }
+    }
+
+    private fun observeAppearance() = scope.launch {
+        appearancePreferences.settings.collect { appearanceState.value = it }
     }
 
     private fun observeEventPreferences() = scope.launch {
@@ -230,10 +252,18 @@ class IslandOverlayController(private val context: Context) {
         return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
     }
 
-    /** Height needed to contain just one state's pill. */
+    /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
         val dims = if (expanded) layout.expanded else layout.collapsed
-        return ((dims.offsetYDp + dims.heightDp + WINDOW_MARGIN_DP) * density).toInt()
+        val bonus = if (expanded) expandedActionsBonusDp() else 0
+        return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
+    }
+
+    /** The extra height the expanded island claims for action chips, mirroring the composable. */
+    private fun expandedActionsBonusDp(): Int {
+        val showing = behaviourState.value.showActionButtons
+        val hasActions = currentEvent.value?.actions?.isNotEmpty() == true
+        return if (showing && hasActions) EXPANDED_ACTIONS_EXTRA_DP else 0
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
@@ -292,6 +322,85 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Fire the current notification's tap action and dismiss the island, mirroring what tapping
+     * the real notification does.
+     */
+    private fun onActivate() {
+        val intent = currentEvent.value?.contentIntent
+        dismissIsland()
+        intent?.let(::sendPendingIntent)
+    }
+
+    /** Fire one of the notification's action buttons, then dismiss the island. */
+    private fun onAction(action: IslandAction) {
+        dismissIsland()
+        sendPendingIntent(action.intent)
+    }
+
+    /**
+     * Send a typed reply through the action's intent by packing the text into the [RemoteInput]s
+     * the action declared, then dismiss the island (the message is on its way).
+     */
+    private fun onReply(action: IslandAction, text: String) {
+        val reply = action.reply ?: return
+        dismissIsland()
+        val fillIn = Intent()
+        val results = Bundle().apply { putCharSequence(reply.resultKey, text) }
+        RemoteInput.addResultsToIntent(reply.remoteInputs.toTypedArray(), fillIn, results)
+        sendPendingIntent(action.intent, fillIn)
+    }
+
+    /**
+     * A reply field opened or closed. The overlay window is normally non-focusable so it never
+     * steals input; while typing we clear that flag so the soft keyboard can reach the field, and
+     * pause auto-dismiss so the island can't vanish mid-message.
+     */
+    private fun onReplyActive(active: Boolean) {
+        if (active) dismissJob?.cancel()
+        setFocusable(active)
+    }
+
+    private fun setFocusable(focusable: Boolean) {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        val flag = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        val newFlags = if (focusable) params.flags and flag.inv() else params.flags or flag
+        if (newFlags != params.flags) {
+            params.flags = newFlags
+            runCatching { windowManager.updateViewLayout(view, params) }
+        }
+    }
+
+    /** Cancel any pending auto-dismiss and hide the island immediately. */
+    private fun dismissIsland() {
+        dismissJob?.cancel()
+        forcedExpanded.value = null
+        expanded = false
+        currentEvent.value = null
+        syncWindowHeight()
+    }
+
+    /**
+     * Fired from an accessibility overlay (not a foreground activity), so on Android 14+ we must
+     * explicitly opt the pending intent into starting an activity from the background, or the
+     * launch is silently dropped.
+     */
+    private fun sendPendingIntent(intent: PendingIntent, fillIn: Intent? = null) {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val options = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                    )
+                    .toBundle()
+                intent.send(context, 0, fillIn, null, null, null, options)
+            } else {
+                intent.send(context, 0, fillIn)
+            }
+        }.onFailure { Log.w(TAG, "Failed to send pending intent", it) }
+    }
+
     private fun scheduleDismiss() {
         dismissJob?.cancel()
         dismissJob = scope.launch {
@@ -328,6 +437,7 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private companion object {
+        const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
 
         // Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
