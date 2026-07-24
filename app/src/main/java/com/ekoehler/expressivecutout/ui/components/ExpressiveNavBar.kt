@@ -2,8 +2,8 @@ package com.ekoehler.expressivecutout.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,6 +30,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
+// Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0).
+private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /** One destination in the [ExpressiveNavBar]. */
 data class NavBarItem(
@@ -85,7 +88,7 @@ private fun NavBarPill(
         } else {
             Color.Transparent
         },
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = tween(durationMillis = 350, easing = EmphasizedEasing),
         label = "navPillContainer",
     )
     val contentColor by animateColorAsState(
@@ -94,7 +97,7 @@ private fun NavBarPill(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = tween(durationMillis = 350, easing = EmphasizedEasing),
         label = "navPillContent",
     )
 
@@ -120,9 +123,10 @@ private fun NavBarPill(
         )
         AnimatedVisibility(
             visible = selected,
-            enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
-                expandHorizontally(spring(stiffness = Spring.StiffnessMediumLow)),
-            exit = fadeOut() + shrinkHorizontally(),
+            enter = fadeIn(tween(durationMillis = 300, easing = EmphasizedEasing)) +
+                expandHorizontally(tween(durationMillis = 350, easing = EmphasizedEasing)),
+            exit = fadeOut(tween(durationMillis = 150, easing = EmphasizedEasing)) +
+                shrinkHorizontally(tween(durationMillis = 250, easing = EmphasizedEasing)),
         ) {
             Text(
                 text = item.label,

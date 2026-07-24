@@ -25,6 +25,7 @@ data class BehaviourSettings(
     val expandedCollapseSeconds: Int = DEFAULT_COLLAPSE_SECONDS,
     val expandedDisappearOnShrink: Boolean = DEFAULT_DISAPPEAR_ON_SHRINK,
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
+    val showActionButtons: Boolean = DEFAULT_SHOW_ACTION_BUTTONS,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -33,6 +34,7 @@ data class BehaviourSettings(
         const val DEFAULT_COLLAPSE_SECONDS = 5
         const val DEFAULT_DISAPPEAR_ON_SHRINK = false
         const val DEFAULT_NOTIFICATIONS_AUTO_EXPAND = false
+        const val DEFAULT_SHOW_ACTION_BUTTONS = true
         const val MIN_NORMAL_SECONDS = 1
         const val MAX_NORMAL_SECONDS = 10
         const val MIN_COLLAPSE_SECONDS = 1
@@ -53,6 +55,7 @@ class BehaviourPreferences(private val context: Context) {
                 .coerceIn(BehaviourSettings.MIN_COLLAPSE_SECONDS, BehaviourSettings.MAX_COLLAPSE_SECONDS),
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
+            showActionButtons = prefs[SHOW_ACTION_BUTTONS] ?: BehaviourSettings.DEFAULT_SHOW_ACTION_BUTTONS,
         )
     }
 
@@ -86,6 +89,10 @@ class BehaviourPreferences(private val context: Context) {
         it[NOTIF_AUTO_EXPAND] = enabled
     }
 
+    suspend fun setShowActionButtons(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOW_ACTION_BUTTONS] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
@@ -93,5 +100,6 @@ class BehaviourPreferences(private val context: Context) {
         val COLLAPSE_SECONDS = intPreferencesKey("expanded_collapse_seconds")
         val DISAPPEAR_ON_SHRINK = booleanPreferencesKey("expanded_disappear_on_shrink")
         val NOTIF_AUTO_EXPAND = booleanPreferencesKey("notifications_auto_expand")
+        val SHOW_ACTION_BUTTONS = booleanPreferencesKey("show_action_buttons")
     }
 }

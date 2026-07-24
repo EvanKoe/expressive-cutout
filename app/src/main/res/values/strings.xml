@@ -10,6 +10,8 @@
     <string name="event_battery_low">Battery low</string>
     <string name="event_wifi_connected">Wi‑Fi connected</string>
     <string name="event_wifi_disconnected">Wi‑Fi lost</string>
+    <!-- Secondary line for the expanded island when the network name is known. -->
+    <string name="event_wifi_connected_detail">Now connected to %1$s</string>
     <string name="event_headphones_connected">Headphones</string>
     <string name="event_headphones_disconnected">Headphones out</string>
     <string name="event_usb_mounted">USB connected</string>
@@ -25,6 +27,8 @@
     <string name="perm_accessibility_desc">Draws the island over the cutout. No screen content is read.</string>
     <string name="perm_battery_title">Ignore battery optimisation</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>
+    <string name="perm_location_title">Wi‑Fi network name</string>
+    <string name="perm_location_desc">Lets the expanded island show which network you joined. Android requires location for this — choose “Allow all the time”.</string>
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
@@ -71,6 +75,27 @@
     <string name="settings_size_subtitle">Island dimensions, position and live preview</string>
     <string name="settings_icons_subtitle">Pick an icon for each notification and system event</string>
     <string name="settings_behaviour_subtitle">How the expanded island collapses and dismisses</string>
+    <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>
+
+    <!-- Appearance tab -->
+    <string name="appearance_section_title">Appearance</string>
+    <string name="appearance_shadow_title">Shadow</string>
+    <string name="appearance_shadow_desc">Cast a soft shadow beneath the island.</string>
+    <string name="appearance_stroke_title">Stroke</string>
+    <string name="appearance_stroke_desc">Draw an outline around the island.</string>
+    <string name="appearance_stroke_width">Stroke width</string>
+    <string name="appearance_stroke_color">Stroke colour</string>
+    <string name="appearance_background_color">Background colour</string>
+    <string name="appearance_send_color">Send button colour</string>
+    <string name="appearance_cancel_color">Cancel button colour</string>
+    <string name="cd_color_dynamic">Material You dynamic colour</string>
+    <string name="cd_color_default_accent">Match notification colour</string>
+    <string name="cd_color_default_neutral">Default neutral colour</string>
+    <string name="cd_color_custom">Custom colour</string>
+    <string name="color_picker_title">Custom colour</string>
+    <string name="color_picker_hex">Hex</string>
+    <string name="action_select">Select</string>
+    <string name="action_cancel">Cancel</string>
 
     <!-- Behaviour tab -->
     <string name="behaviour_title">Behaviour</string>
@@ -82,6 +107,8 @@
     <string name="behaviour_disappear_desc">When the island shrinks it disappears entirely, instead of returning to the normal cutout.</string>
     <string name="behaviour_notif_auto_expand">Auto-expand notifications</string>
     <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
+    <string name="behaviour_action_buttons">Show action buttons</string>
+    <string name="behaviour_action_buttons_desc">Show a notification\'s action buttons in the expanded cutout. Adds a little height so they clear the camera.</string>
     <string name="preview_label">Preview</string>
     <string name="preview_detail">Tap the island to expand or collapse</string>
     <string name="cd_decrease">Decrease</string>

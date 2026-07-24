@@ -4,8 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.AppearancePreferences
+import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
@@ -30,6 +33,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
     private val behaviourPreferences = BehaviourPreferences(application)
+    private val appearancePreferences = AppearancePreferences(application)
     private val eventPreferences = EventPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
@@ -65,6 +69,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = BehaviourSettings(),
+        )
+
+    val appearance: StateFlow<AppearanceSettings> =
+        appearancePreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = AppearanceSettings(),
         )
 
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
@@ -117,5 +128,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setNotificationsAutoExpand(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setNotificationsAutoExpand(enabled)
+    }
+
+    fun setShowActionButtons(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowActionButtons(enabled)
+    }
+
+    fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShadowEnabled(enabled)
+    }
+
+    fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setStrokeEnabled(enabled)
+    }
+
+    fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
+        appearancePreferences.setStrokeWidth(widthDp)
+    }
+
+    fun setStrokeColor(color: CutoutColor) = viewModelScope.launch {
+        appearancePreferences.setStrokeColor(color)
+    }
+
+    fun setBackgroundColor(color: CutoutColor) = viewModelScope.launch {
+        appearancePreferences.setBackgroundColor(color)
+    }
+
+    fun setSendButtonColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setSendButtonColor(color)
+    }
+
+    fun setCancelButtonColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setCancelButtonColor(color)
     }
 }
