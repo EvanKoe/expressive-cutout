@@ -241,6 +241,7 @@ fun IslandPreview(
     cornerBottomRightDp: Int,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
+    showActions: Boolean = true,
 ) {
     IslandSurface(
         modifier = Modifier.size(width, heightDp.dp),
@@ -255,7 +256,7 @@ fun IslandPreview(
         if (expanded) {
             ExpandedContent(
                 event = event,
-                showActions = true,
+                showActions = showActions,
                 appearance = appearance,
                 replyingTo = null,
                 onAction = {},

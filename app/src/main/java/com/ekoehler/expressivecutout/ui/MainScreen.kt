@@ -48,6 +48,7 @@ import com.ekoehler.expressivecutout.ui.screen.PermissionsTab
 import com.ekoehler.expressivecutout.ui.screen.ProfileTab
 import com.ekoehler.expressivecutout.ui.screen.SettingsRoute
 import com.ekoehler.expressivecutout.ui.screen.SettingsTab
+import com.ekoehler.expressivecutout.ui.screen.parent
 
 private enum class HomeTab(
     @param:StringRes val labelRes: Int,

@@ -149,6 +149,7 @@ internal fun IslandPreviewPanel(
     expanded: Boolean,
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
+    showActions: Boolean = true,
 ) {
     val cutoutOutline = Color.White.copy(alpha = 0.28f)
     // Grow the panel so the island (at its offset) always fits without clipping.
@@ -200,6 +201,7 @@ internal fun IslandPreviewPanel(
                 cornerBottomRightDp = cornerBottomRightDp,
                 expanded = expanded,
                 appearance = appearance,
+                showActions = showActions,
             )
         }
     }

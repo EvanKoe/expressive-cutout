@@ -289,7 +289,9 @@ internal fun ColorPickerCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(rememberScrollState())
+                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // Optional "use the default" swatch (null selection), then Material You dynamic

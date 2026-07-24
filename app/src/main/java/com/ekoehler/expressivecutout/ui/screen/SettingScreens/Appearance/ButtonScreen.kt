@@ -119,8 +119,10 @@ internal fun ButtonScreen(
     }
     val cutout = rememberTopCutout()
     val expanded = layout.expanded
-    // Mirror the real island: it grows by the chip row's height so the chips clear the camera hole.
-    val previewHeightDp = expanded.heightDp + expandedActionsExtraDp(buttonHeight.roundToInt())
+    // Mirror the real island: it grows by the chip row's height so the chips clear the camera hole —
+    // but only when the chips are actually shown, matching the toggle below.
+    val previewHeightDp = expanded.heightDp +
+        if (behaviour.showActionButtons) expandedActionsExtraDp(buttonHeight.roundToInt()) else 0
 
     Column(
         modifier = Modifier
@@ -161,6 +163,7 @@ internal fun ButtonScreen(
             expanded = true,
             event = previewEvent,
             appearance = previewAppearance,
+            showActions = behaviour.showActionButtons,
         )
 
         // Whether the chips appear at all lives with the other behaviour toggles, but it is the
@@ -412,7 +415,9 @@ private fun ActionButtonColorCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(rememberScrollState())
+                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // Follow the notification's accent (the historical default).
