@@ -6,10 +6,14 @@ import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.Region
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
@@ -44,6 +48,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.lang.reflect.Proxy
 
 /**
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
@@ -54,6 +59,13 @@ import kotlinx.coroutines.launch
  * changes). The island's size, position and corners are animated inside it by Compose, so
  * expand/collapse never resizes the window per frame — that was the source of the jank. The
  * window is made non-touchable while nothing is showing so it doesn't block the screen.
+ *
+ * So the fixed window doesn't swallow touches around the island (e.g. the notification-shade
+ * pull), a touchable region tracking just the pill's rectangle is installed on the window (see
+ * [installTouchableRegion]); everything outside it falls through to the app behind. Crucially this
+ * only marks which pixels are touchable — it never resizes the window — so the animation stays
+ * smooth. It relies on a semi-private API and degrades gracefully (window stays fully touchable)
+ * where that isn't available.
  */
 class IslandOverlayController(private val context: Context) {
 
@@ -104,6 +116,9 @@ class IslandOverlayController(private val context: Context) {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var dismissJob: Job? = null
     private var windowResizeJob: Job? = null
+
+    // The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be removed.
+    private var insetsListener: Any? = null
 
     fun start() {
         lifecycleOwner.onCreate()
@@ -160,11 +175,13 @@ class IslandOverlayController(private val context: Context) {
         windowManager.addView(view, params)
         composeView = view
         layoutParams = params
+        installTouchableRegion(view)
     }
 
     private fun removeOverlay() {
         composeView?.let { windowManager.removeViewImmediate(it) }
         composeView = null
+        insetsListener = null
     }
 
     private fun observeIconPreferences() = scope.launch {
@@ -244,6 +261,68 @@ class IslandOverlayController(private val context: Context) {
             params.flags = newFlags
             runCatching { windowManager.updateViewLayout(view, params) }
         }
+    }
+
+    /**
+     * Restrict the (fixed) window's touchable area to the pill's rectangle, so touches anywhere
+     * else fall through to whatever is behind — the app, and the status bar / notification shade.
+     * This is done with [ViewTreeObserver]'s hidden OnComputeInternalInsetsListener: it only marks
+     * which pixels are touchable and is re-evaluated on the view's normal traversals, so the pill
+     * can animate freely without the window ever being resized. Reflection + a Proxy are needed
+     * because the listener type is not public; if any part is unavailable we simply skip it and the
+     * window stays fully touchable (the pre-existing behaviour), never crashing.
+     */
+    private fun installTouchableRegion(view: View) {
+        runCatching {
+            val listenerClass =
+                Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val infoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsets = infoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = infoClass.getField("touchableRegion")
+            val touchableInsetsRegion = infoClass.getField("TOUCHABLE_INSETS_REGION").getInt(null)
+            val addListener =
+                ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+
+            val proxy = Proxy.newProxyInstance(listenerClass.classLoader, arrayOf(listenerClass)) { self, method, args ->
+                when (method.name) {
+                    "onComputeInternalInsets" -> {
+                        val info = args?.getOrNull(0)
+                        if (info != null) {
+                            setTouchableInsets.invoke(info, touchableInsetsRegion)
+                            (touchableRegionField.get(info) as Region).set(pillTouchRect(view.width, view.height))
+                        }
+                        null
+                    }
+                    "equals" -> self === args?.getOrNull(0)
+                    "hashCode" -> System.identityHashCode(self)
+                    "toString" -> "IslandTouchableRegionListener"
+                    else -> null
+                }
+            }
+            addListener.invoke(view.viewTreeObserver, proxy)
+            insetsListener = proxy
+        }.onFailure { Log.w(TAG, "Touchable region unavailable; overlay stays fully touchable", it) }
+    }
+
+    /**
+     * The pill's rectangle in the (full-width) window's own coordinates: centred, shifted by the
+     * state's offset, tall enough to include the expanded action chips, and grown by a small margin
+     * so the rounded edges, drop shadow and tap "boop" scale all stay comfortably tappable.
+     */
+    private fun pillTouchRect(viewWidth: Int, viewHeight: Int): Rect {
+        val dims = if (expanded) layoutState.value.expanded else layoutState.value.collapsed
+        val bonusDp = if (expanded) expandedActionsBonusDp() else 0
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val margin = (TOUCH_MARGIN_DP * density).toInt()
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
+        val topPx = (dims.offsetYDp * density).toInt()
+        val bottomPx = ((dims.offsetYDp + dims.heightDp + bonusDp) * density).toInt()
+        return Rect(
+            (centerX - pillWidthPx / 2 - margin).coerceAtLeast(0),
+            (topPx - margin).coerceAtLeast(0),
+            (centerX + pillWidthPx / 2 + margin).coerceAtMost(viewWidth),
+            (bottomPx + margin).coerceAtMost(if (viewHeight > 0) viewHeight else bottomPx + margin),
+        )
     }
 
     /** Tall enough for whichever state extends lowest — used for the initial, safe window size. */
@@ -448,6 +527,10 @@ class IslandOverlayController(private val context: Context) {
     private companion object {
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
+
+        // Slack around the pill's touchable rectangle so its rounded edges, shadow and tap "boop"
+        // scale stay tappable — kept small so the shade-pull area beside the pill stays free.
+        const val TOUCH_MARGIN_DP = 12
 
         // Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
         // animation, then shrink — so the collapse never clips and the freed area becomes tappable.
