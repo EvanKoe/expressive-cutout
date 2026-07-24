@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,24 +32,21 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
-import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.ui.AppViewModel
 
-/** Pink accent for the music tile, matching IconResolver.MUSIC_ACCENT. */
-private val MusicAccent = Color(0xFFF472B6)
-
 /**
- * Lists every dynamic event the cutout can display — the now-playing music tile followed by each
- * system event — as one grouped list of enable/disable switches. Each row also offers a preview
- * button that fires the matching signal so the pill shows immediately.
+ * Lists the dynamic tiles the cutout can display — live, ongoing content such as the track
+ * currently playing. Distinct from the "Event icons" screen, which covers the momentary system
+ * events (charging, Wi‑Fi, …). Each tile has an enable/disable switch and a preview button that
+ * fires a sample so the pill shows immediately.
  */
 @Composable
 internal fun DynamicTilesScreen(
@@ -58,12 +54,10 @@ internal fun DynamicTilesScreen(
     contentPadding: PaddingValues,
 ) {
     val context = LocalContext.current
-    val eventEnabled by viewModel.eventEnabled.collectAsStateWithLifecycle()
-    val musicEnabled by viewModel.musicEnabled.collectAsStateWithLifecycle()
+    val tileEnabled by viewModel.tileEnabled.collectAsStateWithLifecycle()
 
-    val systemTypes = SystemEventType.entries
-    // Music takes the first slot; the system events fill the rest. Last index is the group bottom.
-    val lastIndex = systemTypes.size
+    val tiles = DynamicTile.entries
+    val lastIndex = tiles.lastIndex
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -71,39 +65,26 @@ internal fun DynamicTilesScreen(
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
             contentPadding = contentPadding,
         ) {
-            item(key = "music") {
+            itemsIndexed(tiles, key = { _, tile -> tile.name }) { index, tile ->
                 DynamicTileCard(
-                    icon = Icons.Rounded.MusicNote,
-                    accent = MusicAccent,
-                    title = stringResource(R.string.event_music_playing),
-                    shape = groupShape(index = 0, lastIndex = lastIndex),
-                    enabled = musicEnabled,
-                    onEnabledChange = viewModel::setMusicEnabled,
-                    onTest = {
-                        IslandEventBus.emit(
-                            CutoutSignal.Music(
-                                packageName = context.packageName,
-                                title = context.getString(R.string.music_preview_title),
-                                artist = context.getString(R.string.music_preview_artist),
-                            ),
-                        )
-                    },
-                )
-            }
-
-            itemsIndexed(systemTypes, key = { _, type -> type.name }) { index, type ->
-                DynamicTileCard(
-                    icon = type.defaultIcon,
-                    accent = Color(type.accent),
-                    title = stringResource(type.labelRes),
-                    shape = groupShape(index = index + 1, lastIndex = lastIndex),
-                    enabled = eventEnabled[type] != false,
-                    onEnabledChange = { viewModel.setEventEnabled(type, it) },
-                    onTest = { IslandEventBus.emit(CutoutSignal.System(type)) },
+                    tile = tile,
+                    shape = groupShape(index = index, lastIndex = lastIndex),
+                    enabled = tileEnabled[tile] != false,
+                    onEnabledChange = { viewModel.setTileEnabled(tile, it) },
+                    onTest = { IslandEventBus.emit(tile.sampleSignal(context)) },
                 )
             }
         }
     }
+}
+
+/** A sample signal for the tile's preview button, so tapping ▶ shows the tile on the cutout. */
+private fun DynamicTile.sampleSignal(context: android.content.Context): CutoutSignal = when (this) {
+    DynamicTile.MUSIC -> CutoutSignal.Music(
+        packageName = context.packageName,
+        title = context.getString(R.string.music_preview_title),
+        artist = context.getString(R.string.music_preview_artist),
+    )
 }
 
 /** Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp. */
@@ -116,14 +97,13 @@ private fun groupShape(index: Int, lastIndex: Int): Shape = RoundedCornerShape(
 
 @Composable
 private fun DynamicTileCard(
-    icon: ImageVector,
-    accent: Color,
-    title: String,
+    tile: DynamicTile,
     shape: Shape,
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onTest: () -> Unit,
 ) {
+    val accent = Color(tile.accent)
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -151,14 +131,17 @@ private fun DynamicTileCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = icon,
+                        imageVector = tile.defaultIcon,
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(24.dp),
                     )
                 }
                 Spacer(Modifier.width(14.dp))
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(tile.labelRes),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
             FilledTonalIconButton(onClick = onTest, enabled = enabled) {
                 Icon(

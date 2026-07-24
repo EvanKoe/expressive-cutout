@@ -4,11 +4,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.ui.graphics.Color
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.IconSource
 import java.util.concurrent.atomic.AtomicLong
@@ -72,21 +71,21 @@ class IconResolver(private val context: Context) {
             packageManager.getApplicationLabel(info).toString()
         }.getOrDefault(signal.packageName)
 
-        // The player's own launcher icon reads better than a generic note; fall back to a note.
+        // The player's own launcher icon reads better than a generic note; fall back to the note.
         val icon = runCatching {
             packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
         }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
             .map { IslandIcon.Raster(it) as IslandIcon }
-            .getOrDefault(IslandIcon.Vector(Icons.Rounded.MusicNote))
+            .getOrDefault(IslandIcon.Vector(DynamicTile.MUSIC.defaultIcon))
 
         val title = signal.title?.takeIf { it.isNotBlank() }
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
             // Track title on the primary line; artist (or the app) on the secondary line.
-            label = title ?: context.getString(R.string.event_music_playing),
+            label = title ?: context.getString(DynamicTile.MUSIC.labelRes),
             detail = signal.artist?.takeIf { it.isNotBlank() } ?: appLabel,
-            accent = MUSIC_ACCENT,
+            accent = Color(DynamicTile.MUSIC.accent),
             contentIntent = signal.contentIntent,
         )
     }
@@ -119,6 +118,5 @@ class IconResolver(private val context: Context) {
     private companion object {
         const val TAG = "IconResolver"
         val NOTIFICATION_ACCENT = Color(0xFF38BDF8)
-        val MUSIC_ACCENT = Color(0xFFF472B6)
     }
 }

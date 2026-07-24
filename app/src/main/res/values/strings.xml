@@ -15,7 +15,9 @@
     <string name="event_usb_mounted">USB connected</string>
     <string name="event_usb_unmounted">USB removed</string>
     <string name="event_device_unlocked">Unlocked</string>
-    <string name="event_music_playing">Music</string>
+
+    <!-- Dynamic tile labels shown inside the island -->
+    <string name="tile_music">Music</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
@@ -77,7 +79,7 @@
     <string name="settings_size_subtitle">Island dimensions, position and live preview</string>
     <string name="settings_icons_subtitle">Pick an icon for each notification and system event</string>
     <string name="settings_behaviour_subtitle">How the expanded island collapses and dismisses</string>
-    <string name="settings_dynamic_tiles_subtitle">Choose which events the cutout can show</string>
+    <string name="settings_dynamic_tiles_subtitle">Live tiles the cutout can show, like now‑playing music</string>
 
     <!-- Dynamic tiles screen -->
     <string name="dynamic_tiles_title">Dynamic tiles</string>

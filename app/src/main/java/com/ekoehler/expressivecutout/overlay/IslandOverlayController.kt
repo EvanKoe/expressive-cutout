@@ -27,6 +27,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.core.SystemEventType
@@ -34,6 +35,7 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
@@ -78,6 +80,7 @@ class IslandOverlayController(private val context: Context) {
     private val behaviourPreferences = BehaviourPreferences(context)
     private val appearancePreferences = AppearancePreferences(context)
     private val eventPreferences = EventPreferences(context)
+    private val dynamicTilePreferences = DynamicTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen.
@@ -97,7 +100,7 @@ class IslandOverlayController(private val context: Context) {
     private val appearanceState = MutableStateFlow(AppearanceSettings())
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
-    private var musicEnabled: Boolean = true
+    private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -129,7 +132,7 @@ class IslandOverlayController(private val context: Context) {
         observeBehaviour()
         observeAppearance()
         observeEventPreferences()
-        observeMusicPreference()
+        observeTilePreferences()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -206,8 +209,8 @@ class IslandOverlayController(private val context: Context) {
         eventPreferences.enabled.collect { eventEnabled = it }
     }
 
-    private fun observeMusicPreference() = scope.launch {
-        eventPreferences.musicEnabled.collect { musicEnabled = it }
+    private fun observeTilePreferences() = scope.launch {
+        dynamicTilePreferences.enabled.collect { tileEnabled = it }
     }
 
     private fun observeLayout() = scope.launch {
@@ -387,7 +390,7 @@ class IslandOverlayController(private val context: Context) {
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
-            if (signal is CutoutSignal.Music && !musicEnabled) return@collect
+            if (signal is CutoutSignal.Music && tileEnabled[DynamicTile.MUSIC] == false) return@collect
 
             // Expand for a notification (when configured) or a music tile, so its title/detail shows.
             val autoExpand = when (signal) {

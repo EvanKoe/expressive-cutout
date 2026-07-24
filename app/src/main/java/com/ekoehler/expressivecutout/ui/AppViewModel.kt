@@ -3,6 +3,7 @@ package com.ekoehler.expressivecutout.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearancePreferences
@@ -12,6 +13,7 @@ import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
+import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
@@ -38,6 +40,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val behaviourPreferences = BehaviourPreferences(application)
     private val appearancePreferences = AppearancePreferences(application)
     private val eventPreferences = EventPreferences(application)
+    private val dynamicTilePreferences = DynamicTilePreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -53,11 +56,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
-    val musicEnabled: StateFlow<Boolean> =
-        eventPreferences.musicEnabled.stateIn(
+    val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
+        dynamicTilePreferences.enabled.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = true,
+            initialValue = emptyMap(),
         )
 
     val layout: StateFlow<IslandLayout> =
@@ -104,8 +107,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         eventPreferences.setEnabled(type, enabled)
     }
 
-    fun setMusicEnabled(enabled: Boolean) = viewModelScope.launch {
-        eventPreferences.setMusicEnabled(enabled)
+    fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {
+        dynamicTilePreferences.setEnabled(tile, enabled)
     }
 
     fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {

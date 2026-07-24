@@ -1,0 +1,32 @@
+package com.ekoehler.expressivecutout.data
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
+import com.ekoehler.expressivecutout.core.DynamicTile
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dynamicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "dynamic_tile_prefs")
+
+/**
+ * Persists whether each dynamic tile is allowed to appear on the cutout. Absent means enabled,
+ * so tiles show by default and only explicit opt-outs are stored — mirroring [EventPreferences]
+ * but kept separate because tiles are a distinct concept from system events.
+ */
+class DynamicTilePreferences(private val context: Context) {
+
+    val enabled: Flow<Map<DynamicTile, Boolean>> = context.dynamicTileDataStore.data.map { prefs ->
+        DynamicTile.entries.associateWith { tile -> prefs[tile.key] ?: true }
+    }
+
+    suspend fun setEnabled(tile: DynamicTile, enabled: Boolean) = context.dynamicTileDataStore.edit {
+        it[tile.key] = enabled
+    }
+
+    private val DynamicTile.key: Preferences.Key<Boolean>
+        get() = booleanPreferencesKey("tile_enabled_$name")
+}
