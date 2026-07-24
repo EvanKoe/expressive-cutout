@@ -42,6 +42,7 @@ data class MusicButtonStyle(
 /** The music tile's own settings, edited on its dedicated settings screen. */
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
+    val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
     val showControls: Boolean = DEFAULT_SHOW_CONTROLS,
     /** Shared style of the previous / next (skip) buttons. */
     val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
@@ -50,6 +51,7 @@ data class MusicTileSettings(
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
+        const val DEFAULT_ROTATE_ALBUM_ART = false
         const val DEFAULT_SHOW_CONTROLS = true
     }
 }
@@ -60,6 +62,7 @@ class MusicTilePreferences(private val context: Context) {
     val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
+            rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
             showControls = prefs[SHOW_CONTROLS] ?: MusicTileSettings.DEFAULT_SHOW_CONTROLS,
             skipButton = MusicButtonStyle(
                 color = CutoutColor.deserialize(prefs[SKIP_COLOR]),
@@ -78,6 +81,10 @@ class MusicTilePreferences(private val context: Context) {
 
     suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[SHOW_ALBUM_ART] = enabled
+    }
+
+    suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[ROTATE_ALBUM_ART] = enabled
     }
 
     suspend fun setShowControls(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -118,6 +125,7 @@ class MusicTilePreferences(private val context: Context) {
 
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
+        val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
         val SHOW_CONTROLS = booleanPreferencesKey("show_controls")
         val SKIP_COLOR = stringPreferencesKey("skip_button_color")
         val SKIP_OPACITY = floatPreferencesKey("skip_button_opacity")

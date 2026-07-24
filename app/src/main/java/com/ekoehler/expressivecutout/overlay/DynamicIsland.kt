@@ -4,9 +4,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -37,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -59,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -71,6 +76,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -79,6 +85,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -100,6 +107,12 @@ private const val ACTIONS_ROW_SPACING_DP = 14
 
 // How far the island must be dragged upward before a swipe-up collapses it.
 private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
+
+// How long the "reply sent" confirmation stays on screen before the reply is dispatched.
+private const val REPLY_SENT_FEEDBACK_MS = 900L
+
+// Time for the rotating album art to complete one full turn.
+private const val ALBUM_SPIN_MS = 8000
 
 /**
  * Extra height added to the expanded island when it shows action buttons, so the added row grows
@@ -143,6 +156,10 @@ fun DynamicIsland(
     // The reply action currently being typed for, if any. Reset when the event changes.
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
+    // Non-null immediately after the user hits send: the island shows a brief "Sent" confirmation,
+    // then this action/text pair is dispatched (which dismisses the island).
+    var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
+    val confirmingSent = sentReply != null
     val isExpanded = forcedExpanded ?: tapExpanded
     val boopScale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
@@ -153,9 +170,9 @@ fun DynamicIsland(
         if (event != null) onExpandedChange(isExpanded)
     }
     // User-expanded (not the pinned preview) optionally collapses after the delay — never while
-    // a reply is being typed.
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying) {
-        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying) {
+    // a reply is being typed or its "sent" confirmation is still showing.
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent) {
+        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
             delay(autoCollapseMs)
             tapExpanded = false
         }
@@ -251,11 +268,22 @@ fun DynamicIsland(
                                     showActions = showActions,
                                     appearance = appearance,
                                     replyingTo = replyingTo,
+                                    replySent = confirmingSent,
                                     onAction = onAction,
                                     onStartReply = { replyingTo = it },
                                     onCancelReply = { replyingTo = null },
                                     onSendReply = { text ->
-                                        replyingTo?.let { onReply(it, text) }
+                                        // Swap the field for the "Sent" confirmation, then dispatch
+                                        // the reply once it has been seen. Launched from the (un-keyed)
+                                        // composition scope so a notification arriving mid-hold can't
+                                        // cancel the send.
+                                        replyingTo?.let { action ->
+                                            sentReply = action to text
+                                            scope.launch {
+                                                delay(REPLY_SENT_FEEDBACK_MS)
+                                                onReply(action, text)
+                                            }
+                                        }
                                         replyingTo = null
                                     },
                                 )
@@ -302,6 +330,7 @@ fun IslandPreview(
                 showActions = showActions,
                 appearance = appearance,
                 replyingTo = null,
+                replySent = false,
                 onAction = {},
                 onStartReply = {},
                 onCancelReply = {},
@@ -388,7 +417,13 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
             .align(Alignment.CenterStart)
             .padding(start = (heightDp * 0.16f).dp)
         if (albumArt != null) {
-            AlbumArt(bitmap = albumArt, size = badgeSize, modifier = placement)
+            AlbumArt(
+                bitmap = albumArt,
+                size = badgeSize,
+                modifier = placement,
+                rotate = event.media?.rotateAlbumArt == true,
+                playing = nowPlaying?.isPlaying == true,
+            )
         } else {
             IconBadge(
                 event = event,
@@ -406,6 +441,7 @@ private fun ExpandedContent(
     showActions: Boolean,
     appearance: AppearanceSettings,
     replyingTo: IslandAction?,
+    replySent: Boolean,
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
@@ -449,13 +485,19 @@ private fun ExpandedContent(
                     }
                 }
             }
+            // Fall back to the notification's own accent / a neutral tint when unset.
+            val sendColor = appearance.sendButtonColor?.resolve() ?: event.accent
             when {
+                // Just sent: a brief confirmation replaces the field before the island dismisses.
+                replySent -> ReplySentRow(
+                    tint = sendColor,
+                    heightDp = appearance.actionButtonHeightDp,
+                )
                 // Typing a reply: the input field replaces the chips until sent or cancelled.
                 replyingTo != null -> ReplyRow(
                     hint = replyingTo.reply?.hint,
                     accent = event.accent,
-                    // Fall back to the notification's own accent / a neutral tint when unset.
-                    sendColor = appearance.sendButtonColor?.resolve() ?: event.accent,
+                    sendColor = sendColor,
                     cancelColor = appearance.cancelButtonColor?.resolve(),
                     inputStyle = appearance.replyInputStyle,
                     cancelOnLeft = appearance.cancelButtonOnLeft,
@@ -567,6 +609,51 @@ private fun Modifier.pressScale(
     return this.graphicsLayer {
         scaleX = scale
         scaleY = scale
+    }
+}
+
+/**
+ * The post-send confirmation shown briefly in place of the reply field: a circular [tint] badge
+ * whose check mark springs in with a little overshoot, and a "Sent" label that fades up beside it,
+ * so the user gets clear feedback that the message went out before the island dismisses.
+ */
+@Composable
+private fun ReplySentRow(tint: Color, heightDp: Int) {
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        appear.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
+        )
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(heightDp.dp)
+                .graphicsLayer {
+                    scaleX = appear.value
+                    scaleY = appear.value
+                }
+                .clip(CircleShape)
+                .background(tint),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = if (tint.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Text(
+            text = stringResource(R.string.reply_sent),
+            color = LocalContentColor.current.copy(alpha = appear.value),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -870,7 +957,12 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 if (albumArt != null) {
-                    AlbumArt(bitmap = albumArt, size = 44.dp)
+                    AlbumArt(
+                        bitmap = albumArt,
+                        size = 44.dp,
+                        rotate = event.media?.rotateAlbumArt == true,
+                        playing = nowPlaying?.isPlaying == true,
+                    )
                 } else {
                     IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 }
@@ -1031,16 +1123,42 @@ private fun MediaButton(
     }
 }
 
-/** Album art rendered as a rounded square, cropped to fill. */
+/**
+ * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
+ * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused.
+ */
 @Composable
-private fun AlbumArt(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
+private fun AlbumArt(
+    bitmap: ImageBitmap,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    rotate: Boolean = false,
+    playing: Boolean = false,
+) {
+    val angle = remember { Animatable(0f) }
+    // Spin only while enabled and playing; on pause the effect cancels and the angle holds. Restart
+    // repeats identical 0→360 turns from the held value, so a pause/resume is seamless.
+    LaunchedEffect(rotate, playing) {
+        if (rotate && playing) {
+            angle.animateTo(
+                targetValue = angle.value + 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = ALBUM_SPIN_MS, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart,
+                ),
+            )
+        }
+    }
+    // A spinning square would visibly swing its corners, so a rotatable cover is drawn as a circle.
+    val shape = if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
     androidx.compose.foundation.Image(
         bitmap = bitmap,
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(size * 0.24f)),
+            .rotate(if (rotate) angle.value else 0f)
+            .clip(shape),
     )
 }
 

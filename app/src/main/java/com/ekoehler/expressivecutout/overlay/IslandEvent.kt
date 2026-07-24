@@ -47,6 +47,8 @@ data class IslandEvent(
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
 data class MediaTileOptions(
     val showAlbumArt: Boolean,
+    /** Spin the album art while playback is live, freezing it when paused. */
+    val rotateAlbumArt: Boolean,
     val showControls: Boolean,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,

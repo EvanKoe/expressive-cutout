@@ -92,6 +92,7 @@ class IconResolver(private val context: Context) {
             contentIntent = signal.contentIntent,
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
+                rotateAlbumArt = settings.rotateAlbumArt,
                 showControls = settings.showControls,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,

@@ -88,6 +88,8 @@
     <!-- Music tile settings -->
     <string name="music_show_art_title">Album art</string>
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
+    <string name="music_rotate_art_title">Spin album art</string>
+    <string name="music_rotate_art_desc">Rotate the album cover while music plays; it stops when paused.</string>
     <string name="music_show_controls_title">Playback controls</string>
     <string name="music_show_controls_desc">Show previous, play/pause and next buttons on the expanded cutout.</string>
     <string name="music_buttons_title">Playback buttons</string>
@@ -152,6 +154,7 @@
     <string name="action_buttons_preview_reply">Reply</string>
     <string name="action_buttons_preview_archive">Archive</string>
     <string name="action_buttons_reply_hint">Message…</string>
+    <string name="reply_sent">Sent</string>
     <string name="style_expressive_tonal_title">Expressive · Tonal</string>
     <string name="style_expressive_tonal_desc">Translucent accent pill</string>
     <string name="style_expressive_filled_title">Expressive · Filled</string>
