@@ -49,6 +49,11 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Handles the buttons on the in-app test notification (reply / mark as read). -->
+        <receiver
+            android:name=".notifications.TestReplyReceiver"
+            android:exported="false" />
+
         <!-- Captures posted notifications and forwards them to the island. -->
         <service
             android:name=".service.CutoutNotificationListenerService"
