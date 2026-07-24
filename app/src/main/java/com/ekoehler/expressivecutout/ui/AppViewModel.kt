@@ -53,6 +53,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    val musicEnabled: StateFlow<Boolean> =
+        eventPreferences.musicEnabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = true,
+        )
+
     val layout: StateFlow<IslandLayout> =
         layoutPreferences.layout.stateIn(
             scope = viewModelScope,
@@ -95,6 +102,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventEnabled(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
         eventPreferences.setEnabled(type, enabled)
+    }
+
+    fun setMusicEnabled(enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setMusicEnabled(enabled)
     }
 
     fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
@@ -51,6 +52,7 @@ fun SettingsTab(
     route: SettingsRoute,
     onOpenSizePosition: () -> Unit,
     onOpenEventIcons: () -> Unit,
+    onOpenDynamicTiles: () -> Unit,
     onOpenBehaviour: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
@@ -66,6 +68,7 @@ fun SettingsTab(
                 onCutoutEnabledChange = viewModel::setCutoutEnabled,
                 onOpenSizePosition = onOpenSizePosition,
                 onOpenEventIcons = onOpenEventIcons,
+                onOpenDynamicTiles = onOpenDynamicTiles,
                 onOpenBehaviour = onOpenBehaviour,
                 onOpenAppearance = onOpenAppearance,
             )
@@ -73,6 +76,7 @@ fun SettingsTab(
 
         SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
         SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
+        SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding)
         SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
         SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
         SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
@@ -82,7 +86,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, DynamicTiles, Behaviour, Appearance, Background, ActionButtons }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -101,6 +105,7 @@ private fun SettingsList(
     onCutoutEnabledChange: (Boolean) -> Unit,
     onOpenSizePosition: () -> Unit,
     onOpenEventIcons: () -> Unit,
+    onOpenDynamicTiles: () -> Unit,
     onOpenBehaviour: () -> Unit,
     onOpenAppearance: () -> Unit,
 ) {
@@ -134,6 +139,12 @@ private fun SettingsList(
                 title = stringResource(R.string.section_icons_title),
                 subtitle = stringResource(R.string.settings_icons_subtitle),
                 onClick = onOpenEventIcons,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.GridView,
+                title = stringResource(R.string.dynamic_tiles_title),
+                subtitle = stringResource(R.string.settings_dynamic_tiles_subtitle),
+                onClick = onOpenDynamicTiles,
             )
             SettingsListItem(
                 icon = Icons.Rounded.Timer,

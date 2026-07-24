@@ -108,6 +108,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     route = settingsRoute,
                     onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
                     onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
+                    onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
                     onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
                     onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                     onOpenBackground = { settingsRoute = SettingsRoute.Background },
@@ -141,6 +142,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
             if (inSubScreen) {
                 val title = when (settingsRoute) {
                     SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
+                    SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                     SettingsRoute.Background -> stringResource(R.string.appearance_background_color)

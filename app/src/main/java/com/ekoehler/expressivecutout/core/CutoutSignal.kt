@@ -59,6 +59,15 @@ sealed interface CutoutSignal {
 
     /** A device-level event occurred. */
     data class System(val type: SystemEventType) : CutoutSignal
+
+    /** Media started playing on the device (surfaced from any app's media session). */
+    data class Music(
+        val packageName: String,
+        val title: String?,
+        val artist: String? = null,
+        /** The media session's activity, opened when the user taps the expanded island. */
+        val contentIntent: PendingIntent? = null,
+    ) : CutoutSignal
 }
 
 /**

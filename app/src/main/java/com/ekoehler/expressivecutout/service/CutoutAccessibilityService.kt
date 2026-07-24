@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.service
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
+import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
 
@@ -15,11 +16,13 @@ class CutoutAccessibilityService : AccessibilityService() {
 
     private var overlay: IslandOverlayController? = null
     private var systemEvents: SystemEventMonitor? = null
+    private var mediaPlayback: MediaPlaybackMonitor? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         overlay = IslandOverlayController(this).also { it.start() }
         systemEvents = SystemEventMonitor(this).also { it.start() }
+        mediaPlayback = MediaPlaybackMonitor(this).also { it.start() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -39,6 +42,8 @@ class CutoutAccessibilityService : AccessibilityService() {
     }
 
     private fun teardown() {
+        mediaPlayback?.stop()
+        mediaPlayback = null
         systemEvents?.stop()
         systemEvents = null
         overlay?.stop()

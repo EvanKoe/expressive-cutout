@@ -97,6 +97,7 @@ class IslandOverlayController(private val context: Context) {
     private val appearanceState = MutableStateFlow(AppearanceSettings())
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
+    private var musicEnabled: Boolean = true
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -128,6 +129,7 @@ class IslandOverlayController(private val context: Context) {
         observeBehaviour()
         observeAppearance()
         observeEventPreferences()
+        observeMusicPreference()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -202,6 +204,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeEventPreferences() = scope.launch {
         eventPreferences.enabled.collect { eventEnabled = it }
+    }
+
+    private fun observeMusicPreference() = scope.launch {
+        eventPreferences.musicEnabled.collect { musicEnabled = it }
     }
 
     private fun observeLayout() = scope.launch {
@@ -380,9 +386,15 @@ class IslandOverlayController(private val context: Context) {
             if (!behaviourState.value.cutoutEnabled) return@collect
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
+            // Skip now-playing media when the music tile is turned off.
+            if (signal is CutoutSignal.Music && !musicEnabled) return@collect
 
-            val autoExpand = signal is CutoutSignal.Notification &&
-                behaviourState.value.notificationsAutoExpand
+            // Expand for a notification (when configured) or a music tile, so its title/detail shows.
+            val autoExpand = when (signal) {
+                is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
+                is CutoutSignal.Music -> true
+                is CutoutSignal.System -> false
+            }
             forcedExpanded.value = null
             expanded = autoExpand
             currentEvent.value = resolver.resolve(signal, customIcons)
