@@ -83,6 +83,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -893,12 +894,14 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                     }
                 }
             }
-            if (event.media?.showControls == true) {
+            event.media?.takeIf { it.showControls }?.let { media ->
                 MediaControls(
                     isPlaying = nowPlaying?.isPlaying == true,
                     accent = event.accent,
                     enabled = nowPlaying != null,
                     heightDp = buttonHeightDp,
+                    skipStyle = media.skipStyle,
+                    playPauseStyle = media.playPauseStyle,
                     onPrevious = { nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
@@ -908,13 +911,19 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
     }
 }
 
-/** Previous / play‑pause / next. Play‑pause is a filled accent button; the others are plain. */
+/**
+ * Previous / play‑pause / next. Each button's fill colour, opacity and corner rounding come from the
+ * music tile's settings: the skip buttons share [skipStyle] (plain over the pill by default), the
+ * centre button uses [playPauseStyle] (the tile accent by default).
+ */
 @Composable
 private fun MediaControls(
     isPlaying: Boolean,
     accent: Color,
     enabled: Boolean,
     heightDp: Int,
+    skipStyle: MusicButtonStyle,
+    playPauseStyle: MusicButtonStyle,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -929,63 +938,96 @@ private fun MediaControls(
             contentDescription = "Previous track",
             enabled = enabled,
             heightDp = heightDp,
+            iconSize = 26.dp,
+            fill = skipStyle.resolveFill(fallback = null),
+            cornerPercent = skipStyle.cornerPercent,
             onClick = onPrevious,
         )
-        val ppInteraction = remember { MutableInteractionSource() }
-        FilledIconButton(
-            onClick = onPlayPause,
+        MediaButton(
+            icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            contentDescription = if (isPlaying) "Pause" else "Play",
             enabled = enabled,
-            interactionSource = ppInteraction,
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = accent,
-                contentColor = if (accent.luminance() > 0.5f) PillTextColorDark else PillTextColor,
-                disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
-                disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
-            ),
-            modifier = Modifier
-                .size(heightDp.dp)
-                .pressScale(ppInteraction),
-        ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                modifier = Modifier.size(24.dp),
-            )
-        }
+            heightDp = heightDp,
+            iconSize = 24.dp,
+            fill = playPauseStyle.resolveFill(fallback = accent),
+            cornerPercent = playPauseStyle.cornerPercent,
+            onClick = onPlayPause,
+        )
         MediaButton(
             icon = Icons.Rounded.SkipNext,
             contentDescription = "Next track",
             enabled = enabled,
             heightDp = heightDp,
+            iconSize = 26.dp,
+            fill = skipStyle.resolveFill(fallback = null),
+            cornerPercent = skipStyle.cornerPercent,
             onClick = onNext,
         )
     }
 }
 
-/** A plain (unfilled) transport button with the shared press "squish". */
+/** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
+ *  style nor the [fallback] supplies a colour. Opacity from the style is folded into the alpha. */
+@Composable
+private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
+    val base = color?.resolve() ?: fallback ?: return null
+    return base.copy(alpha = opacity)
+}
+
+/**
+ * A transport button with the shared press "squish". A null [fill] renders a plain (unfilled) button
+ * tinted with the content colour; a non-null [fill] renders a filled button rounded to
+ * [cornerPercent] (50 = a circle, 0 = a square) with an auto-contrasting icon.
+ */
 @Composable
 private fun MediaButton(
     icon: ImageVector,
     contentDescription: String,
     enabled: Boolean,
     heightDp: Int,
+    iconSize: Dp,
+    fill: Color?,
+    cornerPercent: Int,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        interactionSource = interaction,
-        modifier = Modifier
-            .size(heightDp.dp)
-            .pressScale(interaction),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = LocalContentColor.current,
-            modifier = Modifier.size(26.dp),
-        )
+    val modifier = Modifier
+        .size(heightDp.dp)
+        .pressScale(interaction)
+    if (fill == null) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            interactionSource = interaction,
+            modifier = modifier,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = LocalContentColor.current,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    } else {
+        FilledIconButton(
+            onClick = onClick,
+            enabled = enabled,
+            interactionSource = interaction,
+            shape = RoundedCornerShape(percent = cornerPercent),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = fill,
+                contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
+                disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
+            ),
+            modifier = modifier,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(iconSize),
+            )
+        }
     }
 }
 

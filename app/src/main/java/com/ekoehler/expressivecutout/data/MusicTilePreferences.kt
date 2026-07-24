@@ -5,16 +5,48 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs")
 
+/**
+ * The look of one of the music tile's transport buttons. [color] is null to keep the button's
+ * historical default (the skip buttons plain over the pill, the play/pause button the tile accent);
+ * a non-null value fills the button with that colour. [opacity] (0f..1f) scales the fill and
+ * [cornerPercent] (0..50) rounds its corners — 50 is a full circle, 0 a square.
+ */
+data class MusicButtonStyle(
+    val color: CutoutColor?,
+    val opacity: Float,
+    val cornerPercent: Int,
+) {
+    companion object {
+        const val DEFAULT_OPACITY = 1f
+        const val DEFAULT_CORNER_PERCENT = 50
+        const val MIN_CORNER_PERCENT = 0
+        const val MAX_CORNER_PERCENT = 50
+
+        val DEFAULT = MusicButtonStyle(
+            color = null,
+            opacity = DEFAULT_OPACITY,
+            cornerPercent = DEFAULT_CORNER_PERCENT,
+        )
+    }
+}
+
 /** The music tile's own settings, edited on its dedicated settings screen. */
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
     val showControls: Boolean = DEFAULT_SHOW_CONTROLS,
+    /** Shared style of the previous / next (skip) buttons. */
+    val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Style of the central play / pause button. */
+    val playPauseButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
@@ -22,13 +54,25 @@ data class MusicTileSettings(
     }
 }
 
-/** Persists the music tile's display options (album art on the normal cutout, expanded controls). */
+/** Persists the music tile's display options (album art, expanded controls) and button styling. */
 class MusicTilePreferences(private val context: Context) {
 
     val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             showControls = prefs[SHOW_CONTROLS] ?: MusicTileSettings.DEFAULT_SHOW_CONTROLS,
+            skipButton = MusicButtonStyle(
+                color = CutoutColor.deserialize(prefs[SKIP_COLOR]),
+                opacity = (prefs[SKIP_OPACITY] ?: MusicButtonStyle.DEFAULT_OPACITY).coerceIn(0f, 1f),
+                cornerPercent = (prefs[SKIP_CORNER] ?: MusicButtonStyle.DEFAULT_CORNER_PERCENT)
+                    .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT),
+            ),
+            playPauseButton = MusicButtonStyle(
+                color = CutoutColor.deserialize(prefs[PLAY_PAUSE_COLOR]),
+                opacity = (prefs[PLAY_PAUSE_OPACITY] ?: MusicButtonStyle.DEFAULT_OPACITY).coerceIn(0f, 1f),
+                cornerPercent = (prefs[PLAY_PAUSE_CORNER] ?: MusicButtonStyle.DEFAULT_CORNER_PERCENT)
+                    .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT),
+            ),
         )
     }
 
@@ -40,8 +84,46 @@ class MusicTilePreferences(private val context: Context) {
         it[SHOW_CONTROLS] = enabled
     }
 
+    /** A null [color] clears the override, restoring the skip buttons' plain default look. */
+    suspend fun setSkipColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+        if (color == null) it.remove(SKIP_COLOR) else it[SKIP_COLOR] = color.serialize()
+    }
+
+    suspend fun setSkipOpacity(opacity: Float) = context.musicTileDataStore.edit {
+        it[SKIP_OPACITY] = opacity.coerceIn(0f, 1f)
+    }
+
+    suspend fun setSkipCornerPercent(percent: Int) = context.musicTileDataStore.edit {
+        it[SKIP_CORNER] = percent.coerceIn(
+            MusicButtonStyle.MIN_CORNER_PERCENT,
+            MusicButtonStyle.MAX_CORNER_PERCENT,
+        )
+    }
+
+    /** A null [color] clears the override, restoring the play/pause button's accent default. */
+    suspend fun setPlayPauseColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+        if (color == null) it.remove(PLAY_PAUSE_COLOR) else it[PLAY_PAUSE_COLOR] = color.serialize()
+    }
+
+    suspend fun setPlayPauseOpacity(opacity: Float) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_OPACITY] = opacity.coerceIn(0f, 1f)
+    }
+
+    suspend fun setPlayPauseCornerPercent(percent: Int) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_CORNER] = percent.coerceIn(
+            MusicButtonStyle.MIN_CORNER_PERCENT,
+            MusicButtonStyle.MAX_CORNER_PERCENT,
+        )
+    }
+
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val SHOW_CONTROLS = booleanPreferencesKey("show_controls")
+        val SKIP_COLOR = stringPreferencesKey("skip_button_color")
+        val SKIP_OPACITY = floatPreferencesKey("skip_button_opacity")
+        val SKIP_CORNER = intPreferencesKey("skip_button_corner_percent")
+        val PLAY_PAUSE_COLOR = stringPreferencesKey("play_pause_button_color")
+        val PLAY_PAUSE_OPACITY = floatPreferencesKey("play_pause_button_opacity")
+        val PLAY_PAUSE_CORNER = intPreferencesKey("play_pause_button_corner_percent")
     }
 }

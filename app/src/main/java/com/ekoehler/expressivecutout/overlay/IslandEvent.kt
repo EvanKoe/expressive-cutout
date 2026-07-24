@@ -5,6 +5,7 @@ import android.app.RemoteInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.ekoehler.expressivecutout.data.MusicButtonStyle
 
 /**
  * A fully resolved, ready-to-render icon. Reducing every possible source (a Material
@@ -43,10 +44,14 @@ data class IslandEvent(
     val media: MediaTileOptions? = null,
 )
 
-/** Which parts of the music tile to render, per the tile's own settings screen. */
+/** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
 data class MediaTileOptions(
     val showAlbumArt: Boolean,
     val showControls: Boolean,
+    /** Look of the previous / next (skip) buttons. */
+    val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Look of the central play / pause button. */
+    val playPauseStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
 )
 
 /**

@@ -90,6 +90,13 @@
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
     <string name="music_show_controls_title">Playback controls</string>
     <string name="music_show_controls_desc">Show previous, play/pause and next buttons on the expanded cutout.</string>
+    <string name="music_buttons_title">Playback buttons</string>
+    <string name="music_skip_buttons_title">Previous / next buttons</string>
+    <string name="music_playpause_button_title">Play / pause button</string>
+    <string name="music_button_color">Colour</string>
+    <string name="music_button_corners">Corners</string>
+    <string name="cd_color_default_plain">No fill (plain)</string>
+    <string name="music_default_accent">Tile accent colour</string>
     <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>
 
     <!-- Appearance tab -->

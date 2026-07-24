@@ -129,6 +129,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowControls(enabled)
     }
 
+    fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setSkipColor(color)
+    }
+
+    fun setMusicSkipOpacity(opacity: Float) = viewModelScope.launch {
+        musicTilePreferences.setSkipOpacity(opacity)
+    }
+
+    fun setMusicSkipCornerPercent(percent: Int) = viewModelScope.launch {
+        musicTilePreferences.setSkipCornerPercent(percent)
+    }
+
+    fun setMusicPlayPauseColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseColor(color)
+    }
+
+    fun setMusicPlayPauseOpacity(opacity: Float) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseOpacity(opacity)
+    }
+
+    fun setMusicPlayPauseCornerPercent(percent: Int) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseCornerPercent(percent)
+    }
+
     fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
         layoutPreferences.setCollapsed(dimensions)
     }
