@@ -136,6 +136,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowActionButtons(enabled)
     }
 
+    fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShrinkOnSwipeUp(enabled)
+    }
+
     fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setShadowEnabled(enabled)
     }

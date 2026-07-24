@@ -16,6 +16,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -87,6 +88,9 @@ private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 // Vertical spacing added around the action row on top of the chip height itself.
 private const val ACTIONS_ROW_SPACING_DP = 14
 
+// How far the island must be dragged upward before a swipe-up collapses it.
+private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
+
 /**
  * Extra height added to the expanded island when it shows action buttons, so the added row grows
  * downward instead of pushing the content up into the camera cutout: one chip row (at its configured
@@ -111,6 +115,7 @@ fun DynamicIsland(
     autoCollapseMs: Long,
     appearance: AppearanceSettings,
     showActions: Boolean,
+    shrinkOnSwipeUp: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -197,6 +202,23 @@ fun DynamicIsland(
                                         boopScale.animateTo(1f, tween(durationMillis = 220, easing = EmphasizedEasing))
                                     }
                                 }
+                            }
+                        }
+                        // Swipe up on the expanded island to shrink it back to the normal cutout.
+                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, shownEvent?.id) {
+                            if (forcedExpanded != null || !shrinkOnSwipeUp) return@pointerInput
+                            val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
+                            var dragTotal = 0f
+                            detectVerticalDragGestures(
+                                onDragStart = { dragTotal = 0f },
+                                onDragEnd = {
+                                    if (isExpanded && !replying && dragTotal <= -threshold) {
+                                        tapExpanded = false
+                                    }
+                                },
+                            ) { change, dragAmount ->
+                                dragTotal += dragAmount
+                                change.consume()
                             }
                         },
                     shape = cornerShape(topLeft, topRight, bottomLeft, bottomRight),

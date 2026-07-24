@@ -26,6 +26,7 @@ data class BehaviourSettings(
     val expandedDisappearOnShrink: Boolean = DEFAULT_DISAPPEAR_ON_SHRINK,
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
     val showActionButtons: Boolean = DEFAULT_SHOW_ACTION_BUTTONS,
+    val shrinkOnSwipeUp: Boolean = DEFAULT_SHRINK_ON_SWIPE_UP,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -35,6 +36,7 @@ data class BehaviourSettings(
         const val DEFAULT_DISAPPEAR_ON_SHRINK = false
         const val DEFAULT_NOTIFICATIONS_AUTO_EXPAND = false
         const val DEFAULT_SHOW_ACTION_BUTTONS = true
+        const val DEFAULT_SHRINK_ON_SWIPE_UP = true
         const val MIN_NORMAL_SECONDS = 1
         const val MAX_NORMAL_SECONDS = 10
         const val MIN_COLLAPSE_SECONDS = 1
@@ -56,6 +58,7 @@ class BehaviourPreferences(private val context: Context) {
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
             showActionButtons = prefs[SHOW_ACTION_BUTTONS] ?: BehaviourSettings.DEFAULT_SHOW_ACTION_BUTTONS,
+            shrinkOnSwipeUp = prefs[SHRINK_ON_SWIPE_UP] ?: BehaviourSettings.DEFAULT_SHRINK_ON_SWIPE_UP,
         )
     }
 
@@ -93,6 +96,10 @@ class BehaviourPreferences(private val context: Context) {
         it[SHOW_ACTION_BUTTONS] = enabled
     }
 
+    suspend fun setShrinkOnSwipeUp(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHRINK_ON_SWIPE_UP] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
@@ -101,5 +108,6 @@ class BehaviourPreferences(private val context: Context) {
         val DISAPPEAR_ON_SHRINK = booleanPreferencesKey("expanded_disappear_on_shrink")
         val NOTIF_AUTO_EXPAND = booleanPreferencesKey("notifications_auto_expand")
         val SHOW_ACTION_BUTTONS = booleanPreferencesKey("show_action_buttons")
+        val SHRINK_ON_SWIPE_UP = booleanPreferencesKey("shrink_on_swipe_up")
     }
 }

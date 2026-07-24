@@ -101,11 +101,18 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setNotificationsAutoExpand,
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = true),
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_action_buttons),
             description = stringResource(R.string.behaviour_action_buttons_desc),
             checked = behaviour.showActionButtons,
             onCheckedChange = viewModel::setShowActionButtons,
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = true),
+            title = stringResource(R.string.behaviour_shrink_swipe_up),
+            description = stringResource(R.string.behaviour_shrink_swipe_up_desc),
+            checked = behaviour.shrinkOnSwipeUp,
+            onCheckedChange = viewModel::setShrinkOnSwipeUp,
         )
     }
 }

@@ -147,6 +147,7 @@ class IslandOverlayController(private val context: Context) {
                     autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
                     appearance = appearance,
                     showActions = behaviour.showActionButtons,
+                    shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
                     onExpandedChange = ::onExpandedChanged,
                     onActivate = ::onActivate,
                     onAction = ::onAction,

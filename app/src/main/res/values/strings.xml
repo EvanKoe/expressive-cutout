@@ -143,6 +143,8 @@
     <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
     <string name="behaviour_action_buttons">Show action buttons</string>
     <string name="behaviour_action_buttons_desc">Show a notification\'s action buttons in the expanded cutout. Adds a little height so they clear the camera.</string>
+    <string name="behaviour_shrink_swipe_up">Shrink on swipe up</string>
+    <string name="behaviour_shrink_swipe_up_desc">Swipe up on the expanded cutout to shrink it back to the normal size.</string>
     <string name="preview_label">Preview</string>
     <string name="preview_detail">Tap the island to expand or collapse</string>
     <string name="cd_decrease">Decrease</string>
@@ -169,6 +171,9 @@
     <string name="profile_appearance">Appearance</string>
     <string name="profile_theme">Theme</string>
     <string name="profile_version">Version</string>
+    <string name="profile_github_title">Open GitHub repository</string>
+    <string name="profile_github_subtitle">View the source code and releases</string>
+    <string name="profile_github_url">https://github.com/EvanKoe/expressive-cutout</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
