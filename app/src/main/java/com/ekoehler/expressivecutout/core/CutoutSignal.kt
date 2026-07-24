@@ -57,11 +57,8 @@ sealed interface CutoutSignal {
         )
     }
 
-    /**
-     * A device-level event occurred. [detail] carries an optional raw datum tied to the event
-     * (e.g. the connected Wi‑Fi network name); the overlay decides how, and whether, to show it.
-     */
-    data class System(val type: SystemEventType, val detail: String? = null) : CutoutSignal
+    /** A device-level event occurred. */
+    data class System(val type: SystemEventType) : CutoutSignal
 }
 
 /**

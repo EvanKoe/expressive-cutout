@@ -23,7 +23,6 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -74,25 +73,6 @@ fun PermissionsTab(contentPadding: PaddingValues) {
         }
     }
 
-    // Fine location can be granted in a dialog; background ("Allow all the time") cannot on
-    // Android 11+, so once fine is granted we send the user to app settings for the rest.
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted && !Permissions.isBackgroundLocationGranted(context)) {
-            Permissions.openAppDetailsSettings(context)
-        }
-    }
-
-    fun onLocation() {
-        if (!Permissions.isFineLocationGranted(context)) {
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        } else {
-            // Fine granted, background missing: only the settings page can grant it.
-            Permissions.openAppDetailsSettings(context)
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -139,13 +119,6 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             description = stringResource(R.string.perm_battery_desc),
             granted = status.batteryIgnored,
             onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
-        )
-        PermissionCard(
-            icon = Icons.Rounded.Wifi,
-            title = stringResource(R.string.perm_location_title),
-            description = stringResource(R.string.perm_location_desc),
-            granted = status.wifiName,
-            onClick = ::onLocation,
         )
 
         if (status.allEssentialGranted) {
@@ -248,9 +221,8 @@ private data class PermissionStatus(
     val notifications: Boolean,
     val accessibility: Boolean,
     val batteryIgnored: Boolean,
-    val wifiName: Boolean,
 ) {
-    // Battery optimisation and the Wi‑Fi name are niceties, not hard requirements.
+    // Battery optimisation is a reliability nicety, not a hard requirement.
     val allEssentialGranted: Boolean get() = notifications && accessibility
 }
 
@@ -264,7 +236,6 @@ private fun rememberPermissionStatus(): PermissionStatus {
         notifications = Permissions.isNotificationAccessGranted(context),
         accessibility = Permissions.isAccessibilityGranted(context),
         batteryIgnored = Permissions.isBatteryOptimizationIgnored(context),
-        wifiName = Permissions.isWifiNameReadable(context),
     )
 
     var status by remember { mutableStateOf(read()) }

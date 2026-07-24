@@ -10,8 +10,6 @@
     <string name="event_battery_low">Battery low</string>
     <string name="event_wifi_connected">Wi‑Fi connected</string>
     <string name="event_wifi_disconnected">Wi‑Fi lost</string>
-    <!-- Secondary line for the expanded island when the network name is known. -->
-    <string name="event_wifi_connected_detail">Now connected to %1$s</string>
     <string name="event_headphones_connected">Headphones</string>
     <string name="event_headphones_disconnected">Headphones out</string>
     <string name="event_usb_mounted">USB connected</string>
@@ -27,8 +25,6 @@
     <string name="perm_accessibility_desc">Draws the island over the cutout. No screen content is read.</string>
     <string name="perm_battery_title">Ignore battery optimisation</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>
-    <string name="perm_location_title">Wi‑Fi network name</string>
-    <string name="perm_location_desc">Lets the expanded island show which network you joined. Android requires location for this — choose “Allow all the time”.</string>
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>

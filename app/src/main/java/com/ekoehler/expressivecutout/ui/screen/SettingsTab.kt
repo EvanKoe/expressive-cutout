@@ -53,6 +53,7 @@ fun SettingsTab(
     onOpenEventIcons: () -> Unit,
     onOpenBehaviour: () -> Unit,
     onOpenAppearance: () -> Unit,
+    onOpenActionButtons: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     when (route) {
@@ -72,13 +73,14 @@ fun SettingsTab(
         SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
         SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
         SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
-        SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding)
+        SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenActionButtons)
+        SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance }
+enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance, ActionButtons }
 
 @Composable
 private fun SettingsList(

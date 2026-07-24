@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.graphics.Color
-import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.IconSource
@@ -25,7 +24,7 @@ class IconResolver(private val context: Context) {
         customIcons: Map<SystemEventType, IconSource>,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
-        is CutoutSignal.System -> resolveSystem(signal, customIcons)
+        is CutoutSignal.System -> resolveSystem(signal.type, customIcons)
     }
 
     private fun resolveNotification(signal: CutoutSignal.Notification): IslandEvent {
@@ -63,31 +62,16 @@ class IconResolver(private val context: Context) {
     }
 
     private fun resolveSystem(
-        signal: CutoutSignal.System,
+        type: SystemEventType,
         customIcons: Map<SystemEventType, IconSource>,
     ): IslandEvent {
-        val type = signal.type
         val icon = customIcons[type]?.toRasterOrNull() ?: IslandIcon.Vector(type.defaultIcon)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
             label = context.getString(type.labelRes),
-            // Only Wi‑Fi carries a secondary line today, and only when the network name is known.
-            // The collapsed pill shows just the icon, so this text appears only when expanded.
-            detail = systemDetail(type, signal.detail),
             accent = Color(type.accent),
         )
-    }
-
-    /** Builds the expanded island's secondary line for system events that supply extra data. */
-    private fun systemDetail(type: SystemEventType, detail: String?): String? {
-        val value = detail?.takeIf { it.isNotBlank() } ?: return null
-        return when (type) {
-            SystemEventType.WIFI_CONNECTED ->
-                context.getString(R.string.event_wifi_connected_detail, value)
-
-            else -> null
-        }
     }
 
     /** Loads the chosen source into a raster icon, or null to fall back to the default. */

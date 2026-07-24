@@ -12,8 +12,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.wifi.WifiInfo
-import android.net.wifi.WifiManager
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.ekoehler.expressivecutout.core.CutoutSignal
@@ -23,8 +21,7 @@ import com.ekoehler.expressivecutout.core.SystemEventType
 /**
  * Listens for the device-level events the island reacts to and republishes each as a
  * [CutoutSignal] on the [IslandEventBus]. All registration is dynamic so it lives and
- * dies with the hosting service. The only user content it touches is the connected Wi‑Fi
- * network name, read transiently to label that one event and never retained.
+ * dies with the hosting service; nothing here reads or retains any user content.
  */
 class SystemEventMonitor(private val context: Context) {
 
@@ -57,9 +54,7 @@ class SystemEventMonitor(private val context: Context) {
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) =
-            emit(SystemEventType.WIFI_CONNECTED, wifiSsid(network))
-
+        override fun onAvailable(network: Network) = emit(SystemEventType.WIFI_CONNECTED)
         override fun onLost(network: Network) = emit(SystemEventType.WIFI_DISCONNECTED)
     }
 
@@ -81,21 +76,7 @@ class SystemEventMonitor(private val context: Context) {
         connectivityManager?.unregisterNetworkCallback(networkCallback)
     }
 
-    private fun emit(type: SystemEventType, detail: String? = null) =
-        IslandEventBus.emit(CutoutSignal.System(type, detail))
-
-    /**
-     * The name (SSID) of the just-connected Wi‑Fi network, or null when it can't be read. The
-     * platform redacts the SSID to [WifiManager.UNKNOWN_SSID] unless the app holds fine-location
-     * permission (and location is on), so a null here simply means "show no network name".
-     */
-    private fun wifiSsid(network: Network): String? {
-        val capabilities = connectivityManager?.getNetworkCapabilities(network) ?: return null
-        val wifiInfo = capabilities.transportInfo as? WifiInfo ?: return null
-        // SSIDs come wrapped in double quotes for UTF‑8 names; strip them for display.
-        val name = wifiInfo.ssid?.trim('"')
-        return name?.takeIf { it.isNotBlank() && it != WifiManager.UNKNOWN_SSID }
-    }
+    private fun emit(type: SystemEventType) = IslandEventBus.emit(CutoutSignal.System(type))
 
     private fun buildIntentFilter() = IntentFilter().apply {
         addAction(Intent.ACTION_POWER_CONNECTED)

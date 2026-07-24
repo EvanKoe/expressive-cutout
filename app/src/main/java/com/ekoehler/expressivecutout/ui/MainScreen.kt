@@ -109,6 +109,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
                     onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
                     onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
+                    onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
                 )
 
                 HomeTab.Permissions -> PermissionsTab(contentPadding)
@@ -140,6 +141,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
+                    SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
                     else -> stringResource(R.string.section_icons_title)
                 }
                 BackNavBar(

@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -160,5 +162,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setCancelButtonColor(color: CutoutColor?) = viewModelScope.launch {
         appearancePreferences.setCancelButtonColor(color)
+    }
+
+    fun setActionButtonStyle(style: ActionButtonStyle) = viewModelScope.launch {
+        appearancePreferences.setActionButtonStyle(style)
+    }
+
+    fun setActionButtonColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setActionButtonColor(color)
+    }
+
+    fun setActionButtonHeight(heightDp: Int) = viewModelScope.launch {
+        appearancePreferences.setActionButtonHeight(heightDp)
+    }
+
+    fun setReplyInputStyle(style: ReplyInputStyle) = viewModelScope.launch {
+        appearancePreferences.setReplyInputStyle(style)
+    }
+
+    fun setCancelButtonOnLeft(onLeft: Boolean) = viewModelScope.launch {
+        appearancePreferences.setCancelButtonOnLeft(onLeft)
     }
 }

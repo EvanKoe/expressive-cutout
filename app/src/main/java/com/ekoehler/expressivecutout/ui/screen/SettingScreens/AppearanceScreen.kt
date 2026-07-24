@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.SmartButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -93,6 +96,7 @@ private val PresetColors = listOf(
 internal fun AppearanceScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenActionButtons: () -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val layout by viewModel.layout.collectAsStateWithLifecycle()
@@ -203,6 +207,9 @@ internal fun AppearanceScreen(
             onSelect = { it?.let(viewModel::setBackgroundColor) },
         )
 
+        // Opens the dedicated screen for the expanded cutout's action chips and reply field.
+        ActionButtonsCard(onClick = onOpenActionButtons)
+
         // Reply buttons: their colours default to the notification's accent (send) and a neutral
         // tint (cancel); the leading "default" swatch restores that behaviour.
         ColorPickerCard(
@@ -219,6 +226,49 @@ internal fun AppearanceScreen(
             defaultLabel = stringResource(R.string.cd_color_default_neutral),
             defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** A clickable card that navigates to the dedicated action-buttons screen. */
+@Composable
+private fun ActionButtonsCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.SmartButton,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.action_buttons_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_action_buttons_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

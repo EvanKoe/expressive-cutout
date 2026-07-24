@@ -82,10 +82,15 @@ private val PillTextColorDark = Color(0xFF0A0A0A)
 // Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0).
 private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
-// Extra height added to the expanded island when it shows action buttons, so the added row grows
-// downward instead of pushing the content up into the camera cutout. Roughly one chip row plus its
-// spacing. The controller grows the host window by the same amount so it never clips.
-internal const val EXPANDED_ACTIONS_EXTRA_DP = 58
+// Vertical spacing added around the action row on top of the chip height itself.
+private const val ACTIONS_ROW_SPACING_DP = 14
+
+/**
+ * Extra height added to the expanded island when it shows action buttons, so the added row grows
+ * downward instead of pushing the content up into the camera cutout: one chip row (at its configured
+ * height) plus its spacing. The controller grows the host window by the same amount so it never clips.
+ */
+internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
@@ -142,7 +147,11 @@ fun DynamicIsland(
     // Only pad the height when the expanded island will actually render action chips.
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val dims = if (isExpanded) expanded else collapsed
-    val heightBonus = if (isExpanded && hasActions) EXPANDED_ACTIONS_EXTRA_DP else 0
+    val heightBonus = if (isExpanded && hasActions) {
+        expandedActionsExtraDp(appearance.actionButtonHeightDp)
+    } else {
+        0
+    }
     val spec = tween<Dp>(durationMillis = 220, easing = EmphasizedEasing)
     val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
     val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
@@ -360,23 +369,32 @@ private fun ExpandedContent(
                     // Fall back to the notification's own accent / a neutral tint when unset.
                     sendColor = appearance.sendButtonColor?.resolve() ?: event.accent,
                     cancelColor = appearance.cancelButtonColor?.resolve(),
+                    inputStyle = appearance.replyInputStyle,
+                    cancelOnLeft = appearance.cancelButtonOnLeft,
+                    heightDp = appearance.actionButtonHeightDp,
                     onSend = onSendReply,
                     onCancel = onCancelReply,
                 )
                 // Action chips (at most three fit comfortably); a reply chip opens the input,
                 // any other chip fires its action.
-                showActions && event.actions.isNotEmpty() -> Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    event.actions.take(3).forEach { action ->
-                        ActionChip(
-                            action = action,
-                            accent = event.accent,
-                            onClick = {
-                                if (action.reply != null) onStartReply(action) else onAction(action)
-                            },
-                        )
+                showActions && event.actions.isNotEmpty() -> {
+                    // Chip fill follows the configured colour, or the notification's accent when unset.
+                    val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        event.actions.take(3).forEach { action ->
+                            ActionChip(
+                                action = action,
+                                style = appearance.actionButtonStyle,
+                                fill = chipFill,
+                                heightDp = appearance.actionButtonHeightDp,
+                                onClick = {
+                                    if (action.reply != null) onStartReply(action) else onAction(action)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -384,21 +402,49 @@ private fun ExpandedContent(
     }
 }
 
+/**
+ * A single action chip. [style] selects between the Material 3 Expressive and Material You looks;
+ * [fill] is the base colour those looks derive their container/outline from.
+ */
 @Composable
 private fun ActionChip(
     action: IslandAction,
-    accent: Color,
+    style: ActionButtonStyle,
+    fill: Color,
+    heightDp: Int,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val shape = when (style) {
+        ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+        else -> CircleShape
+    }
+    val container = when (style) {
+        ActionButtonStyle.EXPRESSIVE_TONAL -> fill.copy(alpha = 0.22f)
+        ActionButtonStyle.EXPRESSIVE_FILLED -> fill
+        ActionButtonStyle.MATERIAL_YOU -> fill.copy(alpha = 0.16f)
+        ActionButtonStyle.OUTLINED -> Color.Transparent
+    }
+    val content = when (style) {
+        // A solid fill needs ink that contrasts with it; the rest sit on a translucent tint.
+        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        ActionButtonStyle.OUTLINED -> fill
+        else -> LocalContentColor.current
+    }
+    val border = if (style == ActionButtonStyle.OUTLINED) {
+        BorderStroke(1.5.dp, fill.copy(alpha = 0.7f))
+    } else {
+        null
+    }
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = CircleShape,
-        color = accent.copy(alpha = 0.22f),
-        contentColor = LocalContentColor.current,
+        shape = shape,
+        color = container,
+        contentColor = content,
+        border = border,
         modifier = Modifier
-            .height(44.dp)
+            .height(heightDp.dp)
             .pressScale(interaction),
     ) {
         Box(contentAlignment = Alignment.Center) {

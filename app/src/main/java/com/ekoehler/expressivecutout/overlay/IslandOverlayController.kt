@@ -175,7 +175,11 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private fun observeAppearance() = scope.launch {
-        appearancePreferences.settings.collect { appearanceState.value = it }
+        appearancePreferences.settings.collect {
+            appearanceState.value = it
+            // The action-button height feeds the expanded window's extra room; keep them in step.
+            syncWindowHeight()
+        }
     }
 
     private fun observeEventPreferences() = scope.launch {
@@ -263,7 +267,11 @@ class IslandOverlayController(private val context: Context) {
     private fun expandedActionsBonusDp(): Int {
         val showing = behaviourState.value.showActionButtons
         val hasActions = currentEvent.value?.actions?.isNotEmpty() == true
-        return if (showing && hasActions) EXPANDED_ACTIONS_EXTRA_DP else 0
+        return if (showing && hasActions) {
+            expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
+        } else {
+            0
+        }
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
