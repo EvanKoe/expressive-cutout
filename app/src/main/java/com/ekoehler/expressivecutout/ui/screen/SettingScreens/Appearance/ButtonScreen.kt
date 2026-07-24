@@ -263,6 +263,13 @@ internal fun ButtonScreen(
                 selected = appearance.replyInputStyle,
                 onSelect = viewModel::setReplyInputStyle,
             )
+            ReplyStyleOption(
+                title = stringResource(R.string.input_segmented_title),
+                description = stringResource(R.string.input_segmented_desc),
+                style = ReplyInputStyle.SEGMENTED,
+                selected = appearance.replyInputStyle,
+                onSelect = viewModel::setReplyInputStyle,
+            )
         }
 
         // --- Cancel button placement ---
@@ -477,16 +484,24 @@ private fun ReplyInputPreview(
     cancelOnLeft: Boolean,
     heightDp: Int,
 ) {
+    val segmented = inputStyle == ReplyInputStyle.SEGMENTED
+    val cap = (heightDp / 2).dp
+    val inner = 8.dp
+    val startCap = RoundedCornerShape(topStart = cap, bottomStart = cap, topEnd = inner, bottomEnd = inner)
+    val endCap = RoundedCornerShape(topStart = inner, bottomStart = inner, topEnd = cap, bottomEnd = cap)
     val fieldShape: Shape = when (inputStyle) {
         ReplyInputStyle.EXPRESSIVE -> CircleShape
         ReplyInputStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
         ReplyInputStyle.MATERIAL_2 -> RoundedCornerShape(4.dp)
+        // In the segmented bar the field's inner edges are lightly rounded; its leading edge caps
+        // the bar when the cancel button isn't on the left.
+        ReplyInputStyle.SEGMENTED -> if (cancelOnLeft) RoundedCornerShape(inner) else startCap
     }
     val cancel = @Composable {
         Box(
             modifier = Modifier
                 .size(heightDp.dp)
-                .clip(CircleShape)
+                .clip(if (segmented && cancelOnLeft) startCap else if (segmented) RoundedCornerShape(inner) else CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center,
         ) {
@@ -502,7 +517,7 @@ private fun ReplyInputPreview(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (segmented) 4.dp else 10.dp),
     ) {
         if (cancelOnLeft) cancel()
         Box(
@@ -527,7 +542,7 @@ private fun ReplyInputPreview(
         Box(
             modifier = Modifier
                 .size(heightDp.dp)
-                .clip(CircleShape)
+                .clip(if (segmented) endCap else CircleShape)
                 .background(send),
             contentAlignment = Alignment.Center,
         ) {

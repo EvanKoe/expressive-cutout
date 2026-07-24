@@ -145,6 +145,8 @@
     <string name="input_material_you_desc">Generously rounded field</string>
     <string name="input_material_2_title">Material 2</string>
     <string name="input_material_2_desc">Lightly rounded field</string>
+    <string name="input_segmented_title">Segmented</string>
+    <string name="input_segmented_desc">Cancel, field and send joined as one bar</string>
     <string name="color_picker_title">Custom colour</string>
     <string name="color_picker_hex">Hex</string>
     <string name="action_select">Select</string>

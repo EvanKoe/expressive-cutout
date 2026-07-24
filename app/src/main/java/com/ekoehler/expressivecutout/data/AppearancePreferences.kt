@@ -165,6 +165,9 @@ enum class ReplyInputStyle {
     MATERIAL_YOU,
     /** Material 2: a lightly 4dp-rounded field. */
     MATERIAL_2,
+
+    /** Cancel, field and send joined as one connected bar with rounded end-caps. */
+    SEGMENTED,
     ;
 
     companion object {

@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -568,10 +569,31 @@ private fun ReplyRow(
 
     val cancelInteraction = remember { MutableInteractionSource() }
     val sendInteraction = remember { MutableInteractionSource() }
+
+    // The segmented style joins cancel, field and send into one bar (see SegmentedReplyRow); the
+    // others are separate controls with only the field's corner rounding differing.
+    if (inputStyle == ReplyInputStyle.SEGMENTED) {
+        SegmentedReplyRow(
+            text = text,
+            onValueChange = { text = it },
+            hint = hint,
+            accent = accent,
+            sendColor = sendColor,
+            cancelColor = cancelColor,
+            cancelOnLeft = cancelOnLeft,
+            heightDp = heightDp,
+            focusRequester = focusRequester,
+            onSend = send,
+            onCancel = onCancel,
+        )
+        return
+    }
+
     val fieldShape = when (inputStyle) {
         ReplyInputStyle.EXPRESSIVE -> CircleShape
         ReplyInputStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
         ReplyInputStyle.MATERIAL_2 -> RoundedCornerShape(4.dp)
+        ReplyInputStyle.SEGMENTED -> CircleShape // handled above; unreachable.
     }
 
     Row(
@@ -597,6 +619,108 @@ private fun ReplyRow(
             ReplyCancelButton(cancelColor, heightDp, cancelInteraction, onCancel)
         }
         ReplySendButton(sendColor, text.isNotBlank(), heightDp, sendInteraction, send)
+    }
+}
+
+/**
+ * The "segmented" reply style: cancel, field and send sit flush in one connected bar, split by a
+ * small gap, with the two outer segments carrying fully-rounded end-caps and the inner edges only
+ * lightly rounded. [cancelOnLeft] chooses which end the cancel button caps (send always trails).
+ */
+@Composable
+private fun SegmentedReplyRow(
+    text: String,
+    onValueChange: (String) -> Unit,
+    hint: String?,
+    accent: Color,
+    sendColor: Color,
+    cancelColor: Color?,
+    cancelOnLeft: Boolean,
+    heightDp: Int,
+    focusRequester: FocusRequester,
+    onSend: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val cap = (heightDp / 2).dp
+    val inner = 8.dp
+    val startCap = RoundedCornerShape(topStart = cap, bottomStart = cap, topEnd = inner, bottomEnd = inner)
+    val endCap = RoundedCornerShape(topStart = inner, bottomStart = inner, topEnd = cap, bottomEnd = cap)
+    val innerShape = RoundedCornerShape(inner)
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val cancel = @Composable { shape: Shape ->
+            ReplySegmentButton(
+                icon = Icons.Rounded.Close,
+                contentDescription = "Cancel reply",
+                container = LocalContentColor.current.copy(alpha = 0.12f),
+                content = cancelColor ?: LocalContentColor.current.copy(alpha = 0.7f),
+                shape = shape,
+                heightDp = heightDp,
+                onClick = onCancel,
+            )
+        }
+        // Leading end-cap: cancel when it's on the left, otherwise the field itself.
+        if (cancelOnLeft) cancel(startCap)
+        ReplyField(
+            modifier = Modifier.weight(1f),
+            text = text,
+            onValueChange = onValueChange,
+            hint = hint,
+            accent = accent,
+            shape = if (cancelOnLeft) innerShape else startCap,
+            heightDp = heightDp,
+            focusRequester = focusRequester,
+            onSend = onSend,
+        )
+        if (!cancelOnLeft) cancel(innerShape)
+        val sendEnabled = text.isNotBlank()
+        ReplySegmentButton(
+            icon = Icons.AutoMirrored.Rounded.Send,
+            contentDescription = "Send reply",
+            container = if (sendEnabled) sendColor else LocalContentColor.current.copy(alpha = 0.12f),
+            content = when {
+                !sendEnabled -> LocalContentColor.current.copy(alpha = 0.4f)
+                sendColor.luminance() > 0.5f -> PillTextColorDark
+                else -> PillTextColor
+            },
+            shape = endCap,
+            heightDp = heightDp,
+            enabled = sendEnabled,
+            onClick = onSend,
+        )
+    }
+}
+
+/** One end-cap of the segmented reply bar: a shaped, filled tap target with a centred icon. */
+@Composable
+private fun ReplySegmentButton(
+    icon: ImageVector,
+    contentDescription: String,
+    container: Color,
+    content: Color,
+    shape: Shape,
+    heightDp: Int,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = shape,
+        color = container,
+        contentColor = content,
+        modifier = Modifier.size(heightDp.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
