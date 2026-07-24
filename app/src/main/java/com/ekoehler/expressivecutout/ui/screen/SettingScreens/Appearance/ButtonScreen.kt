@@ -270,6 +270,24 @@ internal fun ButtonScreen(
             checked = appearance.cancelButtonOnLeft,
             onCheckedChange = viewModel::setCancelButtonOnLeft,
         )
+
+        // --- Send / cancel reply-button colours ---
+        // Their colours default to the notification's accent (send) and a neutral tint (cancel);
+        // the leading "default" swatch restores that behaviour.
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_send_color),
+            selected = appearance.sendButtonColor,
+            onSelect = viewModel::setSendButtonColor,
+            defaultLabel = stringResource(R.string.cd_color_default_accent),
+            defaultColor = PreviewAccent,
+        )
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_cancel_color),
+            selected = appearance.cancelButtonColor,
+            onSelect = viewModel::setCancelButtonColor,
+            defaultLabel = stringResource(R.string.cd_color_default_neutral),
+            defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

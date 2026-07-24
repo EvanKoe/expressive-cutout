@@ -74,7 +74,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
 
     // On a Settings detail screen the bottom bar becomes a back pill instead of the tab bar.
     val inSubScreen = current == HomeTab.Settings && settingsRoute != SettingsRoute.List
-    BackHandler(enabled = inSubScreen) { settingsRoute = SettingsRoute.List }
+    BackHandler(enabled = inSubScreen) { settingsRoute = settingsRoute.parent }
 
     Scaffold(
         topBar = {
@@ -146,7 +146,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 }
                 BackNavBar(
                     title = title,
-                    onBack = { settingsRoute = SettingsRoute.List },
+                    onBack = { settingsRoute = settingsRoute.parent },
                     modifier = barModifier,
                 )
             } else {

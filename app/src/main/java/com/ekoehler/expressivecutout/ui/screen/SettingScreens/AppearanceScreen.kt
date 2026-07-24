@@ -207,25 +207,9 @@ internal fun AppearanceScreen(
             onSelect = { it?.let(viewModel::setBackgroundColor) },
         )
 
-        // Opens the dedicated screen for the expanded cutout's action chips and reply field.
+        // Opens the dedicated screen for the expanded cutout's action chips and reply field
+        // (including the send/cancel reply-button colours).
         ActionButtonsCard(onClick = onOpenActionButtons)
-
-        // Reply buttons: their colours default to the notification's accent (send) and a neutral
-        // tint (cancel); the leading "default" swatch restores that behaviour.
-        ColorPickerCard(
-            label = stringResource(R.string.appearance_send_color),
-            selected = appearance.sendButtonColor,
-            onSelect = viewModel::setSendButtonColor,
-            defaultLabel = stringResource(R.string.cd_color_default_accent),
-            defaultColor = previewEvent.accent,
-        )
-        ColorPickerCard(
-            label = stringResource(R.string.appearance_cancel_color),
-            selected = appearance.cancelButtonColor,
-            onSelect = viewModel::setCancelButtonColor,
-            defaultLabel = stringResource(R.string.cd_color_default_neutral),
-            defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -278,7 +262,7 @@ private fun ActionButtonsCard(onClick: () -> Unit) {
  * reply buttons); otherwise every choice is a concrete [CutoutColor].
  */
 @Composable
-private fun ColorPickerCard(
+internal fun ColorPickerCard(
     label: String,
     selected: CutoutColor?,
     onSelect: (CutoutColor?) -> Unit,

@@ -82,6 +82,16 @@ fun SettingsTab(
  *  switch to a back pill on the detail screens. */
 enum class SettingsRoute { List, SizePosition, EventIcons, Behaviour, Appearance, ActionButtons }
 
+/**
+ * The screen that back navigation returns to. Most detail screens go straight back to the list,
+ * but ActionButtons is reached from Appearance, so it steps back there first.
+ */
+val SettingsRoute.parent: SettingsRoute
+    get() = when (this) {
+        SettingsRoute.ActionButtons -> SettingsRoute.Appearance
+        else -> SettingsRoute.List
+    }
+
 @Composable
 private fun SettingsList(
     contentPadding: PaddingValues,
