@@ -30,6 +30,7 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -108,6 +109,12 @@ class IslandOverlayController(private val context: Context) {
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
+    // True while a media session is actively playing; keeps the music cutout pinned up (no
+    // auto-dismiss) for as long as playback lasts.
+    private var musicPlaying = false
+    // The last resolved music event, so the pill can return after a notification/system event that
+    // briefly took over the cutout while playback carried on.
+    private var lastMusicEvent: IslandEvent? = null
 
     // A neutral sample shown while the settings screen pins the island open.
     private val previewEvent by lazy {
@@ -138,6 +145,7 @@ class IslandOverlayController(private val context: Context) {
         observeEventPreferences()
         observeTilePreferences()
         observeMusicSettings()
+        observeNowPlaying()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -221,6 +229,25 @@ class IslandOverlayController(private val context: Context) {
     private fun observeMusicSettings() = scope.launch {
         musicTilePreferences.settings.collect { musicSettings = it }
     }
+
+    /**
+     * Follow live playback so the music cutout stays up for exactly as long as music plays. While
+     * something is playing we hold the (already-shown) music pill open indefinitely; when it pauses
+     * or the session ends we hand it back to the normal auto-dismiss timer so it fades out.
+     */
+    private fun observeNowPlaying() = scope.launch {
+        NowPlayingBus.state.collect { now ->
+            musicPlaying = now?.isPlaying == true
+            // Once the session ends there's nothing to return to.
+            if (now == null) lastMusicEvent = null
+            // Only steer the music pill; leave notifications/system events to their own timers.
+            if (previewPinned || currentEvent.value?.media == null) return@collect
+            if (musicPlaying) dismissJob?.cancel() else scheduleDismiss()
+        }
+    }
+
+    /** The music cutout should stay pinned up (no auto-dismiss) while music is playing. */
+    private fun isPinnedMusic(): Boolean = musicPlaying && currentEvent.value?.media != null
 
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
@@ -413,7 +440,15 @@ class IslandOverlayController(private val context: Context) {
             currentEvent.value = resolver.resolve(signal, customIcons, musicSettings)
                 .copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
-            scheduleDismiss()
+            // A music signal is only emitted while playback is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as the music plays.
+            if (signal is CutoutSignal.Music) {
+                musicPlaying = true
+                lastMusicEvent = currentEvent.value
+                dismissJob?.cancel()
+            } else {
+                scheduleDismiss()
+            }
         }
     }
 
@@ -425,6 +460,8 @@ class IslandOverlayController(private val context: Context) {
         when {
             isExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
+            // While music plays, keep the collapsed pill up instead of dismissing it.
+            isPinnedMusic() -> dismissJob?.cancel()
             // Shrinking back from expanded and configured to vanish rather than stay.
             wasExpanded && behaviourState.value.expandedDisappearOnShrink -> {
                 dismissJob?.cancel()
@@ -516,12 +553,29 @@ class IslandOverlayController(private val context: Context) {
 
     private fun scheduleDismiss() {
         dismissJob?.cancel()
+        // Never time out the music cutout while it's playing — it stays until playback stops.
+        if (isPinnedMusic()) return
         dismissJob = scope.launch {
             delay(behaviourState.value.normalDurationSeconds * 1_000L)
-            // Return to the pinned preview if settings is still open, else hide.
-            expanded = if (previewPinned) previewExpanded else false
-            forcedExpanded.value = if (previewPinned) previewExpanded else null
-            currentEvent.value = if (previewPinned) previewEvent else null
+            when {
+                // Return to the pinned preview if settings is still open.
+                previewPinned -> {
+                    expanded = previewExpanded
+                    forcedExpanded.value = previewExpanded
+                    currentEvent.value = previewEvent
+                }
+                // Playback outlived an interrupting event — fall back to the music pill, collapsed.
+                musicPlaying && lastMusicEvent != null -> {
+                    expanded = false
+                    forcedExpanded.value = null
+                    currentEvent.value = lastMusicEvent?.copy(initiallyExpanded = false)
+                }
+                else -> {
+                    expanded = false
+                    forcedExpanded.value = null
+                    currentEvent.value = null
+                }
+            }
             syncWindowHeight()
         }
     }
