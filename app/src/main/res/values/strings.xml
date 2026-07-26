@@ -97,6 +97,9 @@
     <string name="music_playpause_button_title">Play / pause button</string>
     <string name="music_button_color">Colour</string>
     <string name="music_button_corners">Corners</string>
+    <string name="music_button_presets">Presets</string>
+    <string name="music_preset_rounded">Rounded</string>
+    <string name="music_preset_pill">Pill</string>
     <string name="cd_color_default_plain">No fill (plain)</string>
     <string name="music_default_accent">Tile accent colour</string>
     <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>

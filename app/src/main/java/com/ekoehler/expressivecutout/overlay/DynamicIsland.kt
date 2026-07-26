@@ -103,6 +103,9 @@ import kotlin.math.abs
 private val PillTextColor = Color(0xFFF5F5F5)
 private val PillTextColorDark = Color(0xFF0A0A0A)
 
+/** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
+private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
+
 // Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0).
 private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
@@ -1119,10 +1122,11 @@ private fun MediaControls(
 }
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
- *  style nor the [fallback] supplies a colour. Opacity from the style is folded into the alpha. */
+ *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
+ *  A filled style with no colour falls back to [MusicButtonFilledDefault]. Opacity folds into alpha. */
 @Composable
 private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: return null
+    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
     return base.copy(alpha = opacity)
 }
 

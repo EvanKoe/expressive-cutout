@@ -1,6 +1,8 @@
 package com.ekoehler.expressivecutout.ui.screen.tiles
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,9 @@ import kotlin.math.roundToInt
 
 /** The pink tile accent, used as the play/pause default and the preview backdrop's default fill. */
 private val MusicAccent = Color(0xFFF472B6)
+
+/** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
+private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
 
 /**
  * Settings specific to the music dynamic tile: whether to show the album art on the normal cutout,
@@ -100,6 +105,11 @@ internal fun MusicTileScreen(
             )
 
             SectionLabel(stringResource(R.string.music_skip_buttons_title))
+            ButtonPresetRow(
+                current = settings.skipButton,
+                sampleFill = settings.skipButton.previewFill(fallback = null) ?: MusicButtonFilledDefault,
+                onApply = viewModel::applyMusicSkipPreset,
+            )
             ColorPickerCard(
                 label = stringResource(R.string.music_button_color),
                 selected = settings.skipButton.color,
@@ -114,6 +124,11 @@ internal fun MusicTileScreen(
             )
 
             SectionLabel(stringResource(R.string.music_playpause_button_title))
+            ButtonPresetRow(
+                current = settings.playPauseButton,
+                sampleFill = settings.playPauseButton.previewFill(fallback = MusicAccent) ?: MusicAccent,
+                onApply = viewModel::applyMusicPlayPausePreset,
+            )
             ColorPickerCard(
                 label = stringResource(R.string.music_button_color),
                 selected = settings.playPauseButton.color,
@@ -139,6 +154,84 @@ private fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * A row of tappable preset chips (rounded rectangle, pill). Tapping one applies the preset's shape
+ * and fill to the button while keeping its current colour; the chip matching the current style is
+ * highlighted. [sampleFill] is the colour the button would fill with, used only for the swatch.
+ */
+@Composable
+private fun ButtonPresetRow(
+    current: MusicButtonStyle,
+    sampleFill: Color,
+    onApply: (MusicButtonStyle) -> Unit,
+) {
+    val labels = mapOf(
+        MusicButtonStyle.ROUNDED to stringResource(R.string.music_preset_rounded),
+        MusicButtonStyle.PILL to stringResource(R.string.music_preset_pill),
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MusicButtonStyle.PRESETS.forEach { preset ->
+            val selected = current.filled == preset.filled &&
+                current.cornerPercent == preset.cornerPercent
+            PresetChip(
+                label = labels[preset].orEmpty(),
+                fill = sampleFill,
+                cornerPercent = preset.cornerPercent,
+                selected = selected,
+                onClick = { onApply(preset) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** One preset chip: a shape swatch above its name, framed and tinted while [selected]. */
+@Composable
+private fun PresetChip(
+    label: String,
+    fill: Color,
+    cornerPercent: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 44.dp, height = 30.dp)
+                    .clip(RoundedCornerShape(percent = cornerPercent))
+                    .background(fill),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
 }
 
 /** A card with the opacity and corner-rounding sliders for one button style. */
@@ -209,10 +302,11 @@ private fun MusicButtonsPreview(
     }
 }
 
-/** The concrete preview fill for a button style, or null for a plain (unfilled) button. */
+/** The concrete preview fill for a button style, or null for a plain (unfilled) button. A [filled]
+ *  style with no colour falls back to [MusicButtonFilledDefault], mirroring the live overlay. */
 @Composable
 private fun MusicButtonStyle.previewFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: return null
+    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
     return base.copy(alpha = opacity)
 }
 

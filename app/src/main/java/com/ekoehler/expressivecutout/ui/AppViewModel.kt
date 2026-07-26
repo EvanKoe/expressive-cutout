@@ -20,6 +20,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -157,6 +158,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicPlayPauseCornerPercent(percent: Int) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseCornerPercent(percent)
+    }
+
+    fun applyMusicSkipPreset(preset: MusicButtonStyle) = viewModelScope.launch {
+        musicTilePreferences.applySkipPreset(preset)
+    }
+
+    fun applyMusicPlayPausePreset(preset: MusicButtonStyle) = viewModelScope.launch {
+        musicTilePreferences.applyPlayPausePreset(preset)
     }
 
     fun setCollapsedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
