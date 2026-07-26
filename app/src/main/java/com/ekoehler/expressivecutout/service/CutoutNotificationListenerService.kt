@@ -6,6 +6,9 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.OnCall
+import com.ekoehler.expressivecutout.core.OnCallBus
+import com.ekoehler.expressivecutout.events.CallNotificationParser
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
@@ -17,6 +20,10 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
  * swipe, mirroring a swipe-away in the shade.
  */
 class CutoutNotificationListenerService : NotificationListenerService() {
+
+    // Key of the call notification currently driving the phone tile, so we pop the island only once
+    // per call and can clear the tile when that exact notification is removed. Main-thread only.
+    private var currentCallKey: String? = null
 
     override fun onListenerConnected() {
         instance = this
@@ -33,6 +40,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val notification = sbn ?: return
+        // Ongoing-call notifications drive the phone tile, not the normal notification pill (and
+        // would be dropped by shouldSurface below as ongoing anyway), so handle them first.
+        if (CallNotificationParser.isCall(notification)) {
+            handleCall(notification)
+            return
+        }
         if (!notification.shouldSurface()) return
 
         val extras = notification.notification.extras
@@ -49,6 +62,45 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 actions = notification.notification.surfaceableActions(),
             ),
         )
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+        // The dialer clears its notification when the call ends — drop the phone tile's live state.
+        if (sbn?.key != null && sbn.key == currentCallKey) {
+            currentCallKey = null
+            OnCallBus.update(null)
+        }
+        super.onNotificationRemoved(sbn)
+    }
+
+    /**
+     * Drive the phone tile from a call notification: keep [OnCallBus] fresh on every update (so the
+     * caller and duration stay current), and pop the island only the first time a given call
+     * appears — later re-posts refresh the state without re-popping, mirroring the media monitor.
+     */
+    private fun handleCall(sbn: StatusBarNotification) {
+        val call = CallNotificationParser.parse(sbn, this)
+        OnCallBus.update(
+            OnCall(
+                callerLabel = call.callerLabel,
+                photo = call.photo,
+                startTimeMs = call.startTimeMs,
+                ongoing = call.ongoing,
+            ),
+        )
+        if (sbn.key != currentCallKey) {
+            currentCallKey = sbn.key
+            IslandEventBus.emit(
+                CutoutSignal.Call(
+                    packageName = sbn.packageName,
+                    callerLabel = call.callerLabel,
+                    key = sbn.key,
+                    contentIntent = sbn.notification.contentIntent,
+                    actions = call.actions,
+                    ongoing = call.ongoing,
+                ),
+            )
+        }
     }
 
     /**

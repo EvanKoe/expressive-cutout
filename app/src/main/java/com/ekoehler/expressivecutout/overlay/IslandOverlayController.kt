@@ -31,6 +31,7 @@ import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -44,6 +45,8 @@ import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.PhoneTilePreferences
+import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +89,7 @@ class IslandOverlayController(private val context: Context) {
     private val eventPreferences = EventPreferences(context)
     private val dynamicTilePreferences = DynamicTilePreferences(context)
     private val musicTilePreferences = MusicTilePreferences(context)
+    private val phoneTilePreferences = PhoneTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen.
@@ -107,6 +111,7 @@ class IslandOverlayController(private val context: Context) {
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
+    private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -116,6 +121,10 @@ class IslandOverlayController(private val context: Context) {
     // The last resolved music event, so the pill can return after a notification/system event that
     // briefly took over the cutout while playback carried on.
     private var lastMusicEvent: IslandEvent? = null
+    // True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
+    // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
+    private var callActive = false
+    private var lastCallEvent: IslandEvent? = null
 
     // A neutral sample shown while the settings screen pins the island open.
     private val previewEvent by lazy {
@@ -146,7 +155,9 @@ class IslandOverlayController(private val context: Context) {
         observeEventPreferences()
         observeTilePreferences()
         observeMusicSettings()
+        observePhoneSettings()
         observeNowPlaying()
+        observeOnCall()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -235,6 +246,10 @@ class IslandOverlayController(private val context: Context) {
         musicTilePreferences.settings.collect { musicSettings = it }
     }
 
+    private fun observePhoneSettings() = scope.launch {
+        phoneTilePreferences.settings.collect { phoneSettings = it }
+    }
+
     /**
      * Follow live playback so the music cutout stays up for exactly as long as music plays. While
      * something is playing we hold the (already-shown) music pill open indefinitely; when it pauses
@@ -253,6 +268,27 @@ class IslandOverlayController(private val context: Context) {
 
     /** The music cutout should stay pinned up (no auto-dismiss) while music is playing. */
     private fun isPinnedMusic(): Boolean = musicPlaying && currentEvent.value?.media != null
+
+    /**
+     * Follow the live call so the phone cutout stays up for exactly as long as the call lasts. The
+     * call is "active" while the dialer's notification exists ([OnCallBus] non-null); when it ends we
+     * hand the pill back to the normal auto-dismiss timer so it fades out. Mirrors [observeNowPlaying].
+     */
+    private fun observeOnCall() = scope.launch {
+        OnCallBus.state.collect { call ->
+            callActive = call != null
+            if (call == null) lastCallEvent = null
+            // Only steer the call pill; leave notifications/system events to their own timers.
+            if (previewPinned || currentEvent.value?.call == null) return@collect
+            if (callActive) dismissJob?.cancel() else scheduleDismiss()
+        }
+    }
+
+    /** The phone cutout should stay pinned up (no auto-dismiss) while a call is in progress. */
+    private fun isPinnedCall(): Boolean = callActive && currentEvent.value?.call != null
+
+    /** Either live tile (music or a call) is currently pinned up. */
+    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall()
 
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
@@ -398,7 +434,8 @@ class IslandOverlayController(private val context: Context) {
         val event = currentEvent.value
         val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
         val hasMediaControls = event?.media?.showControls == true
-        return if (hasActions || hasMediaControls) {
+        val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
+        return if (hasActions || hasMediaControls || hasCallActions) {
             expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
         } else {
             0
@@ -433,26 +470,37 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
             if (signal is CutoutSignal.Music && tileEnabled[DynamicTile.MUSIC] == false) return@collect
+            // Skip the current call when the phone tile is turned off.
+            if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
 
-            // Expand for a notification (when configured) or a music tile, so its title/detail shows.
+            // Expand for a notification (when configured) or a live tile, so its details show.
             val autoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> true
+                is CutoutSignal.Call -> true
                 is CutoutSignal.System -> false
             }
             forcedExpanded.value = null
             expanded = autoExpand
-            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings)
+            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings, phoneSettings)
                 .copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
-            // A music signal is only emitted while playback is live, so pin it up rather than
-            // starting the auto-dismiss timer — it stays for as long as the music plays.
-            if (signal is CutoutSignal.Music) {
-                musicPlaying = true
-                lastMusicEvent = currentEvent.value
-                dismissJob?.cancel()
-            } else {
-                scheduleDismiss()
+            // A music/call signal is only emitted while that tile is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as playback / the call lasts.
+            when (signal) {
+                is CutoutSignal.Music -> {
+                    musicPlaying = true
+                    lastMusicEvent = currentEvent.value
+                    dismissJob?.cancel()
+                }
+
+                is CutoutSignal.Call -> {
+                    callActive = true
+                    lastCallEvent = currentEvent.value
+                    dismissJob?.cancel()
+                }
+
+                else -> scheduleDismiss()
             }
         }
     }
@@ -465,8 +513,8 @@ class IslandOverlayController(private val context: Context) {
         when {
             isExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
-            // While music plays, keep the collapsed pill up instead of dismissing it.
-            isPinnedMusic() -> dismissJob?.cancel()
+            // While music plays or a call is live, keep the collapsed pill up instead of dismissing.
+            isPinnedLiveTile() -> dismissJob?.cancel()
             // Shrinking back from expanded and configured to vanish rather than stay.
             wasExpanded && behaviourState.value.expandedDisappearOnShrink -> {
                 dismissJob?.cancel()
@@ -546,13 +594,13 @@ class IslandOverlayController(private val context: Context) {
         dismissJob?.cancel()
         forcedExpanded.value = null
         expanded = false
-        val returnToMusic = musicPillToReturnTo() != null
+        val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
         syncWindowHeight()
-        if (returnToMusic) {
+        if (returnToLive) {
             dismissJob = scope.launch {
                 delay(MUSIC_RETURN_DELAY_MS)
-                musicPillToReturnTo()?.let { pill ->
+                livePillToReturnTo()?.let { pill ->
                     forcedExpanded.value = null
                     expanded = false
                     currentEvent.value = pill
@@ -563,15 +611,24 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * The collapsed music pill to fall back to when an interrupting event is hidden, or null to
-     * clear the island. Returns music only when the hidden event wasn't the music pill itself,
-     * playback is still live, and the music tile is enabled.
+     * The collapsed live-tile pill to fall back to when an interrupting event is hidden, or null to
+     * clear the island. A live call takes precedence over music. Each returns its pill only when the
+     * hidden event wasn't a live pill itself, that tile is still live, and the tile is enabled.
      */
+    private fun livePillToReturnTo(): IslandEvent? = callPillToReturnTo() ?: musicPillToReturnTo()
+
     private fun musicPillToReturnTo(): IslandEvent? {
-        if (currentEvent.value?.media != null) return null
+        if (currentEvent.value?.media != null || currentEvent.value?.call != null) return null
         if (!musicPlaying) return null
         if (tileEnabled[DynamicTile.MUSIC] == false) return null
         return lastMusicEvent?.copy(initiallyExpanded = false)
+    }
+
+    private fun callPillToReturnTo(): IslandEvent? {
+        if (currentEvent.value?.media != null || currentEvent.value?.call != null) return null
+        if (!callActive) return null
+        if (tileEnabled[DynamicTile.PHONE] == false) return null
+        return lastCallEvent?.copy(initiallyExpanded = false)
     }
 
     /**
@@ -596,11 +653,11 @@ class IslandOverlayController(private val context: Context) {
 
     private fun scheduleDismiss() {
         dismissJob?.cancel()
-        // Never time out the music cutout while it's playing — it stays until playback stops.
-        if (isPinnedMusic()) return
+        // Never time out a live cutout while it's active — it stays until playback / the call stops.
+        if (isPinnedLiveTile()) return
         dismissJob = scope.launch {
             delay(behaviourState.value.normalDurationSeconds * 1_000L)
-            val musicPill = musicPillToReturnTo()
+            val livePill = livePillToReturnTo()
             when {
                 // Return to the pinned preview if settings is still open.
                 previewPinned -> {
@@ -608,11 +665,11 @@ class IslandOverlayController(private val context: Context) {
                     forcedExpanded.value = previewExpanded
                     currentEvent.value = previewEvent
                 }
-                // Playback outlived an interrupting event — fall back to the music pill, collapsed.
-                musicPill != null -> {
+                // A live tile outlived an interrupting event — fall back to its pill, collapsed.
+                livePill != null -> {
                     expanded = false
                     forcedExpanded.value = null
-                    currentEvent.value = musicPill
+                    currentEvent.value = livePill
                 }
                 else -> {
                     expanded = false

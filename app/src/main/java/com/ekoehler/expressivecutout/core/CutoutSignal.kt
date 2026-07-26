@@ -70,6 +70,24 @@ sealed interface CutoutSignal {
         /** The media session's activity, opened when the user taps the expanded island. */
         val contentIntent: PendingIntent? = null,
     ) : CutoutSignal
+
+    /**
+     * A phone call is in progress (surfaced from the dialer's ongoing-call notification). [actions]
+     * are the call's own buttons (Hang up, and Answer / Decline / Mute / … when the dialer exposes
+     * them), reusing this file's [Notification.Action] so the overlay fires them like any
+     * notification action (calls never carry a reply).
+     */
+    data class Call(
+        val packageName: String,
+        val callerLabel: String,
+        /** The call notification's key, so a tap can open it and removal can end the tile. */
+        val key: String? = null,
+        /** The dialer's tap action, opened when the user taps the expanded island. */
+        val contentIntent: PendingIntent? = null,
+        val actions: List<Notification.Action> = emptyList(),
+        /** True for a connected call, false while it is still ringing / incoming. */
+        val ongoing: Boolean = true,
+    ) : CutoutSignal
 }
 
 /**

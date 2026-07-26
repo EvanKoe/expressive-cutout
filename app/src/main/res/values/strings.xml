@@ -19,6 +19,8 @@
     <!-- Dynamic tile labels shown inside the island -->
     <string name="tile_music">Music</string>
     <string name="tile_music_desc">Show what\'s playing on the cutout</string>
+    <string name="tile_phone">Phone</string>
+    <string name="tile_phone_desc">Show the current call, caller and controls</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
@@ -102,6 +104,15 @@
     <string name="music_preset_pill">Pill</string>
     <string name="cd_color_default_plain">No fill (plain)</string>
     <string name="music_default_accent">Tile accent colour</string>
+    <string name="phone_show_photo_title">Contact photo</string>
+    <string name="phone_show_photo_desc">Show the caller\'s picture on the cutout (a default avatar when there\'s none).</string>
+    <string name="phone_show_duration_title">Call duration</string>
+    <string name="phone_show_duration_desc">Show how long the call has been running.</string>
+    <string name="phone_show_actions_title">Action buttons</string>
+    <string name="phone_show_actions_desc">Show the call\'s buttons, such as Hang up.</string>
+    <string name="phone_caller_unknown">Unknown</string>
+    <string name="phone_ringing">Incoming call…</string>
+    <string name="phone_tile_note">The photo, name and buttons come from your dialer\'s ongoing-call notification, so exactly which buttons appear depends on your dialer.</string>
     <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>
 
     <!-- Appearance tab -->

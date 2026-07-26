@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.core
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.R
@@ -18,4 +19,5 @@ enum class DynamicTile(
     val accent: Long,
 ) {
     MUSIC(Icons.Rounded.MusicNote, R.string.tile_music, R.string.tile_music_desc, 0xFFF472B6),
+    PHONE(Icons.Rounded.Call, R.string.tile_phone, R.string.tile_phone_desc, 0xFF22C55E),
 }

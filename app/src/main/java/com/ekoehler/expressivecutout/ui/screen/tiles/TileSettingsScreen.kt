@@ -17,5 +17,6 @@ internal fun TileSettingsScreen(
 ) {
     when (tile) {
         DynamicTile.MUSIC -> MusicTileScreen(viewModel, contentPadding)
+        DynamicTile.PHONE -> PhoneTileScreen(viewModel, contentPadding)
     }
 }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
@@ -11,6 +13,7 @@ import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -26,10 +29,12 @@ class IconResolver(private val context: Context) {
         signal: CutoutSignal,
         customIcons: Map<SystemEventType, IconSource>,
         musicSettings: MusicTileSettings,
+        phoneSettings: PhoneTileSettings,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
         is CutoutSignal.System -> resolveSystem(signal.type, customIcons)
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
+        is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
     }
 
     private fun resolveNotification(signal: CutoutSignal.Notification): IslandEvent {
@@ -97,6 +102,28 @@ class IconResolver(private val context: Context) {
                 showControls = settings.showControls,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,
+            ),
+        )
+    }
+
+    private fun resolveCall(signal: CutoutSignal.Call, settings: PhoneTileSettings): IslandEvent {
+        // The live contact photo comes from OnCallBus; this icon is only the no-photo fallback, so a
+        // person avatar reads as "a contact" (the Google-dialer default look) better than a handset.
+        return IslandEvent(
+            id = idGenerator.incrementAndGet(),
+            icon = IslandIcon.Vector(Icons.Rounded.Person),
+            label = signal.callerLabel,
+            accent = Color(DynamicTile.PHONE.accent),
+            contentIntent = signal.contentIntent,
+            // Deliberately no notificationKey: a swipe should hide the pill, never cancel the
+            // dialer's own call notification (which wouldn't end the call and would just re-post).
+            actions = signal.actions.map { action ->
+                IslandAction(label = action.title, intent = action.intent)
+            },
+            call = CallTileOptions(
+                showPhoto = settings.showPhoto,
+                showDuration = settings.showDuration,
+                showActions = settings.showActions,
             ),
         )
     }

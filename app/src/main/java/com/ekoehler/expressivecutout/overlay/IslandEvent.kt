@@ -47,6 +47,19 @@ data class IslandEvent(
      * [com.ekoehler.expressivecutout.core.NowPlayingBus]. Null for every other event.
      */
     val media: MediaTileOptions? = null,
+    /**
+     * When non-null this is the phone tile: the island shows the caller's photo on the collapsed
+     * pill and the caller / duration / call actions when expanded (each gated by [CallTileOptions]),
+     * reading live state from [com.ekoehler.expressivecutout.core.OnCallBus]. Null otherwise.
+     */
+    val call: CallTileOptions? = null,
+)
+
+/** Which parts of the phone tile to render, per the tile's settings. */
+data class CallTileOptions(
+    val showPhoto: Boolean,
+    val showDuration: Boolean,
+    val showActions: Boolean,
 )
 
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */

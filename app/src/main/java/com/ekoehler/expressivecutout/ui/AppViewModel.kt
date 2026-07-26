@@ -23,6 +23,8 @@ import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.PhoneTilePreferences
+import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
@@ -47,6 +49,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val eventPreferences = EventPreferences(application)
     private val dynamicTilePreferences = DynamicTilePreferences(application)
     private val musicTilePreferences = MusicTilePreferences(application)
+    private val phoneTilePreferences = PhoneTilePreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -74,6 +77,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = MusicTileSettings(),
+        )
+
+    val phoneTile: StateFlow<PhoneTileSettings> =
+        phoneTilePreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PhoneTileSettings(),
         )
 
     val layout: StateFlow<IslandLayout> =
@@ -134,6 +144,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowControls(enabled)
+    }
+
+    fun setPhoneShowPhoto(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowPhoto(enabled)
+    }
+
+    fun setPhoneShowDuration(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowDuration(enabled)
+    }
+
+    fun setPhoneShowActions(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowActions(enabled)
     }
 
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {

@@ -88,6 +88,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.core.OnCall
+import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
@@ -195,11 +197,12 @@ fun DynamicIsland(
     }
 
     // Only pad the height when the expanded island will actually render a bottom row of controls —
-    // notification action chips, or the music tile's playback buttons.
+    // notification action chips, the music tile's playback buttons, or the phone tile's call actions.
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
+    val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val dims = if (isExpanded) expanded else collapsed
-    val heightBonus = if (isExpanded && (hasActions || hasMediaControls)) {
+    val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions)) {
         expandedActionsExtraDp(appearance.actionButtonHeightDp)
     } else {
         0
@@ -470,25 +473,29 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
 
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
-    // The music tile shows the album art on the normal cutout (when enabled and available).
+    // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val onCall by OnCallBus.state.collectAsStateWithLifecycle()
     val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val callPhoto = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
     val badgeSize = (heightDp * 0.72f).dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         val placement = Modifier
             .align(Alignment.CenterStart)
             .padding(start = (heightDp * 0.16f).dp)
-        if (albumArt != null) {
-            AlbumArt(
+        when {
+            albumArt != null -> AlbumArt(
                 bitmap = albumArt,
                 size = badgeSize,
                 modifier = placement,
                 rotate = event.media?.rotateAlbumArt == true,
                 playing = nowPlaying?.isPlaying == true,
             )
-        } else {
-            IconBadge(
+
+            callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = placement)
+
+            else -> IconBadge(
                 event = event,
                 badgeSize = badgeSize,
                 iconSize = (heightDp * 0.46f).dp,
@@ -513,6 +520,11 @@ private fun ExpandedContent(
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
         MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
+        return
+    }
+    // The phone tile likewise: caller photo + name, ticking duration, and the call's action chips.
+    if (event.call != null) {
+        CallExpandedContent(event = event, appearance = appearance, onAction = onAction)
         return
     }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
@@ -1185,6 +1197,125 @@ private fun MediaButton(
             )
         }
     }
+}
+
+/**
+ * The phone tile's expanded layout: caller photo + name, a ticking call duration (or "incoming"
+ * while ringing), and the call's action chips (Hang up, plus whatever else the dialer exposes).
+ * Live state — the photo and the duration's start time — is read from [OnCallBus].
+ */
+@Composable
+private fun CallExpandedContent(
+    event: IslandEvent,
+    appearance: AppearanceSettings,
+    onAction: (IslandAction) -> Unit,
+) {
+    val onCall by OnCallBus.state.collectAsStateWithLifecycle()
+    val photo = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
+
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (photo != null) {
+                    ContactPhoto(bitmap = photo, size = 44.dp)
+                } else {
+                    IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = event.label,
+                        color = LocalContentColor.current,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (event.call?.showDuration == true) {
+                        CallStatus(onCall = onCall)
+                    }
+                }
+            }
+            if (event.call?.showActions == true && event.actions.isNotEmpty()) {
+                // Chip fill follows the configured action-button colour, or the tile accent when unset.
+                val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    event.actions.take(3).forEach { action ->
+                        ActionChip(
+                            action = action,
+                            style = appearance.actionButtonStyle,
+                            fill = chipFill,
+                            heightDp = appearance.actionButtonHeightDp,
+                            onClick = { onAction(action) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The phone tile's secondary line: a duration that ticks up once connected, else "incoming call". */
+@Composable
+private fun CallStatus(onCall: OnCall?) {
+    val start = onCall?.startTimeMs
+    val text = if (start != null) {
+        var now by remember(start) { mutableStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(start) {
+            while (true) {
+                now = System.currentTimeMillis()
+                delay(1_000L)
+            }
+        }
+        formatCallDuration(((now - start) / 1_000L).coerceAtLeast(0L))
+    } else if (onCall != null) {
+        stringResource(R.string.phone_ringing)
+    } else {
+        return
+    }
+    Text(
+        text = text,
+        color = LocalContentColor.current.copy(alpha = 0.70f),
+        fontSize = 12.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** Formats elapsed call seconds as m:ss, or h:mm:ss once the call passes an hour. */
+private fun formatCallDuration(totalSeconds: Long): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
+    }
+}
+
+/** The caller's contact photo, cropped to a circle. Mirrors [AlbumArt] without the spin. */
+@Composable
+private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Image(
+        bitmap = bitmap,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape),
+    )
 }
 
 /**
