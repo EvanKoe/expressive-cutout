@@ -16,15 +16,15 @@ private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDa
 
 /**
  * A user-selectable colour for the island. Either a fixed ARGB value or [Dynamic], which resolves
- * to the system's Material You accent at render time (so it follows the wallpaper on Android 12+).
- * Stored as a short string so it can live in a single preference key.
+ * to one of the system's Material You scheme roles at render time (so it follows the wallpaper on
+ * Android 12+). Stored as a short string so it can live in a single preference key.
  */
 sealed interface CutoutColor {
-    data object Dynamic : CutoutColor
+    data class Dynamic(val role: DynamicRole = DynamicRole.PRIMARY) : CutoutColor
     data class Solid(val argb: Long) : CutoutColor
 
     fun serialize(): String = when (this) {
-        Dynamic -> DYNAMIC
+        is Dynamic -> "$DYNAMIC:${role.name}"
         is Solid -> argb.toString()
     }
 
@@ -33,13 +33,19 @@ sealed interface CutoutColor {
 
         fun deserialize(value: String?): CutoutColor? = when {
             value == null -> null
-            value == DYNAMIC -> Dynamic
+            // Legacy bare "dynamic" (before roles) migrates to the primary accent.
+            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
+            value.startsWith("$DYNAMIC:") -> {
+                val role = runCatching { DynamicRole.valueOf(value.substringAfter(':')) }
+                    .getOrDefault(DynamicRole.PRIMARY)
+                Dynamic(role)
+            }
             else -> value.toLongOrNull()?.let(::Solid)
         }
     }
 }
 
-/** Which Material You colour-scheme role a [ColorSpec.Dynamic] follows. */
+/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
 enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
 
 /** Direction a [CutoutFill.Gradient] runs across the island. */

@@ -74,24 +74,29 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlin.math.roundToInt
 
-/** Selectable colours offered for the fill and stroke, alongside the "Dynamic" (Material You) chip. */
-private val PresetColors = listOf(
-    0xFF0A0A0A, // near-black
+/**
+ * The predefined swatches [ColorPickerCard] shows by default: black, white, dark/light grey, then
+ * blue, red and green. Any screen can override the set by passing its own list to [ColorPickerCard].
+ */
+val DefaultPresetColors: List<Long> = listOf(
+    0xFF0A0A0A, // black
     0xFFFFFFFF, // white
-    0xFF1C1C1E, // graphite
-    0xFFEF4444, // red
-    0xFFF59E0B, // amber
-    0xFF22C55E, // green
+    0xFF444444, // dark grey
+    0xFFBBBBBB, // light grey
     0xFF3B82F6, // blue
-    0xFF8B5CF6, // violet
-    0xFFEC4899, // pink
+    0xFFEF4444, // red
+    0xFF22C55E, // green
 )
+
+/** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
+private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 @Composable
 internal fun AppearanceScreen(
@@ -300,9 +305,14 @@ private fun ActionButtonsCard(onClick: () -> Unit) {
 }
 
 /**
- * A colour-selection card. When [defaultLabel] is supplied the row leads with a "default" swatch
- * that maps to a null selection (used by settings whose default follows another colour, e.g. the
- * reply buttons); otherwise every choice is a concrete [CutoutColor].
+ * The single, shared colour-selection card used by every screen that edits a [CutoutColor]. It
+ * offers, in order: an optional "default" swatch (a null selection, for settings whose default
+ * follows another colour, e.g. the reply buttons), several Material You dynamic-role swatches, a
+ * custom pick (opens [ColorPickerDialog] with a hex field), and a row of predefined swatches.
+ *
+ * The predefined colours default to [DefaultPresetColors] (black, white, dark/light grey, blue,
+ * red, green) but any screen can pass its own [presetColors]; likewise the dynamic roles shown can
+ * be overridden via [dynamicRoles].
  */
 @Composable
 internal fun ColorPickerCard(
@@ -311,11 +321,13 @@ internal fun ColorPickerCard(
     onSelect: (CutoutColor?) -> Unit,
     defaultLabel: String? = null,
     defaultColor: Color? = null,
+    presetColors: List<Long> = DefaultPresetColors,
+    dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     // A Solid colour that isn't one of the presets is the user's own custom pick.
     val customArgb = (selected as? CutoutColor.Solid)?.argb
-        ?.takeIf { argb -> PresetColors.none { it == argb } }
+        ?.takeIf { argb -> presetColors.none { it == argb } }
     // Seed the picker with whatever colour is active right now.
     val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
 
@@ -337,8 +349,8 @@ internal fun ColorPickerCard(
                     .padding(horizontal = 4.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Optional "use the default" swatch (null selection), then Material You dynamic
-                // accent, then the custom picker, then the fixed presets.
+                // Optional "use the default" swatch (null selection), then the Material You dynamic
+                // roles, then the custom picker, then the predefined swatches.
                 if (defaultLabel != null) {
                     ColorSwatch(
                         color = defaultColor ?: MaterialTheme.colorScheme.primary,
@@ -348,18 +360,20 @@ internal fun ColorPickerCard(
                         onClick = { onSelect(null) },
                     )
                 }
-                ColorSwatch(
-                    color = CutoutColor.Dynamic.resolve(),
-                    selected = selected is CutoutColor.Dynamic,
-                    badge = Icons.Rounded.AutoAwesome,
-                    badgeDescription = stringResource(R.string.cd_color_dynamic),
-                    onClick = { onSelect(CutoutColor.Dynamic) },
-                )
+                dynamicRoles.forEach { role ->
+                    ColorSwatch(
+                        color = CutoutColor.Dynamic(role).resolve(),
+                        selected = (selected as? CutoutColor.Dynamic)?.role == role,
+                        badge = Icons.Rounded.AutoAwesome,
+                        badgeDescription = role.dynamicDescription(),
+                        onClick = { onSelect(CutoutColor.Dynamic(role)) },
+                    )
+                }
                 CustomColorSwatch(
                     selectedColor = customArgb?.let { Color(it) },
                     onClick = { showPicker = true },
                 )
-                PresetColors.forEach { argb ->
+                presetColors.forEach { argb ->
                     ColorSwatch(
                         color = Color(argb),
                         selected = selected == CutoutColor.Solid(argb),
@@ -381,6 +395,16 @@ internal fun ColorPickerCard(
         )
     }
 }
+
+/** The Material You scheme role's human-readable label, for a swatch's content description. */
+@Composable
+private fun DynamicRole.dynamicDescription(): String = stringResource(
+    when (this) {
+        DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
+        DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary
+        DynamicRole.TERTIARY -> R.string.cd_color_dynamic_tertiary
+    },
+)
 
 @Composable
 internal fun ColorSwatch(

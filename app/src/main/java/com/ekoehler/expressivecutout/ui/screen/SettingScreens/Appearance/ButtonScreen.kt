@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,12 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -48,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,13 +53,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
-import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
-import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlin.math.roundToInt
 
@@ -208,10 +202,14 @@ internal fun ButtonScreen(
             )
         }
 
-        // --- Chip colour (Material scheme accents + custom) ---
-        ActionButtonColorCard(
+        // --- Chip colour (dynamic roles, custom, presets) ---
+        // A null selection follows the notification's own accent (the historical default).
+        ColorPickerCard(
+            label = stringResource(R.string.action_buttons_color_title),
             selected = appearance.actionButtonColor,
             onSelect = viewModel::setActionButtonColor,
+            defaultLabel = stringResource(R.string.cd_color_default_accent),
+            defaultColor = PreviewAccent,
         )
 
         // --- Chip height ---
@@ -377,99 +375,6 @@ private fun OptionRow(
         }
         Spacer(Modifier.width(12.dp))
         RadioButton(selected = selected, onClick = onClick)
-    }
-}
-
-/**
- * The chip-colour card. A null selection follows the notification's own accent (the default);
- * otherwise the chosen colour is [CutoutColor.Dynamic] (Material You), one of the current Material
- * colour-scheme roles, or a custom pick from the wheel.
- */
-@Composable
-private fun ActionButtonColorCard(
-    selected: CutoutColor?,
-    onSelect: (CutoutColor?) -> Unit,
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val scheme = MaterialTheme.colorScheme
-    // The Material scheme roles offered as fixed swatches. Resolved to concrete colours now so the
-    // chips stay put even if the wallpaper accent shifts later.
-    val schemeColors = listOf(
-        scheme.primary to stringResource(R.string.cd_color_primary),
-        scheme.secondary to stringResource(R.string.cd_color_secondary),
-        scheme.tertiary to stringResource(R.string.cd_color_tertiary),
-        scheme.error to stringResource(R.string.cd_color_error),
-    )
-    val schemeArgbs = schemeColors.map { it.first.toArgb().toLong() and 0xFFFFFFFFL }
-    // A Solid that matches neither the dynamic accent nor a scheme role is the user's own pick.
-    val solidArgb = (selected as? CutoutColor.Solid)?.argb
-    val customArgb = solidArgb?.takeIf { argb -> schemeArgbs.none { it == argb } }
-    val currentColor = selected?.resolve() ?: PreviewAccent
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.action_buttons_color_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Follow the notification's accent (the historical default).
-                ColorSwatch(
-                    color = PreviewAccent,
-                    selected = selected == null,
-                    badge = Icons.Rounded.RestartAlt,
-                    badgeDescription = stringResource(R.string.cd_color_default_accent),
-                    onClick = { onSelect(null) },
-                )
-                // Material You dynamic accent (follows the wallpaper on Android 12+).
-                ColorSwatch(
-                    color = CutoutColor.Dynamic.resolve(),
-                    selected = selected is CutoutColor.Dynamic,
-                    badge = Icons.Rounded.AutoAwesome,
-                    badgeDescription = stringResource(R.string.cd_color_dynamic),
-                    onClick = { onSelect(CutoutColor.Dynamic) },
-                )
-                // Custom wheel pick.
-                CustomColorSwatch(
-                    selectedColor = customArgb?.let { Color(it) },
-                    onClick = { showPicker = true },
-                )
-                // The Material colour-scheme roles.
-                schemeColors.forEachIndexed { index, (color, _) ->
-                    val argb = schemeArgbs[index]
-                    ColorSwatch(
-                        color = color,
-                        selected = selected == CutoutColor.Solid(argb),
-                        onClick = { onSelect(CutoutColor.Solid(argb)) },
-                    )
-                }
-            }
-        }
-    }
-
-    if (showPicker) {
-        ColorPickerDialog(
-            initial = currentColor,
-            onConfirm = { picked ->
-                showPicker = false
-                onSelect(CutoutColor.Solid(picked.toArgb().toLong() and 0xFFFFFFFFL))
-            },
-            onDismiss = { showPicker = false },
-        )
     }
 }
 

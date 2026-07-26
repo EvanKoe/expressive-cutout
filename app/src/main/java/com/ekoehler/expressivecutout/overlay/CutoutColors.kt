@@ -28,7 +28,7 @@ private val DynamicFallback = Color(0xFF60A5FA)
 @Composable
 fun CutoutColor.resolve(): Color = when (this) {
     is CutoutColor.Solid -> Color(argb)
-    CutoutColor.Dynamic -> dynamicRole(DynamicRole.PRIMARY)
+    is CutoutColor.Dynamic -> dynamicRole(role)
 }
 
 /** Resolve a single [ColorSpec] to a concrete [Color], applying its opacity. */
