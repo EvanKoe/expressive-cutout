@@ -536,13 +536,42 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    /** Cancel any pending auto-dismiss and hide the island immediately. */
+    /**
+     * Cancel any pending auto-dismiss and hide the island immediately. If the event being hidden was
+     * a notification/system event that had briefly taken over from live music, return to the music
+     * pill — but only after a short beat, so it eases back in rather than snapping in the instant the
+     * interruption clears (which read as laggy). Re-checks playback after the delay in case it ended.
+     */
     private fun dismissIsland() {
         dismissJob?.cancel()
         forcedExpanded.value = null
         expanded = false
+        val returnToMusic = musicPillToReturnTo() != null
         currentEvent.value = null
         syncWindowHeight()
+        if (returnToMusic) {
+            dismissJob = scope.launch {
+                delay(MUSIC_RETURN_DELAY_MS)
+                musicPillToReturnTo()?.let { pill ->
+                    forcedExpanded.value = null
+                    expanded = false
+                    currentEvent.value = pill
+                    syncWindowHeight()
+                }
+            }
+        }
+    }
+
+    /**
+     * The collapsed music pill to fall back to when an interrupting event is hidden, or null to
+     * clear the island. Returns music only when the hidden event wasn't the music pill itself,
+     * playback is still live, and the music tile is enabled.
+     */
+    private fun musicPillToReturnTo(): IslandEvent? {
+        if (currentEvent.value?.media != null) return null
+        if (!musicPlaying) return null
+        if (tileEnabled[DynamicTile.MUSIC] == false) return null
+        return lastMusicEvent?.copy(initiallyExpanded = false)
     }
 
     /**
@@ -571,6 +600,7 @@ class IslandOverlayController(private val context: Context) {
         if (isPinnedMusic()) return
         dismissJob = scope.launch {
             delay(behaviourState.value.normalDurationSeconds * 1_000L)
+            val musicPill = musicPillToReturnTo()
             when {
                 // Return to the pinned preview if settings is still open.
                 previewPinned -> {
@@ -579,10 +609,10 @@ class IslandOverlayController(private val context: Context) {
                     currentEvent.value = previewEvent
                 }
                 // Playback outlived an interrupting event — fall back to the music pill, collapsed.
-                musicPlaying && lastMusicEvent != null -> {
+                musicPill != null -> {
                     expanded = false
                     forcedExpanded.value = null
-                    currentEvent.value = lastMusicEvent?.copy(initiallyExpanded = false)
+                    currentEvent.value = musicPill
                 }
                 else -> {
                     expanded = false
@@ -628,5 +658,9 @@ class IslandOverlayController(private val context: Context) {
         // Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
         // animation, then shrink — so the collapse never clips and the freed area becomes tappable.
         const val WINDOW_SHRINK_DELAY_MS = 300L
+
+        // Beat between a dismissed interruption fading out and the music pill easing back in, so the
+        // hand-off doesn't feel like an instant, janky swap.
+        const val MUSIC_RETURN_DELAY_MS = 350L
     }
 }
