@@ -28,6 +28,8 @@ sealed interface CutoutSignal {
         val packageName: String,
         val title: String?,
         val text: String? = null,
+        /** The posting notification's stable key, used to dismiss it from the system. */
+        val key: String? = null,
         /** The notification's tap action, fired when the user taps the expanded island. */
         val contentIntent: PendingIntent? = null,
         /** The notification's action buttons (e.g. "Archive", "Mark read"), if any. */

@@ -34,6 +34,11 @@ data class IslandEvent(
      * intent). Null for events that have nothing to open (system events).
      */
     val contentIntent: PendingIntent? = null,
+    /**
+     * The originating notification's key, when this event mirrors one. Lets a swipe-to-dismiss
+     * clear the real notification from the system, not just hide the pill. Null for everything else.
+     */
+    val notificationKey: String? = null,
     /** Optional action buttons shown as chips in the expanded island. */
     val actions: List<IslandAction> = emptyList(),
     /**

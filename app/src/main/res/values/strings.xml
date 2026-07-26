@@ -190,6 +190,16 @@
     <string name="behaviour_action_buttons_desc">Show a notification\'s action buttons in the expanded cutout. Adds a little height so they clear the camera.</string>
     <string name="behaviour_shrink_swipe_up">Shrink on swipe up</string>
     <string name="behaviour_shrink_swipe_up_desc">Swipe up on the expanded cutout to shrink it back to the normal size.</string>
+    <string name="behaviour_swipe_dismiss">Swipe to dismiss</string>
+    <string name="behaviour_swipe_dismiss_desc">Swipe the cutout sideways to dismiss it. Notifications are cleared from the system too.</string>
+    <string name="behaviour_swipe_direction">Swipe direction</string>
+    <string name="swipe_dir_left">Left</string>
+    <string name="swipe_dir_right">Right</string>
+    <string name="swipe_dir_both">Both</string>
+    <string name="behaviour_swipe_target">Dismiss from</string>
+    <string name="swipe_target_expanded">Expanded</string>
+    <string name="swipe_target_both">Both</string>
+    <string name="swipe_target_normal">Normal</string>
     <string name="preview_label">Preview</string>
     <string name="preview_detail">Tap the island to expand or collapse</string>
     <string name="cd_decrease">Decrease</string>

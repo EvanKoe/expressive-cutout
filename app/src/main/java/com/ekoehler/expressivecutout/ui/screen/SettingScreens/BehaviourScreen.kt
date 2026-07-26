@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.SwipeDismissDirection
+import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlin.math.roundToInt
 
 /** Grouped-list item shape: large outer corners at the group ends, small between items. */
@@ -108,12 +112,71 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setShowActionButtons,
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = true),
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_shrink_swipe_up),
             description = stringResource(R.string.behaviour_shrink_swipe_up_desc),
             checked = behaviour.shrinkOnSwipeUp,
             onCheckedChange = viewModel::setShrinkOnSwipeUp,
         )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = !behaviour.swipeToDismiss),
+            title = stringResource(R.string.behaviour_swipe_dismiss),
+            description = stringResource(R.string.behaviour_swipe_dismiss_desc),
+            checked = behaviour.swipeToDismiss,
+            onCheckedChange = viewModel::setSwipeToDismiss,
+        )
+        if (behaviour.swipeToDismiss) {
+            BehaviourSegmentedRow(
+                shape = groupedShape(isFirst = false, isLast = false),
+                label = stringResource(R.string.behaviour_swipe_direction),
+                options = listOf(
+                    stringResource(R.string.swipe_dir_left),
+                    stringResource(R.string.swipe_dir_right),
+                    stringResource(R.string.swipe_dir_both),
+                ),
+                selectedIndex = behaviour.swipeDismissDirection.ordinal,
+                onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
+            )
+            BehaviourSegmentedRow(
+                shape = groupedShape(isFirst = false, isLast = true),
+                label = stringResource(R.string.behaviour_swipe_target),
+                options = listOf(
+                    stringResource(R.string.swipe_target_expanded),
+                    stringResource(R.string.swipe_target_both),
+                    stringResource(R.string.swipe_target_normal),
+                ),
+                selectedIndex = behaviour.swipeDismissTarget.ordinal,
+                onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun BehaviourSegmentedRow(
+    shape: Shape,
+    label: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(text = label, style = MaterialTheme.typography.titleMedium)
+            ExpressiveSegmentedRow(
+                options = options,
+                selectedIndex = selectedIndex,
+                onSelect = onSelect,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

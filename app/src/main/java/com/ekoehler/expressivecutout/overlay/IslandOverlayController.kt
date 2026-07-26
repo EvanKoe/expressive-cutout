@@ -44,6 +44,7 @@ import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -181,11 +182,15 @@ class IslandOverlayController(private val context: Context) {
                     appearance = appearance,
                     showActions = behaviour.showActionButtons,
                     shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
+                    swipeToDismiss = behaviour.swipeToDismiss,
+                    swipeDismissDirection = behaviour.swipeDismissDirection,
+                    swipeDismissTarget = behaviour.swipeDismissTarget,
                     onExpandedChange = ::onExpandedChanged,
                     onActivate = ::onActivate,
                     onAction = ::onAction,
                     onReply = ::onReply,
                     onReplyActiveChange = ::onReplyActive,
+                    onDismiss = ::onDismiss,
                 )
             }
         }
@@ -480,6 +485,15 @@ class IslandOverlayController(private val context: Context) {
         val intent = currentEvent.value?.contentIntent
         dismissIsland()
         intent?.let(::sendPendingIntent)
+    }
+
+    /**
+     * Swipe-to-dismiss: hide the island and, when it mirrors a real notification, clear that
+     * notification from the system too (like swiping it away in the shade).
+     */
+    private fun onDismiss() {
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.dismiss(it) }
+        dismissIsland()
     }
 
     /** Fire one of the notification's action buttons, then dismiss the island. */

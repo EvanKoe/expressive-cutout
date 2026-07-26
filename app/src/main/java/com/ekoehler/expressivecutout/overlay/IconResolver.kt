@@ -54,6 +54,7 @@ class IconResolver(private val context: Context) {
             detail = signal.text?.takeIf { it.isNotBlank() },
             accent = NOTIFICATION_ACCENT,
             contentIntent = signal.contentIntent,
+            notificationKey = signal.key,
             actions = signal.actions.map { action ->
                 IslandAction(
                     label = action.title,

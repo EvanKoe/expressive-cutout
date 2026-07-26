@@ -18,6 +18,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -92,8 +93,11 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
+import com.ekoehler.expressivecutout.data.SwipeDismissDirection
+import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 // Text colours for a dark fill; on a light fill we swap in a dark text colour (see contentColorFor).
 private val PillTextColor = Color(0xFFF5F5F5)
@@ -107,6 +111,9 @@ private const val ACTIONS_ROW_SPACING_DP = 14
 
 // How far the island must be dragged upward before a swipe-up collapses it.
 private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
+
+// How far the island must be dragged sideways before releasing dismisses it.
+private const val SWIPE_DISMISS_THRESHOLD_DP = 90
 
 // How long the "reply sent" confirmation stays on screen before the reply is dispatched.
 private const val REPLY_SENT_FEEDBACK_MS = 900L
@@ -139,11 +146,15 @@ fun DynamicIsland(
     appearance: AppearanceSettings,
     showActions: Boolean,
     shrinkOnSwipeUp: Boolean,
+    swipeToDismiss: Boolean,
+    swipeDismissDirection: SwipeDismissDirection,
+    swipeDismissTarget: SwipeDismissTarget,
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
     onReply: (IslandAction, String) -> Unit,
     onReplyActiveChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
 ) {
     var lastEvent by remember { mutableStateOf<IslandEvent?>(null) }
     if (event != null) {
@@ -162,6 +173,8 @@ fun DynamicIsland(
     val confirmingSent = sentReply != null
     val isExpanded = forcedExpanded ?: tapExpanded
     val boopScale = remember { Animatable(1f) }
+    // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
+    val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
@@ -220,7 +233,13 @@ fun DynamicIsland(
                     modifier = Modifier
                         .width(width)
                         .height(height)
-                        .graphicsLayer { this.scaleX = boopScale.value }
+                        .graphicsLayer {
+                            scaleX = boopScale.value
+                            // Follow the finger during a dismiss swipe, fading as it slides away.
+                            translationX = dismissOffsetX.value
+                            val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
+                            alpha = (1f - travel).coerceIn(0.25f, 1f)
+                        }
                         .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
                             if (forcedExpanded != null) return@pointerInput
                             detectTapGestures {
@@ -253,6 +272,47 @@ fun DynamicIsland(
                                 },
                             ) { change, dragAmount ->
                                 dragTotal += dragAmount
+                                change.consume()
+                            }
+                        }
+                        // Swipe sideways to dismiss the cutout (and, for a notification, clear it from
+                        // the system). Only the direction(s) and cutout state(s) the user allows let go.
+                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, shownEvent?.id) {
+                            val targetAllows = when (swipeDismissTarget) {
+                                SwipeDismissTarget.BOTH -> true
+                                SwipeDismissTarget.EXPANDED -> isExpanded
+                                SwipeDismissTarget.NORMAL -> !isExpanded
+                            }
+                            if (forcedExpanded != null || !swipeToDismiss || replying || !targetAllows) return@pointerInput
+                            val allowLeft = swipeDismissDirection != SwipeDismissDirection.RIGHT
+                            val allowRight = swipeDismissDirection != SwipeDismissDirection.LEFT
+                            val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    val x = dismissOffsetX.value
+                                    val dismiss = (x <= -threshold && allowLeft) || (x >= threshold && allowRight)
+                                    if (dismiss) {
+                                        onDismiss()
+                                    } else {
+                                        scope.launch {
+                                            dismissOffsetX.animateTo(
+                                                targetValue = 0f,
+                                                animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
+                                            )
+                                        }
+                                    }
+                                },
+                                onDragCancel = { scope.launch { dismissOffsetX.animateTo(0f) } },
+                            ) { change, dragAmount ->
+                                // Clamp to the allowed direction(s) so a disabled side can't be dragged.
+                                val next = (dismissOffsetX.value + dragAmount).let {
+                                    when {
+                                        !allowLeft -> it.coerceAtLeast(0f)
+                                        !allowRight -> it.coerceAtMost(0f)
+                                        else -> it
+                                    }
+                                }
+                                scope.launch { dismissOffsetX.snapTo(next) }
                                 change.consume()
                             }
                         },

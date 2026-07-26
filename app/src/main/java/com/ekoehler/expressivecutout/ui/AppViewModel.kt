@@ -22,6 +22,8 @@ import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.SwipeDismissDirection
+import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.flow.SharingStarted
@@ -199,6 +201,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShrinkOnSwipeUp(enabled)
+    }
+
+    fun setSwipeToDismiss(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setSwipeToDismiss(enabled)
+    }
+
+    fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
+        behaviourPreferences.setSwipeDismissDirection(direction)
+    }
+
+    fun setSwipeDismissTarget(target: SwipeDismissTarget) = viewModelScope.launch {
+        behaviourPreferences.setSwipeDismissTarget(target)
     }
 
     fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {

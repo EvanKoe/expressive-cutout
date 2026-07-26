@@ -3,6 +3,7 @@ package com.ekoehler.expressivecutout.service
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 
@@ -10,8 +11,25 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
  * title and text (shown when the island is expanded) and filters out noise (its own posts,
  * group summaries, and ongoing/system-managed notifications).
+ *
+ * It also lets the overlay dismiss the real notification (not just the pill): the connected
+ * instance is published statically so [dismiss] can cancel a notification by key on the user's
+ * swipe, mirroring a swipe-away in the shade.
  */
 class CutoutNotificationListenerService : NotificationListenerService() {
+
+    override fun onListenerConnected() {
+        instance = this
+    }
+
+    override fun onListenerDisconnected() {
+        if (instance === this) instance = null
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val notification = sbn ?: return
@@ -26,6 +44,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 packageName = notification.packageName,
                 title = title,
                 text = text,
+                key = notification.key,
                 contentIntent = notification.notification.contentIntent,
                 actions = notification.notification.surfaceableActions(),
             ),
@@ -61,5 +80,24 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val isSummary = flags and Notification.FLAG_GROUP_SUMMARY != 0
         val isOngoing = flags and Notification.FLAG_ONGOING_EVENT != 0
         return isClearable && !isSummary && !isOngoing
+    }
+
+    companion object {
+        private const val TAG = "CutoutNotifListener"
+
+        // The currently connected listener, or null when unbound. Only touched on the main thread
+        // (the framework's listener callbacks and the overlay both run there).
+        @Volatile
+        private var instance: CutoutNotificationListenerService? = null
+
+        /**
+         * Cancel the notification with [key] from the system, exactly as swiping it away in the
+         * shade would. A no-op if the listener isn't connected (nothing we can do without it).
+         */
+        fun dismiss(key: String) {
+            val service = instance ?: return
+            runCatching { service.cancelNotification(key) }
+                .onFailure { Log.w(TAG, "Failed to cancel notification $key", it) }
+        }
     }
 }
