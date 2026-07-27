@@ -30,6 +30,7 @@
     <string name="perm_accessibility_title">Overlay access</string>
     <string name="perm_accessibility_desc">Draws the island over the cutout. No screen content is read.</string>
     <string name="perm_battery_title">Ignore battery optimisation</string>
+    <string name="settings_access_missing">Overlay access is missing. Enable it now to see the island</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>

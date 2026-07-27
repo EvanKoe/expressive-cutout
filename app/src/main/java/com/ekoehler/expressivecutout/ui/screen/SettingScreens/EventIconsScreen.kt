@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
@@ -113,38 +116,39 @@ internal fun EventIconsScreen(
             val lastIndex = SystemEventType.entries.lastIndex
             // The dynamic-colour toggle is the top row of the same grouped list, so it carries the
             // group's rounded top corners; the events below flow on beneath it.
-            item(key = "dynamic_color") {
-                SettingsToggleCard(
-                    shape = RoundedCornerShape(
-                        topStart = 32.dp,
-                        topEnd = 32.dp,
-                        bottomStart = 4.dp,
-                        bottomEnd = 4.dp,
-                    ),
-                    title = stringResource(R.string.dynamic_event_color),
-                    description = stringResource(R.string.dynamic_event_color_desc),
-                    checked = dynamicColor,
-                    onCheckedChange = { viewModel.setEventDynamicColor(it) },
-                )
-            }
-            // The role picker + opacity slider only make sense while dynamic colour is on.
-            if (dynamicColor) {
-                item(key = "dynamic_color_options") {
-                    DynamicColorOptionsCard(
+            item(key = "dynamic_container") {
+                Column(
+                    modifier = Modifier.padding(bottom = 8.dp)
+                        .clip(shape = RoundedCornerShape(32.dp)),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    SettingsToggleCard(
                         shape = RoundedCornerShape(4.dp),
-                        role = dynamicColorRole,
-                        opacity = dynamicColorOpacity,
-                        onRoleChange = { viewModel.setEventDynamicColorRole(it) },
-                        onOpacityChange = { viewModel.setEventDynamicColorOpacity(it) },
+                        title = stringResource(R.string.dynamic_event_color),
+                        description = stringResource(R.string.dynamic_event_color_desc),
+                        checked = dynamicColor,
+                        onCheckedChange = { viewModel.setEventDynamicColor(it) },
                     )
+
+                    // The role picker + opacity slider only make sense while dynamic colour is on.
+                    AnimatedVisibility(visible = dynamicColor) {
+                        DynamicColorOptionsCard(
+                            shape = RoundedCornerShape(4.dp),
+                            role = dynamicColorRole,
+                            opacity = dynamicColorOpacity,
+                            onRoleChange = { viewModel.setEventDynamicColorRole(it) },
+                            onOpacityChange = { viewModel.setEventDynamicColorOpacity(it) },
+                        )
+                    }
                 }
             }
+
             itemsIndexed(SystemEventType.entries, key = { _, type -> type.name }) { index, type ->
                 // Grouped list: 4dp between, and the last event carries the group's rounded bottom
                 // corners (the toggle above holds the top ones).
                 val shape = RoundedCornerShape(
-                    topStart = 4.dp,
-                    topEnd = 4.dp,
+                    topStart = if (index == 0) 32.dp else 4.dp,
+                    topEnd = if (index == 0) 32.dp else 4.dp,
                     bottomStart = if (index == lastIndex) 32.dp else 4.dp,
                     bottomEnd = if (index == lastIndex) 32.dp else 4.dp,
                 )
@@ -382,17 +386,21 @@ private fun EventIconThumbnail(
 ) {
     val context = LocalContext.current
     // Mirror the overlay's IconBadge: with "Dynamic color" on, a role-coloured disc (at the chosen
-    // opacity) + its matching "on" glyph replaces the event's own accent tint.
-    val badgeColor = if (dynamicColor) {
+    // opacity) + its matching "on" glyph replaces the event's own accent tint. Both colours are
+    // animated so toggling the setting (or dragging the opacity slider) crossfades rather than snaps
+    // — the opacity rides along in the badge colour's alpha.
+    val targetBadge = if (dynamicColor) {
         MaterialTheme.colorScheme.forRole(dynamicColorRole).copy(alpha = dynamicColorOpacity)
     } else {
         Color(type.accent).copy(alpha = 0.18f)
     }
-    val glyphColor = if (dynamicColor) {
+    val badgeColor by animateColorAsState(targetBadge, label = "eventBadgeColor")
+    val targetGlyph = if (dynamicColor) {
         MaterialTheme.colorScheme.onForRole(dynamicColorRole)
     } else {
         Color(type.accent)
     }
+    val glyphColor by animateColorAsState(targetGlyph, label = "eventGlyphColor")
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {
         value = when (val current = source) {
             is IconSource.Image -> withContext(Dispatchers.IO) {

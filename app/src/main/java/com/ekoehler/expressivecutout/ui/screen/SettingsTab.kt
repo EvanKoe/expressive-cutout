@@ -1,6 +1,8 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.graphics.Color
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -24,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Timer
@@ -39,13 +43,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
+import java.nio.file.WatchEvent
 
 /**
  * "Settings" destination. A lightweight list that navigates to focused sub-screens — so the
@@ -144,6 +151,9 @@ private fun SettingsList(
     onOpenBehaviour: () -> Unit,
     onOpenAppearance: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val accessibilityAvailable = Permissions.isAccessibilityGranted(context)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -151,7 +161,25 @@ private fun SettingsList(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        CutoutEnableCard(enabled = cutoutEnabled, onEnabledChange = onCutoutEnabledChange)
+        AnimatedVisibility(
+            visible = !accessibilityAvailable,
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.ErrorOutline,
+                subtitle = stringResource(R.string.settings_access_missing),
+                title = stringResource(R.string.perm_accessibility_title),
+                onClick = { Permissions.openAccessibilitySettings(context) },
+                bgColor = MaterialTheme.colorScheme.primaryContainer,
+                fgColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+
+        CutoutEnableCard(
+            enabled = if (accessibilityAvailable) cutoutEnabled else false,
+            onEnabledChange = onCutoutEnabledChange,
+            canEdit = accessibilityAvailable
+        )
 
         Column(
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
@@ -192,7 +220,11 @@ private fun SettingsList(
 }
 
 @Composable
-private fun CutoutEnableCard(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+private fun CutoutEnableCard(
+    enabled: Boolean,
+    canEdit: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -216,7 +248,7 @@ private fun CutoutEnableCard(enabled: Boolean, onEnabledChange: (Boolean) -> Uni
                 )
             }
             Spacer(Modifier.width(12.dp))
-            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            Switch(checked = enabled, onCheckedChange = onEnabledChange, enabled = canEdit)
         }
     }
 }
@@ -227,6 +259,8 @@ private fun SettingsListItem(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    bgColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
+    fgColor: androidx.compose.ui.graphics.Color? = null
 ) {
     Card(
         modifier = Modifier
@@ -234,7 +268,7 @@ private fun SettingsListItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = bgColor
         ),
     ) {
         Row(
@@ -247,7 +281,7 @@ private fun SettingsListItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp),
             )
             Spacer(Modifier.width(24.dp))
@@ -256,13 +290,13 @@ private fun SettingsListItem(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

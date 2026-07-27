@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -78,7 +79,7 @@ internal fun BehaviourScreen(
             checked = behaviour.expandedAutoCollapse,
             onCheckedChange = viewModel::setExpandedAutoCollapse,
         )
-        if (behaviour.expandedAutoCollapse) {
+        AnimatedVisibility(visible = behaviour.expandedAutoCollapse) {
             BehaviourSliderRow(
                 shape = groupedShape(isFirst = false, isLast = false),
                 label = stringResource(R.string.behaviour_collapse_delay),
@@ -125,29 +126,31 @@ internal fun BehaviourScreen(
             checked = behaviour.swipeToDismiss,
             onCheckedChange = viewModel::setSwipeToDismiss,
         )
-        if (behaviour.swipeToDismiss) {
-            BehaviourSegmentedRow(
-                shape = groupedShape(isFirst = false, isLast = false),
-                label = stringResource(R.string.behaviour_swipe_direction),
-                options = listOf(
-                    stringResource(R.string.swipe_dir_left),
-                    stringResource(R.string.swipe_dir_right),
-                    stringResource(R.string.swipe_dir_both),
-                ),
-                selectedIndex = behaviour.swipeDismissDirection.ordinal,
-                onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
-            )
-            BehaviourSegmentedRow(
-                shape = groupedShape(isFirst = false, isLast = true),
-                label = stringResource(R.string.behaviour_swipe_target),
-                options = listOf(
-                    stringResource(R.string.swipe_target_expanded),
-                    stringResource(R.string.swipe_target_both),
-                    stringResource(R.string.swipe_target_normal),
-                ),
-                selectedIndex = behaviour.swipeDismissTarget.ordinal,
-                onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
-            )
+        AnimatedVisibility(visible = behaviour.swipeToDismiss) {
+            Column (verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BehaviourSegmentedRow(
+                    shape = groupedShape(isFirst = false, isLast = false),
+                    label = stringResource(R.string.behaviour_swipe_direction),
+                    options = listOf(
+                        stringResource(R.string.swipe_dir_left),
+                        stringResource(R.string.swipe_dir_right),
+                        stringResource(R.string.swipe_dir_both),
+                    ),
+                    selectedIndex = behaviour.swipeDismissDirection.ordinal,
+                    onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
+                )
+                BehaviourSegmentedRow(
+                    shape = groupedShape(isFirst = false, isLast = true),
+                    label = stringResource(R.string.behaviour_swipe_target),
+                    options = listOf(
+                        stringResource(R.string.swipe_target_expanded),
+                        stringResource(R.string.swipe_target_both),
+                        stringResource(R.string.swipe_target_normal),
+                    ),
+                    selectedIndex = behaviour.swipeDismissTarget.ordinal,
+                    onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
+                )
+            }
         }
     }
 }
