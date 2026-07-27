@@ -20,11 +20,24 @@ sealed interface IslandIcon {
     data class Raster(val bitmap: ImageBitmap) : IslandIcon
 
     /**
-     * A Lottie animation from `res/raw`, played once when the collapsed pill appears. Used for
-     * events that read better as a motion beat than a static glyph (e.g. a padlock springing open
-     * for [com.ekoehler.expressivecutout.core.SystemEventType.DEVICE_UNLOCKED]).
+     * A Lottie animation from `res/raw`, played when the collapsed pill appears. Used for events that
+     * read better as a motion beat than a static glyph (e.g. a padlock springing open for
+     * [com.ekoehler.expressivecutout.core.SystemEventType.DEVICE_UNLOCKED]). [iterations] is how many
+     * times to play ([com.airbnb.lottie.compose.LottieConstants.IterateForever] to loop). When
+     * [clipStartFrame] / [clipEndFrame] are both set, only that frame range plays; otherwise the whole
+     * composition does. [scale] multiplies the icon size (for artwork that sits small within its own
+     * canvas — values > 1 render past the badge and are clipped to its circle), and [tint] recolours
+     * every layer with the badge's glyph colour when true (so it follows the theme/accent like the
+     * static icons), or leaves the animation's own colours when false.
      */
-    data class Lottie(@param:RawRes val resId: Int) : IslandIcon
+    data class Lottie(
+        @param:RawRes val resId: Int,
+        val iterations: Int = 1,
+        val clipStartFrame: Int? = null,
+        val clipEndFrame: Int? = null,
+        val scale: Float = 1f,
+        val tint: Boolean = false,
+    ) : IslandIcon
 }
 
 /**

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -71,6 +72,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -86,10 +88,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.SimpleColorFilter
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieClipSpec
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.rememberLottieDynamicProperties
+import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
@@ -1593,14 +1599,33 @@ private fun IconBadge(
                 val composition by rememberLottieComposition(
                     LottieCompositionSpec.RawRes(icon.resId),
                 )
+                // Each animation carries its own playback: the unlock padlock clips to frames 0..45
+                // and holds open, while a looping icon (e.g. charging) runs its full range forever.
+                val clip = if (icon.clipStartFrame != null && icon.clipEndFrame != null) {
+                    LottieClipSpec.Frame(icon.clipStartFrame, icon.clipEndFrame)
+                } else {
+                    null
+                }
+                // Recolour every layer to the badge glyph colour (the settings' role/accent) when asked.
+                val dynamicProperties = if (icon.tint) {
+                    rememberLottieDynamicProperties(
+                        rememberLottieDynamicProperty(
+                            property = LottieProperty.COLOR_FILTER,
+                            value = SimpleColorFilter(glyphColor.toArgb()),
+                            keyPath = arrayOf("**"),
+                        ),
+                    )
+                } else {
+                    null
+                }
                 LottieAnimation(
                     composition = composition,
-                    // Play once and stop on the "open" frame: the source clip loops back to a closed
-                    // padlock by its end, but a device-unlocked event should rest unlocked. Frame 45 of
-                    // 80 is where the shackle has swung open and is held.
-                    iterations = 1,
-                    clipSpec = LottieClipSpec.Frame(0, 45),
-                    modifier = Modifier.size(iconSize),
+                    iterations = icon.iterations,
+                    clipSpec = clip,
+                    dynamicProperties = dynamicProperties,
+                    // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
+                    // being clamped to them; the overflow is clipped to the badge circle by the parent.
+                    modifier = Modifier.requiredSize(iconSize * icon.scale),
                 )
             }
         }

@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen.tiles
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -82,7 +83,7 @@ internal fun MusicTileScreen(
             onCheckedChange = viewModel::setMusicShowAlbumArt,
         )
         // Rotation only applies to the album cover, so it rides with the album-art toggle.
-        if (settings.showAlbumArt) {
+        AnimatedVisibility(visible = settings.showAlbumArt) {
             SettingsToggleCard(
                 shape = RoundedCornerShape(4.dp),
                 title = stringResource(R.string.music_rotate_art_title),
@@ -91,6 +92,7 @@ internal fun MusicTileScreen(
                 onCheckedChange = viewModel::setMusicRotateAlbumArt,
             )
         }
+
         SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
             title = stringResource(R.string.music_show_controls_title),

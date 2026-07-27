@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
+import com.airbnb.lottie.compose.LottieConstants
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -222,7 +223,17 @@ class IconResolver(private val context: Context) {
      * domain type (its [SystemEventType.defaultIcon] still backs settings-screen previews).
      */
     private fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
-        SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock)
+        // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
+        // padlock, but a device-unlocked event should rest unlocked.
+        SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock, clipStartFrame = 0, clipEndFrame = 45)
+        // A charging bolt that loops for as long as the cutout is shown. It sits small within its own
+        // canvas, so scale it up, and tint it to the badge colour so it follows the theme/accent.
+        SystemEventType.CHARGING_STARTED -> IslandIcon.Lottie(
+            R.raw.charging,
+            iterations = LottieConstants.IterateForever,
+            scale = 4f,
+            tint = true,
+        )
         else -> null
     }
 

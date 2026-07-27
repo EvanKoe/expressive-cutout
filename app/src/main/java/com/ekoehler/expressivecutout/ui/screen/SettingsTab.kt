@@ -162,6 +162,7 @@ private fun SettingsList(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Accessibility access permission request if needed
         AnimatedVisibility(
             visible = !accessibilityAvailable,
             modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
@@ -182,6 +183,7 @@ private fun SettingsList(
             canEdit = accessibilityAvailable
         )
 
+        // Customization of the cutout
         Column(
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -199,6 +201,19 @@ private fun SettingsList(
                 onClick = onOpenAppearance,
             )
             SettingsListItem(
+                icon = Icons.Rounded.Timer,
+                title = stringResource(R.string.behaviour_title),
+                subtitle = stringResource(R.string.settings_behaviour_subtitle),
+                onClick = onOpenBehaviour,
+            )
+        }
+
+        // Events and tiles that trigger the cutout
+        Column(
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            SettingsListItem(
                 icon = Icons.Rounded.Notifications,
                 title = stringResource(R.string.section_icons_title),
                 subtitle = stringResource(R.string.settings_icons_subtitle),
@@ -209,12 +224,6 @@ private fun SettingsList(
                 title = stringResource(R.string.dynamic_tiles_title),
                 subtitle = stringResource(R.string.settings_dynamic_tiles_subtitle),
                 onClick = onOpenDynamicTiles,
-            )
-            SettingsListItem(
-                icon = Icons.Rounded.Timer,
-                title = stringResource(R.string.behaviour_title),
-                subtitle = stringResource(R.string.settings_behaviour_subtitle),
-                onClick = onOpenBehaviour,
             )
         }
     }
