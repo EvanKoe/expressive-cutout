@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -87,13 +88,38 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        PermissionCard(
-            icon = Icons.Rounded.Notifications,
-            title = stringResource(R.string.perm_notifications_title),
-            description = stringResource(R.string.perm_notifications_desc),
-            granted = status.notifications,
-            onClick = { Permissions.openNotificationAccessSettings(context) },
-        )
+        AnimatedVisibility(visible = status.allEssentialGranted) {
+            AllSetCard()
+        }
+
+        Column(
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            PermissionCard(
+                icon = Icons.Rounded.Notifications,
+                title = stringResource(R.string.perm_notifications_title),
+                description = stringResource(R.string.perm_notifications_desc),
+                granted = status.notifications,
+                onClick = { Permissions.openNotificationAccessSettings(context) },
+            )
+            PermissionCard(
+                icon = Icons.Rounded.Layers,
+                title = stringResource(R.string.perm_accessibility_title),
+                description = stringResource(R.string.perm_accessibility_desc),
+                granted = status.accessibility,
+                onClick = { Permissions.openAccessibilitySettings(context) },
+            )
+            PermissionCard(
+                icon = Icons.Rounded.BatterySaver,
+                title = stringResource(R.string.perm_battery_title),
+                description = stringResource(R.string.perm_battery_desc),
+                granted = status.batteryIgnored,
+                onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
+            )
+        }
+
+        // Notification test button
         FilledTonalButton(
             onClick = ::onTestNotification,
             modifier = Modifier.fillMaxWidth(),
@@ -107,24 +133,6 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             Text(stringResource(R.string.action_send_test))
         }
 
-        PermissionCard(
-            icon = Icons.Rounded.Layers,
-            title = stringResource(R.string.perm_accessibility_title),
-            description = stringResource(R.string.perm_accessibility_desc),
-            granted = status.accessibility,
-            onClick = { Permissions.openAccessibilitySettings(context) },
-        )
-        PermissionCard(
-            icon = Icons.Rounded.BatterySaver,
-            title = stringResource(R.string.perm_battery_title),
-            description = stringResource(R.string.perm_battery_desc),
-            granted = status.batteryIgnored,
-            onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
-        )
-
-        if (status.allEssentialGranted) {
-            AllSetCard()
-        }
     }
 }
 
@@ -138,7 +146,7 @@ private fun PermissionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
