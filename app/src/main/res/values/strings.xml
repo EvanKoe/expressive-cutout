@@ -212,6 +212,7 @@
     <string name="behaviour_title">Behaviour</string>
     <string name="behaviour_hide_lockscreen">Hide on lockscreen</string>
     <string name="behaviour_hide_lockscreen_desc">Don\'t show the cutout while the device is locked. The overlay is fully removed until you unlock, so it uses no resources.</string>
+    <string name="behaviour_animation_duration">Animation duration</string>
     <string name="behaviour_normal_duration">Normal cutout duration</string>
     <string name="behaviour_auto_collapse">Collapse automatically</string>
     <string name="behaviour_auto_collapse_desc">Shrink the expanded island after a delay. When off, it stays expanded until you tap it.</string>

@@ -105,6 +105,7 @@ import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 // Text colours for a dark fill; on a light fill we swap in a dark text colour (see contentColorFor).
 private val PillTextColor = Color(0xFFF5F5F5)
@@ -131,6 +132,11 @@ private const val REPLY_SENT_FEEDBACK_MS = 900L
 // Time for the rotating album art to complete one full turn.
 private const val ALBUM_SPIN_MS = 8000
 
+// The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+// animation is expressed relative to this, so the user's single "animation duration" knob scales
+// them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+private const val BASE_TRANSITION_MS = 220
+
 /**
  * Extra height added to the expanded island when it shows action buttons, so the added row grows
  * downward instead of pushing the content up into the camera cutout: one chip row (at its configured
@@ -151,6 +157,7 @@ fun DynamicIsland(
     expanded: IslandDimensions,
     displayWidthDp: Int,
     forcedExpanded: Boolean?,
+    animationDurationMs: Int,
     autoCollapse: Boolean,
     autoCollapseMs: Long,
     appearance: AppearanceSettings,
@@ -187,6 +194,13 @@ fun DynamicIsland(
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
+    // One user-tunable knob scales every tween-based island animation — the expand/collapse, the
+    // pop-in/out reveal, the background fade, the content crossfade and the tap "boop" — in
+    // proportion to its tuned baseline, so the whole motion speeds up or slows down together.
+    // At 0ms everything snaps instantly; at the default (BASE_TRANSITION_MS) the feel is unchanged.
+    val animScale = animationDurationMs / BASE_TRANSITION_MS.toFloat()
+    fun scaled(baseMs: Int) = (baseMs * animScale).roundToInt()
+
     // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
     LaunchedEffect(isExpanded, event != null) {
@@ -222,7 +236,7 @@ fun DynamicIsland(
         reveal.animateTo(
             targetValue = if (present) 1f else 0f,
             animationSpec = tween(
-                durationMillis = if (present) 320 else 200,
+                durationMillis = if (present) scaled(320) else scaled(200),
                 easing = EmphasizedEasing,
             ),
         )
@@ -231,7 +245,7 @@ fun DynamicIsland(
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
     // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
     val spec: AnimationSpec<Dp> =
-        if (reveal.value == 0f) snap() else tween(durationMillis = 220, easing = EmphasizedEasing)
+        if (reveal.value == 0f) snap() else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing)
     val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
     val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
     val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
@@ -243,7 +257,7 @@ fun DynamicIsland(
     // Drives the background cross-fade between the normal and expanded fills, in step with the size.
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = tween(durationMillis = 220, easing = EmphasizedEasing),
+        animationSpec = tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing),
         label = "islandBackgroundFade",
     )
 
@@ -294,8 +308,8 @@ fun DynamicIsland(
                                 } else {
                                     tapExpanded = !tapExpanded
                                     scope.launch {
-                                        boopScale.animateTo(1.02f, tween(durationMillis = 120, easing = EmphasizedEasing))
-                                        boopScale.animateTo(1f, tween(durationMillis = 220, easing = EmphasizedEasing))
+                                        boopScale.animateTo(1.02f, tween(durationMillis = scaled(120), easing = EmphasizedEasing))
+                                        boopScale.animateTo(1f, tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing))
                                     }
                                 }
                             }
@@ -362,7 +376,7 @@ fun DynamicIsland(
                     appearance = appearance,
                     progress = expandProgress,
                 ) {
-                    Crossfade(targetState = isExpanded, animationSpec = tween(150), label = "islandContent") { showExpanded ->
+                    Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
                         shownEvent?.let { e ->
                             if (showExpanded) {
                                 ExpandedContent(

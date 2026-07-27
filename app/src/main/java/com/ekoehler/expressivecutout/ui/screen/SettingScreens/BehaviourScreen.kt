@@ -47,6 +47,9 @@ internal fun BehaviourScreen(
     contentPadding: PaddingValues,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    var animationMs by remember(behaviour.animationDurationMs) {
+        mutableStateOf(behaviour.animationDurationMs.toFloat())
+    }
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
         mutableStateOf(behaviour.normalDurationSeconds.toFloat())
     }
@@ -68,6 +71,17 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_hide_lockscreen_desc),
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
+        )
+        BehaviourSliderRow(
+            shape = groupedShape(isFirst = false, isLast = false),
+            label = stringResource(R.string.behaviour_animation_duration),
+            valueText = "${animationMs.roundToInt()} ms",
+            value = animationMs,
+            valueRange = BehaviourSettings.MIN_ANIMATION_DURATION_MS.toFloat()..
+                BehaviourSettings.MAX_ANIMATION_DURATION_MS.toFloat(),
+            step = 20f,
+            onValueChange = { animationMs = it },
+            onCommit = { viewModel.setAnimationDurationMs(animationMs.roundToInt()) },
         )
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
@@ -197,6 +211,7 @@ private fun BehaviourSliderRow(
     valueText: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
+    step: Float = 1f,
     onValueChange: (Float) -> Unit,
     onCommit: () -> Unit,
 ) {
@@ -211,7 +226,7 @@ private fun BehaviourSliderRow(
                 valueText = valueText,
                 value = value,
                 valueRange = valueRange,
-                step = 1f,
+                step = step,
                 onValueChange = onValueChange,
                 onCommit = onCommit,
             )

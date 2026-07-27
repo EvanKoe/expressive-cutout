@@ -31,6 +31,7 @@ enum class SwipeDismissTarget { EXPANDED, BOTH, NORMAL }
 data class BehaviourSettings(
     val cutoutEnabled: Boolean = DEFAULT_CUTOUT_ENABLED,
     val hideOnLockscreen: Boolean = DEFAULT_HIDE_ON_LOCKSCREEN,
+    val animationDurationMs: Int = DEFAULT_ANIMATION_DURATION_MS,
     val normalDurationSeconds: Int = DEFAULT_NORMAL_SECONDS,
     val expandedAutoCollapse: Boolean = DEFAULT_AUTO_COLLAPSE,
     val expandedCollapseSeconds: Int = DEFAULT_COLLAPSE_SECONDS,
@@ -45,6 +46,9 @@ data class BehaviourSettings(
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
+        // Baseline for the island's primary expand/collapse transition; the reveal, background fade
+        // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
+        const val DEFAULT_ANIMATION_DURATION_MS = 220
         const val DEFAULT_NORMAL_SECONDS = 3
         const val DEFAULT_AUTO_COLLAPSE = true
         const val DEFAULT_COLLAPSE_SECONDS = 5
@@ -55,6 +59,8 @@ data class BehaviourSettings(
         const val DEFAULT_SWIPE_TO_DISMISS = true
         val DEFAULT_SWIPE_DISMISS_DIRECTION = SwipeDismissDirection.BOTH
         val DEFAULT_SWIPE_DISMISS_TARGET = SwipeDismissTarget.BOTH
+        const val MIN_ANIMATION_DURATION_MS = 0
+        const val MAX_ANIMATION_DURATION_MS = 1000
         const val MIN_NORMAL_SECONDS = 1
         const val MAX_NORMAL_SECONDS = 10
         const val MIN_COLLAPSE_SECONDS = 1
@@ -69,6 +75,8 @@ class BehaviourPreferences(private val context: Context) {
         BehaviourSettings(
             cutoutEnabled = prefs[CUTOUT_ENABLED] ?: BehaviourSettings.DEFAULT_CUTOUT_ENABLED,
             hideOnLockscreen = prefs[HIDE_ON_LOCKSCREEN] ?: BehaviourSettings.DEFAULT_HIDE_ON_LOCKSCREEN,
+            animationDurationMs = (prefs[ANIMATION_DURATION_MS] ?: BehaviourSettings.DEFAULT_ANIMATION_DURATION_MS)
+                .coerceIn(BehaviourSettings.MIN_ANIMATION_DURATION_MS, BehaviourSettings.MAX_ANIMATION_DURATION_MS),
             normalDurationSeconds = (prefs[NORMAL_SECONDS] ?: BehaviourSettings.DEFAULT_NORMAL_SECONDS)
                 .coerceIn(BehaviourSettings.MIN_NORMAL_SECONDS, BehaviourSettings.MAX_NORMAL_SECONDS),
             expandedAutoCollapse = prefs[AUTO_COLLAPSE] ?: BehaviourSettings.DEFAULT_AUTO_COLLAPSE,
@@ -94,6 +102,13 @@ class BehaviourPreferences(private val context: Context) {
 
     suspend fun setHideOnLockscreen(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_ON_LOCKSCREEN] = enabled
+    }
+
+    suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
+        it[ANIMATION_DURATION_MS] = ms.coerceIn(
+            BehaviourSettings.MIN_ANIMATION_DURATION_MS,
+            BehaviourSettings.MAX_ANIMATION_DURATION_MS,
+        )
     }
 
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
@@ -145,6 +160,7 @@ class BehaviourPreferences(private val context: Context) {
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
+        val ANIMATION_DURATION_MS = intPreferencesKey("animation_duration_ms")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
         val AUTO_COLLAPSE = booleanPreferencesKey("expanded_auto_collapse")
         val COLLAPSE_SECONDS = intPreferencesKey("expanded_collapse_seconds")

@@ -274,6 +274,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }
 
+    fun setAnimationDurationMs(ms: Int) = viewModelScope.launch {
+        behaviourPreferences.setAnimationDurationMs(ms)
+    }
+
     fun setNormalDurationSeconds(seconds: Int) = viewModelScope.launch {
         behaviourPreferences.setNormalDurationSeconds(seconds)
     }
