@@ -1115,6 +1115,8 @@ private fun MediaControls(
             contentDescription = if (isPlaying) "Pause" else "Play",
             enabled = enabled,
             heightDp = heightDp,
+            // The play/pause button is a 16:9 rectangle rather than a square.
+            widthDp = heightDp * 16 / 9,
             iconSize = 24.dp,
             fill = playPauseStyle.resolveFill(fallback = accent),
             cornerPercent = playPauseStyle.cornerPercent,
@@ -1144,8 +1146,10 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
 
 /**
  * A transport button with the shared press "squish". A null [fill] renders a plain (unfilled) button
- * tinted with the content colour; a non-null [fill] renders a filled button rounded to
- * [cornerPercent] (50 = a circle, 0 = a square) with an auto-contrasting icon.
+ * tinted with the content colour; a non-null [fill] renders a filled button whose corners are rounded
+ * by [cornerPercent] relative to its height (50 = a pill / stadium, 0 = a square) with an
+ * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
+ * rectangle — e.g. the 16:9 play/pause button.
  */
 @Composable
 private fun MediaButton(
@@ -1157,10 +1161,11 @@ private fun MediaButton(
     fill: Color?,
     cornerPercent: Int,
     onClick: () -> Unit,
+    widthDp: Int = heightDp,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val modifier = Modifier
-        .size(heightDp.dp)
+        .size(width = widthDp.dp, height = heightDp.dp)
         .pressScale(interaction)
     if (fill == null) {
         IconButton(
@@ -1181,7 +1186,9 @@ private fun MediaButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            shape = RoundedCornerShape(percent = cornerPercent),
+            // Corner radius keyed to height (not width) so a wide button still reads as a clean
+            // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
+            shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
                 contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,

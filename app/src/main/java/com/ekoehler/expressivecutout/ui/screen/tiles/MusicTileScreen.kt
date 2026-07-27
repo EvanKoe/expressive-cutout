@@ -52,6 +52,9 @@ private val MusicAccent = Color(0xFFF472B6)
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
 private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
 
+/** Height of a transport button in the settings preview; the play/pause button is 16:9 off this. */
+private const val PREVIEW_BUTTON_HEIGHT_DP = 48
+
 /**
  * Settings specific to the music dynamic tile: whether to show the album art on the normal cutout,
  * whether to show playback controls (previous / play‑pause / next) on the expanded cutout, and the
@@ -296,7 +299,13 @@ private fun MusicButtonsPreview(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PreviewButton(Icons.Rounded.SkipPrevious, skipStyle.previewFill(fallback = null), skipStyle.cornerPercent)
-            PreviewButton(Icons.Rounded.PlayArrow, playPauseStyle.previewFill(fallback = MusicAccent), playPauseStyle.cornerPercent)
+            // The play/pause button is a 16:9 rectangle, matching the live overlay.
+            PreviewButton(
+                Icons.Rounded.PlayArrow,
+                playPauseStyle.previewFill(fallback = MusicAccent),
+                playPauseStyle.cornerPercent,
+                widthDp = PREVIEW_BUTTON_HEIGHT_DP * 16 / 9,
+            )
             PreviewButton(Icons.Rounded.SkipNext, skipStyle.previewFill(fallback = null), skipStyle.cornerPercent)
         }
     }
@@ -315,14 +324,17 @@ private fun PreviewButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     fill: Color?,
     cornerPercent: Int,
+    widthDp: Int = PREVIEW_BUTTON_HEIGHT_DP,
 ) {
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(width = widthDp.dp, height = PREVIEW_BUTTON_HEIGHT_DP.dp)
             .then(
                 if (fill != null) {
                     Modifier
-                        .clip(RoundedCornerShape(percent = cornerPercent))
+                        // Corner radius keyed to height so a wide button reads as a clean pill at
+                        // 50% rather than an ellipse, matching the live overlay.
+                        .clip(RoundedCornerShape((PREVIEW_BUTTON_HEIGHT_DP * cornerPercent / 100f).dp))
                         .background(fill)
                 } else {
                     Modifier
