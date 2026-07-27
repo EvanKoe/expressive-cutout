@@ -52,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -1377,18 +1378,26 @@ private fun IconBadge(
     iconSize: Dp,
     modifier: Modifier = Modifier,
 ) {
+    // "Dynamic color for all events": a solid primary badge with on-primary ink, in place of the
+    // event's own accent (a faint accent-tinted disc behind a full-accent glyph).
+    val badgeColor = if (event.useThemeColor) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        event.accent.copy(alpha = 0.20f)
+    }
+    val glyphColor = if (event.useThemeColor) MaterialTheme.colorScheme.onPrimary else event.accent
     Box(
         modifier = modifier
             .size(badgeSize)
             .clip(CircleShape)
-            .background(event.accent.copy(alpha = 0.20f)),
+            .background(badgeColor),
         contentAlignment = Alignment.Center,
     ) {
         when (val icon = event.icon) {
             is IslandIcon.Vector -> Icon(
                 imageVector = icon.image,
                 contentDescription = null,
-                tint = event.accent,
+                tint = glyphColor,
                 modifier = Modifier.size(iconSize),
             )
 

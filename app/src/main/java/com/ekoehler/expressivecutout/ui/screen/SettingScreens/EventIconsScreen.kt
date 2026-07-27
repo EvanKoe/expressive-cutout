@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.item
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -76,6 +77,7 @@ internal fun EventIconsScreen(
     val context = LocalContext.current
     val customIcons by viewModel.customIcons.collectAsStateWithLifecycle()
     val eventEnabled by viewModel.eventEnabled.collectAsStateWithLifecycle()
+    val dynamicColor by viewModel.eventDynamicColor.collectAsStateWithLifecycle()
 
     var pendingImageType by remember { mutableStateOf<SystemEventType?>(null) }
     var editingType by remember { mutableStateOf<SystemEventType?>(null) }
@@ -102,12 +104,28 @@ internal fun EventIconsScreen(
             contentPadding = contentPadding
         ) {
             val lastIndex = SystemEventType.entries.lastIndex
+            // The dynamic-colour toggle is the top row of the same grouped list, so it carries the
+            // group's rounded top corners; the events below flow on beneath it.
+            item(key = "dynamic_color") {
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(
+                        topStart = 32.dp,
+                        topEnd = 32.dp,
+                        bottomStart = 4.dp,
+                        bottomEnd = 4.dp,
+                    ),
+                    title = stringResource(R.string.dynamic_event_color),
+                    description = stringResource(R.string.dynamic_event_color_desc),
+                    checked = dynamicColor,
+                    onCheckedChange = { viewModel.setEventDynamicColor(it) },
+                )
+            }
             itemsIndexed(SystemEventType.entries, key = { _, type -> type.name }) { index, type ->
-                // Grouped list: 4dp between, but the group's outer corners (first top, last
-                // bottom) are 24dp.
+                // Grouped list: 4dp between, and the last event carries the group's rounded bottom
+                // corners (the toggle above holds the top ones).
                 val shape = RoundedCornerShape(
-                    topStart = if (index == 0) 32.dp else 4.dp,
-                    topEnd = if (index == 0) 32.dp else 4.dp,
+                    topStart = 4.dp,
+                    topEnd = 4.dp,
                     bottomStart = if (index == lastIndex) 32.dp else 4.dp,
                     bottomEnd = if (index == lastIndex) 32.dp else 4.dp,
                 )
@@ -116,6 +134,7 @@ internal fun EventIconsScreen(
                     source = customIcons[type],
                     shape = shape,
                     enabled = eventEnabled[type] != false,
+                    dynamicColor = dynamicColor,
                     onEnabledChange = { viewModel.setEventEnabled(type, it) },
                     onClick = { editingType = type },
                     onTest = { IslandEventBus.emit(CutoutSignal.System(type)) },
@@ -161,6 +180,7 @@ private fun EventIconCard(
     source: IconSource?,
     shape: Shape,
     enabled: Boolean,
+    dynamicColor: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
     onTest: () -> Unit,
@@ -202,7 +222,7 @@ private fun EventIconCard(
                     .alpha(if (enabled) 1f else 0.4f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                EventIconThumbnail(type = type, source = source)
+                EventIconThumbnail(type = type, source = source, dynamicColor = dynamicColor)
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(
@@ -229,9 +249,16 @@ private fun EventIconCard(
 }
 
 @Composable
-private fun EventIconThumbnail(type: SystemEventType, source: IconSource?) {
+private fun EventIconThumbnail(type: SystemEventType, source: IconSource?, dynamicColor: Boolean) {
     val context = LocalContext.current
-    val accent = Color(type.accent)
+    // Mirror the overlay's IconBadge: with "Dynamic color" on, a solid primary disc + on-primary
+    // glyph replaces the event's own accent tint.
+    val badgeColor = if (dynamicColor) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        Color(type.accent).copy(alpha = 0.18f)
+    }
+    val glyphColor = if (dynamicColor) MaterialTheme.colorScheme.onPrimary else Color(type.accent)
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {
         value = when (val current = source) {
             is IconSource.Image -> withContext(Dispatchers.IO) {
@@ -252,7 +279,7 @@ private fun EventIconThumbnail(type: SystemEventType, source: IconSource?) {
         modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(accent.copy(alpha = 0.18f)),
+            .background(badgeColor),
         contentAlignment = Alignment.Center,
     ) {
         val loaded = bitmap
@@ -266,7 +293,7 @@ private fun EventIconThumbnail(type: SystemEventType, source: IconSource?) {
             Icon(
                 imageVector = type.defaultIcon,
                 contentDescription = null,
-                tint = accent,
+                tint = glyphColor,
                 modifier = Modifier.size(24.dp),
             )
         }

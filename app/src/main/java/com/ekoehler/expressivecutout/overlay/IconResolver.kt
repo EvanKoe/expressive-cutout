@@ -30,9 +30,10 @@ class IconResolver(private val context: Context) {
         customIcons: Map<SystemEventType, IconSource>,
         musicSettings: MusicTileSettings,
         phoneSettings: PhoneTileSettings,
+        dynamicEventColor: Boolean = false,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
-        is CutoutSignal.System -> resolveSystem(signal.type, customIcons)
+        is CutoutSignal.System -> resolveSystem(signal.type, customIcons, dynamicEventColor)
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
     }
@@ -147,6 +148,7 @@ class IconResolver(private val context: Context) {
     private fun resolveSystem(
         type: SystemEventType,
         customIcons: Map<SystemEventType, IconSource>,
+        dynamicEventColor: Boolean,
     ): IslandEvent {
         // A user override always wins; otherwise DEVICE_UNLOCKED gets the animated padlock and every
         // other system event keeps its static default glyph.
@@ -158,6 +160,7 @@ class IconResolver(private val context: Context) {
             icon = icon,
             label = context.getString(type.labelRes),
             accent = Color(type.accent),
+            useThemeColor = dynamicEventColor,
         )
     }
 

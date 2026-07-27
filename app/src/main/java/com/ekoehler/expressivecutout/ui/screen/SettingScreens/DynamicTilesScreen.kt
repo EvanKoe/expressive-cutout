@@ -39,7 +39,7 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 
 /**
  * Lists the dynamic tiles the cutout can display — live, ongoing content such as the track
- * currently playing. Distinct from the "Event icons" screen, which covers momentary system events.
+ * currently playing. Distinct from the "Events" screen, which covers momentary system events.
  * Tapping a tile opens its own settings screen; the trailing switch enables or disables it.
  */
 @Composable

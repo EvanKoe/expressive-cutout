@@ -47,8 +47,10 @@
     <string name="customise_title">Customise</string>
 
     <!-- Icon settings screen -->
-    <string name="icon_settings_title">Event icons</string>
+    <string name="icon_settings_title">Events</string>
     <string name="icon_settings_subtitle">Pick a custom image for any system event, or keep the default.</string>
+    <string name="dynamic_event_color">Dynamic color for all events</string>
+    <string name="dynamic_event_color_desc">Drop each event\'s own colour and tint them all with the theme\'s primary colour</string>
     <string name="action_choose_image">Choose image</string>
     <string name="action_reset">Reset</string>
     <string name="label_default">Default</string>
@@ -76,7 +78,7 @@
     <string name="appearance_vertical">Vertical position</string>
     <string name="appearance_horizontal">Horizontal position</string>
     <string name="action_reset_layout">Reset to default</string>
-    <string name="section_icons_title">Event icons</string>
+    <string name="section_icons_title">Events</string>
     <string name="cutout_enable_title">Dynamic cutout</string>
     <string name="cutout_enable_desc">Show the island for notifications and system events</string>
     <string name="settings_size_subtitle">Island dimensions, position and live preview</string>

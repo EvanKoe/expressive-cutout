@@ -48,6 +48,7 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,6 +110,7 @@ class IslandOverlayController(private val context: Context) {
     private val appearanceState = MutableStateFlow(AppearanceSettings())
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
+    private var eventDynamicColor: Boolean = false
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
@@ -153,6 +155,7 @@ class IslandOverlayController(private val context: Context) {
         observeBehaviour()
         observeAppearance()
         observeEventPreferences()
+        observeEventDynamicColor()
         observeTilePreferences()
         observeMusicSettings()
         observePhoneSettings()
@@ -182,27 +185,31 @@ class IslandOverlayController(private val context: Context) {
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
-                DynamicIsland(
-                    event = event,
-                    collapsed = layout.collapsed,
-                    expanded = layout.expanded,
-                    displayWidthDp = displayWidthDp,
-                    forcedExpanded = forced,
-                    autoCollapse = behaviour.expandedAutoCollapse,
-                    autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
-                    appearance = appearance,
-                    showActions = behaviour.showActionButtons,
-                    shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
-                    swipeToDismiss = behaviour.swipeToDismiss,
-                    swipeDismissDirection = behaviour.swipeDismissDirection,
-                    swipeDismissTarget = behaviour.swipeDismissTarget,
-                    onExpandedChange = ::onExpandedChanged,
-                    onActivate = ::onActivate,
-                    onAction = ::onAction,
-                    onReply = ::onReply,
-                    onReplyActiveChange = ::onReplyActive,
-                    onDismiss = ::onDismiss,
-                )
+                // Theme the overlay so the "Dynamic color for all events" badge picks up the app's
+                // real primary / on-primary (Material You or the brand fallback), not the M3 baseline.
+                ExpressiveCutoutTheme {
+                    DynamicIsland(
+                        event = event,
+                        collapsed = layout.collapsed,
+                        expanded = layout.expanded,
+                        displayWidthDp = displayWidthDp,
+                        forcedExpanded = forced,
+                        autoCollapse = behaviour.expandedAutoCollapse,
+                        autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
+                        appearance = appearance,
+                        showActions = behaviour.showActionButtons,
+                        shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
+                        swipeToDismiss = behaviour.swipeToDismiss,
+                        swipeDismissDirection = behaviour.swipeDismissDirection,
+                        swipeDismissTarget = behaviour.swipeDismissTarget,
+                        onExpandedChange = ::onExpandedChanged,
+                        onActivate = ::onActivate,
+                        onAction = ::onAction,
+                        onReply = ::onReply,
+                        onReplyActiveChange = ::onReplyActive,
+                        onDismiss = ::onDismiss,
+                    )
+                }
             }
         }
         val params = buildLayoutParams()
@@ -236,6 +243,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeEventPreferences() = scope.launch {
         eventPreferences.enabled.collect { eventEnabled = it }
+    }
+
+    private fun observeEventDynamicColor() = scope.launch {
+        eventPreferences.dynamicColor.collect { eventDynamicColor = it }
     }
 
     private fun observeTilePreferences() = scope.launch {
@@ -482,7 +493,7 @@ class IslandOverlayController(private val context: Context) {
             }
             forcedExpanded.value = null
             expanded = autoExpand
-            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings, phoneSettings)
+            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings, phoneSettings, eventDynamicColor)
                 .copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than

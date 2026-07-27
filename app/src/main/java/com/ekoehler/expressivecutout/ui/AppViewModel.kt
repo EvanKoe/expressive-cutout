@@ -65,6 +65,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    val eventDynamicColor: StateFlow<Boolean> =
+        eventPreferences.dynamicColor.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
     val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
         dynamicTilePreferences.enabled.stateIn(
             scope = viewModelScope,
@@ -128,6 +135,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventEnabled(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
         eventPreferences.setEnabled(type, enabled)
+    }
+
+    fun setEventDynamicColor(enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setDynamicColor(enabled)
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {

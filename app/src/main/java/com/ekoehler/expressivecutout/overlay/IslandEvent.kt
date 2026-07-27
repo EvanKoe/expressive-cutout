@@ -37,6 +37,11 @@ data class IslandEvent(
     val label: String,
     val detail: String? = null,
     val accent: Color,
+    /**
+     * When true the icon badge ignores [accent] and is drawn with the theme's primary / on-primary
+     * pair instead — the "Dynamic color for all events" option. Set only for system events.
+     */
+    val useThemeColor: Boolean = false,
     val initiallyExpanded: Boolean = false,
     /**
      * The tap action to run when the expanded island is tapped (a notification's content
