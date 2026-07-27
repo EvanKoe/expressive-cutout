@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.screen.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 
 /**
@@ -60,6 +61,27 @@ internal fun PhoneTileScreen(
             checked = settings.showActions,
             onCheckedChange = viewModel::setPhoneShowActions,
         )
+
+        // Button colours only matter when the action buttons are shown.
+        if (settings.showActions) {
+            Text(
+                text = stringResource(R.string.phone_button_colours_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_hangup_color_label),
+                selected = settings.hangUpColor,
+                onSelect = { it?.let(viewModel::setPhoneHangUpColor) },
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_other_color_label),
+                selected = settings.otherButtonColor,
+                onSelect = { it?.let(viewModel::setPhoneOtherButtonColor) },
+            )
+        }
+
         Text(
             text = stringResource(R.string.phone_tile_note),
             style = MaterialTheme.typography.bodySmall,

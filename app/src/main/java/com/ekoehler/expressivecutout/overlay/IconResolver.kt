@@ -118,14 +118,30 @@ class IconResolver(private val context: Context) {
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the
             // dialer's own call notification (which wouldn't end the call and would just re-post).
             actions = signal.actions.map { action ->
-                IslandAction(label = action.title, intent = action.intent)
+                IslandAction(
+                    label = action.title,
+                    intent = action.intent,
+                    destructive = isHangUpLabel(action.title),
+                )
             },
             call = CallTileOptions(
                 showPhoto = settings.showPhoto,
                 showDuration = settings.showDuration,
                 showActions = settings.showActions,
+                hangUpColor = settings.hangUpColor,
+                otherButtonColor = settings.otherButtonColor,
             ),
         )
+    }
+
+    /**
+     * Best-effort match for a call's hang-up / end-call / decline button by its label. A call
+     * notification carries no machine-readable flag marking which action ends the call, so we key
+     * off the label; failing to match simply leaves that button on the shared "other" colour.
+     */
+    private fun isHangUpLabel(label: String): Boolean {
+        val normalised = label.lowercase()
+        return HANG_UP_KEYWORDS.any { normalised.contains(it) }
     }
 
     private fun resolveSystem(
@@ -156,5 +172,10 @@ class IconResolver(private val context: Context) {
     private companion object {
         const val TAG = "IconResolver"
         val NOTIFICATION_ACCENT = Color(0xFF38BDF8)
+
+        // Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'
+        // notifications localise to the device language, but English covers the common case); the
+        // phrases avoid false hits like "send" that a bare "end" would catch.
+        val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
     }
 }

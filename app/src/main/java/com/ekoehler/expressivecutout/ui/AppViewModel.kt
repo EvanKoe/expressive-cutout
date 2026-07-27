@@ -158,6 +158,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setHangUpColor(color)
+    }
+
+    fun setPhoneOtherButtonColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setOtherButtonColor(color)
+    }
+
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setSkipColor(color)
     }

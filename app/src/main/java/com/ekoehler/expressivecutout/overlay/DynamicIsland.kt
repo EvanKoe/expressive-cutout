@@ -1210,8 +1210,9 @@ private fun CallExpandedContent(
     appearance: AppearanceSettings,
     onAction: (IslandAction) -> Unit,
 ) {
+    val call = event.call ?: return
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val photo = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
+    val photo = onCall?.photo?.takeIf { call.showPhoto }
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -1239,14 +1240,15 @@ private fun CallExpandedContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (event.call?.showDuration == true) {
+                    if (call.showDuration) {
                         CallStatus(onCall = onCall)
                     }
                 }
             }
-            if (event.call?.showActions == true && event.actions.isNotEmpty()) {
-                // Chip fill follows the configured action-button colour, or the tile accent when unset.
-                val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+            if (call.showActions && event.actions.isNotEmpty()) {
+                // Hang up gets its own colour; every other call button shares the second colour.
+                val hangUpFill = call.hangUpColor.resolve()
+                val otherFill = call.otherButtonColor.resolve()
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1255,7 +1257,7 @@ private fun CallExpandedContent(
                         ActionChip(
                             action = action,
                             style = appearance.actionButtonStyle,
-                            fill = chipFill,
+                            fill = if (action.destructive) hangUpFill else otherFill,
                             heightDp = appearance.actionButtonHeightDp,
                             onClick = { onAction(action) },
                         )

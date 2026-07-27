@@ -5,6 +5,7 @@ import android.app.RemoteInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 
 /**
@@ -55,11 +56,15 @@ data class IslandEvent(
     val call: CallTileOptions? = null,
 )
 
-/** Which parts of the phone tile to render, per the tile's settings. */
+/** Which parts of the phone tile to render (and how the call buttons look), per its settings. */
 data class CallTileOptions(
     val showPhoto: Boolean,
     val showDuration: Boolean,
     val showActions: Boolean,
+    /** Fill of the hang-up / end-call button. */
+    val hangUpColor: CutoutColor,
+    /** Fill shared by every other call button. */
+    val otherButtonColor: CutoutColor,
 )
 
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
@@ -83,6 +88,8 @@ data class IslandAction(
     val label: String,
     val intent: PendingIntent,
     val reply: IslandReply? = null,
+    /** True for a destructive call action (hang up / end call), so the phone tile can tint it apart. */
+    val destructive: Boolean = false,
 )
 
 /** Everything needed to send an inline reply through a notification action's intent. */
