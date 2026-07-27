@@ -86,6 +86,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieClipSpec
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
@@ -1394,6 +1398,21 @@ private fun IconBadge(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
             )
+
+            is IslandIcon.Lottie -> {
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(icon.resId),
+                )
+                LottieAnimation(
+                    composition = composition,
+                    // Play once and stop on the "open" frame: the source clip loops back to a closed
+                    // padlock by its end, but a device-unlocked event should rest unlocked. Frame 45 of
+                    // 80 is where the shackle has swung open and is held.
+                    iterations = 1,
+                    clipSpec = LottieClipSpec.Frame(0, 45),
+                    modifier = Modifier.size(iconSize),
+                )
+            }
         }
     }
 }

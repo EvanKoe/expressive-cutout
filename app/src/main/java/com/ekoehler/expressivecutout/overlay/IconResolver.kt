@@ -148,13 +148,27 @@ class IconResolver(private val context: Context) {
         type: SystemEventType,
         customIcons: Map<SystemEventType, IconSource>,
     ): IslandEvent {
-        val icon = customIcons[type]?.toRasterOrNull() ?: IslandIcon.Vector(type.defaultIcon)
+        // A user override always wins; otherwise DEVICE_UNLOCKED gets the animated padlock and every
+        // other system event keeps its static default glyph.
+        val icon = customIcons[type]?.toRasterOrNull()
+            ?: type.animatedIcon()
+            ?: IslandIcon.Vector(type.defaultIcon)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
             label = context.getString(type.labelRes),
             accent = Color(type.accent),
         )
+    }
+
+    /**
+     * The Lottie animation to use for events that read better as motion than a static glyph, or
+     * null for events that have none. Kept off [SystemEventType] itself so the enum stays a pure
+     * domain type (its [SystemEventType.defaultIcon] still backs settings-screen previews).
+     */
+    private fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
+        SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock)
+        else -> null
     }
 
     /** Loads the chosen source into a raster icon, or null to fall back to the default. */

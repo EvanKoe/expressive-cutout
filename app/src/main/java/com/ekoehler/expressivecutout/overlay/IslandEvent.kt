@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.overlay
 
 import android.app.PendingIntent
 import android.app.RemoteInput
+import androidx.annotation.RawRes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -16,6 +17,13 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
 sealed interface IslandIcon {
     data class Vector(val image: ImageVector) : IslandIcon
     data class Raster(val bitmap: ImageBitmap) : IslandIcon
+
+    /**
+     * A Lottie animation from `res/raw`, played once when the collapsed pill appears. Used for
+     * events that read better as a motion beat than a static glyph (e.g. a padlock springing open
+     * for [com.ekoehler.expressivecutout.core.SystemEventType.DEVICE_UNLOCKED]).
+     */
+    data class Lottie(@param:RawRes val resId: Int) : IslandIcon
 }
 
 /**
