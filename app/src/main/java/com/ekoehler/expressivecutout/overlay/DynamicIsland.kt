@@ -1,8 +1,8 @@
 package com.ekoehler.expressivecutout.overlay
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -10,12 +10,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -85,6 +82,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbnb.lottie.compose.LottieAnimation
@@ -212,7 +210,25 @@ fun DynamicIsland(
     } else {
         0
     }
-    val spec = tween<Dp>(durationMillis = 220, easing = EmphasizedEasing)
+    // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
+    // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
+    // runs 0 (dot) → 1 (full pill); it eases in on show and back out on hide.
+    val present = event != null
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(present) {
+        reveal.animateTo(
+            targetValue = if (present) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = if (present) 320 else 200,
+                easing = EmphasizedEasing,
+            ),
+        )
+    }
+    // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
+    // next state instead of animating: a cutout dismissed while expanded resets to its normal height
+    // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
+    val spec: AnimationSpec<Dp> =
+        if (reveal.value == 0f) snap() else tween(durationMillis = 220, easing = EmphasizedEasing)
     val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
     val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
     val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
@@ -228,6 +244,18 @@ fun DynamicIsland(
         label = "islandBackgroundFade",
     )
 
+    // The dot's diameter is the cutout's own (collapsed) height — the camera-sized nub it grows from —
+    // so the normal cutout keeps that height throughout and only its width expands. Corners stay fully
+    // round while it's a dot and ease to the configured shape as it opens out.
+    val dotDp = collapsed.heightDp.dp
+    val revealWidth = lerpDp(dotDp, width, reveal.value)
+    val revealHeight = lerpDp(dotDp, height, reveal.value)
+    val dotCorner = dotDp / 2
+    val revealTopLeft = lerpDp(dotCorner, topLeft, reveal.value)
+    val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
+    val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
+    val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Position the island in the full-size (non-clipping) window; then animate visibility.
         Box(
@@ -235,21 +263,21 @@ fun DynamicIsland(
                 .align(Alignment.TopCenter)
                 .offset(x = offsetX, y = offsetY),
         ) {
-            AnimatedVisibility(
-                visible = event != null,
-                enter = fadeIn(tween(150)) + scaleIn(tween(220, easing = EmphasizedEasing), initialScale = 0.85f),
-                exit = fadeOut(tween(120)) + scaleOut(tween(150), targetScale = 0.9f),
-            ) {
+            // Keep rendering through the exit (until `reveal` reaches 0) so the shrink-back animates.
+            if (present || reveal.value > 0f) {
                 IslandSurface(
                     modifier = Modifier
-                        .width(width)
-                        .height(height)
+                        .width(revealWidth)
+                        .height(revealHeight)
                         .graphicsLayer {
                             scaleX = boopScale.value
                             // Follow the finger during a dismiss swipe, fading as it slides away.
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
-                            alpha = (1f - travel).coerceIn(0.25f, 1f)
+                            // Fade the dot in/out quickly over the first/last fifth of the reveal so
+                            // it never hard-pops on or off screen; combine with the swipe fade.
+                            val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
+                            alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
                         .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
                             if (forcedExpanded != null) return@pointerInput
@@ -327,7 +355,7 @@ fun DynamicIsland(
                                 change.consume()
                             }
                         },
-                    shape = cornerShape(topLeft, topRight, bottomLeft, bottomRight),
+                    shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
                     appearance = appearance,
                     progress = expandProgress,
                 ) {
