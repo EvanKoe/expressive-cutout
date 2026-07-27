@@ -128,7 +128,13 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private fun handleTimer(sbn: StatusBarNotification) {
         val timer = TimerNotificationParser.parse(sbn)
-        RunningTimerBus.update(RunningTimer(endTimeMs = timer.endTimeMs, label = timer.label))
+        RunningTimerBus.update(
+            RunningTimer(
+                endElapsedRealtimeMs = timer.endElapsedRealtimeMs,
+                pausedRemainingMs = timer.pausedRemainingMs,
+                label = timer.label,
+            ),
+        )
         if (sbn.key != currentTimerKey) {
             currentTimerKey = sbn.key
             IslandEventBus.emit(

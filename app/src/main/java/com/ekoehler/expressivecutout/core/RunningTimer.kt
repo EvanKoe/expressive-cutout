@@ -22,11 +22,17 @@ object RunningTimerBus {
 }
 
 /**
- * A snapshot of the countdown timer currently surfaced on the cutout. [endTimeMs] is the wall-clock
- * time (epoch millis) the timer reaches zero, so the tile can render a live-ticking remainder simply
- * as `endTimeMs - now`. [label] is the timer's name when the clock app supplies one, else null.
+ * A snapshot of the countdown timer currently surfaced on the cutout.
+ *
+ * A running timer carries [endElapsedRealtimeMs] — the point on the [android.os.SystemClock.elapsedRealtime]
+ * clock at which it reaches zero — so the tile renders a live-ticking remainder as
+ * `endElapsedRealtimeMs - elapsedRealtime()` (the elapsed-realtime base is used, not wall time, so the
+ * countdown stays correct across clock changes and device sleep). A paused timer carries a frozen
+ * [pausedRemainingMs] instead, and [endElapsedRealtimeMs] is null. [label] is the clock app's label
+ * for the timer (e.g. "Timer" or "Timer paused"), or null.
  */
 data class RunningTimer(
-    val endTimeMs: Long,
+    val endElapsedRealtimeMs: Long?,
+    val pausedRemainingMs: Long?,
     val label: String?,
 )

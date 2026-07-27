@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.overlay
 
+import android.os.SystemClock
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -557,22 +558,30 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
 }
 
 /**
- * The live-ticking remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or
- * null when no timer is running. Reads [RunningTimerBus] and re-derives every half second from the
- * wall clock so both the collapsed pill and the expanded card stay in sync as the countdown runs.
+ * The remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
+ * timer is present. Reads [RunningTimerBus]: a running timer ticks down against
+ * [SystemClock.elapsedRealtime] (re-derived a few times a second so the collapsed pill and expanded
+ * card stay in sync), while a paused timer shows its frozen remainder without ticking. Seconds are
+ * rounded up so a fresh 5:00 timer reads "5:00", and it lands on "0:00" exactly at zero.
  */
 @Composable
 private fun timerRemainingText(): String? {
     val timer by RunningTimerBus.state.collectAsStateWithLifecycle()
-    val end = timer?.endTimeMs ?: return null
-    var now by remember(end) { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(end) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(500L)
+    val t = timer ?: return null
+    val end = t.endElapsedRealtimeMs
+    val remainingMs = if (end != null) {
+        var nowElapsed by remember(end) { mutableStateOf(SystemClock.elapsedRealtime()) }
+        LaunchedEffect(end) {
+            while (true) {
+                nowElapsed = SystemClock.elapsedRealtime()
+                delay(250L)
+            }
         }
+        (end - nowElapsed).coerceAtLeast(0L)
+    } else {
+        (t.pausedRemainingMs ?: return null).coerceAtLeast(0L)
     }
-    return formatCallDuration(((end - now) / 1_000L).coerceAtLeast(0L))
+    return formatCallDuration((remainingMs + 999L) / 1_000L)
 }
 
 @Composable
