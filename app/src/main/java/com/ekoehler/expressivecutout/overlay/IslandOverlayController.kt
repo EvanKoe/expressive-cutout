@@ -37,6 +37,7 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
@@ -111,6 +112,8 @@ class IslandOverlayController(private val context: Context) {
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDynamicColor: Boolean = false
+    private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
+    private var eventDynamicColorOpacity: Float = 1f
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
@@ -156,6 +159,8 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeEventDynamicColor()
+        observeEventDynamicColorRole()
+        observeEventDynamicColorOpacity()
         observeTilePreferences()
         observeMusicSettings()
         observePhoneSettings()
@@ -247,6 +252,14 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeEventDynamicColor() = scope.launch {
         eventPreferences.dynamicColor.collect { eventDynamicColor = it }
+    }
+
+    private fun observeEventDynamicColorRole() = scope.launch {
+        eventPreferences.dynamicColorRole.collect { eventDynamicColorRole = it }
+    }
+
+    private fun observeEventDynamicColorOpacity() = scope.launch {
+        eventPreferences.dynamicColorOpacity.collect { eventDynamicColorOpacity = it }
     }
 
     private fun observeTilePreferences() = scope.launch {
@@ -493,8 +506,15 @@ class IslandOverlayController(private val context: Context) {
             }
             forcedExpanded.value = null
             expanded = autoExpand
-            currentEvent.value = resolver.resolve(signal, customIcons, musicSettings, phoneSettings, eventDynamicColor)
-                .copy(initiallyExpanded = autoExpand)
+            currentEvent.value = resolver.resolve(
+                signal,
+                customIcons,
+                musicSettings,
+                phoneSettings,
+                eventDynamicColor,
+                eventDynamicColorRole,
+                eventDynamicColorOpacity,
+            ).copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than
             // starting the auto-dismiss timer — it stays for as long as playback / the call lasts.

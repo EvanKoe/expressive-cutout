@@ -50,7 +50,11 @@
     <string name="icon_settings_title">Events</string>
     <string name="icon_settings_subtitle">Pick a custom image for any system event, or keep the default.</string>
     <string name="dynamic_event_color">Dynamic color for all events</string>
-    <string name="dynamic_event_color_desc">Drop each event\'s own colour and tint them all with the theme\'s primary colour</string>
+    <string name="dynamic_event_color_desc">Drop each event\'s own colour and tint them all with a Material You colour</string>
+    <string name="dynamic_event_color_role_label">Colour</string>
+    <string name="role_primary">Primary</string>
+    <string name="role_secondary">Secondary</string>
+    <string name="role_tertiary">Tertiary</string>
     <string name="action_choose_image">Choose image</string>
     <string name="action_reset">Reset</string>
     <string name="label_default">Default</string>

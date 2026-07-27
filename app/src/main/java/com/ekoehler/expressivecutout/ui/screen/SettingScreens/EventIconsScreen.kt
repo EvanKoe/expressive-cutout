@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,12 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.item
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Restore
@@ -62,12 +63,16 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.overlay.forRole
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
+import com.ekoehler.expressivecutout.overlay.onForRole
 import com.ekoehler.expressivecutout.overlay.toImageBitmap
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 @Composable
 internal fun EventIconsScreen(
@@ -78,6 +83,8 @@ internal fun EventIconsScreen(
     val customIcons by viewModel.customIcons.collectAsStateWithLifecycle()
     val eventEnabled by viewModel.eventEnabled.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.eventDynamicColor.collectAsStateWithLifecycle()
+    val dynamicColorRole by viewModel.eventDynamicColorRole.collectAsStateWithLifecycle()
+    val dynamicColorOpacity by viewModel.eventDynamicColorOpacity.collectAsStateWithLifecycle()
 
     var pendingImageType by remember { mutableStateOf<SystemEventType?>(null) }
     var editingType by remember { mutableStateOf<SystemEventType?>(null) }
@@ -120,6 +127,18 @@ internal fun EventIconsScreen(
                     onCheckedChange = { viewModel.setEventDynamicColor(it) },
                 )
             }
+            // The role picker + opacity slider only make sense while dynamic colour is on.
+            if (dynamicColor) {
+                item(key = "dynamic_color_options") {
+                    DynamicColorOptionsCard(
+                        shape = RoundedCornerShape(4.dp),
+                        role = dynamicColorRole,
+                        opacity = dynamicColorOpacity,
+                        onRoleChange = { viewModel.setEventDynamicColorRole(it) },
+                        onOpacityChange = { viewModel.setEventDynamicColorOpacity(it) },
+                    )
+                }
+            }
             itemsIndexed(SystemEventType.entries, key = { _, type -> type.name }) { index, type ->
                 // Grouped list: 4dp between, and the last event carries the group's rounded bottom
                 // corners (the toggle above holds the top ones).
@@ -135,6 +154,8 @@ internal fun EventIconsScreen(
                     shape = shape,
                     enabled = eventEnabled[type] != false,
                     dynamicColor = dynamicColor,
+                    dynamicColorRole = dynamicColorRole,
+                    dynamicColorOpacity = dynamicColorOpacity,
                     onEnabledChange = { viewModel.setEventEnabled(type, it) },
                     onClick = { editingType = type },
                     onTest = { IslandEventBus.emit(CutoutSignal.System(type)) },
@@ -174,6 +195,101 @@ internal fun EventIconsScreen(
     }
 }
 
+/**
+ * The controls shown beneath the toggle while "Dynamic color for all events" is on: a row of
+ * Material You role swatches (primary / secondary / tertiary) and an opacity slider for the
+ * role-coloured badge background.
+ */
+@Composable
+private fun DynamicColorOptionsCard(
+    shape: Shape,
+    role: DynamicRole,
+    opacity: Float,
+    onRoleChange: (DynamicRole) -> Unit,
+    onOpacityChange: (Float) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.dynamic_event_color_role_label),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                RoleSwatch(DynamicRole.PRIMARY, R.string.role_primary, role, onRoleChange)
+                RoleSwatch(DynamicRole.SECONDARY, R.string.role_secondary, role, onRoleChange)
+                RoleSwatch(DynamicRole.TERTIARY, R.string.role_tertiary, role, onRoleChange)
+            }
+            AdjustableSlider(
+                label = stringResource(R.string.opacity),
+                valueText = "${(opacity * 100).roundToInt()}%",
+                value = opacity,
+                valueRange = 0f..1f,
+                step = 0.05f,
+                onValueChange = onOpacityChange,
+                onCommit = {},
+            )
+        }
+    }
+}
+
+/** A circular swatch filled with a Material You [role] colour; a ring + check marks the selection. */
+@Composable
+private fun RoleSwatch(
+    role: DynamicRole,
+    labelRes: Int,
+    selected: DynamicRole,
+    onClick: (DynamicRole) -> Unit,
+) {
+    val isSelected = role == selected
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.forRole(role))
+                .then(
+                    if (isSelected) {
+                        Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                    } else {
+                        Modifier
+                    },
+                )
+                .clickable { onClick(role) },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onForRole(role),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        Text(
+            text = stringResource(labelRes),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+    }
+}
+
 @Composable
 private fun EventIconCard(
     type: SystemEventType,
@@ -181,6 +297,8 @@ private fun EventIconCard(
     shape: Shape,
     enabled: Boolean,
     dynamicColor: Boolean,
+    dynamicColorRole: DynamicRole,
+    dynamicColorOpacity: Float,
     onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
     onTest: () -> Unit,
@@ -222,7 +340,13 @@ private fun EventIconCard(
                     .alpha(if (enabled) 1f else 0.4f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                EventIconThumbnail(type = type, source = source, dynamicColor = dynamicColor)
+                EventIconThumbnail(
+                    type = type,
+                    source = source,
+                    dynamicColor = dynamicColor,
+                    dynamicColorRole = dynamicColorRole,
+                    dynamicColorOpacity = dynamicColorOpacity,
+                )
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(
@@ -249,16 +373,26 @@ private fun EventIconCard(
 }
 
 @Composable
-private fun EventIconThumbnail(type: SystemEventType, source: IconSource?, dynamicColor: Boolean) {
+private fun EventIconThumbnail(
+    type: SystemEventType,
+    source: IconSource?,
+    dynamicColor: Boolean,
+    dynamicColorRole: DynamicRole,
+    dynamicColorOpacity: Float,
+) {
     val context = LocalContext.current
-    // Mirror the overlay's IconBadge: with "Dynamic color" on, a solid primary disc + on-primary
-    // glyph replaces the event's own accent tint.
+    // Mirror the overlay's IconBadge: with "Dynamic color" on, a role-coloured disc (at the chosen
+    // opacity) + its matching "on" glyph replaces the event's own accent tint.
     val badgeColor = if (dynamicColor) {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.colorScheme.forRole(dynamicColorRole).copy(alpha = dynamicColorOpacity)
     } else {
         Color(type.accent).copy(alpha = 0.18f)
     }
-    val glyphColor = if (dynamicColor) MaterialTheme.colorScheme.onPrimary else Color(type.accent)
+    val glyphColor = if (dynamicColor) {
+        MaterialTheme.colorScheme.onForRole(dynamicColorRole)
+    } else {
+        Color(type.accent)
+    }
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {
         value = when (val current = source) {
             is IconSource.Image -> withContext(Dispatchers.IO) {

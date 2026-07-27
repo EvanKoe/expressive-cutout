@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 
 /**
@@ -38,10 +39,14 @@ data class IslandEvent(
     val detail: String? = null,
     val accent: Color,
     /**
-     * When true the icon badge ignores [accent] and is drawn with the theme's primary / on-primary
-     * pair instead — the "Dynamic color for all events" option. Set only for system events.
+     * When true the icon badge ignores [accent] and is drawn with a Material You role colour and
+     * its matching "on" ink instead — the "Dynamic color for all events" option. System events only.
      */
     val useThemeColor: Boolean = false,
+    /** Which Material You role tints the badge when [useThemeColor] is on. */
+    val themeColorRole: DynamicRole = DynamicRole.PRIMARY,
+    /** Opacity (0..1) of the role-coloured badge background when [useThemeColor] is on. */
+    val themeColorOpacity: Float = 1f,
     val initiallyExpanded: Boolean = false,
     /**
      * The tap action to run when the expanded island is tapped (a notification's content

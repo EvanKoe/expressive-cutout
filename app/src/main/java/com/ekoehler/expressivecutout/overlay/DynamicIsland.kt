@@ -1378,14 +1378,18 @@ private fun IconBadge(
     iconSize: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // "Dynamic color for all events": a solid primary badge with on-primary ink, in place of the
-    // event's own accent (a faint accent-tinted disc behind a full-accent glyph).
+    // "Dynamic color for all events": a role-coloured badge with its matching "on" ink, in place of
+    // the event's own accent (a faint accent-tinted disc behind a full-accent glyph).
     val badgeColor = if (event.useThemeColor) {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.colorScheme.forRole(event.themeColorRole).copy(alpha = event.themeColorOpacity)
     } else {
         event.accent.copy(alpha = 0.20f)
     }
-    val glyphColor = if (event.useThemeColor) MaterialTheme.colorScheme.onPrimary else event.accent
+    val glyphColor = if (event.useThemeColor) {
+        MaterialTheme.colorScheme.onForRole(event.themeColorRole)
+    } else {
+        event.accent
+    }
     Box(
         modifier = modifier
             .size(badgeSize)

@@ -13,6 +13,7 @@ import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
@@ -70,6 +71,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = false,
+        )
+
+    val eventDynamicColorRole: StateFlow<DynamicRole> =
+        eventPreferences.dynamicColorRole.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DynamicRole.PRIMARY,
+        )
+
+    val eventDynamicColorOpacity: StateFlow<Float> =
+        eventPreferences.dynamicColorOpacity.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 1f,
         )
 
     val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
@@ -139,6 +154,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventDynamicColor(enabled: Boolean) = viewModelScope.launch {
         eventPreferences.setDynamicColor(enabled)
+    }
+
+    fun setEventDynamicColorRole(role: DynamicRole) = viewModelScope.launch {
+        eventPreferences.setDynamicColorRole(role)
+    }
+
+    fun setEventDynamicColorOpacity(opacity: Float) = viewModelScope.launch {
+        eventPreferences.setDynamicColorOpacity(opacity)
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {

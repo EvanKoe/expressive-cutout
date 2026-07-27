@@ -33,7 +33,8 @@ The in-app UI is a single screen with a floating, animated **expressive bottom n
     island mirrors the tab you're editing.
   - **Events** — a per-event icon override that can be an **image file or an installed
     app's icon**, plus a **Dynamic color for all events** switch that drops each event's own
-    accent and tints them all with the theme's primary / on-primary colour.
+    accent and tints them all with a chosen **Material You role** (primary / secondary /
+    tertiary) at an adjustable **opacity**.
 - **Permissions** — notification access, overlay (accessibility) and battery-optimisation,
   each deep-linking to the correct system screen with status that refreshes on resume,
   plus a **Send a test notification** button.

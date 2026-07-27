@@ -78,8 +78,15 @@ private fun dynamicRole(role: DynamicRole): Color {
     }
 }
 
-private fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
+internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary
     DynamicRole.TERTIARY -> tertiary
+}
+
+/** The matching "on" colour for [role], for legible ink on a [forRole] fill. */
+internal fun ColorScheme.onForRole(role: DynamicRole): Color = when (role) {
+    DynamicRole.PRIMARY -> onPrimary
+    DynamicRole.SECONDARY -> onSecondary
+    DynamicRole.TERTIARY -> onTertiary
 }

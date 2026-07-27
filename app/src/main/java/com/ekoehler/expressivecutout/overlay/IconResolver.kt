@@ -11,6 +11,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
@@ -31,9 +32,11 @@ class IconResolver(private val context: Context) {
         musicSettings: MusicTileSettings,
         phoneSettings: PhoneTileSettings,
         dynamicEventColor: Boolean = false,
+        dynamicEventColorRole: DynamicRole = DynamicRole.PRIMARY,
+        dynamicEventColorOpacity: Float = 1f,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
-        is CutoutSignal.System -> resolveSystem(signal.type, customIcons, dynamicEventColor)
+        is CutoutSignal.System -> resolveSystem(signal.type, customIcons, dynamicEventColor, dynamicEventColorRole, dynamicEventColorOpacity)
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
     }
@@ -149,6 +152,8 @@ class IconResolver(private val context: Context) {
         type: SystemEventType,
         customIcons: Map<SystemEventType, IconSource>,
         dynamicEventColor: Boolean,
+        dynamicEventColorRole: DynamicRole,
+        dynamicEventColorOpacity: Float,
     ): IslandEvent {
         // A user override always wins; otherwise DEVICE_UNLOCKED gets the animated padlock and every
         // other system event keeps its static default glyph.
@@ -161,6 +166,8 @@ class IconResolver(private val context: Context) {
             label = context.getString(type.labelRes),
             accent = Color(type.accent),
             useThemeColor = dynamicEventColor,
+            themeColorRole = dynamicEventColorRole,
+            themeColorOpacity = dynamicEventColorOpacity,
         )
     }
 
