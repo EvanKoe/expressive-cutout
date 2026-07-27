@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -182,7 +183,7 @@ internal fun AppearanceScreen(
             onCheckedChange = viewModel::setStrokeEnabled,
         )
 
-        if (appearance.strokeEnabled) {
+        AnimatedVisibility(visible = appearance.strokeEnabled) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
