@@ -141,12 +141,14 @@ class IconResolver(private val context: Context) {
         )
     }
 
-    private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
-        // Surface the clock app's own timer buttons verbatim — their real labels and intents — so the
-        // chips always match exactly what the notification shows (Google Clock, for instance, renders
-        // "+ 1:00" and "Pause" while a timer runs). A reset / stop / delete button is tinted apart via
-        // [isResetLabel]; we can only offer the actions the notification actually carries.
-        val actions = signal.actions.take(3).map { action ->
+    /**
+     * Map a timer notification's own buttons to island chips verbatim — real labels and intents — so
+     * they always match what the notification shows (Google Clock renders "Pause" / "Add 1 min" while
+     * running and "Resume" / "Reset" while paused). A reset / stop / delete button is tinted apart via
+     * [isResetLabel]. Public so the overlay can re-map them live as the timer's buttons change.
+     */
+    fun timerActions(actions: List<CutoutSignal.Notification.Action>): List<IslandAction> =
+        actions.take(3).map { action ->
             IslandAction(
                 label = action.title,
                 intent = action.intent,
@@ -154,6 +156,7 @@ class IconResolver(private val context: Context) {
             )
         }
 
+    private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.TIMER.defaultIcon),
@@ -163,7 +166,7 @@ class IconResolver(private val context: Context) {
             contentIntent = signal.contentIntent,
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the clock's
             // own timer notification (which wouldn't stop the timer and would just re-post).
-            actions = actions,
+            actions = timerActions(signal.actions),
             timer = TimerTileOptions(
                 showActions = settings.showActions,
                 resetColor = settings.resetColor,

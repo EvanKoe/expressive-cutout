@@ -133,6 +133,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 endElapsedRealtimeMs = timer.endElapsedRealtimeMs,
                 pausedRemainingMs = timer.pausedRemainingMs,
                 label = timer.label,
+                actions = timer.actions,
             ),
         )
         if (sbn.key != currentTimerKey) {

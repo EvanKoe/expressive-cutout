@@ -35,4 +35,10 @@ data class RunningTimer(
     val endElapsedRealtimeMs: Long?,
     val pausedRemainingMs: Long?,
     val label: String?,
+    /**
+     * The clock app's current action buttons. These change with the timer's state (running exposes
+     * Pause / Add 1 min, paused exposes Resume / Reset), and the clock re-posts the notification —
+     * updating this bus — on every such change, so the overlay can keep the shown chips in step.
+     */
+    val actions: List<CutoutSignal.Notification.Action> = emptyList(),
 )

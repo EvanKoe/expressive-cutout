@@ -267,6 +267,7 @@ class IslandOverlayController(private val context: Context) {
                         expanded = layout.expanded,
                         displayWidthDp = displayWidthDp,
                         forcedExpanded = forced,
+                        animationDurationMs = behaviour.animationDurationMs,
                         autoCollapse = behaviour.expandedAutoCollapse,
                         autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
                         appearance = appearance,
@@ -399,6 +400,18 @@ class IslandOverlayController(private val context: Context) {
             if (timer == null) lastTimerEvent = null
             // Only steer the timer pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.timer == null) return@collect
+            // The clock re-posts (updating this bus) whenever the timer's state changes, so refresh the
+            // shown pill's buttons and label in place — that's how Pause / Add 1 min flip to Resume /
+            // Reset when paused. Done here rather than by re-emitting the signal so the pill's expanded
+            // state and dismiss timing are left untouched.
+            if (timer != null) {
+                currentEvent.value = currentEvent.value?.copy(
+                    actions = resolver.timerActions(timer.actions),
+                    label = timer.label?.takeIf { it.isNotBlank() }
+                        ?: context.getString(DynamicTile.TIMER.labelRes),
+                )
+                lastTimerEvent = currentEvent.value
+            }
             if (timerActive) dismissJob?.cancel() else scheduleDismiss()
         }
     }
