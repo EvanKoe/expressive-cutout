@@ -16,6 +16,8 @@ private val Context.timerTileDataStore: DataStore<Preferences> by preferencesDat
 data class TimerTileSettings(
     /** Show the Reset / Add 1 min buttons on the expanded card. */
     val showActions: Boolean = DEFAULT_SHOW_ACTIONS,
+    /** Colour of the icon container (the disc behind the timer glyph). Null = default. */
+    val iconContainerColor: CutoutColor? = null,
     /** Fill of the Reset button. */
     val resetColor: CutoutColor = DEFAULT_RESET_COLOR,
     /** Fill of the "Add 1 min" button. */
@@ -38,6 +40,7 @@ class TimerTilePreferences(private val context: Context) {
     val settings: Flow<TimerTileSettings> = context.timerTileDataStore.data.map { prefs ->
         TimerTileSettings(
             showActions = prefs[SHOW_ACTIONS] ?: TimerTileSettings.DEFAULT_SHOW_ACTIONS,
+            iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
             resetColor = CutoutColor.deserialize(prefs[RESET_COLOR])
                 ?: TimerTileSettings.DEFAULT_RESET_COLOR,
             addButtonColor = CutoutColor.deserialize(prefs[ADD_BUTTON_COLOR])
@@ -47,6 +50,11 @@ class TimerTilePreferences(private val context: Context) {
 
     suspend fun setShowActions(enabled: Boolean) = context.timerTileDataStore.edit {
         it[SHOW_ACTIONS] = enabled
+    }
+
+    /** A null [color] clears the override, restoring the default accent-tinted icon container. */
+    suspend fun setIconContainerColor(color: CutoutColor?) = context.timerTileDataStore.edit {
+        if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }
 
     suspend fun setResetColor(color: CutoutColor) = context.timerTileDataStore.edit {
@@ -59,6 +67,7 @@ class TimerTilePreferences(private val context: Context) {
 
     private companion object {
         val SHOW_ACTIONS = booleanPreferencesKey("show_actions")
+        val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
         val RESET_COLOR = stringPreferencesKey("reset_color")
         val ADD_BUTTON_COLOR = stringPreferencesKey("add_button_color")
     }

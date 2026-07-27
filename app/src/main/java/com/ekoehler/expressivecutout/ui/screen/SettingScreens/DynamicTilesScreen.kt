@@ -31,10 +31,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.overlay.onForRole
+import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 
 /**
@@ -49,6 +53,9 @@ internal fun DynamicTilesScreen(
     onOpenTile: (DynamicTile) -> Unit,
 ) {
     val tileEnabled by viewModel.tileEnabled.collectAsStateWithLifecycle()
+    // The icon-container colour each tile lets the user pick, mirrored onto its list badge below.
+    val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
+    val timer by viewModel.timerTile.collectAsStateWithLifecycle()
 
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
@@ -60,10 +67,17 @@ internal fun DynamicTilesScreen(
             contentPadding = contentPadding,
         ) {
             itemsIndexed(tiles, key = { _, tile -> tile.name }) { index, tile ->
+                // Music shows the album art / app icon, never a coloured badge, so it has no override.
+                val containerColor = when (tile) {
+                    DynamicTile.PHONE -> phone.iconContainerColor
+                    DynamicTile.TIMER -> timer.iconContainerColor
+                    DynamicTile.MUSIC -> null
+                }
                 DynamicTileCard(
                     tile = tile,
                     shape = groupShape(index = index, lastIndex = lastIndex),
                     enabled = tileEnabled[tile] != false,
+                    containerColor = containerColor,
                     onClick = { onOpenTile(tile) },
                     onEnabledChange = { viewModel.setTileEnabled(tile, it) },
                 )
@@ -85,10 +99,25 @@ private fun DynamicTileCard(
     tile: DynamicTile,
     shape: Shape,
     enabled: Boolean,
+    containerColor: CutoutColor?,
     onClick: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
 ) {
     val accent = Color(tile.accent)
+    // A chosen container colour fills the badge and contrasts its glyph, matching the live cutout;
+    // otherwise the badge keeps the faint accent-tinted default.
+    val badgeColor: Color
+    val glyphColor: Color
+    if (containerColor != null) {
+        badgeColor = containerColor.resolve()
+        glyphColor = when (containerColor) {
+            is CutoutColor.Dynamic -> MaterialTheme.colorScheme.onForRole(containerColor.role)
+            is CutoutColor.Solid -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+        }
+    } else {
+        badgeColor = accent.copy(alpha = 0.18f)
+        glyphColor = accent
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -107,13 +136,13 @@ private fun DynamicTileCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(accent.copy(alpha = 0.18f)),
+                    .background(badgeColor),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = tile.defaultIcon,
                     contentDescription = null,
-                    tint = accent,
+                    tint = glyphColor,
                     modifier = Modifier.size(22.dp),
                 )
             }

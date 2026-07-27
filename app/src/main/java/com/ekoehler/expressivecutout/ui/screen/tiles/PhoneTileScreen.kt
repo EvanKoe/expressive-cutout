@@ -13,10 +13,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
@@ -60,6 +62,21 @@ internal fun PhoneTileScreen(
             description = stringResource(R.string.phone_show_actions_desc),
             checked = settings.showActions,
             onCheckedChange = viewModel::setPhoneShowActions,
+        )
+
+        // The icon container is the fallback disc shown on the cutout when there's no contact photo.
+        Text(
+            text = stringResource(R.string.tile_icon_container_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
+        )
+        ColorPickerCard(
+            label = stringResource(R.string.tile_icon_container_label),
+            selected = settings.iconContainerColor,
+            onSelect = viewModel::setPhoneIconContainerColor,
+            defaultLabel = stringResource(R.string.music_default_accent),
+            defaultColor = Color(DynamicTile.PHONE.accent),
         )
 
         // Button colours only matter when the action buttons are shown.

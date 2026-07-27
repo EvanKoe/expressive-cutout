@@ -47,6 +47,12 @@ data class IslandEvent(
     val themeColorRole: DynamicRole = DynamicRole.PRIMARY,
     /** Opacity (0..1) of the role-coloured badge background when [useThemeColor] is on. */
     val themeColorOpacity: Float = 1f,
+    /**
+     * Overrides the icon container (the disc behind the glyph) with a user-chosen colour, filled at
+     * full opacity with contrasting ink. Set by the dynamic tiles from their settings; null keeps the
+     * default look (a faint [accent]-tinted disc behind an [accent] glyph, or the [useThemeColor] role).
+     */
+    val iconContainerColor: CutoutColor? = null,
     val initiallyExpanded: Boolean = false,
     /**
      * The tap action to run when the expanded island is tapped (a notification's content

@@ -202,6 +202,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
+        phoneTilePreferences.setIconContainerColor(color)
+    }
+
     fun setPhoneHangUpColor(color: CutoutColor) = viewModelScope.launch {
         phoneTilePreferences.setHangUpColor(color)
     }
@@ -212,6 +216,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTimerShowActions(enabled: Boolean) = viewModelScope.launch {
         timerTilePreferences.setShowActions(enabled)
+    }
+
+    fun setTimerIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
+        timerTilePreferences.setIconContainerColor(color)
     }
 
     fun setTimerResetColor(color: CutoutColor) = viewModelScope.launch {

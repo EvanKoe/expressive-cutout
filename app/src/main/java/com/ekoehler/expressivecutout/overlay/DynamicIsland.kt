@@ -97,6 +97,7 @@ import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -1539,17 +1540,32 @@ private fun IconBadge(
     iconSize: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // "Dynamic color for all events": a role-coloured badge with its matching "on" ink, in place of
-    // the event's own accent (a faint accent-tinted disc behind a full-accent glyph).
-    val badgeColor = if (event.useThemeColor) {
-        MaterialTheme.colorScheme.forRole(event.themeColorRole).copy(alpha = event.themeColorOpacity)
-    } else {
-        event.accent.copy(alpha = 0.20f)
-    }
-    val glyphColor = if (event.useThemeColor) {
-        MaterialTheme.colorScheme.onForRole(event.themeColorRole)
-    } else {
-        event.accent
+    // A tile's chosen container colour wins: a filled disc with contrasting ink. Otherwise "Dynamic
+    // color for all events" gives a role-coloured badge with its matching "on" ink, and the plain
+    // default is a faint accent-tinted disc behind a full-accent glyph.
+    val container = event.iconContainerColor
+    val badgeColor: Color
+    val glyphColor: Color
+    when {
+        container != null -> {
+            badgeColor = container.resolve()
+            glyphColor = when (container) {
+                is CutoutColor.Dynamic -> MaterialTheme.colorScheme.onForRole(container.role)
+                is CutoutColor.Solid ->
+                    if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+            }
+        }
+
+        event.useThemeColor -> {
+            badgeColor = MaterialTheme.colorScheme.forRole(event.themeColorRole)
+                .copy(alpha = event.themeColorOpacity)
+            glyphColor = MaterialTheme.colorScheme.onForRole(event.themeColorRole)
+        }
+
+        else -> {
+            badgeColor = event.accent.copy(alpha = 0.20f)
+            glyphColor = event.accent
+        }
     }
     Box(
         modifier = modifier

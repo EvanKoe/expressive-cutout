@@ -113,6 +113,8 @@
     <string name="music_preset_pill">Pill</string>
     <string name="cd_color_default_plain">No fill (plain)</string>
     <string name="music_default_accent">Tile accent colour</string>
+    <string name="tile_icon_container_title">Icon container</string>
+    <string name="tile_icon_container_label">Container colour</string>
     <string name="phone_show_photo_title">Contact photo</string>
     <string name="phone_show_photo_desc">Show the caller\'s picture on the cutout (a default avatar when there\'s none).</string>
     <string name="phone_show_duration_title">Call duration</string>

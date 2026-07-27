@@ -121,6 +121,7 @@ class IconResolver(private val context: Context) {
             icon = IslandIcon.Vector(Icons.Rounded.Person),
             label = signal.callerLabel,
             accent = Color(DynamicTile.PHONE.accent),
+            iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the
             // dialer's own call notification (which wouldn't end the call and would just re-post).
@@ -163,6 +164,7 @@ class IconResolver(private val context: Context) {
             label = signal.label?.takeIf { it.isNotBlank() }
                 ?: context.getString(DynamicTile.TIMER.labelRes),
             accent = Color(DynamicTile.TIMER.accent),
+            iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the clock's
             // own timer notification (which wouldn't stop the timer and would just re-post).

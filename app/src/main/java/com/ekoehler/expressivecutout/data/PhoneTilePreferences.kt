@@ -20,6 +20,8 @@ data class PhoneTileSettings(
     val showDuration: Boolean = DEFAULT_SHOW_DURATION,
     /** Show the call's action buttons (Hang up, and any others the dialer exposes). */
     val showActions: Boolean = DEFAULT_SHOW_ACTIONS,
+    /** Colour of the icon container (fallback disc shown when there's no contact photo). Null = default. */
+    val iconContainerColor: CutoutColor? = null,
     /** Fill of the hang-up / end-call button. */
     val hangUpColor: CutoutColor = DEFAULT_HANG_UP_COLOR,
     /** Fill shared by every other call button (answer, mute, speaker, …). */
@@ -46,6 +48,7 @@ class PhoneTilePreferences(private val context: Context) {
             showPhoto = prefs[SHOW_PHOTO] ?: PhoneTileSettings.DEFAULT_SHOW_PHOTO,
             showDuration = prefs[SHOW_DURATION] ?: PhoneTileSettings.DEFAULT_SHOW_DURATION,
             showActions = prefs[SHOW_ACTIONS] ?: PhoneTileSettings.DEFAULT_SHOW_ACTIONS,
+            iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
             hangUpColor = CutoutColor.deserialize(prefs[HANG_UP_COLOR])
                 ?: PhoneTileSettings.DEFAULT_HANG_UP_COLOR,
             otherButtonColor = CutoutColor.deserialize(prefs[OTHER_BUTTON_COLOR])
@@ -65,6 +68,11 @@ class PhoneTilePreferences(private val context: Context) {
         it[SHOW_ACTIONS] = enabled
     }
 
+    /** A null [color] clears the override, restoring the default accent-tinted icon container. */
+    suspend fun setIconContainerColor(color: CutoutColor?) = context.phoneTileDataStore.edit {
+        if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
+    }
+
     suspend fun setHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
         it[HANG_UP_COLOR] = color.serialize()
     }
@@ -77,6 +85,7 @@ class PhoneTilePreferences(private val context: Context) {
         val SHOW_PHOTO = booleanPreferencesKey("show_photo")
         val SHOW_DURATION = booleanPreferencesKey("show_duration")
         val SHOW_ACTIONS = booleanPreferencesKey("show_actions")
+        val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
         val HANG_UP_COLOR = stringPreferencesKey("hang_up_color")
         val OTHER_BUTTON_COLOR = stringPreferencesKey("other_button_color")
     }
