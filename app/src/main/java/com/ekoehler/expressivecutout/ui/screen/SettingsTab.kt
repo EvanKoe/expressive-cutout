@@ -152,7 +152,8 @@ private fun SettingsList(
     onOpenAppearance: () -> Unit,
 ) {
     val context = LocalContext.current
-    val accessibilityAvailable = Permissions.isAccessibilityGranted(context)
+    // Re-reads on resume so returning from the system Accessibility settings updates immediately.
+    val accessibilityAvailable = rememberAccessibilityGranted()
 
     Column(
         modifier = Modifier
