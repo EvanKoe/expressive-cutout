@@ -699,10 +699,12 @@ class IslandOverlayController(private val context: Context) {
 
     /** Fire one of the notification's action buttons, then dismiss the island. */
     private fun onAction(action: IslandAction) {
-        // Timer actions (Reset / Add 1 min) act on the clock's own countdown notification, so leave
-        // the pill in place: adding a minute should keep showing the timer, and resetting ends it —
-        // which clears the tile on its own when the notification goes away.
+        // Timer actions act on the clock's own countdown notification. A destructive one (Reset / Stop)
+        // ends the timer, so dismiss the pill right away for instant feedback — like a call's hang-up —
+        // rather than letting it linger until the removed notification trips the auto-dismiss timer.
+        // The others (Pause / Resume / Add 1 min) only change a running timer, so keep the pill up.
         if (currentEvent.value?.timer != null) {
+            if (action.destructive) dismissIsland()
             sendPendingIntent(action.intent)
             return
         }
