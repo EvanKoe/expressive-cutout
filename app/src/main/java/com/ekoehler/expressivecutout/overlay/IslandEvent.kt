@@ -72,6 +72,22 @@ data class IslandEvent(
      * reading live state from [com.ekoehler.expressivecutout.core.OnCallBus]. Null otherwise.
      */
     val call: CallTileOptions? = null,
+    /**
+     * When non-null this is the timer tile: the island shows a timer icon and the remaining time on
+     * the collapsed pill, and the same plus its action buttons (Reset / Add 1 min) when expanded
+     * (each gated by [TimerTileOptions]), reading the live countdown from
+     * [com.ekoehler.expressivecutout.core.RunningTimerBus]. Null for every other event.
+     */
+    val timer: TimerTileOptions? = null,
+)
+
+/** Which parts of the timer tile to render (and how its buttons look), per the tile's settings. */
+data class TimerTileOptions(
+    val showActions: Boolean,
+    /** Fill of the Reset button. */
+    val resetColor: CutoutColor,
+    /** Fill of the "Add 1 min" button. */
+    val addButtonColor: CutoutColor,
 )
 
 /** Which parts of the phone tile to render (and how the call buttons look), per its settings. */

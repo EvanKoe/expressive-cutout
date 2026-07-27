@@ -88,6 +88,23 @@ sealed interface CutoutSignal {
         /** True for a connected call, false while it is still ringing / incoming. */
         val ongoing: Boolean = true,
     ) : CutoutSignal
+
+    /**
+     * A countdown timer is running (surfaced from the clock app's ongoing count-down notification).
+     * The live remaining time is held on [RunningTimerBus]; [actions] are the notification's own
+     * buttons (typically "+ 1:00" and Reset / Stop), reusing [Notification.Action] so the overlay
+     * fires them like any notification action (timers never carry a reply).
+     */
+    data class Timer(
+        val packageName: String,
+        /** The timer's name when the clock app supplies one, else null. */
+        val label: String? = null,
+        /** The notification's key, so a tap can open it and removal can clear the tile. */
+        val key: String? = null,
+        /** The clock app's tap action, opened when the user taps the expanded island. */
+        val contentIntent: PendingIntent? = null,
+        val actions: List<Notification.Action> = emptyList(),
+    ) : CutoutSignal
 }
 
 /**

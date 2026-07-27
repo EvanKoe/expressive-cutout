@@ -15,6 +15,7 @@ import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.TimerTileSettings
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -31,6 +32,7 @@ class IconResolver(private val context: Context) {
         customIcons: Map<SystemEventType, IconSource>,
         musicSettings: MusicTileSettings,
         phoneSettings: PhoneTileSettings,
+        timerSettings: TimerTileSettings,
         dynamicEventColor: Boolean = false,
         dynamicEventColorRole: DynamicRole = DynamicRole.PRIMARY,
         dynamicEventColorOpacity: Float = 1f,
@@ -39,6 +41,7 @@ class IconResolver(private val context: Context) {
         is CutoutSignal.System -> resolveSystem(signal.type, customIcons, dynamicEventColor, dynamicEventColorRole, dynamicEventColorOpacity)
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
+        is CutoutSignal.Timer -> resolveTimer(signal, timerSettings)
     }
 
     private fun resolveNotification(signal: CutoutSignal.Notification): IslandEvent {
@@ -138,6 +141,62 @@ class IconResolver(private val context: Context) {
         )
     }
 
+    private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
+        // Pick the two buttons the tile offers out of the clock's own actions by matching their
+        // labels, then relabel them to the fixed "Reset" / "Add 1 min" wording the tile uses. The
+        // matched action's PendingIntent is what actually fires, so the clock does the real work.
+        val reset = signal.actions.firstOrNull { isResetLabel(it.title) }?.let { action ->
+            IslandAction(
+                label = context.getString(R.string.timer_reset),
+                intent = action.intent,
+                destructive = true,
+            )
+        }
+        val addMinute = signal.actions.firstOrNull { isAddMinuteLabel(it.title) }?.let { action ->
+            IslandAction(
+                label = context.getString(R.string.timer_add_minute),
+                intent = action.intent,
+                destructive = false,
+            )
+        }
+        // When neither matches (an unusual clock app), fall back to surfacing its own buttons so the
+        // tile is still useful, tinting any reset-like one as destructive.
+        val actions = listOfNotNull(reset, addMinute).ifEmpty {
+            signal.actions.take(2).map { action ->
+                IslandAction(action.title, action.intent, destructive = isResetLabel(action.title))
+            }
+        }
+
+        return IslandEvent(
+            id = idGenerator.incrementAndGet(),
+            icon = IslandIcon.Vector(DynamicTile.TIMER.defaultIcon),
+            label = signal.label?.takeIf { it.isNotBlank() }
+                ?: context.getString(DynamicTile.TIMER.labelRes),
+            accent = Color(DynamicTile.TIMER.accent),
+            contentIntent = signal.contentIntent,
+            // Deliberately no notificationKey: a swipe should hide the pill, never cancel the clock's
+            // own timer notification (which wouldn't stop the timer and would just re-post).
+            actions = actions,
+            timer = TimerTileOptions(
+                showActions = settings.showActions,
+                resetColor = settings.resetColor,
+                addButtonColor = settings.addButtonColor,
+            ),
+        )
+    }
+
+    /** Best-effort match for a timer's reset / stop / delete button by its label. */
+    private fun isResetLabel(label: String): Boolean {
+        val normalised = label.lowercase()
+        return RESET_KEYWORDS.any { normalised.contains(it) }
+    }
+
+    /** Best-effort match for a timer's "add a minute" button by its label (e.g. "+ 1:00"). */
+    private fun isAddMinuteLabel(label: String): Boolean {
+        val normalised = label.lowercase()
+        return ADD_MINUTE_KEYWORDS.any { normalised.contains(it) }
+    }
+
     /**
      * Best-effort match for a call's hang-up / end-call / decline button by its label. A call
      * notification carries no machine-readable flag marking which action ends the call, so we key
@@ -201,5 +260,11 @@ class IconResolver(private val context: Context) {
         // notifications localise to the device language, but English covers the common case); the
         // phrases avoid false hits like "send" that a bare "end" would catch.
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
+
+        // Lower-cased substrings marking a timer's reset/terminate action and its add-a-minute action.
+        // "stop" and "delete" cover the common clock apps; "pause" is deliberately excluded (it isn't
+        // a reset). The add phrases catch "+ 1:00", "+1 min", "add 1 minute", etc.
+        val RESET_KEYWORDS = listOf("reset", "stop", "delete", "cancel", "dismiss")
+        val ADD_MINUTE_KEYWORDS = listOf("1:00", "1 min", "+1", "+ 1", "add", "minute")
     }
 }

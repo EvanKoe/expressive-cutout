@@ -8,7 +8,10 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
+import com.ekoehler.expressivecutout.core.RunningTimer
+import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.events.CallNotificationParser
+import com.ekoehler.expressivecutout.events.TimerNotificationParser
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
@@ -24,6 +27,9 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // Key of the call notification currently driving the phone tile, so we pop the island only once
     // per call and can clear the tile when that exact notification is removed. Main-thread only.
     private var currentCallKey: String? = null
+
+    // Key of the count-down notification currently driving the timer tile, mirroring [currentCallKey].
+    private var currentTimerKey: String? = null
 
     override fun onListenerConnected() {
         instance = this
@@ -44,6 +50,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // would be dropped by shouldSurface below as ongoing anyway), so handle them first.
         if (CallNotificationParser.isCall(notification)) {
             handleCall(notification)
+            return
+        }
+        // A count-down notification drives the timer tile, not the normal pill (and is ongoing, so it
+        // would be dropped by shouldSurface below anyway), so handle it before the generic path.
+        if (TimerNotificationParser.isTimer(notification)) {
+            handleTimer(notification)
             return
         }
         if (!notification.shouldSurface()) return
@@ -69,6 +81,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         if (sbn?.key != null && sbn.key == currentCallKey) {
             currentCallKey = null
             OnCallBus.update(null)
+        }
+        // The clock clears its notification when the timer is reset or finishes — drop the tile.
+        if (sbn?.key != null && sbn.key == currentTimerKey) {
+            currentTimerKey = null
+            RunningTimerBus.update(null)
         }
         super.onNotificationRemoved(sbn)
     }
@@ -98,6 +115,29 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                     contentIntent = sbn.notification.contentIntent,
                     actions = call.actions,
                     ongoing = call.ongoing,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Drive the timer tile from a count-down notification: keep [RunningTimerBus] fresh on every
+     * update (so the remaining time re-syncs when the user adds a minute) and pop the island only the
+     * first time a given timer appears — later re-posts refresh the countdown without re-popping.
+     * Mirrors [handleCall].
+     */
+    private fun handleTimer(sbn: StatusBarNotification) {
+        val timer = TimerNotificationParser.parse(sbn)
+        RunningTimerBus.update(RunningTimer(endTimeMs = timer.endTimeMs, label = timer.label))
+        if (sbn.key != currentTimerKey) {
+            currentTimerKey = sbn.key
+            IslandEventBus.emit(
+                CutoutSignal.Timer(
+                    packageName = sbn.packageName,
+                    label = timer.label,
+                    key = sbn.key,
+                    contentIntent = sbn.notification.contentIntent,
+                    actions = timer.actions,
                 ),
             )
         }

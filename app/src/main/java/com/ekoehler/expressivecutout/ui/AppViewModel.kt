@@ -26,6 +26,8 @@ import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.TimerTilePreferences
+import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
@@ -51,6 +53,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val dynamicTilePreferences = DynamicTilePreferences(application)
     private val musicTilePreferences = MusicTilePreferences(application)
     private val phoneTilePreferences = PhoneTilePreferences(application)
+    private val timerTilePreferences = TimerTilePreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -106,6 +109,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = PhoneTileSettings(),
+        )
+
+    val timerTile: StateFlow<TimerTileSettings> =
+        timerTilePreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = TimerTileSettings(),
         )
 
     val layout: StateFlow<IslandLayout> =
@@ -198,6 +208,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPhoneOtherButtonColor(color: CutoutColor) = viewModelScope.launch {
         phoneTilePreferences.setOtherButtonColor(color)
+    }
+
+    fun setTimerShowActions(enabled: Boolean) = viewModelScope.launch {
+        timerTilePreferences.setShowActions(enabled)
+    }
+
+    fun setTimerResetColor(color: CutoutColor) = viewModelScope.launch {
+        timerTilePreferences.setResetColor(color)
+    }
+
+    fun setTimerAddButtonColor(color: CutoutColor) = viewModelScope.launch {
+        timerTilePreferences.setAddButtonColor(color)
     }
 
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {

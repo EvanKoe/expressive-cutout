@@ -36,6 +36,7 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
+import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -52,6 +53,8 @@ import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.TimerTilePreferences
+import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
@@ -97,6 +100,7 @@ class IslandOverlayController(private val context: Context) {
     private val dynamicTilePreferences = DynamicTilePreferences(context)
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
+    private val timerTilePreferences = TimerTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen.
@@ -122,6 +126,7 @@ class IslandOverlayController(private val context: Context) {
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
+    private var timerSettings: TimerTileSettings = TimerTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -135,6 +140,10 @@ class IslandOverlayController(private val context: Context) {
     // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
     private var callActive = false
     private var lastCallEvent: IslandEvent? = null
+    // True while a countdown timer is running; keeps the timer cutout pinned up (no auto-dismiss) for
+    // the whole countdown, and — like [lastCallEvent] — lets the pill return after an interruption.
+    private var timerActive = false
+    private var lastTimerEvent: IslandEvent? = null
 
     // A neutral sample shown while the settings screen pins the island open.
     private val previewEvent by lazy {
@@ -180,8 +189,10 @@ class IslandOverlayController(private val context: Context) {
         observeTilePreferences()
         observeMusicSettings()
         observePhoneSettings()
+        observeTimerSettings()
         observeNowPlaying()
         observeOnCall()
+        observeRunningTimer()
         observePreviewPin()
         observeSignals()
         observeVisibility()
@@ -335,6 +346,10 @@ class IslandOverlayController(private val context: Context) {
         phoneTilePreferences.settings.collect { phoneSettings = it }
     }
 
+    private fun observeTimerSettings() = scope.launch {
+        timerTilePreferences.settings.collect { timerSettings = it }
+    }
+
     /**
      * Follow live playback so the music cutout stays up for exactly as long as music plays. While
      * something is playing we hold the (already-shown) music pill open indefinitely; when it pauses
@@ -372,8 +387,27 @@ class IslandOverlayController(private val context: Context) {
     /** The phone cutout should stay pinned up (no auto-dismiss) while a call is in progress. */
     private fun isPinnedCall(): Boolean = callActive && currentEvent.value?.call != null
 
-    /** Either live tile (music or a call) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall()
+    /**
+     * Follow the live countdown so the timer cutout stays up for exactly as long as the timer runs.
+     * The timer is "active" while the clock app's count-down notification exists ([RunningTimerBus]
+     * non-null); when it is reset or finishes we hand the pill back to the normal auto-dismiss timer.
+     * Mirrors [observeOnCall].
+     */
+    private fun observeRunningTimer() = scope.launch {
+        RunningTimerBus.state.collect { timer ->
+            timerActive = timer != null
+            if (timer == null) lastTimerEvent = null
+            // Only steer the timer pill; leave notifications/system events to their own timers.
+            if (previewPinned || currentEvent.value?.timer == null) return@collect
+            if (timerActive) dismissJob?.cancel() else scheduleDismiss()
+        }
+    }
+
+    /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
+    private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
+
+    /** Any live tile (music, a call or a running timer) is currently pinned up. */
+    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer()
 
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
@@ -520,7 +554,8 @@ class IslandOverlayController(private val context: Context) {
         val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
-        return if (hasActions || hasMediaControls || hasCallActions) {
+        val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
+        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
             expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
         } else {
             0
@@ -559,12 +594,16 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Music && tileEnabled[DynamicTile.MUSIC] == false) return@collect
             // Skip the current call when the phone tile is turned off.
             if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
+            // Skip the running timer when the timer tile is turned off.
+            if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
 
-            // Expand for a notification (when configured) or a live tile, so its details show.
+            // Expand for a notification (when configured) or the music / phone tile, so its details
+            // show. The timer rests collapsed — it is the countdown pill; a tap opens its controls.
             val autoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> true
                 is CutoutSignal.Call -> true
+                is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
             }
             forcedExpanded.value = null
@@ -574,6 +613,7 @@ class IslandOverlayController(private val context: Context) {
                 customIcons,
                 musicSettings,
                 phoneSettings,
+                timerSettings,
                 eventDynamicColor,
                 eventDynamicColorRole,
                 eventDynamicColorOpacity,
@@ -591,6 +631,12 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Call -> {
                     callActive = true
                     lastCallEvent = currentEvent.value
+                    dismissJob?.cancel()
+                }
+
+                is CutoutSignal.Timer -> {
+                    timerActive = true
+                    lastTimerEvent = currentEvent.value
                     dismissJob?.cancel()
                 }
 
@@ -640,6 +686,13 @@ class IslandOverlayController(private val context: Context) {
 
     /** Fire one of the notification's action buttons, then dismiss the island. */
     private fun onAction(action: IslandAction) {
+        // Timer actions (Reset / Add 1 min) act on the clock's own countdown notification, so leave
+        // the pill in place: adding a minute should keep showing the timer, and resetting ends it —
+        // which clears the tile on its own when the notification goes away.
+        if (currentEvent.value?.timer != null) {
+            sendPendingIntent(action.intent)
+            return
+        }
         dismissIsland()
         sendPendingIntent(action.intent)
     }
@@ -709,20 +762,33 @@ class IslandOverlayController(private val context: Context) {
      * clear the island. A live call takes precedence over music. Each returns its pill only when the
      * hidden event wasn't a live pill itself, that tile is still live, and the tile is enabled.
      */
-    private fun livePillToReturnTo(): IslandEvent? = callPillToReturnTo() ?: musicPillToReturnTo()
+    private fun livePillToReturnTo(): IslandEvent? =
+        callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo()
+
+    /** True while the shown event is itself a live tile (so we never "return" on top of one). */
+    private fun showingLiveTile(): Boolean = currentEvent.value?.let {
+        it.media != null || it.call != null || it.timer != null
+    } == true
 
     private fun musicPillToReturnTo(): IslandEvent? {
-        if (currentEvent.value?.media != null || currentEvent.value?.call != null) return null
+        if (showingLiveTile()) return null
         if (!musicPlaying) return null
         if (tileEnabled[DynamicTile.MUSIC] == false) return null
         return lastMusicEvent?.copy(initiallyExpanded = false)
     }
 
     private fun callPillToReturnTo(): IslandEvent? {
-        if (currentEvent.value?.media != null || currentEvent.value?.call != null) return null
+        if (showingLiveTile()) return null
         if (!callActive) return null
         if (tileEnabled[DynamicTile.PHONE] == false) return null
         return lastCallEvent?.copy(initiallyExpanded = false)
+    }
+
+    private fun timerPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        if (!timerActive) return null
+        if (tileEnabled[DynamicTile.TIMER] == false) return null
+        return lastTimerEvent?.copy(initiallyExpanded = false)
     }
 
     /**

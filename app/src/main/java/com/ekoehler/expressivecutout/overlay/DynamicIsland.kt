@@ -93,6 +93,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
+import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
@@ -204,8 +205,9 @@ fun DynamicIsland(
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
+    val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val dims = if (isExpanded) expanded else collapsed
-    val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions)) {
+    val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions)) {
         expandedActionsExtraDp(appearance.actionButtonHeightDp)
     } else {
         0
@@ -535,7 +537,42 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
                 modifier = placement,
             )
         }
+        // The timer tile shows the remaining time on the trailing edge, opposite its icon.
+        if (event.timer != null) {
+            timerRemainingText()?.let { remaining ->
+                Text(
+                    text = remaining,
+                    color = LocalContentColor.current,
+                    fontSize = (heightDp * 0.34f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.24f).dp),
+                )
+            }
+        }
     }
+}
+
+/**
+ * The live-ticking remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or
+ * null when no timer is running. Reads [RunningTimerBus] and re-derives every half second from the
+ * wall clock so both the collapsed pill and the expanded card stay in sync as the countdown runs.
+ */
+@Composable
+private fun timerRemainingText(): String? {
+    val timer by RunningTimerBus.state.collectAsStateWithLifecycle()
+    val end = timer?.endTimeMs ?: return null
+    var now by remember(end) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(end) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(500L)
+        }
+    }
+    return formatCallDuration(((end - now) / 1_000L).coerceAtLeast(0L))
 }
 
 @Composable
@@ -558,6 +595,11 @@ private fun ExpandedContent(
     // The phone tile likewise: caller photo + name, ticking duration, and the call's action chips.
     if (event.call != null) {
         CallExpandedContent(event = event, appearance = appearance, onAction = onAction)
+        return
+    }
+    // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
+    if (event.timer != null) {
+        TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
         return
     }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
@@ -1333,6 +1375,74 @@ private fun CallStatus(onCall: OnCall?) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+/**
+ * The timer tile's expanded layout: a timer icon + the ticking remaining time, and (when enabled)
+ * the Reset / Add 1 min chips. The countdown is read live from [RunningTimerBus]; the chips fire the
+ * clock app's own notification actions, coloured by [TimerTileOptions] (Reset apart from Add 1 min).
+ */
+@Composable
+private fun TimerExpandedContent(
+    event: IslandEvent,
+    appearance: AppearanceSettings,
+    onAction: (IslandAction) -> Unit,
+) {
+    val timer = event.timer ?: return
+
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
+                    Text(
+                        text = timerRemainingText() ?: event.label,
+                        color = LocalContentColor.current,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = event.label,
+                        color = LocalContentColor.current.copy(alpha = 0.70f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (timer.showActions && event.actions.isNotEmpty()) {
+                // Reset gets its own colour; Add 1 min shares the second colour.
+                val resetFill = timer.resetColor.resolve()
+                val addFill = timer.addButtonColor.resolve()
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    event.actions.take(2).forEach { action ->
+                        ActionChip(
+                            action = action,
+                            style = appearance.actionButtonStyle,
+                            fill = if (action.destructive) resetFill else addFill,
+                            heightDp = appearance.actionButtonHeightDp,
+                            onClick = { onAction(action) },
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** Formats elapsed call seconds as m:ss, or h:mm:ss once the call passes an hour. */
