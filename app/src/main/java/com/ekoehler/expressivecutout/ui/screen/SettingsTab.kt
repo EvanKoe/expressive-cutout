@@ -1,5 +1,12 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -63,30 +70,43 @@ fun SettingsTab(
     onOpenActionButtons: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
-    when (route) {
-        SettingsRoute.List -> {
-            val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
-            SettingsList(
-                contentPadding = contentPadding,
-                cutoutEnabled = behaviour.cutoutEnabled,
-                onCutoutEnabledChange = viewModel::setCutoutEnabled,
-                onOpenSizePosition = onOpenSizePosition,
-                onOpenEventIcons = onOpenEventIcons,
-                onOpenDynamicTiles = onOpenDynamicTiles,
-                onOpenBehaviour = onOpenBehaviour,
-                onOpenAppearance = onOpenAppearance,
-            )
-        }
+    // Deeper routes slide in from the right; stepping back slides in from the left, so the
+    // motion mirrors the predictive-back peek.
+    AnimatedContent(
+        targetState = route,
+        transitionSpec = {
+            val forward = targetState.depth >= initialState.depth
+            val dir = if (forward) 1 else -1
+            (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
+                (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
+        },
+        label = "settingsRoute",
+    ) { current ->
+        when (current) {
+            SettingsRoute.List -> {
+                val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+                SettingsList(
+                    contentPadding = contentPadding,
+                    cutoutEnabled = behaviour.cutoutEnabled,
+                    onCutoutEnabledChange = viewModel::setCutoutEnabled,
+                    onOpenSizePosition = onOpenSizePosition,
+                    onOpenEventIcons = onOpenEventIcons,
+                    onOpenDynamicTiles = onOpenDynamicTiles,
+                    onOpenBehaviour = onOpenBehaviour,
+                    onOpenAppearance = onOpenAppearance,
+                )
+            }
 
-        SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
-        SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
-        SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding, onOpenTile)
-        SettingsRoute.DynamicTileDetail ->
-            selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
-        SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
-        SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
-        SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
-        SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
+            SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
+            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
+            SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding, onOpenTile)
+            SettingsRoute.DynamicTileDetail ->
+                selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
+            SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
+            SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
+            SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
+            SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
+        }
     }
 }
 
@@ -103,6 +123,14 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         else -> SettingsRoute.List
+    }
+
+/** How far down the navigation stack a route sits, used to pick the slide direction. */
+val SettingsRoute.depth: Int
+    get() = when (this) {
+        SettingsRoute.List -> 0
+        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail -> 2
+        else -> 1
     }
 
 @Composable

@@ -1,7 +1,14 @@
 package com.ekoehler.expressivecutout.ui
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,14 +31,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarColors
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Brush
@@ -50,6 +60,7 @@ import com.ekoehler.expressivecutout.ui.screen.ProfileTab
 import com.ekoehler.expressivecutout.ui.screen.SettingsRoute
 import com.ekoehler.expressivecutout.ui.screen.SettingsTab
 import com.ekoehler.expressivecutout.ui.screen.parent
+import kotlin.coroutines.cancellation.CancellationException
 
 private enum class HomeTab(
     @param:StringRes val labelRes: Int,
@@ -79,7 +90,24 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
 
     // On a Settings detail screen the bottom bar becomes a back pill instead of the tab bar.
     val inSubScreen = current == HomeTab.Settings && settingsRoute != SettingsRoute.List
-    BackHandler(enabled = inSubScreen) { settingsRoute = settingsRoute.parent }
+
+    // Drives the predictive-back "peek" animation: 0f = at rest, 1f = fully committed.
+    val backProgress = remember { Animatable(0f) }
+    var backEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    PredictiveBackHandler(enabled = inSubScreen) { progress ->
+        try {
+            progress.collect { event ->
+                backEdge = event.swipeEdge
+                backProgress.snapTo(event.progress)
+            }
+            // Gesture committed: navigate back, then reset the transform for the new screen.
+            settingsRoute = settingsRoute.parent
+            backProgress.snapTo(0f)
+        } catch (_: CancellationException) {
+            // Gesture cancelled: ease the peek back to rest.
+            backProgress.animateTo(0f)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -105,27 +133,51 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         )
 
         Box(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.surfaceContainer)) {
-            when (current) {
-                HomeTab.Settings -> SettingsTab(
-                    viewModel = viewModel,
-                    contentPadding = contentPadding,
-                    route = settingsRoute,
-                    selectedTile = selectedTile,
-                    onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
-                    onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
-                    onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
-                    onOpenTile = { tile ->
-                        selectedTileName = tile.name
-                        settingsRoute = SettingsRoute.DynamicTileDetail
+            // Peek animation: as the user drags back, the content shrinks, rounds its corners
+            // and slides toward the swiped edge, revealing the surface beneath.
+            val contentTransform = Modifier.graphicsLayer {
+                val p = backProgress.value
+                if (p > 0f) {
+                    val scale = 1f - 0.08f * p
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = (if (backEdge == BackEventCompat.EDGE_LEFT) 1f else -1f) * 16.dp.toPx() * p
+                    shape = RoundedCornerShape(32.dp.toPx() * p)
+                    clip = true
+                }
+            }
+            Box(modifier = Modifier.fillMaxSize().then(contentTransform)) {
+                // Fade-through between the three top-level tabs.
+                AnimatedContent(
+                    targetState = current,
+                    transitionSpec = {
+                        fadeIn(tween(220, delayMillis = 90)) togetherWith fadeOut(tween(90))
                     },
-                    onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
-                    onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
-                    onOpenBackground = { settingsRoute = SettingsRoute.Background },
-                    onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
-                )
+                    label = "homeTab",
+                ) { tab ->
+                    when (tab) {
+                        HomeTab.Settings -> SettingsTab(
+                            viewModel = viewModel,
+                            contentPadding = contentPadding,
+                            route = settingsRoute,
+                            selectedTile = selectedTile,
+                            onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
+                            onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
+                            onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
+                            onOpenTile = { tile ->
+                                selectedTileName = tile.name
+                                settingsRoute = SettingsRoute.DynamicTileDetail
+                            },
+                            onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
+                            onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
+                            onOpenBackground = { settingsRoute = SettingsRoute.Background },
+                            onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
+                        )
 
-                HomeTab.Permissions -> PermissionsTab(contentPadding)
-                HomeTab.Profile -> ProfileTab(viewModel, contentPadding)
+                        HomeTab.Permissions -> PermissionsTab(contentPadding)
+                        HomeTab.Profile -> ProfileTab(viewModel, contentPadding)
+                    }
+                }
             }
 
             // Soft scrim so scrolled content fades out beneath the floating bottom bar.
