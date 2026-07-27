@@ -1,10 +1,13 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.app.ActivityOptions
+import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.app.RemoteInput
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -82,6 +86,7 @@ class IslandOverlayController(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
+    private val keyguardManager = context.getSystemService<KeyguardManager>()
     private val lifecycleOwner = OverlayLifecycleOwner()
     private val resolver = IconResolver(context)
     private val iconPreferences = IconPreferences(context)
@@ -150,9 +155,20 @@ class IslandOverlayController(private val context: Context) {
     // The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be removed.
     private var insetsListener: Any? = null
 
+    // True while the window has been torn down because "hide on lockscreen" is on and the device is
+    // locked. Guards signal handling and drives whether the window currently exists.
+    private var lockHidden = false
+
+    // Re-evaluate lock visibility whenever the screen or lock state changes. All are protected
+    // system broadcasts.
+    private val lockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = applyLockVisibility()
+    }
+
     fun start() {
         lifecycleOwner.onCreate()
         addOverlay()
+        registerLockReceiver()
         observeIconPreferences()
         observeLayout()
         observeBehaviour()
@@ -174,9 +190,50 @@ class IslandOverlayController(private val context: Context) {
     fun stop() {
         dismissJob?.cancel()
         windowResizeJob?.cancel()
+        runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
         scope.cancel()
+    }
+
+    private fun registerLockReceiver() {
+        ContextCompat.registerReceiver(
+            context,
+            lockReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            },
+            ContextCompat.RECEIVER_EXPORTED,
+        )
+    }
+
+    /**
+     * Enforce "hide on lockscreen" by fully adding or removing the overlay window as the lock state
+     * changes. Tearing the window down — rather than just hiding it — means nothing is composed or
+     * drawn while the device is locked, which matters on low-end hardware. Re-checked on screen
+     * on/off, on unlock, and whenever the setting itself is toggled. Idempotent: the [lockHidden]
+     * guard makes repeat calls in the same state no-ops.
+     */
+    private fun applyLockVisibility() {
+        val shouldHide = behaviourState.value.hideOnLockscreen &&
+            keyguardManager?.isKeyguardLocked == true
+        when {
+            shouldHide && !lockHidden -> {
+                lockHidden = true
+                dismissJob?.cancel()
+                windowResizeJob?.cancel()
+                currentEvent.value = null
+                removeOverlay()
+            }
+
+            !shouldHide && lockHidden -> {
+                lockHidden = false
+                addOverlay()
+                syncWindowHeight()
+            }
+        }
     }
 
     private fun addOverlay() {
@@ -235,7 +292,11 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private fun observeBehaviour() = scope.launch {
-        behaviourPreferences.settings.collect { behaviourState.value = it }
+        behaviourPreferences.settings.collect {
+            behaviourState.value = it
+            // Toggling "hide on lockscreen" (or first load while already locked) must take effect now.
+            applyLockVisibility()
+        }
     }
 
     private fun observeAppearance() = scope.launch {
@@ -488,6 +549,8 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
+            // Window is torn down for the lockscreen — drop signals so nothing is queued behind it.
+            if (lockHidden) return@collect
             // Master switch: nothing shows when the cutout is disabled.
             if (!behaviourState.value.cutoutEnabled) return@collect
             // Skip system events the user disabled for the pill.

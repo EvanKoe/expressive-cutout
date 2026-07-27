@@ -62,8 +62,15 @@ internal fun BehaviourScreen(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         // Grouped list: the first item's top corners and the last item's bottom corners round.
-        BehaviourSliderRow(
+        SettingsToggleCard(
             shape = groupedShape(isFirst = true, isLast = false),
+            title = stringResource(R.string.behaviour_hide_lockscreen),
+            description = stringResource(R.string.behaviour_hide_lockscreen_desc),
+            checked = behaviour.hideOnLockscreen,
+            onCheckedChange = viewModel::setHideOnLockscreen,
+        )
+        BehaviourSliderRow(
+            shape = groupedShape(isFirst = false, isLast = false),
             label = stringResource(R.string.behaviour_normal_duration),
             valueText = "${normalSeconds.roundToInt()} s",
             value = normalSeconds,

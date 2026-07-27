@@ -30,6 +30,7 @@ enum class SwipeDismissTarget { EXPANDED, BOTH, NORMAL }
  */
 data class BehaviourSettings(
     val cutoutEnabled: Boolean = DEFAULT_CUTOUT_ENABLED,
+    val hideOnLockscreen: Boolean = DEFAULT_HIDE_ON_LOCKSCREEN,
     val normalDurationSeconds: Int = DEFAULT_NORMAL_SECONDS,
     val expandedAutoCollapse: Boolean = DEFAULT_AUTO_COLLAPSE,
     val expandedCollapseSeconds: Int = DEFAULT_COLLAPSE_SECONDS,
@@ -43,6 +44,7 @@ data class BehaviourSettings(
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
+        const val DEFAULT_HIDE_ON_LOCKSCREEN = false
         const val DEFAULT_NORMAL_SECONDS = 3
         const val DEFAULT_AUTO_COLLAPSE = true
         const val DEFAULT_COLLAPSE_SECONDS = 5
@@ -66,6 +68,7 @@ class BehaviourPreferences(private val context: Context) {
     val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
         BehaviourSettings(
             cutoutEnabled = prefs[CUTOUT_ENABLED] ?: BehaviourSettings.DEFAULT_CUTOUT_ENABLED,
+            hideOnLockscreen = prefs[HIDE_ON_LOCKSCREEN] ?: BehaviourSettings.DEFAULT_HIDE_ON_LOCKSCREEN,
             normalDurationSeconds = (prefs[NORMAL_SECONDS] ?: BehaviourSettings.DEFAULT_NORMAL_SECONDS)
                 .coerceIn(BehaviourSettings.MIN_NORMAL_SECONDS, BehaviourSettings.MAX_NORMAL_SECONDS),
             expandedAutoCollapse = prefs[AUTO_COLLAPSE] ?: BehaviourSettings.DEFAULT_AUTO_COLLAPSE,
@@ -87,6 +90,10 @@ class BehaviourPreferences(private val context: Context) {
 
     suspend fun setCutoutEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
         it[CUTOUT_ENABLED] = enabled
+    }
+
+    suspend fun setHideOnLockscreen(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[HIDE_ON_LOCKSCREEN] = enabled
     }
 
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
@@ -137,6 +144,7 @@ class BehaviourPreferences(private val context: Context) {
 
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
+        val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
         val AUTO_COLLAPSE = booleanPreferencesKey("expanded_auto_collapse")
         val COLLAPSE_SECONDS = intPreferencesKey("expanded_collapse_seconds")

@@ -248,6 +248,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCutoutEnabled(enabled)
     }
 
+    fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHideOnLockscreen(enabled)
+    }
+
     fun setNormalDurationSeconds(seconds: Int) = viewModelScope.launch {
         behaviourPreferences.setNormalDurationSeconds(seconds)
     }
