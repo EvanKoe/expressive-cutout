@@ -125,14 +125,12 @@
     <string name="phone_caller_unknown">Unknown</string>
     <string name="phone_ringing">Incoming call…</string>
     <string name="phone_tile_note">The photo, name and buttons come from your dialer\'s ongoing-call notification, so exactly which buttons appear depends on your dialer.</string>
-    <string name="timer_reset">Reset</string>
-    <string name="timer_add_minute">Add 1 min</string>
     <string name="timer_show_actions_title">Action buttons</string>
-    <string name="timer_show_actions_desc">Show the Reset and Add 1 min buttons when expanded.</string>
+    <string name="timer_show_actions_desc">Show the timer\'s buttons, such as Add 1 min and Reset.</string>
     <string name="timer_button_colours_title">Button colours</string>
-    <string name="timer_reset_color_label">Reset button</string>
-    <string name="timer_add_color_label">Add 1 min button</string>
-    <string name="timer_tile_note">The remaining time and buttons come from your clock app\'s running-timer notification, so the tile appears whenever a countdown is active and Reset / Add 1 min act on that timer.</string>
+    <string name="timer_reset_color_label">Reset / stop button</string>
+    <string name="timer_add_color_label">Other buttons</string>
+    <string name="timer_tile_note">The remaining time and buttons come from your clock app\'s running-timer notification, so exactly which buttons appear (and their labels) depend on your clock app and whether the timer is running or paused.</string>
     <string name="settings_appearance_subtitle">Shadow, outline stroke and background colour</string>
 
     <!-- Appearance tab -->

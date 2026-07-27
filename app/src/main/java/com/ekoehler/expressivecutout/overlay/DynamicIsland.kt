@@ -1423,14 +1423,14 @@ private fun TimerExpandedContent(
                 }
             }
             if (timer.showActions && event.actions.isNotEmpty()) {
-                // Reset gets its own colour; Add 1 min shares the second colour.
+                // A reset / stop button gets its own colour; every other button shares the second.
                 val resetFill = timer.resetColor.resolve()
                 val addFill = timer.addButtonColor.resolve()
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    event.actions.take(2).forEach { action ->
+                    event.actions.take(3).forEach { action ->
                         ActionChip(
                             action = action,
                             style = appearance.actionButtonStyle,

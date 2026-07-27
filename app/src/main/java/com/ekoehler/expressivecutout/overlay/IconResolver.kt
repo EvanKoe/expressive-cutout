@@ -142,29 +142,16 @@ class IconResolver(private val context: Context) {
     }
 
     private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
-        // Pick the two buttons the tile offers out of the clock's own actions by matching their
-        // labels, then relabel them to the fixed "Reset" / "Add 1 min" wording the tile uses. The
-        // matched action's PendingIntent is what actually fires, so the clock does the real work.
-        val reset = signal.actions.firstOrNull { isResetLabel(it.title) }?.let { action ->
+        // Surface the clock app's own timer buttons verbatim — their real labels and intents — so the
+        // chips always match exactly what the notification shows (Google Clock, for instance, renders
+        // "+ 1:00" and "Pause" while a timer runs). A reset / stop / delete button is tinted apart via
+        // [isResetLabel]; we can only offer the actions the notification actually carries.
+        val actions = signal.actions.take(3).map { action ->
             IslandAction(
-                label = context.getString(R.string.timer_reset),
+                label = action.title,
                 intent = action.intent,
-                destructive = true,
+                destructive = isResetLabel(action.title),
             )
-        }
-        val addMinute = signal.actions.firstOrNull { isAddMinuteLabel(it.title) }?.let { action ->
-            IslandAction(
-                label = context.getString(R.string.timer_add_minute),
-                intent = action.intent,
-                destructive = false,
-            )
-        }
-        // When neither matches (an unusual clock app), fall back to surfacing its own buttons so the
-        // tile is still useful, tinting any reset-like one as destructive.
-        val actions = listOfNotNull(reset, addMinute).ifEmpty {
-            signal.actions.take(2).map { action ->
-                IslandAction(action.title, action.intent, destructive = isResetLabel(action.title))
-            }
         }
 
         return IslandEvent(
@@ -185,16 +172,10 @@ class IconResolver(private val context: Context) {
         )
     }
 
-    /** Best-effort match for a timer's reset / stop / delete button by its label. */
+    /** Best-effort match for a timer's reset / stop / delete button by its label, to tint it apart. */
     private fun isResetLabel(label: String): Boolean {
         val normalised = label.lowercase()
         return RESET_KEYWORDS.any { normalised.contains(it) }
-    }
-
-    /** Best-effort match for a timer's "add a minute" button by its label (e.g. "+ 1:00"). */
-    private fun isAddMinuteLabel(label: String): Boolean {
-        val normalised = label.lowercase()
-        return ADD_MINUTE_KEYWORDS.any { normalised.contains(it) }
     }
 
     /**
@@ -261,10 +242,9 @@ class IconResolver(private val context: Context) {
         // phrases avoid false hits like "send" that a bare "end" would catch.
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
 
-        // Lower-cased substrings marking a timer's reset/terminate action and its add-a-minute action.
+        // Lower-cased substrings marking a timer's reset/terminate action, so it can be tinted apart.
         // "stop" and "delete" cover the common clock apps; "pause" is deliberately excluded (it isn't
-        // a reset). The add phrases catch "+ 1:00", "+1 min", "add 1 minute", etc.
+        // a reset, so it takes the shared "other" colour like Add 1 min).
         val RESET_KEYWORDS = listOf("reset", "stop", "delete", "cancel", "dismiss")
-        val ADD_MINUTE_KEYWORDS = listOf("1:00", "1 min", "+1", "+ 1", "add", "minute")
     }
 }
