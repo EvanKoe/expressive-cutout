@@ -1,7 +1,9 @@
 package com.ekoehler.expressivecutout.ui.screen
 
 import android.Manifest
+import android.graphics.Paint
 import android.os.Build
+import android.text.Layout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -21,10 +23,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.CallReceived
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PhoneCallback
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -122,54 +127,66 @@ fun PermissionsTab(contentPadding: PaddingValues) {
         }
 
         Text(stringResource(R.string.perm_testing_title))
-        
+
         Column(
-            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
+            modifier = Modifier.fillMaxWidth()
+                .clip(shape = RoundedCornerShape(24.dp)),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-        }
+            // Send a test notification
+            TestCard(
+                icon = Icons.Rounded.NotificationsActive,
+                title = stringResource(R.string.action_send_test),
+                onClick = ::onTestNotification,
+            )
 
-        // Notification test button
-        FilledTonalButton(
-            onClick = ::onTestNotification,
-            modifier = Modifier.fillMaxWidth(),
+            // Test a running call
+            TestCard(
+                icon = Icons.Rounded.Call,
+                title = stringResource(R.string.action_send_test_call),
+                onClick = { TestCaller.toggle(context, TestCaller.Kind.CONNECTED) },
+            )
+
+            // Test an incoming call
+            TestCard(
+                icon = Icons.Rounded.PhoneCallback,
+                title = stringResource(R.string.action_send_test_incoming_call),
+                onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TestCard(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Rounded.NotificationsActive,
+                imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp),
             )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.action_send_test))
-        }
-
-        // Call test buttons: pop a fake call onto the island; each tap cycles the caller name so the
-        // call cutout can be seen widening for a long name. A connected call shows the ticking duration
-        // and a hang-up button; an incoming call shows the number + name and decline / answer buttons.
-        FilledTonalButton(
-            onClick = { TestCaller.toggle(context, TestCaller.Kind.CONNECTED) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Call,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
+            Spacer(Modifier.width(14.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium
             )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.action_send_test_call))
-        }
-
-        FilledTonalButton(
-            onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Call,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.action_send_test_incoming_call))
         }
     }
 }
@@ -181,6 +198,7 @@ private fun PermissionCard(
     description: String,
     granted: Boolean,
     onClick: () -> Unit,
+    isCheckButton: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -210,17 +228,21 @@ private fun PermissionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.width(12.dp))
-            if (granted) {
-                Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
-                    contentDescription = stringResource(R.string.status_granted),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
-                )
-            } else {
-                Button(onClick = onClick) {
-                    Text(stringResource(R.string.status_needed))
+
+            if (isCheckButton) {
+                Spacer(Modifier.width(12.dp))
+
+                if (granted) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = stringResource(R.string.status_granted),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp),
+                    )
+                } else {
+                    Button(onClick = onClick) {
+                        Text(stringResource(R.string.status_needed))
+                    }
                 }
             }
         }

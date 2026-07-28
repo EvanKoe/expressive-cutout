@@ -261,7 +261,9 @@ fun DynamicIsland(
         }
     }
     val dims = when {
-        isCall -> collapsed.asCallCutout(callWidthPercent, callTwoRow)
+        // The two-row incoming layout matches the expanded cutout's size exactly.
+        callTwoRow -> expanded
+        isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
@@ -1364,12 +1366,13 @@ private const val CALL_NAME_SIZE_SP = 15
 // A little breathing room so the name never sits flush against the button before the pill grows.
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the taller, two-row incoming-call layout (caller row over Take / Hang up buttons).
-private const val CALL_INCOMING_PADDING_DP = 12
-// Extra top padding so the caller row sits below the camera hole at the pill's top edge.
-private const val CALL_INCOMING_TOP_PAD_DP = 22
-private const val CALL_INCOMING_ROW_SPACING_DP = 10
-private const val CALL_INCOMING_BUTTON_DP = 46
+// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons), sized to fit
+// within the expanded cutout's height.
+private const val CALL_INCOMING_PADDING_DP = 10
+private const val CALL_INCOMING_TOP_PAD_DP = 6
+private const val CALL_INCOMING_ROW_SPACING_DP = 8
+private const val CALL_INCOMING_BUTTON_DP = 42
+private const val CALL_INCOMING_AVATAR_DP = 36
 
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
@@ -1519,10 +1522,10 @@ private fun CallSingleRowContent(
 }
 
 /**
- * The incoming-call two-row layout. Top: the caller's photo and their name over the number, sat below
- * the camera hole. Bottom: full-width Take (answer, primary) and Hang up (decline, red) buttons. The
- * name is on top so the (usually longer) number sits below and ellipsizes; the button row degrades to
- * a single full-width button if the dialer exposes only one of the two actions.
+ * The incoming-call two-row layout, sized to match the expanded cutout. Top: the caller's photo and a
+ * single label — their contact name if they have one, otherwise their number — bottom-aligned so it
+ * sits below the camera hole. Bottom: full-width Take (answer, primary) and Hang up (decline, red)
+ * buttons, degrading to a single full-width button if the dialer exposes only one of the two actions.
  */
 @Composable
 private fun IncomingCallExpandedContent(
@@ -1534,7 +1537,6 @@ private fun IncomingCallExpandedContent(
     val photo = onCall?.photo?.takeIf { call.showPhoto }
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
     val answer = event.actions.firstOrNull { it.answer }
-    val number = onCall?.callerNumber?.takeIf { it.isNotBlank() && it != event.label }
 
     Column(
         modifier = Modifier
@@ -1547,36 +1549,27 @@ private fun IncomingCallExpandedContent(
             ),
         verticalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
     ) {
-        // Caller row — takes the space above the buttons, its content centred and clear of the camera.
+        // Caller row — its content bottom-aligned in the space above the buttons, so the single label
+        // (already the name when known, else the number) sits clear of the camera hole.
         Row(
             modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
         ) {
             if (photo != null) {
-                ContactPhoto(bitmap = photo, size = CALL_AVATAR_DP.dp)
+                ContactPhoto(bitmap = photo, size = CALL_INCOMING_AVATAR_DP.dp)
             } else {
-                IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
+                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 22.dp)
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = event.label,
-                    color = LocalContentColor.current,
-                    fontSize = CALL_NAME_SIZE_SP.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (number != null) {
-                    Text(
-                        text = number,
-                        color = LocalContentColor.current.copy(alpha = 0.70f),
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            Text(
+                text = event.label,
+                modifier = Modifier.weight(1f),
+                color = LocalContentColor.current,
+                fontSize = CALL_NAME_SIZE_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         // Button row — Take (answer) then Hang up (decline), each filling half the width.
         if (call.showActions && (answer != null || hangUp != null)) {
