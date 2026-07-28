@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -287,32 +289,46 @@ private fun IconChooserSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Text(
-            text = stringResource(R.string.set_icon_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
-        )
-
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.action_choose_image)) },
-            leadingContent = { Icon(Icons.Rounded.Image, contentDescription = null) },
-            modifier = Modifier.clickable(onClick = onChooseImage),
-        )
-        
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.action_choose_material)) },
-            leadingContent = { Icon(Icons.Rounded.Category, contentDescription = null) },
-            modifier = Modifier.clickable(onClick = onChooseMaterial),
-        )
-
-        AnimatedVisibility(visible = hasOverride) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.action_use_default)) },
-                leadingContent = { Icon(Icons.Rounded.Restore, contentDescription = null) },
-                modifier = Modifier.clickable(onClick = onUseDefault),
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(modifier = Modifier.padding(4.dp)) {
+            Text(
+                text = stringResource(R.string.set_icon_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
             )
+
+            Column(
+                modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.action_choose_image)) },
+                    leadingContent = { Icon(Icons.Rounded.Image, contentDescription = null) },
+                    modifier = Modifier.clickable(onClick = onChooseImage)
+                        .clip(shape = RoundedCornerShape(4.dp)),
+                )
+
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.action_choose_material)) },
+                    leadingContent = { Icon(Icons.Rounded.Category, contentDescription = null) },
+                    modifier = Modifier.clickable(onClick = onChooseMaterial)
+                        .clip(shape = RoundedCornerShape(4.dp)),
+                )
+
+                AnimatedVisibility(visible = hasOverride) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.action_use_default)) },
+                        leadingContent = { Icon(Icons.Rounded.Restore, contentDescription = null) },
+                        modifier = Modifier.clickable(onClick = onUseDefault)
+                            .clip(shape = RoundedCornerShape(4.dp)),
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+            }
         }
-        Spacer(Modifier.height(16.dp))
     }
 }

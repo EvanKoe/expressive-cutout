@@ -249,6 +249,8 @@
     <string name="action_choose_material">Choose Material icon</string>
     <string name="action_use_default">Use default icon</string>
     <string name="material_picker_title">Choose a Material icon</string>
+    <string name="material_picker_search">Search icons</string>
+    <string name="material_picker_clear">Clear search</string>
     <string name="label_material">Material icon</string>
     <string name="action_change">Change</string>
 
