@@ -257,7 +257,7 @@ class IconResolver(private val context: Context) {
                 1
             },
         )
-        val icon = customIcons[type]?.toRasterOrNull()
+        val icon = customIcons[type]?.toIslandIconOrNull()
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
         return IslandEvent(
@@ -271,16 +271,13 @@ class IconResolver(private val context: Context) {
         )
     }
 
-    /** Loads the chosen source into a raster icon, or null to fall back to the default. */
-    private fun IconSource.toRasterOrNull(): IslandIcon.Raster? = when (this) {
+    /** Resolves the chosen override into a renderable icon, or null to fall back to the default. */
+    private fun IconSource.toIslandIconOrNull(): IslandIcon? = when (this) {
         is IconSource.Image ->
             Uri.parse(uri).loadImageBitmapOrNull(context)?.let(IslandIcon::Raster)
 
-        is IconSource.App -> runCatching {
-            context.packageManager.getApplicationIcon(packageName).toImageBitmap()
-        }.onFailure { Log.w(TAG, "No icon for app $packageName", it) }
-            .getOrNull()
-            ?.let(IslandIcon::Raster)
+        is IconSource.Material ->
+            MaterialIconCatalog.iconFor(iconName)?.let(IslandIcon::Vector)
     }
 
     private companion object {

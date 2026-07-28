@@ -173,8 +173,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         preferences.setIcon(type, IconSource.Image(uri))
     }
 
-    fun setAppIcon(type: SystemEventType, packageName: String) = viewModelScope.launch {
-        preferences.setIcon(type, IconSource.App(packageName))
+    fun setMaterialIcon(type: SystemEventType, iconName: String) = viewModelScope.launch {
+        preferences.setIcon(type, IconSource.Material(iconName))
     }
 
     fun resetIcon(type: SystemEventType) = viewModelScope.launch {

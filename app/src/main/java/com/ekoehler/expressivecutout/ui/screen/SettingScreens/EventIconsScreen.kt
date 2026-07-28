@@ -1,6 +1,5 @@
 package com.ekoehler.expressivecutout.ui.screen
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -66,8 +65,8 @@ import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.overlay.forRole
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
+import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.onForRole
-import com.ekoehler.expressivecutout.overlay.toImageBitmap
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -259,18 +258,13 @@ private fun EventIconCard(
     onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
-    val context = LocalContext.current
     val defaultLabel = stringResource(R.string.label_default)
     val imageLabel = stringResource(R.string.label_custom)
-    val appFallback = stringResource(R.string.label_app)
-    // Resolve the app label once per package (a PackageManager binder call), not on every
-    // recomposition/scroll frame.
-    val appPackage = (source as? IconSource.App)?.packageName
-    val resolvedAppName = remember(appPackage) { appPackage?.let { appLabelOf(context, it) } }
+    val materialLabel = stringResource(R.string.label_material)
     val sourceLabel = when (source) {
         null -> defaultLabel
         is IconSource.Image -> imageLabel
-        is IconSource.App -> resolvedAppName ?: appFallback
+        is IconSource.Material -> materialLabel
     }
 
     Card(
@@ -371,15 +365,12 @@ internal fun EventIconThumbnail(
                 Uri.parse(current.uri).loadImageBitmapOrNull(context)
             }
 
-            is IconSource.App -> withContext(Dispatchers.IO) {
-                runCatching {
-                    context.packageManager.getApplicationIcon(current.packageName).toImageBitmap()
-                }.getOrNull()
-            }
-
-            null -> null
+            is IconSource.Material, null -> null
         }
     }
+
+    // A Material-icon override renders as a tinted vector glyph (like the default), rather than a raster.
+    val materialIcon = (source as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
 
     // Events that render as motion on the cutout (e.g. the charging bolt) preview their animation here
     // so it's visible at a glance — unless the user turned the animated icon off. A custom image/app
@@ -399,6 +390,13 @@ internal fun EventIconThumbnail(
                 bitmap = loaded,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp * sizeScale).clip(CircleShape),
+            )
+
+            materialIcon != null -> Icon(
+                imageVector = materialIcon,
+                contentDescription = null,
+                tint = glyphColor,
+                modifier = Modifier.size(24.dp * sizeScale),
             )
 
             animate && animated != null -> {
@@ -435,8 +433,3 @@ internal fun EventIconThumbnail(
         }
     }
 }
-
-internal fun appLabelOf(context: Context, packageName: String): String? = runCatching {
-    val info = context.packageManager.getApplicationInfo(packageName, 0)
-    context.packageManager.getApplicationLabel(info).toString()
-}.getOrNull()

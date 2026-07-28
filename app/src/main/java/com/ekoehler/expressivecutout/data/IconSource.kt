@@ -9,17 +9,17 @@ sealed interface IconSource {
     /** A picked image file, referenced by a persistable content URI. */
     data class Image(val uri: String) : IconSource
 
-    /** The launcher icon of an installed app, referenced by its package name. */
-    data class App(val packageName: String) : IconSource
+    /** A built-in Material icon, referenced by its stable catalog key (see MaterialIconCatalog). */
+    data class Material(val iconName: String) : IconSource
 
     fun encode(): String = when (this) {
         is Image -> "$IMAGE_TAG$SEPARATOR$uri"
-        is App -> "$APP_TAG$SEPARATOR$packageName"
+        is Material -> "$MATERIAL_TAG$SEPARATOR$iconName"
     }
 
     companion object {
         private const val IMAGE_TAG = "image"
-        private const val APP_TAG = "app"
+        private const val MATERIAL_TAG = "material"
         private const val SEPARATOR = "|"
 
         fun decode(raw: String): IconSource? {
@@ -30,7 +30,7 @@ sealed interface IconSource {
             if (value.isEmpty()) return null
             return when (tag) {
                 IMAGE_TAG -> Image(value)
-                APP_TAG -> App(value)
+                MATERIAL_TAG -> Material(value)
                 else -> null
             }
         }

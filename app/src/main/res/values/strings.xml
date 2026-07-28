@@ -246,11 +246,10 @@
 
     <!-- Icon chooser -->
     <string name="set_icon_title">Set event icon</string>
-    <string name="action_choose_app">Choose app icon</string>
+    <string name="action_choose_material">Choose Material icon</string>
     <string name="action_use_default">Use default icon</string>
-    <string name="app_picker_title">Choose an app</string>
-    <string name="app_picker_loading">Loading apps…</string>
-    <string name="label_app">App icon</string>
+    <string name="material_picker_title">Choose a Material icon</string>
+    <string name="label_material">Material icon</string>
     <string name="action_change">Change</string>
 
     <!-- Event detail -->

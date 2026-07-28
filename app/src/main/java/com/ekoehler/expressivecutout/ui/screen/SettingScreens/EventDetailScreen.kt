@@ -18,7 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -91,7 +91,7 @@ internal fun EventDetailScreen(
     }
 
     var showIconSheet by remember { mutableStateOf(false) }
-    var showAppPicker by remember { mutableStateOf(false) }
+    var showMaterialPicker by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -105,13 +105,10 @@ internal fun EventDetailScreen(
         }
     }
 
-    // Resolve the app label once per package (a PackageManager binder call), not on recomposition.
-    val appPackage = (source as? IconSource.App)?.packageName
-    val resolvedAppName = remember(appPackage) { appPackage?.let { appLabelOf(context, it) } }
     val sourceLabel = when (source) {
         null -> stringResource(R.string.label_default)
         is IconSource.Image -> stringResource(R.string.label_custom)
-        is IconSource.App -> resolvedAppName ?: stringResource(R.string.label_app)
+        is IconSource.Material -> stringResource(R.string.label_material)
     }
 
     Column(
@@ -257,9 +254,9 @@ internal fun EventDetailScreen(
                 showIconSheet = false
                 imagePicker.launch(arrayOf("image/*"))
             },
-            onChooseApp = {
+            onChooseMaterial = {
                 showIconSheet = false
-                showAppPicker = true
+                showMaterialPicker = true
             },
             onUseDefault = {
                 showIconSheet = false
@@ -269,13 +266,13 @@ internal fun EventDetailScreen(
         )
     }
 
-    if (showAppPicker) {
-        AppIconPickerSheet(
-            onPick = { packageName ->
-                showAppPicker = false
-                viewModel.setAppIcon(type, packageName)
+    if (showMaterialPicker) {
+        MaterialIconPickerSheet(
+            onPick = { iconName ->
+                showMaterialPicker = false
+                viewModel.setMaterialIcon(type, iconName)
             },
-            onDismiss = { showAppPicker = false },
+            onDismiss = { showMaterialPicker = false },
         )
     }
 }
@@ -285,7 +282,7 @@ internal fun EventDetailScreen(
 private fun IconChooserSheet(
     hasOverride: Boolean,
     onChooseImage: () -> Unit,
-    onChooseApp: () -> Unit,
+    onChooseMaterial: () -> Unit,
     onUseDefault: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -296,17 +293,20 @@ private fun IconChooserSheet(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
         )
+
         ListItem(
             headlineContent = { Text(stringResource(R.string.action_choose_image)) },
             leadingContent = { Icon(Icons.Rounded.Image, contentDescription = null) },
             modifier = Modifier.clickable(onClick = onChooseImage),
         )
+        
         ListItem(
-            headlineContent = { Text(stringResource(R.string.action_choose_app)) },
-            leadingContent = { Icon(Icons.Rounded.Apps, contentDescription = null) },
-            modifier = Modifier.clickable(onClick = onChooseApp),
+            headlineContent = { Text(stringResource(R.string.action_choose_material)) },
+            leadingContent = { Icon(Icons.Rounded.Category, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onChooseMaterial),
         )
-        if (hasOverride) {
+
+        AnimatedVisibility(visible = hasOverride) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.action_use_default)) },
                 leadingContent = { Icon(Icons.Rounded.Restore, contentDescription = null) },
