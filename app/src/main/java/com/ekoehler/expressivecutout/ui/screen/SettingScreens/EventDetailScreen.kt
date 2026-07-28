@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,9 +53,11 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
+import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlin.math.roundToInt
 
@@ -75,11 +78,15 @@ internal fun EventDetailScreen(
     val dynamicColorRole by viewModel.eventDynamicColorRole.collectAsStateWithLifecycle()
     val dynamicColorOpacity by viewModel.eventDynamicColorOpacity.collectAsStateWithLifecycle()
     val durations by viewModel.eventDurations.collectAsStateWithLifecycle()
+    val eventColors by viewModel.eventColors.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val animatedIcons by viewModel.eventAnimatedIcons.collectAsStateWithLifecycle()
     val animatedIconLoops by viewModel.eventAnimatedIconLoops.collectAsStateWithLifecycle()
 
     val source = customIcons[type]
+    // Per-event colour override; absent means the event follows its default accent (or, when the
+    // global toggle is on, the dynamic role). The "default" swatch / reset button clears it.
+    val colorOverride = eventColors[type]
     // The animated-icon controls only make sense for events that ship a Lottie and while no custom
     // image/app override is set (an override always wins over the animation on the cutout).
     val hasAnimation = type.animatedIcon() != null
@@ -142,6 +149,7 @@ internal fun EventDetailScreen(
                     size = 76.dp,
                     animate = animatedEnabled,
                     loop = loopEnabled,
+                    colorOverride = colorOverride,
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -206,6 +214,39 @@ internal fun EventDetailScreen(
                         onCheckedChange = { viewModel.setEventAnimatedIconLoop(type, it) },
                     )
                 }
+            }
+        }
+
+        // Colour: a per-event override that recolours the badge, winning over the event's default
+        // accent and the global "Dynamic color for all events" role. The leading swatch / the reset
+        // button below clear it, falling back to whichever of those two is currently in effect.
+        val colorFallback = if (dynamicColor) {
+            CutoutColor.Dynamic(dynamicColorRole).resolve()
+        } else {
+            Color(type.accent)
+        }
+        ColorPickerCard(
+            label = stringResource(R.string.event_color_title),
+            selected = colorOverride,
+            onSelect = { picked ->
+                if (picked == null) viewModel.resetEventColor(type)
+                else viewModel.setEventColor(type, picked)
+            },
+            defaultLabel = if (dynamicColor) {
+                stringResource(R.string.event_color_default_dynamic)
+            } else {
+                stringResource(R.string.event_color_default_accent)
+            },
+            defaultColor = colorFallback,
+        )
+        // Only offered once the event has its own override to fall back from — mirrors the duration
+        // reset below, and the leading "default" swatch in the picker above.
+        if (colorOverride != null) {
+            TextButton(
+                onClick = { viewModel.resetEventColor(type) },
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(stringResource(R.string.event_color_reset))
             }
         }
 

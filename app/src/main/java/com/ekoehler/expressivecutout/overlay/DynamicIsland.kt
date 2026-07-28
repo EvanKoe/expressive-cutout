@@ -1546,10 +1546,12 @@ private fun IconBadge(
     iconSize: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // A tile's chosen container colour wins: a filled disc with contrasting ink. Otherwise "Dynamic
-    // color for all events" gives a role-coloured badge with its matching "on" ink, and the plain
-    // default is a faint accent-tinted disc behind a full-accent glyph.
+    // A tile's chosen container colour wins: a filled disc with contrasting ink. A per-event colour
+    // override then recolours the default look (a faint tinted disc + full-colour glyph). Otherwise
+    // "Dynamic color for all events" gives a role-coloured badge with its matching "on" ink, and the
+    // plain default is a faint accent-tinted disc behind a full-accent glyph.
     val container = event.iconContainerColor
+    val override = event.colorOverride
     val badgeColor: Color
     val glyphColor: Color
     when {
@@ -1560,6 +1562,12 @@ private fun IconBadge(
                 is CutoutColor.Solid ->
                     if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
             }
+        }
+
+        override != null -> {
+            val tint = override.resolve()
+            badgeColor = tint.copy(alpha = 0.20f)
+            glyphColor = tint
         }
 
         event.useThemeColor -> {

@@ -113,6 +113,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    /** Per-event colour overrides; absent events follow their default accent (or the dynamic role). */
+    val eventColors: StateFlow<Map<SystemEventType, CutoutColor>> =
+        eventPreferences.colors.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
         dynamicTilePreferences.enabled.stateIn(
             scope = viewModelScope,
@@ -203,6 +211,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
         eventPreferences.clearDuration(type)
+    }
+
+    fun setEventColor(type: SystemEventType, color: CutoutColor) = viewModelScope.launch {
+        eventPreferences.setColor(type, color)
+    }
+
+    fun resetEventColor(type: SystemEventType) = viewModelScope.launch {
+        eventPreferences.clearColor(type)
     }
 
     fun setEventAnimatedIcon(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {

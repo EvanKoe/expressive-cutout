@@ -59,6 +59,7 @@ import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.animatedIcon
@@ -67,6 +68,7 @@ import com.ekoehler.expressivecutout.overlay.forRole
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.onForRole
+import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -338,6 +340,9 @@ internal fun EventIconThumbnail(
     // per-event "Animated icon" / "Loop" toggles so the badge matches what the cutout will do.
     animate: Boolean = true,
     loop: Boolean = true,
+    // A per-event colour override that recolours the badge, winning over the dynamic-colour role
+    // (matching the overlay's IconBadge). Null follows the default accent / dynamic behaviour.
+    colorOverride: CutoutColor? = null,
 ) {
     val context = LocalContext.current
     // Inner glyph/image/animation sizes are defined against the 48dp list badge; scale them with the
@@ -347,16 +352,19 @@ internal fun EventIconThumbnail(
     // opacity) + its matching "on" glyph replaces the event's own accent tint. Both colours are
     // animated so toggling the setting (or dragging the opacity slider) crossfades rather than snaps
     // — the opacity rides along in the badge colour's alpha.
-    val targetBadge = if (dynamicColor) {
-        MaterialTheme.colorScheme.forRole(dynamicColorRole).copy(alpha = dynamicColorOpacity)
-    } else {
-        Color(type.accent).copy(alpha = 0.18f)
+    // A per-event override recolours the badge (faint tinted disc + full-colour glyph), winning over
+    // the dynamic-colour role — exactly as the overlay's IconBadge resolves it.
+    val overrideColor = colorOverride?.resolve()
+    val targetBadge = when {
+        overrideColor != null -> overrideColor.copy(alpha = 0.18f)
+        dynamicColor -> MaterialTheme.colorScheme.forRole(dynamicColorRole).copy(alpha = dynamicColorOpacity)
+        else -> Color(type.accent).copy(alpha = 0.18f)
     }
     val badgeColor by animateColorAsState(targetBadge, label = "eventBadgeColor")
-    val targetGlyph = if (dynamicColor) {
-        MaterialTheme.colorScheme.onForRole(dynamicColorRole)
-    } else {
-        Color(type.accent)
+    val targetGlyph = when {
+        overrideColor != null -> overrideColor
+        dynamicColor -> MaterialTheme.colorScheme.onForRole(dynamicColorRole)
+        else -> Color(type.accent)
     }
     val glyphColor by animateColorAsState(targetGlyph, label = "eventGlyphColor")
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {

@@ -82,6 +82,17 @@ class EventPreferences(private val context: Context) {
         }.toMap()
     }
 
+    /**
+     * Per-event colour override. When set it wins over both the event's own accent and the global
+     * "Dynamic color for all events" role. Only events the user has explicitly recoloured appear
+     * here; an absent entry means the event follows the default accent (or the dynamic role).
+     */
+    val colors: Flow<Map<SystemEventType, CutoutColor>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            CutoutColor.deserialize(prefs[type.colorKey])?.let { color -> type to color }
+        }.toMap()
+    }
+
     suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
         it[type.key] = enabled
     }
@@ -93,6 +104,15 @@ class EventPreferences(private val context: Context) {
     /** Drop the override so the event falls back to the global normal cutout duration. */
     suspend fun clearDuration(type: SystemEventType) = context.eventDataStore.edit {
         it.remove(type.durationKey)
+    }
+
+    suspend fun setColor(type: SystemEventType, color: CutoutColor) = context.eventDataStore.edit {
+        it[type.colorKey] = color.serialize()
+    }
+
+    /** Drop the override so the event falls back to its default accent (or the dynamic role). */
+    suspend fun clearColor(type: SystemEventType) = context.eventDataStore.edit {
+        it.remove(type.colorKey)
     }
 
     suspend fun setAnimatedIcon(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
@@ -126,6 +146,9 @@ class EventPreferences(private val context: Context) {
 
     private val SystemEventType.loopKey: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_animated_loop_$name")
+
+    private val SystemEventType.colorKey: Preferences.Key<String>
+        get() = stringPreferencesKey("event_color_$name")
 
     private companion object {
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("events_dynamic_color")

@@ -61,6 +61,12 @@ data class IslandEvent(
     /** Opacity (0..1) of the role-coloured badge background when [useThemeColor] is on. */
     val themeColorOpacity: Float = 1f,
     /**
+     * A user-chosen per-event colour that replaces the event's own [accent] on the badge (a faint
+     * tinted disc behind a full-colour glyph, like the default look). Wins over [useThemeColor], so
+     * recolouring one event overrides the global dynamic-colour role for it. Null keeps the default.
+     */
+    val colorOverride: CutoutColor? = null,
+    /**
      * Overrides the icon container (the disc behind the glyph) with a user-chosen colour, filled at
      * full opacity with contrasting ink. Set by the dynamic tiles from their settings; null keeps the
      * default look (a faint [accent]-tinted disc behind an [accent] glyph, or the [useThemeColor] role).

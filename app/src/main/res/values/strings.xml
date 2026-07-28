@@ -260,6 +260,10 @@
     <string name="event_duration_label">Cutout duration</string>
     <string name="event_duration_desc">How long this event stays on the cutout before it disappears</string>
     <string name="event_duration_reset">Reset to default</string>
+    <string name="event_color_title">Event colour</string>
+    <string name="event_color_reset">Reset to default</string>
+    <string name="event_color_default_accent">Default colour</string>
+    <string name="event_color_default_dynamic">Dynamic colour</string>
     <string name="event_animated_icon">Animated icon</string>
     <string name="event_animated_icon_desc">Play a moving icon instead of the plain glyph</string>
     <string name="event_loop">Loop</string>

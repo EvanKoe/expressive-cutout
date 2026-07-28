@@ -12,6 +12,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
@@ -73,6 +74,7 @@ class IconResolver(private val context: Context) {
         dynamicEventColorOpacity: Float = 1f,
         animatedIconEnabled: Map<SystemEventType, Boolean> = emptyMap(),
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
+        eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
         is CutoutSignal.System -> resolveSystem(
@@ -83,6 +85,7 @@ class IconResolver(private val context: Context) {
             dynamicEventColorOpacity,
             animatedIconEnabled,
             animatedIconLoop,
+            eventColorOverrides,
         )
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
@@ -246,6 +249,7 @@ class IconResolver(private val context: Context) {
         dynamicEventColorOpacity: Float,
         animatedIconEnabled: Map<SystemEventType, Boolean>,
         animatedIconLoop: Map<SystemEventType, Boolean>,
+        eventColorOverrides: Map<SystemEventType, CutoutColor>,
     ): IslandEvent {
         // A user override always wins; otherwise events with an animation (charging / unlock) use it
         // when the "Animated icon" toggle is on — looping per the "Loop" toggle — and every other
@@ -268,6 +272,7 @@ class IconResolver(private val context: Context) {
             useThemeColor = dynamicEventColor,
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
+            colorOverride = eventColorOverrides[type],
         )
     }
 

@@ -42,6 +42,7 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
@@ -123,6 +124,7 @@ class IslandOverlayController(private val context: Context) {
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
     private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
+    private var eventColors: Map<SystemEventType, CutoutColor> = emptyMap()
     // The system event currently on the pill, so its auto-dismiss uses that event's own duration
     // override (null while a notification or live tile is showing → the global normal duration).
     private var currentSystemEventType: SystemEventType? = null
@@ -191,6 +193,7 @@ class IslandOverlayController(private val context: Context) {
         observeEventPreferences()
         observeEventDurations()
         observeEventAnimatedIcons()
+        observeEventColors()
         observeEventDynamicColor()
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
@@ -338,6 +341,10 @@ class IslandOverlayController(private val context: Context) {
     private fun observeEventAnimatedIcons() {
         scope.launch { eventPreferences.animatedIcons.collect { eventAnimatedIcons = it } }
         scope.launch { eventPreferences.animatedIconLoops.collect { eventAnimatedIconLoops = it } }
+    }
+
+    private fun observeEventColors() = scope.launch {
+        eventPreferences.colors.collect { eventColors = it }
     }
 
     private fun observeEventDynamicColor() = scope.launch {
@@ -651,6 +658,7 @@ class IslandOverlayController(private val context: Context) {
                 eventDynamicColorOpacity,
                 eventAnimatedIcons,
                 eventAnimatedIconLoops,
+                eventColors,
             ).copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than
