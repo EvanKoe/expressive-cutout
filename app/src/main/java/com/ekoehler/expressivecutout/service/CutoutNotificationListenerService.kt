@@ -100,6 +100,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         OnCallBus.update(
             OnCall(
                 callerLabel = call.callerLabel,
+                callerNumber = call.callerNumber,
                 photo = call.photo,
                 startTimeMs = call.startTimeMs,
                 ongoing = call.ongoing,

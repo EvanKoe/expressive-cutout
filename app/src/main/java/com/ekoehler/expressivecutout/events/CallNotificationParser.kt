@@ -17,6 +17,12 @@ import com.ekoehler.expressivecutout.overlay.toImageBitmap
  */
 data class ParsedCall(
     val callerLabel: String,
+    /**
+     * The caller's dialable number when the dialer exposes one (a CallStyle [Person] `tel:` URI),
+     * else null. Shown as the incoming-call tile's secondary line above the name; null (or a value
+     * equal to [callerLabel], i.e. an unknown caller shown by number) hides that line.
+     */
+    val callerNumber: String?,
     val photo: ImageBitmap?,
     val startTimeMs: Long?,
     val ongoing: Boolean,
@@ -72,7 +78,14 @@ object CallNotificationParser {
             CutoutSignal.Notification.Action(label, intent)
         }
 
-        return ParsedCall(callerLabel, photo, startTimeMs, ongoing, actions)
+        return ParsedCall(callerLabel, phoneNumber(person), photo, startTimeMs, ongoing, actions)
+    }
+
+    /** The caller's dialable number, pulled from the CallStyle [Person]'s `tel:` URI, or null. */
+    private fun phoneNumber(person: Person?): String? {
+        val uri = person?.uri ?: return null
+        val number = uri.removePrefix("tel:")
+        return number.takeIf { it != uri && it.isNotBlank() }
     }
 
     /** The [Person] a CallStyle notification names as the caller (API 31+), or null. */

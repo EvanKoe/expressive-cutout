@@ -30,6 +30,11 @@ object OnCallBus {
  */
 data class OnCall(
     val callerLabel: String,
+    /**
+     * The caller's dialable number when the dialer exposes one, else null. The incoming-call tile
+     * shows it above the name; hidden once the call is [ongoing] or when it equals [callerLabel].
+     */
+    val callerNumber: String?,
     val photo: ImageBitmap?,
     val startTimeMs: Long?,
     val ongoing: Boolean,

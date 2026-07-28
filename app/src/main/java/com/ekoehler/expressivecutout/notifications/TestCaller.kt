@@ -42,6 +42,7 @@ object TestCaller {
         OnCallBus.update(
             OnCall(
                 callerLabel = label,
+                callerNumber = null,
                 photo = null,
                 startTimeMs = System.currentTimeMillis(),
                 ongoing = true,

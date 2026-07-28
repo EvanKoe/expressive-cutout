@@ -147,8 +147,10 @@ data class IslandAction(
     val label: String,
     val intent: PendingIntent,
     val reply: IslandReply? = null,
-    /** True for a destructive call action (hang up / end call), so the phone tile can tint it apart. */
+    /** True for a destructive call action (hang up / end call / decline), so the phone tile can tint it apart. */
     val destructive: Boolean = false,
+    /** True for an incoming call's answer / accept action, so the phone tile can render it as the take-call button. */
+    val answer: Boolean = false,
 )
 
 /** Everything needed to send an inline reply through a notification action's intent. */

@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -237,11 +238,19 @@ fun DynamicIsland(
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
+    // An incoming (not yet connected) call shows two trailing buttons (decline + answer); a connected
+    // call shows one (hang up). Read live from the call bus so the pill re-sizes when it is answered.
+    val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
+    val callTrailingButtons = when {
+        !isCall || !hasCallActions -> 0
+        liveCall?.ongoing == false -> 2
+        else -> 1
+    }
     // The call cutout widens to fit a long caller name (up to its max); measured once per name/state.
     val density = LocalDensity.current.density
-    val callWidthPercent = remember(isCall, shownEvent?.label, hasCallActions, displayWidthDp, density) {
+    val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, displayWidthDp, density) {
         if (isCall && shownEvent != null) {
-            callCutoutWidthPercent(shownEvent.label, hasCallActions, displayWidthDp, density)
+            callCutoutWidthPercent(shownEvent.label, callTrailingButtons, displayWidthDp, density)
         } else {
             CALL_MIN_WIDTH_PERCENT
         }
@@ -1353,20 +1362,22 @@ private const val CALL_NAME_SLACK_DP = 8
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
  * [CALL_MIN_WIDTH_PERCENT] by default, widening to fit a long name up to [CALL_MAX_WIDTH_PERCENT].
- * [showHangUp] reserves room for the trailing button. The pill is sized to this width and its
- * content laid out within it — a name too long for even the max width ellipsizes — so measuring the
- * name here (rather than letting content drive the size) lets the overlay's rendering and its
- * touchable region agree exactly on the pill's width. [density] converts the measured text to dp.
+ * [trailingButtons] reserves room for that many trailing call buttons (one for a connected call's
+ * hang-up, two for an incoming call's decline + answer, zero when actions are hidden). The pill is
+ * sized to this width and its content laid out within it — a name too long for even the max width
+ * ellipsizes — so measuring the name here (rather than letting content drive the size) lets the
+ * overlay's rendering and its touchable region agree exactly on the pill's width. [density] converts
+ * the measured text to dp.
  */
 internal fun callCutoutWidthPercent(
     callerName: String,
-    showHangUp: Boolean,
+    trailingButtons: Int,
     displayWidthDp: Int,
     density: Float,
 ): Int {
-    // Everything on the row that isn't the name: leading avatar + its spacing, the trailing button +
-    // its spacing (when shown), and the row's horizontal padding on both edges. Mirrors CallNormalContent.
-    val trailingDp = if (showHangUp) CALL_HANGUP_BUTTON_DP + CALL_ROW_SPACING_DP else 0
+    // Everything on the row that isn't the name: leading avatar + its spacing, the trailing button(s) +
+    // their spacing (when shown), and the row's horizontal padding on both edges. Mirrors CallNormalContent.
+    val trailingDp = trailingButtons * (CALL_HANGUP_BUTTON_DP + CALL_ROW_SPACING_DP)
     val fixedDp = CALL_ROW_PADDING_DP * 2 + CALL_AVATAR_DP + CALL_ROW_SPACING_DP + trailingDp
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         textSize = CALL_NAME_SIZE_SP * density
@@ -1379,11 +1390,13 @@ internal fun callCutoutWidthPercent(
 }
 
 /**
- * The phone tile's single, normal-only layout (it has no expanded state): the caller's photo (or a
- * fallback icon) and name on the left, and — when the tile's action buttons are enabled — a round
- * hang-up button on the right. Shown in the bigger call cutout ([asCallCutout]), whose width is
- * sized to the name by [callCutoutWidthPercent]. Live state — the photo and the duration's start
- * time — is read from [OnCallBus].
+ * The phone tile's single, normal-only layout (it has no expanded state). Left to right: the caller's
+ * photo (or a fallback icon), the caller text, and — when the tile's action buttons are enabled — the
+ * call controls. A connected call shows the duration above the name and one hang-up button; an incoming
+ * (still ringing) call shows the caller's number above the name and two buttons: decline (red) then
+ * answer (primary). Shown in the bigger call cutout ([asCallCutout]), whose width is sized to the name
+ * (and button count) by [callCutoutWidthPercent]. Live state — the photo, the caller number, whether
+ * the call is connected, and the duration's start time — is read from [OnCallBus].
  */
 @Composable
 private fun CallNormalContent(
@@ -1393,8 +1406,11 @@ private fun CallNormalContent(
     val call = event.call ?: return
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
     val photo = onCall?.photo?.takeIf { call.showPhoto }
-    // The hang-up (destructive) action; fall back to the first action if the dialer flags none.
+    val incoming = onCall?.ongoing == false
+    // The decline / hang-up (destructive) action; fall back to the first action if the dialer flags none.
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
+    // The answer action only exists for an incoming call; null leaves the tile without a take-call button.
+    val answer = event.actions.firstOrNull { it.answer }
 
     Row(
         modifier = Modifier
@@ -1409,8 +1425,23 @@ private fun CallNormalContent(
             IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
-            AnimatedVisibility (visible = call.showDuration) {
-                CallStatus(onCall = onCall)
+            if (incoming) {
+                // The caller's number above the name — only when the dialer exposes one distinct
+                // from the name (an unknown caller shown by number would otherwise repeat it).
+                val number = onCall?.callerNumber?.takeIf { it.isNotBlank() && it != event.label }
+                if (number != null) {
+                    Text(
+                        text = number,
+                        color = LocalContentColor.current.copy(alpha = 0.70f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                AnimatedVisibility(visible = call.showDuration) {
+                    CallStatus(onCall = onCall)
+                }
             }
 
             Text(
@@ -1422,31 +1453,65 @@ private fun CallNormalContent(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (call.showActions && hangUp != null) {
-            CallHangUpButton(fill = call.hangUpColor.resolve(), onClick = { onAction(hangUp) })
+        if (call.showActions) {
+            if (incoming) {
+                if (hangUp != null) {
+                    CallCircleButton(
+                        icon = Icons.Rounded.CallEnd,
+                        description = "Decline",
+                        container = MaterialTheme.colorScheme.error,
+                        content = MaterialTheme.colorScheme.onError,
+                        onClick = { onAction(hangUp) },
+                    )
+                }
+                if (answer != null) {
+                    CallCircleButton(
+                        icon = Icons.Rounded.Call,
+                        description = "Answer",
+                        container = MaterialTheme.colorScheme.primary,
+                        content = MaterialTheme.colorScheme.onPrimary,
+                        onClick = { onAction(answer) },
+                    )
+                }
+            } else if (hangUp != null) {
+                val fill = call.hangUpColor.resolve()
+                CallCircleButton(
+                    icon = Icons.Rounded.CallEnd,
+                    description = "Hang up",
+                    container = fill,
+                    content = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                    onClick = { onAction(hangUp) },
+                )
+            }
         }
     }
 }
 
-/** The round, filled hang-up button on the trailing edge of the call cutout. */
+/** A round, filled call button (hang up / decline / answer) on the trailing edge of the call cutout. */
 @Composable
-private fun CallHangUpButton(fill: Color, onClick: () -> Unit) {
+private fun CallCircleButton(
+    icon: ImageVector,
+    description: String,
+    container: Color,
+    content: Color,
+    onClick: () -> Unit,
+) {
     val interaction = remember { MutableInteractionSource() }
     FilledIconButton(
         onClick = onClick,
         interactionSource = interaction,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = fill,
-            contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+            containerColor = container,
+            contentColor = content,
         ),
         modifier = Modifier
             .size(CALL_HANGUP_BUTTON_DP.dp)
             .pressScale(interaction),
     ) {
         Icon(
-            imageVector = Icons.Rounded.CallEnd,
-            contentDescription = "Hang up",
+            imageVector = icon,
+            contentDescription = description,
             modifier = Modifier.size(22.dp),
         )
     }
