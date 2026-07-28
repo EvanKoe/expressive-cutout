@@ -20,6 +20,26 @@ import com.ekoehler.expressivecutout.data.TimerTileSettings
 import java.util.concurrent.atomic.AtomicLong
 
 /**
+ * The Lottie animation to use for events that read better as motion than a static glyph, or null for
+ * events that have none. A top-level extension (not a member of [SystemEventType]) so the enum stays a
+ * pure domain type, while both the overlay and the settings preview can share this single mapping.
+ */
+fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
+    // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
+    // padlock, but a device-unlocked event should rest unlocked.
+    SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock, clipStartFrame = 0, clipEndFrame = 45)
+    // A charging bolt that loops for as long as the cutout is shown. It sits small within its own
+    // canvas, so scale it up, and tint it to the badge colour so it follows the theme/accent.
+    SystemEventType.CHARGING_STARTED -> IslandIcon.Lottie(
+        R.raw.charging,
+        iterations = LottieConstants.IterateForever,
+        scale = 4f,
+        tint = true,
+    )
+    else -> null
+}
+
+/**
  * Turns a source-agnostic [CutoutSignal] into a renderable [IslandEvent], applying the
  * user's icon overrides and looking up app metadata. This is the one place that touches
  * the [PackageManager] and content resolver, so all the "impure" resolution lives here.
@@ -215,26 +235,6 @@ class IconResolver(private val context: Context) {
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
         )
-    }
-
-    /**
-     * The Lottie animation to use for events that read better as motion than a static glyph, or
-     * null for events that have none. Kept off [SystemEventType] itself so the enum stays a pure
-     * domain type (its [SystemEventType.defaultIcon] still backs settings-screen previews).
-     */
-    private fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
-        // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
-        // padlock, but a device-unlocked event should rest unlocked.
-        SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock, clipStartFrame = 0, clipEndFrame = 45)
-        // A charging bolt that loops for as long as the cutout is shown. It sits small within its own
-        // canvas, so scale it up, and tint it to the badge colour so it follows the theme/accent.
-        SystemEventType.CHARGING_STARTED -> IslandIcon.Lottie(
-            R.raw.charging,
-            iterations = LottieConstants.IterateForever,
-            scale = 4f,
-            tint = true,
-        )
-        else -> null
     }
 
     /** Loads the chosen source into a raster icon, or null to fall back to the default. */

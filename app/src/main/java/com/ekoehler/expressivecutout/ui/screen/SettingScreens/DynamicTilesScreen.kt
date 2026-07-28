@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.data.CutoutColor
-import com.ekoehler.expressivecutout.overlay.onForRole
+import com.ekoehler.expressivecutout.overlay.onDynamicRole
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 
@@ -111,7 +111,7 @@ private fun DynamicTileCard(
     if (containerColor != null) {
         badgeColor = containerColor.resolve()
         glyphColor = when (containerColor) {
-            is CutoutColor.Dynamic -> MaterialTheme.colorScheme.onForRole(containerColor.role)
+            is CutoutColor.Dynamic -> onDynamicRole(containerColor.role)
             is CutoutColor.Solid -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
         }
     } else {

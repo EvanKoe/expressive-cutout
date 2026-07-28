@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.ui.components.BackNavBar
 import com.ekoehler.expressivecutout.ui.components.ExpressiveNavBar
 import com.ekoehler.expressivecutout.ui.components.NavBarItem
@@ -84,6 +85,9 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     // Which tile's settings are open (saved by name so it survives config change / process death).
     var selectedTileName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedTile = selectedTileName?.let { name -> DynamicTile.entries.firstOrNull { it.name == name } }
+    // Likewise for the event whose detail (icon + duration) screen is open.
+    var selectedEventName by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedEvent = selectedEventName?.let { name -> SystemEventType.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
     val current = tabs[selectedIndex]
     val haptics = LocalHapticFeedback.current
@@ -161,8 +165,13 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             contentPadding = contentPadding,
                             route = settingsRoute,
                             selectedTile = selectedTile,
+                            selectedEvent = selectedEvent,
                             onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
                             onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
+                            onOpenEvent = { event ->
+                                selectedEventName = event.name
+                                settingsRoute = SettingsRoute.EventDetail
+                            },
                             onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
                             onOpenTile = { tile ->
                                 selectedTileName = tile.name
@@ -206,6 +215,8 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
                     SettingsRoute.DynamicTileDetail ->
                         selectedTile?.let { stringResource(it.labelRes) } ?: stringResource(R.string.dynamic_tiles_title)
+                    SettingsRoute.EventDetail ->
+                        selectedEvent?.let { stringResource(it.labelRes) } ?: stringResource(R.string.section_icons_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                     SettingsRoute.Background -> stringResource(R.string.appearance_background_color)

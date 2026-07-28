@@ -90,6 +90,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = 1f,
         )
 
+    /** Per-event cutout-duration overrides; absent events follow the global normal duration. */
+    val eventDurations: StateFlow<Map<SystemEventType, Int>> =
+        eventPreferences.durations.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
         dynamicTilePreferences.enabled.stateIn(
             scope = viewModelScope,
@@ -172,6 +180,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventDynamicColorOpacity(opacity: Float) = viewModelScope.launch {
         eventPreferences.setDynamicColorOpacity(opacity)
+    }
+
+    fun setEventDuration(type: SystemEventType, seconds: Int) = viewModelScope.launch {
+        eventPreferences.setDuration(type, seconds)
+    }
+
+    fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
+        eventPreferences.clearDuration(type)
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {

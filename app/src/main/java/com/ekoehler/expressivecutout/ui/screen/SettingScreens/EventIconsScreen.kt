@@ -1,10 +1,7 @@
 package com.ekoehler.expressivecutout.ui.screen
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
@@ -21,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,46 +26,43 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.SimpleColorFilter
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.rememberLottieDynamicProperties
+import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.ekoehler.expressivecutout.R
-import com.ekoehler.expressivecutout.core.CutoutSignal
-import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.forRole
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.onForRole
@@ -81,31 +76,13 @@ import kotlin.math.roundToInt
 internal fun EventIconsScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenEvent: (SystemEventType) -> Unit,
 ) {
-    val context = LocalContext.current
     val customIcons by viewModel.customIcons.collectAsStateWithLifecycle()
     val eventEnabled by viewModel.eventEnabled.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.eventDynamicColor.collectAsStateWithLifecycle()
     val dynamicColorRole by viewModel.eventDynamicColorRole.collectAsStateWithLifecycle()
     val dynamicColorOpacity by viewModel.eventDynamicColorOpacity.collectAsStateWithLifecycle()
-
-    var pendingImageType by remember { mutableStateOf<SystemEventType?>(null) }
-    var editingType by remember { mutableStateOf<SystemEventType?>(null) }
-    var appPickerType by remember { mutableStateOf<SystemEventType?>(null) }
-
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        val type = pendingImageType
-        pendingImageType = null
-        if (uri != null && type != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            viewModel.setImageIcon(type, uri.toString())
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -161,40 +138,9 @@ internal fun EventIconsScreen(
                     dynamicColorRole = dynamicColorRole,
                     dynamicColorOpacity = dynamicColorOpacity,
                     onEnabledChange = { viewModel.setEventEnabled(type, it) },
-                    onClick = { editingType = type },
-                    onTest = { IslandEventBus.emit(CutoutSignal.System(type)) },
+                    onClick = { onOpenEvent(type) },
                 )
             }
-        }
-
-        editingType?.let { type ->
-            IconChooserSheet(
-                hasOverride = customIcons[type] != null,
-                onChooseImage = {
-                    editingType = null
-                    pendingImageType = type
-                    imagePicker.launch(arrayOf("image/*"))
-                },
-                onChooseApp = {
-                    editingType = null
-                    appPickerType = type
-                },
-                onUseDefault = {
-                    editingType = null
-                    viewModel.resetIcon(type)
-                },
-                onDismiss = { editingType = null },
-            )
-        }
-
-        appPickerType?.let { type ->
-            AppIconPickerSheet(
-                onPick = { packageName ->
-                    appPickerType = null
-                    viewModel.setAppIcon(type, packageName)
-                },
-                onDismiss = { appPickerType = null },
-            )
         }
     }
 }
@@ -305,7 +251,6 @@ private fun EventIconCard(
     dynamicColorOpacity: Float,
     onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
-    onTest: () -> Unit,
 ) {
     val context = LocalContext.current
     val defaultLabel = stringResource(R.string.label_default)
@@ -337,7 +282,7 @@ private fun EventIconCard(
                 .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Tapping this area opens the icon chooser; dimmed when the event is disabled.
+            // Tapping the card opens the event's detail screen; dimmed when the event is disabled.
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -364,27 +309,33 @@ private fun EventIconCard(
                     )
                 }
             }
-            FilledTonalIconButton(onClick = onTest, enabled = enabled) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = stringResource(R.string.cd_test_event),
-                )
-            }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(12.dp))
+            // Thin divider between the (tappable) row and the switch, matching the dynamic tiles list.
+            Box(
+                modifier = Modifier
+                    .height(28.dp)
+                    .width(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+            Spacer(Modifier.width(12.dp))
             Switch(checked = enabled, onCheckedChange = onEnabledChange)
         }
     }
 }
 
 @Composable
-private fun EventIconThumbnail(
+internal fun EventIconThumbnail(
     type: SystemEventType,
     source: IconSource?,
     dynamicColor: Boolean,
     dynamicColorRole: DynamicRole,
     dynamicColorOpacity: Float,
+    size: Dp = 48.dp,
 ) {
     val context = LocalContext.current
+    // Inner glyph/image/animation sizes are defined against the 48dp list badge; scale them with the
+    // requested badge size so the detail screen can show a larger hero without new magic numbers.
+    val sizeScale = size / 48.dp
     // Mirror the overlay's IconBadge: with "Dynamic color" on, a role-coloured disc (at the chosen
     // opacity) + its matching "on" glyph replaces the event's own accent tint. Both colours are
     // animated so toggling the setting (or dragging the opacity slider) crossfades rather than snaps
@@ -417,69 +368,61 @@ private fun EventIconThumbnail(
         }
     }
 
+    // Events that render as motion on the cutout (e.g. the charging bolt) preview their animation here,
+    // looping so it's visible at a glance. A custom image/app override still wins over the animation.
+    val animated = remember(type) { type.animatedIcon() }
+
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(size)
             .clip(CircleShape)
             .background(badgeColor),
         contentAlignment = Alignment.Center,
     ) {
         val loaded = bitmap
-        if (loaded != null) {
-            Image(
+        when {
+            loaded != null -> Image(
                 bitmap = loaded,
                 contentDescription = null,
-                modifier = Modifier.size(32.dp).clip(CircleShape),
+                modifier = Modifier.size(32.dp * sizeScale).clip(CircleShape),
             )
-        } else {
-            Icon(
+
+            animated != null -> {
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(animated.resId),
+                )
+                // Recolour to the glyph colour when the animation follows the theme (as on the cutout).
+                val dynamicProperties = if (animated.tint) {
+                    rememberLottieDynamicProperties(
+                        rememberLottieDynamicProperty(
+                            property = LottieProperty.COLOR_FILTER,
+                            value = SimpleColorFilter(glyphColor.toArgb()),
+                            keyPath = arrayOf("**"),
+                        ),
+                    )
+                } else {
+                    null
+                }
+                LottieAnimation(
+                    composition = composition,
+                    iterations = LottieConstants.IterateForever,
+                    dynamicProperties = dynamicProperties,
+                    // Match the overlay's scaling; the oversized art is clipped to the badge circle.
+                    modifier = Modifier.requiredSize(24.dp * animated.scale * sizeScale),
+                )
+            }
+
+            else -> Icon(
                 imageVector = type.defaultIcon,
                 contentDescription = null,
                 tint = glyphColor,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(24.dp * sizeScale),
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun IconChooserSheet(
-    hasOverride: Boolean,
-    onChooseImage: () -> Unit,
-    onChooseApp: () -> Unit,
-    onUseDefault: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Text(
-            text = stringResource(R.string.set_icon_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
-        )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.action_choose_image)) },
-            leadingContent = { Icon(Icons.Rounded.Image, contentDescription = null) },
-            modifier = Modifier.clickable(onClick = onChooseImage),
-        )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.action_choose_app)) },
-            leadingContent = { Icon(Icons.Rounded.Apps, contentDescription = null) },
-            modifier = Modifier.clickable(onClick = onChooseApp),
-        )
-        if (hasOverride) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.action_use_default)) },
-                leadingContent = { Icon(Icons.Rounded.Restore, contentDescription = null) },
-                modifier = Modifier.clickable(onClick = onUseDefault),
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
-private fun appLabelOf(context: Context, packageName: String): String? = runCatching {
+internal fun appLabelOf(context: Context, packageName: String): String? = runCatching {
     val info = context.packageManager.getApplicationInfo(packageName, 0)
     context.packageManager.getApplicationLabel(info).toString()
 }.getOrNull()

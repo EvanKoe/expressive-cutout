@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ekoehler.expressivecutout.core.SystemEventType
@@ -50,8 +51,28 @@ class EventPreferences(private val context: Context) {
         prefs[DYNAMIC_COLOR_OPACITY_KEY]?.coerceIn(0f, 1f) ?: 1f
     }
 
+    /**
+     * Per-event override for how long the event's cutout stays before auto-dismissing. Only events
+     * the user has explicitly tuned appear here; an absent entry means the event follows the global
+     * "normal cutout duration" from Behaviour.
+     */
+    val durations: Flow<Map<SystemEventType, Int>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            prefs[type.durationKey]?.let { seconds -> type to seconds }
+        }.toMap()
+    }
+
     suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
         it[type.key] = enabled
+    }
+
+    suspend fun setDuration(type: SystemEventType, seconds: Int) = context.eventDataStore.edit {
+        it[type.durationKey] = seconds
+    }
+
+    /** Drop the override so the event falls back to the global normal cutout duration. */
+    suspend fun clearDuration(type: SystemEventType) = context.eventDataStore.edit {
+        it.remove(type.durationKey)
     }
 
     suspend fun setDynamicColor(enabled: Boolean) = context.eventDataStore.edit {
@@ -68,6 +89,9 @@ class EventPreferences(private val context: Context) {
 
     private val SystemEventType.key: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_enabled_$name")
+
+    private val SystemEventType.durationKey: Preferences.Key<Int>
+        get() = intPreferencesKey("event_duration_$name")
 
     private companion object {
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("events_dynamic_color")

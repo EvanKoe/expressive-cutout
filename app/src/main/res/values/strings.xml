@@ -253,6 +253,13 @@
     <string name="label_app">App icon</string>
     <string name="action_change">Change</string>
 
+    <!-- Event detail -->
+    <string name="event_change_icon">Change icon</string>
+    <string name="event_test">Test</string>
+    <string name="event_duration_label">Cutout duration</string>
+    <string name="event_duration_desc">How long this event stays on the cutout before it disappears</string>
+    <string name="event_duration_reset">Reset to default</string>
+
     <!-- Bottom navigation -->
     <string name="nav_settings">Settings</string>
     <string name="nav_permissions">Permissions</string>

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
@@ -67,8 +68,10 @@ fun SettingsTab(
     contentPadding: PaddingValues,
     route: SettingsRoute,
     selectedTile: DynamicTile?,
+    selectedEvent: SystemEventType?,
     onOpenSizePosition: () -> Unit,
     onOpenEventIcons: () -> Unit,
+    onOpenEvent: (SystemEventType) -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenTile: (DynamicTile) -> Unit,
     onOpenBehaviour: () -> Unit,
@@ -105,7 +108,9 @@ fun SettingsTab(
             }
 
             SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
-            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding)
+            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding, onOpenEvent)
+            SettingsRoute.EventDetail ->
+                selectedEvent?.let { EventDetailScreen(it, viewModel, contentPadding) }
             SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding, onOpenTile)
             SettingsRoute.DynamicTileDetail ->
                 selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
@@ -119,7 +124,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, DynamicTiles, DynamicTileDetail, Behaviour, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Behaviour, Appearance, Background, ActionButtons }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -129,6 +134,7 @@ val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
         SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
+        SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         else -> SettingsRoute.List
     }
 
@@ -136,7 +142,8 @@ val SettingsRoute.parent: SettingsRoute
 val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
-        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail -> 2
+        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
+        SettingsRoute.EventDetail -> 2
         else -> 1
     }
 

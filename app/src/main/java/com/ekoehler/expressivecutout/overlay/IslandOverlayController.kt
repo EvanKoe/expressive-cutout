@@ -120,6 +120,10 @@ class IslandOverlayController(private val context: Context) {
     private val appearanceState = MutableStateFlow(AppearanceSettings())
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
+    private var eventDurations: Map<SystemEventType, Int> = emptyMap()
+    // The system event currently on the pill, so its auto-dismiss uses that event's own duration
+    // override (null while a notification or live tile is showing → the global normal duration).
+    private var currentSystemEventType: SystemEventType? = null
     private var eventDynamicColor: Boolean = false
     private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
     private var eventDynamicColorOpacity: Float = 1f
@@ -183,6 +187,7 @@ class IslandOverlayController(private val context: Context) {
         observeBehaviour()
         observeAppearance()
         observeEventPreferences()
+        observeEventDurations()
         observeEventDynamicColor()
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
@@ -321,6 +326,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeEventPreferences() = scope.launch {
         eventPreferences.enabled.collect { eventEnabled = it }
+    }
+
+    private fun observeEventDurations() = scope.launch {
+        eventPreferences.durations.collect { eventDurations = it }
     }
 
     private fun observeEventDynamicColor() = scope.launch {
@@ -619,6 +628,8 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
             }
+            // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
+            currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = null
             expanded = autoExpand
             currentEvent.value = resolver.resolve(
@@ -830,8 +841,11 @@ class IslandOverlayController(private val context: Context) {
         dismissJob?.cancel()
         // Never time out a live cutout while it's active — it stays until playback / the call stops.
         if (isPinnedLiveTile()) return
+        // A system event with its own duration override wins; everything else uses the global normal.
+        val seconds = currentSystemEventType?.let { eventDurations[it] }
+            ?: behaviourState.value.normalDurationSeconds
         dismissJob = scope.launch {
-            delay(behaviourState.value.normalDurationSeconds * 1_000L)
+            delay(seconds * 1_000L)
             val livePill = livePillToReturnTo()
             when {
                 // Return to the pinned preview if settings is still open.

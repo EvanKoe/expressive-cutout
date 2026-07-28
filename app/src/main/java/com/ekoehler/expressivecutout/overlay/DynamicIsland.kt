@@ -1556,7 +1556,7 @@ private fun IconBadge(
         container != null -> {
             badgeColor = container.resolve()
             glyphColor = when (container) {
-                is CutoutColor.Dynamic -> MaterialTheme.colorScheme.onForRole(container.role)
+                is CutoutColor.Dynamic -> onDynamicRole(container.role)
                 is CutoutColor.Solid ->
                     if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
             }

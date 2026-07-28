@@ -78,6 +78,26 @@ private fun dynamicRole(role: DynamicRole): Color {
     }
 }
 
+/**
+ * The matching "on" colour for a [CutoutColor.Dynamic] [role], read from the *same* system Material
+ * You scheme as [dynamicRole] (which [CutoutColor.resolve] fills the badge with). Using
+ * `MaterialTheme.colorScheme.onForRole` instead would draw the app theme's on-colour, which needn't
+ * match the system accent the badge is actually painted with — leaving e.g. white ink on a light
+ * dynamic accent in dark mode when the app's own dynamic colour is off or its light/dark differs.
+ */
+@Composable
+fun onDynamicRole(role: DynamicRole): Color {
+    val context = LocalContext.current
+    val dark = isSystemInDarkTheme()
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        scheme.onForRole(role)
+    } else {
+        // The fallback fill is a mid blue; white ink reads legibly on it in both themes.
+        Color.White
+    }
+}
+
 internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary
