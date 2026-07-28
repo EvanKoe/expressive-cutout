@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -75,6 +76,7 @@ fun SettingsTab(
     onOpenDynamicTiles: () -> Unit,
     onOpenTile: (DynamicTile) -> Unit,
     onOpenBehaviour: () -> Unit,
+    onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
@@ -103,6 +105,7 @@ fun SettingsTab(
                     onOpenEventIcons = onOpenEventIcons,
                     onOpenDynamicTiles = onOpenDynamicTiles,
                     onOpenBehaviour = onOpenBehaviour,
+                    onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
                 )
             }
@@ -115,6 +118,7 @@ fun SettingsTab(
             SettingsRoute.DynamicTileDetail ->
                 selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
             SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
+            SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
             SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
@@ -124,7 +128,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Behaviour, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Behaviour, Animation, Appearance, Background, ActionButtons }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -156,6 +160,7 @@ private fun SettingsList(
     onOpenEventIcons: () -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenBehaviour: () -> Unit,
+    onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -212,6 +217,12 @@ private fun SettingsList(
                 title = stringResource(R.string.behaviour_title),
                 subtitle = stringResource(R.string.settings_behaviour_subtitle),
                 onClick = onOpenBehaviour,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.Animation,
+                title = stringResource(R.string.animation_title),
+                subtitle = stringResource(R.string.settings_animation_subtitle),
+                onClick = onOpenAnimation,
             )
         }
 

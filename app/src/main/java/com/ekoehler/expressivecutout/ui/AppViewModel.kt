@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.AnimationBounce
+import com.ekoehler.expressivecutout.data.AnimationSpeed
+import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -339,6 +342,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
+    }
+
+    fun setAnimationStyle(style: AnimationStyle) = viewModelScope.launch {
+        behaviourPreferences.setAnimationStyle(style)
+    }
+
+    fun setAnimationSpeed(speed: AnimationSpeed) = viewModelScope.launch {
+        behaviourPreferences.setAnimationSpeed(speed)
+    }
+
+    fun setAnimationBounce(bounce: AnimationBounce) = viewModelScope.launch {
+        behaviourPreferences.setAnimationBounce(bounce)
     }
 
     fun setAnimationDurationMs(ms: Int) = viewModelScope.launch {

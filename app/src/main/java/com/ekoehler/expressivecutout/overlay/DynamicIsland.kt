@@ -106,6 +106,9 @@ import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.AnimationBounce
+import com.ekoehler.expressivecutout.data.AnimationSpeed
+import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
@@ -149,7 +152,7 @@ private const val ALBUM_SPIN_MS = 8000
 // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
 // animation is expressed relative to this, so the user's single "animation duration" knob scales
 // them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
-private const val BASE_TRANSITION_MS = 220
+private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 
 /**
  * Extra height added to the expanded island when it shows action buttons, so the added row grows
@@ -171,6 +174,9 @@ fun DynamicIsland(
     expanded: IslandDimensions,
     displayWidthDp: Int,
     forcedExpanded: Boolean?,
+    animationStyle: AnimationStyle,
+    animationSpeed: AnimationSpeed,
+    animationBounce: AnimationBounce,
     animationDurationMs: Int,
     autoCollapse: Boolean,
     autoCollapseMs: Long,
@@ -217,6 +223,14 @@ fun DynamicIsland(
     // At 0ms everything snaps instantly; at the default (BASE_TRANSITION_MS) the feel is unchanged.
     val animScale = animationDurationMs / BASE_TRANSITION_MS.toFloat()
     fun scaled(baseMs: Int) = (baseMs * animScale).roundToInt()
+
+    // The island's primary motion (reveal, size / position / corners, background fade) follows the
+    // configured style: expressive spatial springs (speed picked by the user, durations ignored) or
+    // a standard ease-in-out tween scaled by the animation-duration slider. IslandMotion is shared
+    // with the settings example pills, so the preview there shows exactly this motion.
+    val motion = remember(animationStyle, animationSpeed, animationBounce, animationDurationMs) {
+        IslandMotion(animationStyle, animationSpeed, animationBounce, animationDurationMs)
+    }
 
     // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
@@ -280,17 +294,13 @@ fun DynamicIsland(
     LaunchedEffect(present) {
         reveal.animateTo(
             targetValue = if (present) 1f else 0f,
-            animationSpec = tween(
-                durationMillis = if (present) scaled(320) else scaled(200),
-                easing = EmphasizedEasing,
-            ),
+            animationSpec = motion.float(baseMs = if (present) 320 else 200),
         )
     }
     // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
     // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
-    val spec: AnimationSpec<Dp> =
-        if (reveal.value == 0f) snap() else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing)
+    val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
     val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
     val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
     val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
@@ -302,7 +312,7 @@ fun DynamicIsland(
     // Drives the background cross-fade between the normal and expanded fills, in step with the size.
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing),
+        animationSpec = motion.fade(),
         label = "islandBackgroundFade",
     )
 

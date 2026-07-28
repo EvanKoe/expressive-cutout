@@ -126,7 +126,11 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             )
         }
 
-        Text(stringResource(R.string.perm_testing_title))
+        Text(
+            text = stringResource(R.string.perm_testing_title),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Column(
             modifier = Modifier.fillMaxWidth()

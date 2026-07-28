@@ -222,6 +222,19 @@
 
     <!-- Behaviour tab -->
     <string name="behaviour_title">Behaviour</string>
+    <string name="animation_title">Animations</string>
+    <string name="settings_animation_subtitle">Tune how fast the cutout animates</string>
+    <string name="animation_style">Animation style</string>
+    <string name="animation_style_expressive">Expressive</string>
+    <string name="animation_style_ease">Ease in-out</string>
+    <string name="animation_speed">Animation speed</string>
+    <string name="animation_speed_slow">Slow</string>
+    <string name="animation_speed_default">Default</string>
+    <string name="animation_speed_fast">Fast</string>
+    <string name="animation_bounce">Bounce</string>
+    <string name="animation_bounce_big">Big</string>
+    <string name="animation_bounce_normal">Normal</string>
+    <string name="animation_bounce_small">Small</string>
     <string name="behaviour_hide_lockscreen">Hide on lockscreen</string>
     <string name="behaviour_hide_lockscreen_desc">Don\'t show the cutout while the device is locked. The overlay is fully removed until you unlock, so it uses no resources.</string>
     <string name="behaviour_animation_duration">Animation duration</string>

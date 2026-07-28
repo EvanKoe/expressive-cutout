@@ -178,6 +178,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                                 settingsRoute = SettingsRoute.DynamicTileDetail
                             },
                             onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
+                            onOpenAnimation = { settingsRoute = SettingsRoute.Animation },
                             onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                             onOpenBackground = { settingsRoute = SettingsRoute.Background },
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
@@ -218,6 +219,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     SettingsRoute.EventDetail ->
                         selectedEvent?.let { stringResource(it.labelRes) } ?: stringResource(R.string.section_icons_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
+                    SettingsRoute.Animation -> stringResource(R.string.animation_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                     SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
                     SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)

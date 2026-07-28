@@ -23,6 +23,26 @@ enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
 enum class SwipeDismissTarget { EXPANDED, BOTH, NORMAL }
 
 /**
+ * How the island's appear / expand / collapse motion is driven. [EXPRESSIVE] uses Material 3
+ * MotionScheme-style spatial springs (its speed comes from [AnimationSpeed]); [EASE_IN_OUT] uses a
+ * standard ease-in-out tween whose length is the animation-duration slider. Ordered to match the
+ * settings selector so the ordinal doubles as the segment index.
+ */
+enum class AnimationStyle { EXPRESSIVE, EASE_IN_OUT }
+
+/**
+ * The spatial-spring speed used when [AnimationStyle.EXPRESSIVE] is active, mirroring MotionScheme's
+ * slow / default / fast spatial specs. Ordered to match the settings selector.
+ */
+enum class AnimationSpeed { SLOW, DEFAULT, FAST }
+
+/**
+ * How much the expressive spatial springs overshoot (their damping): a big, obvious bounce, the
+ * tuned normal, or the barely-there stock MotionScheme feel. Ordered to match the settings selector.
+ */
+enum class AnimationBounce { BIG, NORMAL, SMALL }
+
+/**
  * How the island behaves once expanded. [expandedAutoCollapse] chooses between collapsing after
  * [expandedCollapseSeconds] or staying until tapped. When that shrink happens,
  * [expandedDisappearOnShrink] decides whether the island disappears entirely (true) or returns
@@ -31,6 +51,9 @@ enum class SwipeDismissTarget { EXPANDED, BOTH, NORMAL }
 data class BehaviourSettings(
     val cutoutEnabled: Boolean = DEFAULT_CUTOUT_ENABLED,
     val hideOnLockscreen: Boolean = DEFAULT_HIDE_ON_LOCKSCREEN,
+    val animationStyle: AnimationStyle = DEFAULT_ANIMATION_STYLE,
+    val animationSpeed: AnimationSpeed = DEFAULT_ANIMATION_SPEED,
+    val animationBounce: AnimationBounce = DEFAULT_ANIMATION_BOUNCE,
     val animationDurationMs: Int = DEFAULT_ANIMATION_DURATION_MS,
     val normalDurationSeconds: Int = DEFAULT_NORMAL_SECONDS,
     val expandedAutoCollapse: Boolean = DEFAULT_AUTO_COLLAPSE,
@@ -49,6 +72,9 @@ data class BehaviourSettings(
         // Baseline for the island's primary expand/collapse transition; the reveal, background fade
         // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
         const val DEFAULT_ANIMATION_DURATION_MS = 220
+        val DEFAULT_ANIMATION_STYLE = AnimationStyle.EXPRESSIVE
+        val DEFAULT_ANIMATION_SPEED = AnimationSpeed.DEFAULT
+        val DEFAULT_ANIMATION_BOUNCE = AnimationBounce.NORMAL
         const val DEFAULT_NORMAL_SECONDS = 3
         const val DEFAULT_AUTO_COLLAPSE = true
         const val DEFAULT_COLLAPSE_SECONDS = 5
@@ -75,6 +101,15 @@ class BehaviourPreferences(private val context: Context) {
         BehaviourSettings(
             cutoutEnabled = prefs[CUTOUT_ENABLED] ?: BehaviourSettings.DEFAULT_CUTOUT_ENABLED,
             hideOnLockscreen = prefs[HIDE_ON_LOCKSCREEN] ?: BehaviourSettings.DEFAULT_HIDE_ON_LOCKSCREEN,
+            animationStyle = prefs[ANIMATION_STYLE]
+                ?.let { runCatching { AnimationStyle.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_ANIMATION_STYLE,
+            animationSpeed = prefs[ANIMATION_SPEED]
+                ?.let { runCatching { AnimationSpeed.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_ANIMATION_SPEED,
+            animationBounce = prefs[ANIMATION_BOUNCE]
+                ?.let { runCatching { AnimationBounce.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_ANIMATION_BOUNCE,
             animationDurationMs = (prefs[ANIMATION_DURATION_MS] ?: BehaviourSettings.DEFAULT_ANIMATION_DURATION_MS)
                 .coerceIn(BehaviourSettings.MIN_ANIMATION_DURATION_MS, BehaviourSettings.MAX_ANIMATION_DURATION_MS),
             normalDurationSeconds = (prefs[NORMAL_SECONDS] ?: BehaviourSettings.DEFAULT_NORMAL_SECONDS)
@@ -102,6 +137,18 @@ class BehaviourPreferences(private val context: Context) {
 
     suspend fun setHideOnLockscreen(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_ON_LOCKSCREEN] = enabled
+    }
+
+    suspend fun setAnimationStyle(style: AnimationStyle) = context.behaviourDataStore.edit {
+        it[ANIMATION_STYLE] = style.name
+    }
+
+    suspend fun setAnimationSpeed(speed: AnimationSpeed) = context.behaviourDataStore.edit {
+        it[ANIMATION_SPEED] = speed.name
+    }
+
+    suspend fun setAnimationBounce(bounce: AnimationBounce) = context.behaviourDataStore.edit {
+        it[ANIMATION_BOUNCE] = bounce.name
     }
 
     suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
@@ -160,6 +207,9 @@ class BehaviourPreferences(private val context: Context) {
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
+        val ANIMATION_STYLE = stringPreferencesKey("animation_style")
+        val ANIMATION_SPEED = stringPreferencesKey("animation_speed")
+        val ANIMATION_BOUNCE = stringPreferencesKey("animation_bounce")
         val ANIMATION_DURATION_MS = intPreferencesKey("animation_duration_ms")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
         val AUTO_COLLAPSE = booleanPreferencesKey("expanded_auto_collapse")
