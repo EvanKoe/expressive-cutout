@@ -259,6 +259,10 @@
     <string name="event_duration_label">Cutout duration</string>
     <string name="event_duration_desc">How long this event stays on the cutout before it disappears</string>
     <string name="event_duration_reset">Reset to default</string>
+    <string name="event_animated_icon">Animated icon</string>
+    <string name="event_animated_icon_desc">Play a moving icon instead of the plain glyph</string>
+    <string name="event_loop">Loop</string>
+    <string name="event_loop_desc">Repeat the animation while the cutout is shown</string>
 
     <!-- Bottom navigation -->
     <string name="nav_settings">Settings</string>

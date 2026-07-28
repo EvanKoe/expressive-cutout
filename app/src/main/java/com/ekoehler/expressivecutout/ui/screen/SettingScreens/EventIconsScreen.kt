@@ -63,6 +63,7 @@ import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.animatedIcon
+import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.overlay.forRole
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.onForRole
@@ -83,6 +84,8 @@ internal fun EventIconsScreen(
     val dynamicColor by viewModel.eventDynamicColor.collectAsStateWithLifecycle()
     val dynamicColorRole by viewModel.eventDynamicColorRole.collectAsStateWithLifecycle()
     val dynamicColorOpacity by viewModel.eventDynamicColorOpacity.collectAsStateWithLifecycle()
+    val animatedIcons by viewModel.eventAnimatedIcons.collectAsStateWithLifecycle()
+    val animatedIconLoops by viewModel.eventAnimatedIconLoops.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -137,6 +140,8 @@ internal fun EventIconsScreen(
                     dynamicColor = dynamicColor,
                     dynamicColorRole = dynamicColorRole,
                     dynamicColorOpacity = dynamicColorOpacity,
+                    animate = animatedIcons[type] ?: true,
+                    loop = animatedIconLoops[type] ?: type.animationLoopsByDefault(),
                     onEnabledChange = { viewModel.setEventEnabled(type, it) },
                     onClick = { onOpenEvent(type) },
                 )
@@ -249,6 +254,8 @@ private fun EventIconCard(
     dynamicColor: Boolean,
     dynamicColorRole: DynamicRole,
     dynamicColorOpacity: Float,
+    animate: Boolean,
+    loop: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
@@ -295,6 +302,8 @@ private fun EventIconCard(
                     dynamicColor = dynamicColor,
                     dynamicColorRole = dynamicColorRole,
                     dynamicColorOpacity = dynamicColorOpacity,
+                    animate = animate,
+                    loop = loop,
                 )
                 Spacer(Modifier.width(14.dp))
                 Column {
@@ -331,6 +340,10 @@ internal fun EventIconThumbnail(
     dynamicColorRole: DynamicRole,
     dynamicColorOpacity: Float,
     size: Dp = 48.dp,
+    // Whether the event's Lottie preview is shown at all, and whether it loops — mirrors the
+    // per-event "Animated icon" / "Loop" toggles so the badge matches what the cutout will do.
+    animate: Boolean = true,
+    loop: Boolean = true,
 ) {
     val context = LocalContext.current
     // Inner glyph/image/animation sizes are defined against the 48dp list badge; scale them with the
@@ -368,8 +381,9 @@ internal fun EventIconThumbnail(
         }
     }
 
-    // Events that render as motion on the cutout (e.g. the charging bolt) preview their animation here,
-    // looping so it's visible at a glance. A custom image/app override still wins over the animation.
+    // Events that render as motion on the cutout (e.g. the charging bolt) preview their animation here
+    // so it's visible at a glance — unless the user turned the animated icon off. A custom image/app
+    // override still wins over the animation.
     val animated = remember(type) { type.animatedIcon() }
 
     Box(
@@ -387,7 +401,7 @@ internal fun EventIconThumbnail(
                 modifier = Modifier.size(32.dp * sizeScale).clip(CircleShape),
             )
 
-            animated != null -> {
+            animate && animated != null -> {
                 val composition by rememberLottieComposition(
                     LottieCompositionSpec.RawRes(animated.resId),
                 )
@@ -405,7 +419,7 @@ internal fun EventIconThumbnail(
                 }
                 LottieAnimation(
                     composition = composition,
-                    iterations = LottieConstants.IterateForever,
+                    iterations = if (loop) LottieConstants.IterateForever else 1,
                     dynamicProperties = dynamicProperties,
                     // Match the overlay's scaling; the oversized art is clipped to the badge circle.
                     modifier = Modifier.requiredSize(24.dp * animated.scale * sizeScale),

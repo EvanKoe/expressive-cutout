@@ -26,8 +26,15 @@ import java.util.concurrent.atomic.AtomicLong
  */
 fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
     // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
-    // padlock, but a device-unlocked event should rest unlocked.
-    SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(R.raw.unlock, clipStartFrame = 0, clipEndFrame = 45)
+    // padlock, but a device-unlocked event should rest unlocked. Tinted so the padlock follows the
+    // badge glyph colour (accent by default, the role's "on" colour under a dynamic container),
+    // rather than staying its baked-in light art — which vanished on a light dynamic fill.
+    SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(
+        R.raw.unlock,
+        clipStartFrame = 0,
+        clipEndFrame = 45,
+        tint = true,
+    )
     // A charging bolt that loops for as long as the cutout is shown. It sits small within its own
     // canvas, so scale it up, and tint it to the badge colour so it follows the theme/accent.
     SystemEventType.CHARGING_STARTED -> IslandIcon.Lottie(
@@ -38,6 +45,13 @@ fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
     )
     else -> null
 }
+
+/**
+ * Whether this event's animation loops by default — mirrors its [animatedIcon]'s own iterations, so
+ * the per-event "Loop" toggle starts from the built-in behaviour (charging loops, unlock plays once).
+ */
+fun SystemEventType.animationLoopsByDefault(): Boolean =
+    animatedIcon()?.iterations == LottieConstants.IterateForever
 
 /**
  * Turns a source-agnostic [CutoutSignal] into a renderable [IslandEvent], applying the
@@ -57,9 +71,19 @@ class IconResolver(private val context: Context) {
         dynamicEventColor: Boolean = false,
         dynamicEventColorRole: DynamicRole = DynamicRole.PRIMARY,
         dynamicEventColorOpacity: Float = 1f,
+        animatedIconEnabled: Map<SystemEventType, Boolean> = emptyMap(),
+        animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(signal)
-        is CutoutSignal.System -> resolveSystem(signal.type, customIcons, dynamicEventColor, dynamicEventColorRole, dynamicEventColorOpacity)
+        is CutoutSignal.System -> resolveSystem(
+            signal.type,
+            customIcons,
+            dynamicEventColor,
+            dynamicEventColorRole,
+            dynamicEventColorOpacity,
+            animatedIconEnabled,
+            animatedIconLoop,
+        )
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
         is CutoutSignal.Timer -> resolveTimer(signal, timerSettings)
@@ -220,11 +244,21 @@ class IconResolver(private val context: Context) {
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
         dynamicEventColorOpacity: Float,
+        animatedIconEnabled: Map<SystemEventType, Boolean>,
+        animatedIconLoop: Map<SystemEventType, Boolean>,
     ): IslandEvent {
-        // A user override always wins; otherwise DEVICE_UNLOCKED gets the animated padlock and every
-        // other system event keeps its static default glyph.
+        // A user override always wins; otherwise events with an animation (charging / unlock) use it
+        // when the "Animated icon" toggle is on — looping per the "Loop" toggle — and every other
+        // event (or a disabled animation) falls back to the static default glyph.
+        val animated = type.animatedIcon()?.takeIf { animatedIconEnabled[type] ?: true }?.copy(
+            iterations = if (animatedIconLoop[type] ?: type.animationLoopsByDefault()) {
+                LottieConstants.IterateForever
+            } else {
+                1
+            },
+        )
         val icon = customIcons[type]?.toRasterOrNull()
-            ?: type.animatedIcon()
+            ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),

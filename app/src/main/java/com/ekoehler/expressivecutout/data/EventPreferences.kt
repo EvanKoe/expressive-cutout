@@ -62,6 +62,26 @@ class EventPreferences(private val context: Context) {
         }.toMap()
     }
 
+    /**
+     * Per-event choice (for events that ship a Lottie animation) between the animated icon and the
+     * plain default glyph. Only events the user has explicitly toggled appear here; absent means on.
+     */
+    val animatedIcons: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            prefs[type.animatedKey]?.let { enabled -> type to enabled }
+        }.toMap()
+    }
+
+    /**
+     * Per-event choice for whether the animated icon loops (else it plays once and holds). Absent
+     * means the event's own built-in default (see [animationLoopsByDefault]).
+     */
+    val animatedIconLoops: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            prefs[type.loopKey]?.let { loop -> type to loop }
+        }.toMap()
+    }
+
     suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
         it[type.key] = enabled
     }
@@ -73,6 +93,14 @@ class EventPreferences(private val context: Context) {
     /** Drop the override so the event falls back to the global normal cutout duration. */
     suspend fun clearDuration(type: SystemEventType) = context.eventDataStore.edit {
         it.remove(type.durationKey)
+    }
+
+    suspend fun setAnimatedIcon(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
+        it[type.animatedKey] = enabled
+    }
+
+    suspend fun setAnimatedIconLoop(type: SystemEventType, loop: Boolean) = context.eventDataStore.edit {
+        it[type.loopKey] = loop
     }
 
     suspend fun setDynamicColor(enabled: Boolean) = context.eventDataStore.edit {
@@ -92,6 +120,12 @@ class EventPreferences(private val context: Context) {
 
     private val SystemEventType.durationKey: Preferences.Key<Int>
         get() = intPreferencesKey("event_duration_$name")
+
+    private val SystemEventType.animatedKey: Preferences.Key<Boolean>
+        get() = booleanPreferencesKey("event_animated_$name")
+
+    private val SystemEventType.loopKey: Preferences.Key<Boolean>
+        get() = booleanPreferencesKey("event_animated_loop_$name")
 
     private companion object {
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("events_dynamic_color")

@@ -121,6 +121,8 @@ class IslandOverlayController(private val context: Context) {
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
+    private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
+    private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
     // The system event currently on the pill, so its auto-dismiss uses that event's own duration
     // override (null while a notification or live tile is showing → the global normal duration).
     private var currentSystemEventType: SystemEventType? = null
@@ -188,6 +190,7 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeEventDurations()
+        observeEventAnimatedIcons()
         observeEventDynamicColor()
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
@@ -330,6 +333,11 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeEventDurations() = scope.launch {
         eventPreferences.durations.collect { eventDurations = it }
+    }
+
+    private fun observeEventAnimatedIcons() {
+        scope.launch { eventPreferences.animatedIcons.collect { eventAnimatedIcons = it } }
+        scope.launch { eventPreferences.animatedIconLoops.collect { eventAnimatedIconLoops = it } }
     }
 
     private fun observeEventDynamicColor() = scope.launch {
@@ -641,6 +649,8 @@ class IslandOverlayController(private val context: Context) {
                 eventDynamicColor,
                 eventDynamicColorRole,
                 eventDynamicColorOpacity,
+                eventAnimatedIcons,
+                eventAnimatedIconLoops,
             ).copy(initiallyExpanded = autoExpand)
             syncWindowHeight()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than

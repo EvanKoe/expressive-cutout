@@ -98,6 +98,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    /** For events with a Lottie animation: whether it's used (absent = on) and whether it loops. */
+    val eventAnimatedIcons: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.animatedIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
+    val eventAnimatedIconLoops: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.animatedIconLoops.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val tileEnabled: StateFlow<Map<DynamicTile, Boolean>> =
         dynamicTilePreferences.enabled.stateIn(
             scope = viewModelScope,
@@ -188,6 +203,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
         eventPreferences.clearDuration(type)
+    }
+
+    fun setEventAnimatedIcon(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setAnimatedIcon(type, enabled)
+    }
+
+    fun setEventAnimatedIconLoop(type: SystemEventType, loop: Boolean) = viewModelScope.launch {
+        eventPreferences.setAnimatedIconLoop(type, loop)
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {

@@ -3,6 +3,7 @@ package com.ekoehler.expressivecutout.ui.screen
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,8 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.overlay.animatedIcon
+import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlin.math.roundToInt
 
@@ -71,8 +74,15 @@ internal fun EventDetailScreen(
     val dynamicColorOpacity by viewModel.eventDynamicColorOpacity.collectAsStateWithLifecycle()
     val durations by viewModel.eventDurations.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    val animatedIcons by viewModel.eventAnimatedIcons.collectAsStateWithLifecycle()
+    val animatedIconLoops by viewModel.eventAnimatedIconLoops.collectAsStateWithLifecycle()
 
     val source = customIcons[type]
+    // The animated-icon controls only make sense for events that ship a Lottie and while no custom
+    // image/app override is set (an override always wins over the animation on the cutout).
+    val hasAnimation = type.animatedIcon() != null
+    val animatedEnabled = animatedIcons[type] ?: true
+    val loopEnabled = animatedIconLoops[type] ?: type.animationLoopsByDefault()
     // No override → the slider shows (and the cutout uses) the global normal duration.
     val override = durations[type]
     val defaultSeconds = behaviour.normalDurationSeconds
@@ -131,6 +141,8 @@ internal fun EventDetailScreen(
                     dynamicColorRole = dynamicColorRole,
                     dynamicColorOpacity = dynamicColorOpacity,
                     size = 76.dp,
+                    animate = animatedEnabled,
+                    loop = loopEnabled,
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -160,6 +172,40 @@ internal fun EventDetailScreen(
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
+                }
+            }
+        }
+
+        // Animated icon: only for events that ship a Lottie, and only while the default icon is in
+        // use (a custom image/app override replaces the animation entirely).
+        if (hasAnimation && source == null) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(
+                        topStart = 32.dp,
+                        topEnd = 32.dp,
+                        bottomStart = if (animatedEnabled) 4.dp else 32.dp,
+                        bottomEnd = if (animatedEnabled) 4.dp else 32.dp,
+                    ),
+                    title = stringResource(R.string.event_animated_icon),
+                    description = stringResource(R.string.event_animated_icon_desc),
+                    checked = animatedEnabled,
+                    onCheckedChange = { viewModel.setEventAnimatedIcon(type, it) },
+                )
+                // Loop only applies while the animation is on.
+                AnimatedVisibility(visible = animatedEnabled) {
+                    SettingsToggleCard(
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp,
+                            topEnd = 4.dp,
+                            bottomStart = 32.dp,
+                            bottomEnd = 32.dp,
+                        ),
+                        title = stringResource(R.string.event_loop),
+                        description = stringResource(R.string.event_loop_desc),
+                        checked = loopEnabled,
+                        onCheckedChange = { viewModel.setEventAnimatedIconLoop(type, it) },
+                    )
                 }
             }
         }
