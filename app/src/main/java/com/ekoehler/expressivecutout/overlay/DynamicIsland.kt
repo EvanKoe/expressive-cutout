@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -106,6 +107,7 @@ import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.asCallCutout
@@ -1334,10 +1336,12 @@ private fun MediaButton(
 
 // Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
 // callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
-private const val CALL_ROW_PADDING_DP = 14
+private const val CALL_ROW_PADDING_DP = 8
 private const val CALL_ROW_SPACING_DP = 12
-private const val CALL_AVATAR_DP = 40
+// The photo/icon container and the hang-up button are deliberately the same size so the cutout
+// reads as symmetrical, with the caller between two equal circles.
 private const val CALL_HANGUP_BUTTON_DP = 44
+private const val CALL_AVATAR_DP = CALL_HANGUP_BUTTON_DP
 private const val CALL_NAME_SIZE_SP = 15
 // A little breathing room so the name never sits flush against the button before the pill grows.
 private const val CALL_NAME_SLACK_DP = 8
@@ -1401,6 +1405,10 @@ private fun CallNormalContent(
             IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
+            AnimatedVisibility (visible = call.showDuration) {
+                CallStatus(onCall = onCall)
+            }
+
             Text(
                 text = event.label,
                 color = LocalContentColor.current,
@@ -1409,9 +1417,6 @@ private fun CallNormalContent(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (call.showDuration) {
-                CallStatus(onCall = onCall)
-            }
         }
         if (call.showActions && hangUp != null) {
             CallHangUpButton(fill = call.hangUpColor.resolve(), onClick = { onAction(hangUp) })

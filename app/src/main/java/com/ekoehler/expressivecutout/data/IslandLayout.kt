@@ -74,7 +74,7 @@ fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): I
 
 /** The call cutout's default width, and the most it will grow to when a caller name is long. */
 const val CALL_MIN_WIDTH_PERCENT = 60
-const val CALL_MAX_WIDTH_PERCENT = 92
+const val CALL_MAX_WIDTH_PERCENT = 80
 
 private const val CALL_HEIGHT_DP = 60
 private const val CALL_CORNER_DP = 30
