@@ -330,8 +330,12 @@ fun DynamicIsland(
                             detectTapGestures {
                                 // While typing a reply, ignore taps on the surface itself.
                                 if (replying) return@detectTapGestures
-                                // The phone tile is normal-only, so a tap never toggles it open.
-                                if (isCall) return@detectTapGestures
+                                // The phone tile is normal-only, so a tap never toggles it open;
+                                // instead it opens the dialer's in-call screen (its content intent).
+                                if (isCall) {
+                                    if (shownEvent?.contentIntent != null) onActivate()
+                                    return@detectTapGestures
+                                }
                                 // Once expanded, tapping a notification opens its app (like tapping
                                 // the real notification); anything else just toggles expand/collapse.
                                 if (isExpanded && shownEvent?.contentIntent != null) {
