@@ -1430,9 +1430,21 @@ private fun CallNormalContent(
             IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
+            @Composable
+            fun CallerName() = Text(
+                text = event.label,
+                color = LocalContentColor.current,
+                fontSize = CALL_NAME_SIZE_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
             if (incoming) {
-                // The caller's number above the name — only when the dialer exposes one distinct
-                // from the name (an unknown caller shown by number would otherwise repeat it).
+                // The name goes on top: it fits the column, while the caller's number (which is
+                // typically longer than the space) sits below where it ellipsizes cleanly — the top
+                // line runs closest to the camera hole, so the always-too-long number must not be there.
+                CallerName()
                 val number = onCall?.callerNumber?.takeIf { it.isNotBlank() && it != event.label }
                 if (number != null) {
                     Text(
@@ -1447,16 +1459,8 @@ private fun CallNormalContent(
                 AnimatedVisibility(visible = call.showDuration) {
                     CallStatus(onCall = onCall)
                 }
+                CallerName()
             }
-
-            Text(
-                text = event.label,
-                color = LocalContentColor.current,
-                fontSize = CALL_NAME_SIZE_SP.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
         if (call.showActions) {
             if (incoming) {
