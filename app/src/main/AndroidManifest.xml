@@ -60,6 +60,11 @@
             android:name=".notifications.TestReplyReceiver"
             android:exported="false" />
 
+        <!-- Ends the in-app test call when its hang-up button is tapped. -->
+        <receiver
+            android:name=".notifications.TestCallReceiver"
+            android:exported="false" />
+
         <!-- Captures posted notifications and forwards them to the island. -->
         <service
             android:name=".service.CutoutNotificationListenerService"

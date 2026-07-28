@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
@@ -49,6 +50,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.notifications.TestCaller
 import com.ekoehler.expressivecutout.notifications.TestNotifier
 import com.ekoehler.expressivecutout.permissions.Permissions
 
@@ -133,6 +135,20 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             Text(stringResource(R.string.action_send_test))
         }
 
+        // Call test button: pops a fake call onto the island; each tap cycles the caller name so the
+        // call cutout can be seen widening for a long name. The cutout's own hang-up button ends it.
+        FilledTonalButton(
+            onClick = { TestCaller.toggle(context) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Call,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_send_test_call))
+        }
     }
 }
 
