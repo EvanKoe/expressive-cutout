@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
@@ -19,8 +20,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
@@ -64,7 +67,8 @@ fun MaterialIconPickerSheet(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
         )
-        OutlinedTextField(
+
+        TextField(
             value = query,
             onValueChange = { query = it },
             singleLine = true,
@@ -80,6 +84,16 @@ fun MaterialIconPickerSheet(
                     }
                 }
             },
+            // A filled, fully rounded (pill) field: the rounded shape clips the container, and the
+            // underline indicators are hidden so only the pill reads.
+            shape = RoundedCornerShape(28.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
@@ -92,16 +106,26 @@ fun MaterialIconPickerSheet(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
             items(filtered, key = { it.key }) { option ->
-                MaterialIconCell(option = option, onClick = { onPick(option.key) })
+                // animateItem fades icons in/out as the filter changes and slides the rest into their
+                // new positions; the stable item key above is what lets it track each icon across edits.
+                MaterialIconCell(
+                    option = option,
+                    onClick = { onPick(option.key) },
+                    modifier = Modifier.animateItem(),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MaterialIconCell(option: MaterialIconOption, onClick: () -> Unit) {
+private fun MaterialIconCell(
+    option: MaterialIconOption,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .padding(4.dp)
             .size(56.dp)
             .clip(CircleShape)
