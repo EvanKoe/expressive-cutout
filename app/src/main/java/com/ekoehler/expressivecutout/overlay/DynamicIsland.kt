@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Pause
@@ -105,6 +106,7 @@ import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -195,7 +197,10 @@ fun DynamicIsland(
     // then this action/text pair is dispatched (which dismisses the island).
     var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
     val confirmingSent = sentReply != null
-    val isExpanded = forcedExpanded ?: tapExpanded
+    // The phone tile has no expanded state: it is shown as one bigger "normal" cutout, so tapping
+    // never expands it and its size never switches to the expanded dimensions.
+    val isCall = shownEvent?.call != null
+    val isExpanded = if (isCall) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
@@ -228,7 +233,11 @@ fun DynamicIsland(
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
-    val dims = if (isExpanded) expanded else collapsed
+    val dims = when {
+        isCall -> collapsed.asCallCutout()
+        isExpanded -> expanded
+        else -> collapsed
+    }
     val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions)) {
         expandedActionsExtraDp(appearance.actionButtonHeightDp)
     } else {
@@ -308,6 +317,8 @@ fun DynamicIsland(
                             detectTapGestures {
                                 // While typing a reply, ignore taps on the surface itself.
                                 if (replying) return@detectTapGestures
+                                // The phone tile is normal-only, so a tap never toggles it open.
+                                if (isCall) return@detectTapGestures
                                 // Once expanded, tapping a notification opens its app (like tapping
                                 // the real notification); anything else just toggles expand/collapse.
                                 if (isExpanded && shownEvent?.contentIntent != null) {
@@ -385,7 +396,11 @@ fun DynamicIsland(
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
                         shownEvent?.let { e ->
-                            if (showExpanded) {
+                            if (e.call != null) {
+                                // The phone tile: one bigger normal cutout — caller on the left,
+                                // hang-up on the right — with no separate expanded layout.
+                                CallNormalContent(event = e, onAction = onAction)
+                            } else if (showExpanded) {
                                 ExpandedContent(
                                     event = e,
                                     showActions = showActions,
@@ -620,11 +635,6 @@ private fun ExpandedContent(
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
         MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
-        return
-    }
-    // The phone tile likewise: caller photo + name, ticking duration, and the call's action chips.
-    if (event.call != null) {
-        CallExpandedContent(event = event, appearance = appearance, onAction = onAction)
         return
     }
     // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
@@ -1312,71 +1322,74 @@ private fun MediaButton(
 }
 
 /**
- * The phone tile's expanded layout: caller photo + name, a ticking call duration (or "incoming"
- * while ringing), and the call's action chips (Hang up, plus whatever else the dialer exposes).
- * Live state — the photo and the duration's start time — is read from [OnCallBus].
+ * The phone tile's single, normal-only layout (it has no expanded state): the caller's photo (or a
+ * fallback icon) and name on the left, and — when the tile's action buttons are enabled — a round
+ * hang-up button on the right. Shown in the bigger call cutout ([asCallCutout]). Live state — the
+ * photo and the duration's start time — is read from [OnCallBus].
  */
 @Composable
-private fun CallExpandedContent(
+private fun CallNormalContent(
     event: IslandEvent,
-    appearance: AppearanceSettings,
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
     val photo = onCall?.photo?.takeIf { call.showPhoto }
+    // The hang-up (destructive) action; fall back to the first action if the dialer flags none.
+    val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (photo != null) {
-                    ContactPhoto(bitmap = photo, size = 44.dp)
-                } else {
-                    IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = event.label,
-                        color = LocalContentColor.current,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (call.showDuration) {
-                        CallStatus(onCall = onCall)
-                    }
-                }
-            }
-            if (call.showActions && event.actions.isNotEmpty()) {
-                // Hang up gets its own colour; every other call button shares the second colour.
-                val hangUpFill = call.hangUpColor.resolve()
-                val otherFill = call.otherButtonColor.resolve()
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    event.actions.take(3).forEach { action ->
-                        ActionChip(
-                            action = action,
-                            style = appearance.actionButtonStyle,
-                            fill = if (action.destructive) hangUpFill else otherFill,
-                            heightDp = appearance.actionButtonHeightDp,
-                            onClick = { onAction(action) },
-                        )
-                    }
-                }
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (photo != null) {
+            ContactPhoto(bitmap = photo, size = 40.dp)
+        } else {
+            IconBadge(event = event, badgeSize = 40.dp, iconSize = 24.dp)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = event.label,
+                color = LocalContentColor.current,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (call.showDuration) {
+                CallStatus(onCall = onCall)
             }
         }
+        if (call.showActions && hangUp != null) {
+            CallHangUpButton(fill = call.hangUpColor.resolve(), onClick = { onAction(hangUp) })
+        }
+    }
+}
+
+/** The round, filled hang-up button on the trailing edge of the call cutout. */
+@Composable
+private fun CallHangUpButton(fill: Color, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    FilledIconButton(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = CircleShape,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = fill,
+            contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+        ),
+        modifier = Modifier
+            .size(44.dp)
+            .pressScale(interaction),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.CallEnd,
+            contentDescription = "Hang up",
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

@@ -50,6 +50,7 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
@@ -552,7 +553,7 @@ class IslandOverlayController(private val context: Context) {
      * so the rounded edges, drop shadow and tap "boop" scale all stay comfortably tappable.
      */
     private fun pillTouchRect(viewWidth: Int, viewHeight: Int): Rect {
-        val dims = if (expanded) layoutState.value.expanded else layoutState.value.collapsed
+        val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = if (expanded) expandedActionsBonusDp() else 0
         val pillWidthPx = displayWidthPx * dims.widthPercent / 100
         val margin = (TOUCH_MARGIN_DP * density).toInt()
@@ -580,9 +581,21 @@ class IslandOverlayController(private val context: Context) {
 
     /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
-        val dims = if (expanded) layout.expanded else layout.collapsed
+        val dims = effectiveDims(layout, expanded)
         val bonus = if (expanded) expandedActionsBonusDp() else 0
         return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
+    }
+
+    /**
+     * The dimensions the island is actually drawn at right now: the expanded state when expanded, the
+     * bigger call cutout when the shown event is a phone call (it has no expanded state), otherwise
+     * the normal collapsed pill. Keeps the window height and touchable region in step with what
+     * [DynamicIsland] renders.
+     */
+    private fun effectiveDims(layout: IslandLayout, expanded: Boolean) = when {
+        expanded -> layout.expanded
+        currentEvent.value?.call != null -> layout.collapsed.asCallCutout()
+        else -> layout.collapsed
     }
 
     /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
@@ -639,7 +652,8 @@ class IslandOverlayController(private val context: Context) {
             val autoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> true
-                is CutoutSignal.Call -> true
+                // The phone tile has no expanded state — it is shown as one bigger normal cutout.
+                is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
             }

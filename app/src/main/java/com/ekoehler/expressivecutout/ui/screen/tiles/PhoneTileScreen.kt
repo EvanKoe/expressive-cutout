@@ -92,11 +92,6 @@ internal fun PhoneTileScreen(
                 selected = settings.hangUpColor,
                 onSelect = { it?.let(viewModel::setPhoneHangUpColor) },
             )
-            ColorPickerCard(
-                label = stringResource(R.string.phone_other_color_label),
-                selected = settings.otherButtonColor,
-                onSelect = { it?.let(viewModel::setPhoneOtherButtonColor) },
-            )
         }
 
         Text(

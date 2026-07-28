@@ -51,6 +51,29 @@ data class IslandDimensions(
     }
 }
 
+/**
+ * The phone tile is shown as a single, bigger "normal" cutout (it has no expanded state): wider —
+ * about [CALL_WIDTH_PERCENT]% of the screen — and a bit taller than the usual collapsed pill, so the
+ * caller's photo and name sit on the left and the hang-up button on the right. Derived from the
+ * user's [collapsed] state so its vertical offset carries over; the width, height and (stadium)
+ * corners are fixed to this fuller shape. Used by both the overlay's rendering and its window /
+ * touch sizing so they always agree on the call cutout's geometry.
+ */
+fun IslandDimensions.asCallCutout(): IslandDimensions = IslandDimensions.of(
+    widthPercent = CALL_WIDTH_PERCENT,
+    heightDp = CALL_HEIGHT_DP,
+    offsetXDp = offsetXDp,
+    offsetYDp = offsetYDp,
+    cornerTopLeftDp = CALL_CORNER_DP,
+    cornerTopRightDp = CALL_CORNER_DP,
+    cornerBottomLeftDp = CALL_CORNER_DP,
+    cornerBottomRightDp = CALL_CORNER_DP,
+)
+
+private const val CALL_WIDTH_PERCENT = 60
+private const val CALL_HEIGHT_DP = 60
+private const val CALL_CORNER_DP = 30
+
 /** The two independently configurable island states. */
 data class IslandLayout(
     val collapsed: IslandDimensions = DEFAULT_COLLAPSED,
