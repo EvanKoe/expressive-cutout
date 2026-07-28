@@ -120,6 +120,8 @@ data class CallTileOptions(
     val showPhoto: Boolean,
     val showDuration: Boolean,
     val showActions: Boolean,
+    /** Use the taller two-row layout for an incoming (ringing) call instead of the compact single row. */
+    val incomingExpandedLayout: Boolean,
     /** Fill of the hang-up / end-call button. */
     val hangUpColor: CutoutColor,
     /** Fill shared by every other call button. */

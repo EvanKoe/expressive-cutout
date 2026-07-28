@@ -185,6 +185,7 @@ class IconResolver(private val context: Context) {
                 showPhoto = settings.showPhoto,
                 showDuration = settings.showDuration,
                 showActions = settings.showActions,
+                incomingExpandedLayout = settings.expandedIncomingLayout,
                 hangUpColor = settings.hangUpColor,
                 otherButtonColor = settings.otherButtonColor,
             ),

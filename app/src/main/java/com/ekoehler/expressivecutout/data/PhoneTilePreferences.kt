@@ -20,6 +20,11 @@ data class PhoneTileSettings(
     val showDuration: Boolean = DEFAULT_SHOW_DURATION,
     /** Show the call's action buttons (Hang up, and any others the dialer exposes). */
     val showActions: Boolean = DEFAULT_SHOW_ACTIONS,
+    /**
+     * Use the taller two-row layout for an incoming (ringing) call — caller over a row of Take /
+     * Hang up buttons — instead of the compact single row. Connected calls always use the single row.
+     */
+    val expandedIncomingLayout: Boolean = DEFAULT_EXPANDED_INCOMING,
     /** Colour of the icon container (fallback disc shown when there's no contact photo). Null = default. */
     val iconContainerColor: CutoutColor? = null,
     /** Fill of the hang-up / end-call button. */
@@ -31,6 +36,7 @@ data class PhoneTileSettings(
         const val DEFAULT_SHOW_PHOTO = true
         const val DEFAULT_SHOW_DURATION = true
         const val DEFAULT_SHOW_ACTIONS = true
+        const val DEFAULT_EXPANDED_INCOMING = true
 
         /** Hang up is red by default (matches the preset red swatch). */
         val DEFAULT_HANG_UP_COLOR: CutoutColor = CutoutColor.Solid(0xFFEF4444)
@@ -48,6 +54,7 @@ class PhoneTilePreferences(private val context: Context) {
             showPhoto = prefs[SHOW_PHOTO] ?: PhoneTileSettings.DEFAULT_SHOW_PHOTO,
             showDuration = prefs[SHOW_DURATION] ?: PhoneTileSettings.DEFAULT_SHOW_DURATION,
             showActions = prefs[SHOW_ACTIONS] ?: PhoneTileSettings.DEFAULT_SHOW_ACTIONS,
+            expandedIncomingLayout = prefs[EXPANDED_INCOMING] ?: PhoneTileSettings.DEFAULT_EXPANDED_INCOMING,
             iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
             hangUpColor = CutoutColor.deserialize(prefs[HANG_UP_COLOR])
                 ?: PhoneTileSettings.DEFAULT_HANG_UP_COLOR,
@@ -68,6 +75,10 @@ class PhoneTilePreferences(private val context: Context) {
         it[SHOW_ACTIONS] = enabled
     }
 
+    suspend fun setExpandedIncomingLayout(enabled: Boolean) = context.phoneTileDataStore.edit {
+        it[EXPANDED_INCOMING] = enabled
+    }
+
     /** A null [color] clears the override, restoring the default accent-tinted icon container. */
     suspend fun setIconContainerColor(color: CutoutColor?) = context.phoneTileDataStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
@@ -85,6 +96,7 @@ class PhoneTilePreferences(private val context: Context) {
         val SHOW_PHOTO = booleanPreferencesKey("show_photo")
         val SHOW_DURATION = booleanPreferencesKey("show_duration")
         val SHOW_ACTIONS = booleanPreferencesKey("show_actions")
+        val EXPANDED_INCOMING = booleanPreferencesKey("expanded_incoming_layout")
         val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
         val HANG_UP_COLOR = stringPreferencesKey("hang_up_color")
         val OTHER_BUTTON_COLOR = stringPreferencesKey("other_button_color")

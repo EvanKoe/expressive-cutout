@@ -60,10 +60,15 @@ data class IslandDimensions(
  * caller name (see the overlay's width measurement). Used by both the overlay's rendering and its
  * touch sizing so they always agree on the call cutout's geometry.
  */
-fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): IslandDimensions =
+fun IslandDimensions.asCallCutout(
+    widthPercent: Int = CALL_MIN_WIDTH_PERCENT,
+    incoming: Boolean = false,
+): IslandDimensions =
     IslandDimensions.of(
         widthPercent = widthPercent,
-        heightDp = CALL_HEIGHT_DP,
+        // An incoming call uses a taller, two-row cutout: caller (below the camera) over a row of
+        // Take / Hang up buttons. A connected call keeps the shorter single-row shape.
+        heightDp = if (incoming) CALL_INCOMING_HEIGHT_DP else CALL_HEIGHT_DP,
         offsetXDp = offsetXDp,
         offsetYDp = offsetYDp,
         cornerTopLeftDp = CALL_CORNER_DP,
@@ -77,6 +82,8 @@ const val CALL_MIN_WIDTH_PERCENT = 60
 const val CALL_MAX_WIDTH_PERCENT = 80
 
 private const val CALL_HEIGHT_DP = 60
+/** Taller shape for the incoming-call tile so its caller row and Take / Hang up button row both fit. */
+private const val CALL_INCOMING_HEIGHT_DP = 138
 private const val CALL_CORNER_DP = 30
 
 /** The two independently configurable island states. */

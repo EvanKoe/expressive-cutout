@@ -257,6 +257,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneExpandedIncomingLayout(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setExpandedIncomingLayout(enabled)
+    }
+
     fun setPhoneIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
         phoneTilePreferences.setIconContainerColor(color)
     }

@@ -34,6 +34,7 @@
     <string name="perm_battery_title">Ignore battery optimisation</string>
     <string name="settings_access_missing">Overlay access is missing. Enable it now to see the island</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>
+    <string name="perm_testing_title">For testing purpose</string>
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
@@ -126,11 +127,15 @@
     <string name="phone_show_duration_desc">Show how long the call has been running.</string>
     <string name="phone_show_actions_title">Action buttons</string>
     <string name="phone_show_actions_desc">Show the call\'s buttons, such as Hang up.</string>
+    <string name="phone_expanded_incoming_title">Expanded layout for incoming calls</string>
+    <string name="phone_expanded_incoming_desc">Show a ringing call in a taller two-row tile with full-width Take and Hang up buttons, instead of the compact single row.</string>
     <string name="phone_button_colours_title">Button colours</string>
     <string name="phone_hangup_color_label">Hang up button</string>
     <string name="phone_other_color_label">Other buttons</string>
     <string name="phone_caller_unknown">Unknown</string>
     <string name="phone_ringing">Incoming call…</string>
+    <string name="phone_answer">Take</string>
+    <string name="phone_hang_up">Hang up</string>
     <string name="phone_tile_note">The photo, name and buttons come from your dialer\'s ongoing-call notification, so exactly which buttons appear depends on your dialer.</string>
     <string name="timer_show_actions_title">Action buttons</string>
     <string name="timer_show_actions_desc">Show the timer\'s buttons, such as Add 1 min and Reset.</string>

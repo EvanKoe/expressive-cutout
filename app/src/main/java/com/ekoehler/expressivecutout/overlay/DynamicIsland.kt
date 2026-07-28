@@ -238,16 +238,20 @@ fun DynamicIsland(
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
-    // An incoming (not yet connected) call shows two trailing buttons (decline + answer); a connected
-    // call shows one (hang up). Read live from the call bus so the pill re-sizes when it is answered.
+    // An incoming call in its two-row layout puts the buttons on their own row (none trailing); a
+    // one-line incoming shows two trailing buttons (decline + answer); a connected call shows one
+    // (hang up). Read live from the call bus so the pill re-sizes when the call is answered.
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
     val callIncoming = isCall && liveCall?.ongoing == false
+    val callTwoRow = callIncoming && shownEvent?.call?.incomingExpandedLayout == true && hasCallActions
     val callTrailingButtons = when {
         !isCall || !hasCallActions -> 0
+        callTwoRow -> 0
         callIncoming -> 2
         else -> 1
     }
     // The call cutout widens to fit a long caller name (up to its max); measured once per name/state.
+    // Any incoming call is pinned to the full width; the two-row layout also uses the taller shape.
     val density = LocalDensity.current.density
     val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
         if (isCall && shownEvent != null) {
@@ -257,7 +261,7 @@ fun DynamicIsland(
         }
     }
     val dims = when {
-        isCall -> collapsed.asCallCutout(callWidthPercent)
+        isCall -> collapsed.asCallCutout(callWidthPercent, callTwoRow)
         isExpanded -> expanded
         else -> collapsed
     }
@@ -1360,6 +1364,13 @@ private const val CALL_NAME_SIZE_SP = 15
 // A little breathing room so the name never sits flush against the button before the pill grows.
 private const val CALL_NAME_SLACK_DP = 8
 
+// Metrics for the taller, two-row incoming-call layout (caller row over Take / Hang up buttons).
+private const val CALL_INCOMING_PADDING_DP = 12
+// Extra top padding so the caller row sits below the camera hole at the pill's top edge.
+private const val CALL_INCOMING_TOP_PAD_DP = 22
+private const val CALL_INCOMING_ROW_SPACING_DP = 10
+private const val CALL_INCOMING_BUTTON_DP = 46
+
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
  * [CALL_MIN_WIDTH_PERCENT] by default, widening to fit a long name up to [CALL_MAX_WIDTH_PERCENT].
@@ -1395,13 +1406,12 @@ internal fun callCutoutWidthPercent(
 }
 
 /**
- * The phone tile's single, normal-only layout (it has no expanded state). Left to right: the caller's
- * photo (or a fallback icon), the caller text, and — when the tile's action buttons are enabled — the
- * call controls. A connected call shows the duration above the name and one hang-up button; an incoming
- * (still ringing) call shows the caller's number above the name and two buttons: decline (red) then
- * answer (primary). Shown in the bigger call cutout ([asCallCutout]), whose width is sized to the name
- * (and button count) by [callCutoutWidthPercent]. Live state — the photo, the caller number, whether
- * the call is connected, and the duration's start time — is read from [OnCallBus].
+ * The phone tile's normal-only layout (it has no expanded state), dispatched by call state. A
+ * connected call, and an incoming call when the two-row layout is off, use one compact row
+ * ([CallSingleRowContent]). An incoming (still ringing) call with the "Expanded layout for incoming
+ * calls" setting on uses the taller two-row [IncomingCallExpandedContent] — the caller (below the
+ * camera) over full-width Take / Hang up buttons, matching the fuller shape from [asCallCutout]. Live
+ * state (photo, caller number, connected-or-ringing, duration start) is read from [OnCallBus].
  */
 @Composable
 private fun CallNormalContent(
@@ -1410,18 +1420,46 @@ private fun CallNormalContent(
 ) {
     val call = event.call ?: return
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val photo = onCall?.photo?.takeIf { call.showPhoto }
     val incoming = onCall?.ongoing == false
+    // The two-row layout only earns its extra height when there are buttons to fill the second row.
+    val hasActions = call.showActions && event.actions.isNotEmpty()
+    if (incoming && call.incomingExpandedLayout && hasActions) {
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, onAction = onAction)
+    } else {
+        CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
+    }
+}
+
+/**
+ * The compact single-row call layout. Left to right: photo, the caller text, and the call button(s).
+ * A connected call shows the duration over the caller name and one hang-up button; an [incoming] call
+ * shows just the caller label (the contact name if known, otherwise the number — never both) and two
+ * buttons, decline then answer.
+ */
+@Composable
+private fun CallSingleRowContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    incoming: Boolean,
+    onAction: (IslandAction) -> Unit,
+) {
+    val photo = onCall?.photo?.takeIf { call.showPhoto }
     // The decline / hang-up (destructive) action; fall back to the first action if the dialer flags none.
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
-    // The answer action only exists for an incoming call; null leaves the tile without a take-call button.
     val answer = event.actions.firstOrNull { it.answer }
 
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = CALL_ROW_PADDING_DP.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(
+                start = CALL_ROW_PADDING_DP.dp,
+                end = CALL_ROW_PADDING_DP.dp,
+                // An incoming call sits its content at the bottom so the single caller label clears
+                // the camera hole at the pill's top edge; a connected call stays vertically centred.
+                bottom = if (incoming) CALL_ROW_PADDING_DP.dp else 0.dp,
+            ),
+        verticalAlignment = if (incoming) Alignment.Bottom else Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
     ) {
         if (photo != null) {
@@ -1430,8 +1468,14 @@ private fun CallNormalContent(
             IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
-            @Composable
-            fun CallerName() = Text(
+            // Connected calls put the ticking duration above the name; an incoming call shows only
+            // the caller label (name or number), so there is nothing to stack above it.
+            if (!incoming) {
+                AnimatedVisibility(visible = call.showDuration) {
+                    CallStatus(onCall = onCall)
+                }
+            }
+            Text(
                 text = event.label,
                 color = LocalContentColor.current,
                 fontSize = CALL_NAME_SIZE_SP.sp,
@@ -1439,28 +1483,6 @@ private fun CallNormalContent(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-
-            if (incoming) {
-                // The name goes on top: it fits the column, while the caller's number (which is
-                // typically longer than the space) sits below where it ellipsizes cleanly — the top
-                // line runs closest to the camera hole, so the always-too-long number must not be there.
-                CallerName()
-                val number = onCall?.callerNumber?.takeIf { it.isNotBlank() && it != event.label }
-                if (number != null) {
-                    Text(
-                        text = number,
-                        color = LocalContentColor.current.copy(alpha = 0.70f),
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            } else {
-                AnimatedVisibility(visible = call.showDuration) {
-                    CallStatus(onCall = onCall)
-                }
-                CallerName()
-            }
         }
         if (call.showActions) {
             if (incoming) {
@@ -1492,6 +1514,142 @@ private fun CallNormalContent(
                     onClick = { onAction(hangUp) },
                 )
             }
+        }
+    }
+}
+
+/**
+ * The incoming-call two-row layout. Top: the caller's photo and their name over the number, sat below
+ * the camera hole. Bottom: full-width Take (answer, primary) and Hang up (decline, red) buttons. The
+ * name is on top so the (usually longer) number sits below and ellipsizes; the button row degrades to
+ * a single full-width button if the dialer exposes only one of the two actions.
+ */
+@Composable
+private fun IncomingCallExpandedContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    onAction: (IslandAction) -> Unit,
+) {
+    val photo = onCall?.photo?.takeIf { call.showPhoto }
+    val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
+    val answer = event.actions.firstOrNull { it.answer }
+    val number = onCall?.callerNumber?.takeIf { it.isNotBlank() && it != event.label }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                start = CALL_INCOMING_PADDING_DP.dp,
+                end = CALL_INCOMING_PADDING_DP.dp,
+                top = CALL_INCOMING_TOP_PAD_DP.dp,
+                bottom = CALL_INCOMING_PADDING_DP.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
+    ) {
+        // Caller row — takes the space above the buttons, its content centred and clear of the camera.
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
+        ) {
+            if (photo != null) {
+                ContactPhoto(bitmap = photo, size = CALL_AVATAR_DP.dp)
+            } else {
+                IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = CALL_NAME_SIZE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (number != null) {
+                    Text(
+                        text = number,
+                        color = LocalContentColor.current.copy(alpha = 0.70f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        // Button row — Take (answer) then Hang up (decline), each filling half the width.
+        if (call.showActions && (answer != null || hangUp != null)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
+            ) {
+                if (answer != null) {
+                    CallWideButton(
+                        icon = Icons.Rounded.Call,
+                        label = stringResource(R.string.phone_answer),
+                        container = MaterialTheme.colorScheme.primary,
+                        content = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onAction(answer) },
+                    )
+                }
+                if (hangUp != null) {
+                    CallWideButton(
+                        icon = Icons.Rounded.CallEnd,
+                        label = stringResource(R.string.phone_hang_up),
+                        container = MaterialTheme.colorScheme.error,
+                        content = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onAction(hangUp) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A full-width, filled call button (Take / Hang up) with a leading icon and label, used by the
+ *  incoming-call layout's bottom row. */
+@Composable
+private fun CallWideButton(
+    icon: ImageVector,
+    label: String,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+        modifier = modifier
+            .height(CALL_INCOMING_BUTTON_DP.dp)
+            .pressScale(interaction),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = label,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

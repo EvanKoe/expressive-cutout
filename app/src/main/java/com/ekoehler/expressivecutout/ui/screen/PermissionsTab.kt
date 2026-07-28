@@ -121,6 +121,14 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             )
         }
 
+        Text(stringResource(R.string.perm_testing_title))
+        
+        Column(
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+        }
+
         // Notification test button
         FilledTonalButton(
             onClick = ::onTestNotification,
