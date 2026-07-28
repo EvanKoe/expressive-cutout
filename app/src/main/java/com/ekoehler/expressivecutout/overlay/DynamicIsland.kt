@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -105,6 +106,7 @@ import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
@@ -233,8 +235,17 @@ fun DynamicIsland(
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
+    // The call cutout widens to fit a long caller name (up to its max); measured once per name/state.
+    val density = LocalDensity.current.density
+    val callWidthPercent = remember(isCall, shownEvent?.label, hasCallActions, displayWidthDp, density) {
+        if (isCall && shownEvent != null) {
+            callCutoutWidthPercent(shownEvent.label, hasCallActions, displayWidthDp, density)
+        } else {
+            CALL_MIN_WIDTH_PERCENT
+        }
+    }
     val dims = when {
-        isCall -> collapsed.asCallCutout()
+        isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
@@ -1321,11 +1332,50 @@ private fun MediaButton(
     }
 }
 
+// Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
+// callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+private const val CALL_ROW_PADDING_DP = 14
+private const val CALL_ROW_SPACING_DP = 12
+private const val CALL_AVATAR_DP = 40
+private const val CALL_HANGUP_BUTTON_DP = 44
+private const val CALL_NAME_SIZE_SP = 15
+// A little breathing room so the name never sits flush against the button before the pill grows.
+private const val CALL_NAME_SLACK_DP = 8
+
+/**
+ * The width (as a screen-width percentage) the call cutout should span for [callerName]:
+ * [CALL_MIN_WIDTH_PERCENT] by default, widening to fit a long name up to [CALL_MAX_WIDTH_PERCENT].
+ * [showHangUp] reserves room for the trailing button. The pill is sized to this width and its
+ * content laid out within it — a name too long for even the max width ellipsizes — so measuring the
+ * name here (rather than letting content drive the size) lets the overlay's rendering and its
+ * touchable region agree exactly on the pill's width. [density] converts the measured text to dp.
+ */
+internal fun callCutoutWidthPercent(
+    callerName: String,
+    showHangUp: Boolean,
+    displayWidthDp: Int,
+    density: Float,
+): Int {
+    // Everything on the row that isn't the name: leading avatar + its spacing, the trailing button +
+    // its spacing (when shown), and the row's horizontal padding on both edges. Mirrors CallNormalContent.
+    val trailingDp = if (showHangUp) CALL_HANGUP_BUTTON_DP + CALL_ROW_SPACING_DP else 0
+    val fixedDp = CALL_ROW_PADDING_DP * 2 + CALL_AVATAR_DP + CALL_ROW_SPACING_DP + trailingDp
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = CALL_NAME_SIZE_SP * density
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val nameWidthDp = paint.measureText(callerName) / density
+    val neededDp = fixedDp + nameWidthDp + CALL_NAME_SLACK_DP
+    val percent = (neededDp / displayWidthDp.coerceAtLeast(1) * 100f).roundToInt()
+    return percent.coerceIn(CALL_MIN_WIDTH_PERCENT, CALL_MAX_WIDTH_PERCENT)
+}
+
 /**
  * The phone tile's single, normal-only layout (it has no expanded state): the caller's photo (or a
  * fallback icon) and name on the left, and — when the tile's action buttons are enabled — a round
- * hang-up button on the right. Shown in the bigger call cutout ([asCallCutout]). Live state — the
- * photo and the duration's start time — is read from [OnCallBus].
+ * hang-up button on the right. Shown in the bigger call cutout ([asCallCutout]), whose width is
+ * sized to the name by [callCutoutWidthPercent]. Live state — the photo and the duration's start
+ * time — is read from [OnCallBus].
  */
 @Composable
 private fun CallNormalContent(
@@ -1341,20 +1391,20 @@ private fun CallNormalContent(
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = CALL_ROW_PADDING_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
     ) {
         if (photo != null) {
-            ContactPhoto(bitmap = photo, size = 40.dp)
+            ContactPhoto(bitmap = photo, size = CALL_AVATAR_DP.dp)
         } else {
-            IconBadge(event = event, badgeSize = 40.dp, iconSize = 24.dp)
+            IconBadge(event = event, badgeSize = CALL_AVATAR_DP.dp, iconSize = 24.dp)
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = event.label,
                 color = LocalContentColor.current,
-                fontSize = 15.sp,
+                fontSize = CALL_NAME_SIZE_SP.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1382,7 +1432,7 @@ private fun CallHangUpButton(fill: Color, onClick: () -> Unit) {
             contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
         ),
         modifier = Modifier
-            .size(44.dp)
+            .size(CALL_HANGUP_BUTTON_DP.dp)
             .pressScale(interaction),
     ) {
         Icon(

@@ -52,25 +52,30 @@ data class IslandDimensions(
 }
 
 /**
- * The phone tile is shown as a single, bigger "normal" cutout (it has no expanded state): wider —
- * about [CALL_WIDTH_PERCENT]% of the screen — and a bit taller than the usual collapsed pill, so the
- * caller's photo and name sit on the left and the hang-up button on the right. Derived from the
- * user's [collapsed] state so its vertical offset carries over; the width, height and (stadium)
- * corners are fixed to this fuller shape. Used by both the overlay's rendering and its window /
+ * The phone tile is shown as a single, bigger "normal" cutout (it has no expanded state): wider than
+ * the usual collapsed pill and a bit taller, so the caller's photo and name sit on the left and the
+ * hang-up button on the right. Derived from the user's [collapsed] state so its vertical offset
+ * carries over; the height and (stadium) corners are fixed to this fuller shape. [widthPercent] is
+ * the screen-width fraction to span — [CALL_MIN_WIDTH_PERCENT] by default, widened to fit a long
+ * caller name (see the overlay's width measurement). Used by both the overlay's rendering and its
  * touch sizing so they always agree on the call cutout's geometry.
  */
-fun IslandDimensions.asCallCutout(): IslandDimensions = IslandDimensions.of(
-    widthPercent = CALL_WIDTH_PERCENT,
-    heightDp = CALL_HEIGHT_DP,
-    offsetXDp = offsetXDp,
-    offsetYDp = offsetYDp,
-    cornerTopLeftDp = CALL_CORNER_DP,
-    cornerTopRightDp = CALL_CORNER_DP,
-    cornerBottomLeftDp = CALL_CORNER_DP,
-    cornerBottomRightDp = CALL_CORNER_DP,
-)
+fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): IslandDimensions =
+    IslandDimensions.of(
+        widthPercent = widthPercent,
+        heightDp = CALL_HEIGHT_DP,
+        offsetXDp = offsetXDp,
+        offsetYDp = offsetYDp,
+        cornerTopLeftDp = CALL_CORNER_DP,
+        cornerTopRightDp = CALL_CORNER_DP,
+        cornerBottomLeftDp = CALL_CORNER_DP,
+        cornerBottomRightDp = CALL_CORNER_DP,
+    )
 
-private const val CALL_WIDTH_PERCENT = 60
+/** The call cutout's default width, and the most it will grow to when a caller name is long. */
+const val CALL_MIN_WIDTH_PERCENT = 60
+const val CALL_MAX_WIDTH_PERCENT = 92
+
 private const val CALL_HEIGHT_DP = 60
 private const val CALL_CORNER_DP = 30
 

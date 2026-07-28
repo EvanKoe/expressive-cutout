@@ -48,6 +48,7 @@ import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
@@ -592,10 +593,19 @@ class IslandOverlayController(private val context: Context) {
      * the normal collapsed pill. Keeps the window height and touchable region in step with what
      * [DynamicIsland] renders.
      */
-    private fun effectiveDims(layout: IslandLayout, expanded: Boolean) = when {
-        expanded -> layout.expanded
-        currentEvent.value?.call != null -> layout.collapsed.asCallCutout()
-        else -> layout.collapsed
+    private fun effectiveDims(layout: IslandLayout, expanded: Boolean): IslandDimensions {
+        val event = currentEvent.value
+        return when {
+            expanded -> layout.expanded
+            event?.call != null -> {
+                // Match the pill's name-driven width so the (right-edge) hang-up button stays tappable.
+                val hasHangUp = event.call.showActions && event.actions.isNotEmpty()
+                layout.collapsed.asCallCutout(
+                    callCutoutWidthPercent(event.label, hasHangUp, displayWidthDp, density),
+                )
+            }
+            else -> layout.collapsed
+        }
     }
 
     /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
