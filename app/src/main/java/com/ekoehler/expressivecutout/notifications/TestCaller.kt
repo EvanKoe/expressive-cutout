@@ -16,16 +16,20 @@ import com.ekoehler.expressivecutout.core.OnCallBus
  * ticking duration) the tile reads, and [IslandEventBus] carries the [CutoutSignal.Call] that
  * surfaces it.
  *
- * A fresh call starts as an *incoming* (ringing) call — the tile shows the number above the name and
- * the decline / answer buttons. [answer] flips it to a connected call (duration ticking, single
- * hang-up), exactly as a real dialer's re-post would; [end] clears it. Tapping the tester toggles the
- * call: it starts one when none is showing and ends the current one otherwise, so there is always a
- * way to dismiss it even when the tile's own buttons are turned off. Each fresh call cycles the caller
- * — a short name, a deliberately long one (so the call cutout can be seen widening to fit it, then
- * shrinking back), and a bare number (no name line) — so the cutout's adaptive width can be watched.
- * The tile's buttons act through [TestCallReceiver], mirroring a real dialer's own call actions.
+ * Two flavours are offered, one per tester button: a [Kind.CONNECTED] call (duration ticking, single
+ * hang-up) and a [Kind.INCOMING] ringing call (the number above the name plus decline / answer
+ * buttons). Answering an incoming call flips it to a connected one, exactly as a real dialer's re-post
+ * would. Tapping a button toggles the call: it starts one when none is showing and ends the current
+ * one otherwise, so there is always a way to dismiss it even when the tile's own buttons are turned
+ * off. Each fresh call cycles the caller — a short name, a deliberately long one (so the call cutout
+ * can be seen widening to fit it, then shrinking back), and a bare number (no name line) — so the
+ * cutout's adaptive width can be watched. The tile's buttons act through [TestCallReceiver], mirroring
+ * a real dialer's own call actions.
  */
 object TestCaller {
+
+    /** Which flavour of fake call a tester button starts. */
+    enum class Kind { CONNECTED, INCOMING }
 
     /** A caller cycled onto the fake call; [number] is null for an unknown caller shown by number. */
     private data class Caller(val label: String, val number: String?)
@@ -37,15 +41,48 @@ object TestCaller {
     )
     private var next = 0
 
-    fun toggle(context: Context) {
+    fun toggle(context: Context, kind: Kind) {
         if (OnCallBus.state.value != null) {
             end()
             return
         }
         val caller = callers[next % callers.size]
         next++
-        // An incoming call: still ringing (no duration yet), so the tile shows the number + name and
-        // the decline / answer buttons. Answering it (below) flips it to a connected call.
+        when (kind) {
+            Kind.CONNECTED -> startConnected(context, caller)
+            Kind.INCOMING -> startIncoming(context, caller)
+        }
+    }
+
+    /** A connected call: the duration ticks from now and the tile shows the name + hang-up button. */
+    private fun startConnected(context: Context, caller: Caller) {
+        OnCallBus.update(
+            OnCall(
+                callerLabel = caller.label,
+                callerNumber = caller.number,
+                photo = null,
+                startTimeMs = System.currentTimeMillis(),
+                ongoing = true,
+            ),
+        )
+        IslandEventBus.emit(
+            CutoutSignal.Call(
+                packageName = context.packageName,
+                callerLabel = caller.label,
+                actions = listOf(
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_call_hang_up),
+                        intent = broadcast(context, REQUEST_END, TestCallReceiver.ACTION_END),
+                    ),
+                ),
+                ongoing = true,
+            ),
+        )
+    }
+
+    /** An incoming call: still ringing (no duration), so the tile shows the number + name and the
+     *  decline / answer buttons. Answering it (below) flips it to a connected call. */
+    private fun startIncoming(context: Context, caller: Caller) {
         OnCallBus.update(
             OnCall(
                 callerLabel = caller.label,

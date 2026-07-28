@@ -600,13 +600,14 @@ class IslandOverlayController(private val context: Context) {
             event?.call != null -> {
                 // Match the pill's name-driven width so the trailing call button(s) stay tappable: one
                 // for a connected call's hang-up, two for an incoming call's decline + answer.
+                val incoming = OnCallBus.state.value?.ongoing == false
                 val trailingButtons = when {
                     !(event.call.showActions && event.actions.isNotEmpty()) -> 0
-                    OnCallBus.state.value?.ongoing == false -> 2
+                    incoming -> 2
                     else -> 1
                 }
                 layout.collapsed.asCallCutout(
-                    callCutoutWidthPercent(event.label, trailingButtons, displayWidthDp, density),
+                    callCutoutWidthPercent(event.label, trailingButtons, incoming, displayWidthDp, density),
                 )
             }
             else -> layout.collapsed

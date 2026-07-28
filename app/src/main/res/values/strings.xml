@@ -45,6 +45,8 @@
     <string name="test_notification_reply_sent">Reply sent: %1$s</string>
     <string name="test_notification_marked_read">Marked as read</string>
     <string name="action_send_test_call">Show a test call</string>
+    <string name="action_send_test_incoming_call">Show an incoming test call</string>
+    <string name="test_call_hang_up">Hang up</string>
     <string name="test_call_answer">Answer</string>
     <string name="test_call_decline">Decline</string>
     <string name="all_set_title">You’re all set</string>

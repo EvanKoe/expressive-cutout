@@ -241,16 +241,17 @@ fun DynamicIsland(
     // An incoming (not yet connected) call shows two trailing buttons (decline + answer); a connected
     // call shows one (hang up). Read live from the call bus so the pill re-sizes when it is answered.
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
+    val callIncoming = isCall && liveCall?.ongoing == false
     val callTrailingButtons = when {
         !isCall || !hasCallActions -> 0
-        liveCall?.ongoing == false -> 2
+        callIncoming -> 2
         else -> 1
     }
     // The call cutout widens to fit a long caller name (up to its max); measured once per name/state.
     val density = LocalDensity.current.density
-    val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, displayWidthDp, density) {
+    val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
         if (isCall && shownEvent != null) {
-            callCutoutWidthPercent(shownEvent.label, callTrailingButtons, displayWidthDp, density)
+            callCutoutWidthPercent(shownEvent.label, callTrailingButtons, callIncoming, displayWidthDp, density)
         } else {
             CALL_MIN_WIDTH_PERCENT
         }
@@ -1363,15 +1364,17 @@ private const val CALL_NAME_SLACK_DP = 8
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
  * [CALL_MIN_WIDTH_PERCENT] by default, widening to fit a long name up to [CALL_MAX_WIDTH_PERCENT].
  * [trailingButtons] reserves room for that many trailing call buttons (one for a connected call's
- * hang-up, two for an incoming call's decline + answer, zero when actions are hidden). The pill is
- * sized to this width and its content laid out within it — a name too long for even the max width
- * ellipsizes — so measuring the name here (rather than letting content drive the size) lets the
- * overlay's rendering and its touchable region agree exactly on the pill's width. [density] converts
- * the measured text to dp.
+ * hang-up, two for an incoming call's decline + answer, zero when actions are hidden). An [incoming]
+ * call always spans the full [CALL_MAX_WIDTH_PERCENT] (never narrower) so its two buttons and the
+ * number/name always have room. The pill is sized to this width and its content laid out within it —
+ * a name too long for even the max width ellipsizes — so measuring the name here (rather than letting
+ * content drive the size) lets the overlay's rendering and its touchable region agree exactly on the
+ * pill's width. [density] converts the measured text to dp.
  */
 internal fun callCutoutWidthPercent(
     callerName: String,
     trailingButtons: Int,
+    incoming: Boolean,
     displayWidthDp: Int,
     density: Float,
 ): Int {
@@ -1386,7 +1389,9 @@ internal fun callCutoutWidthPercent(
     val nameWidthDp = paint.measureText(callerName) / density
     val neededDp = fixedDp + nameWidthDp + CALL_NAME_SLACK_DP
     val percent = (neededDp / displayWidthDp.coerceAtLeast(1) * 100f).roundToInt()
-    return percent.coerceIn(CALL_MIN_WIDTH_PERCENT, CALL_MAX_WIDTH_PERCENT)
+    // An incoming call is pinned to the full width; a connected one adapts from the minimum up.
+    val floor = if (incoming) CALL_MAX_WIDTH_PERCENT else CALL_MIN_WIDTH_PERCENT
+    return percent.coerceIn(floor, CALL_MAX_WIDTH_PERCENT)
 }
 
 /**

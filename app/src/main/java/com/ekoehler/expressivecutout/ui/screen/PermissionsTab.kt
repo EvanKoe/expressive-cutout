@@ -135,10 +135,11 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             Text(stringResource(R.string.action_send_test))
         }
 
-        // Call test button: pops a fake call onto the island; each tap cycles the caller name so the
-        // call cutout can be seen widening for a long name. The cutout's own hang-up button ends it.
+        // Call test buttons: pop a fake call onto the island; each tap cycles the caller name so the
+        // call cutout can be seen widening for a long name. A connected call shows the ticking duration
+        // and a hang-up button; an incoming call shows the number + name and decline / answer buttons.
         FilledTonalButton(
-            onClick = { TestCaller.toggle(context) },
+            onClick = { TestCaller.toggle(context, TestCaller.Kind.CONNECTED) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(
@@ -148,6 +149,19 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             )
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.action_send_test_call))
+        }
+
+        FilledTonalButton(
+            onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Call,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_send_test_incoming_call))
         }
     }
 }
