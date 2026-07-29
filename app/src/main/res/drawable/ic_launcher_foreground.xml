@@ -2,8 +2,8 @@
 <!--
   Foreground: a rounded "island" pill with two sparkles, drawn at the source
   512x512 artboard scale and scaled into the 108dp adaptive-icon viewport.
-  The scale is 108/512 minus 3% so the pill tips land at 18.5dp..89.5dp and
-  survive the circular mask; the translate re-centres it on 54,54.
+  The pill is 60dp wide, spanning 24dp..84dp inside the 72dp safe zone, so it
+  keeps a clear margin from the mask edge; the translate re-centres it on 54,54.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,10 +11,10 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:scaleX="0.204609375"
-        android:scaleY="0.204609375"
-        android:translateX="1.722"
-        android:translateY="1.56">
+        android:scaleX="0.17291"
+        android:scaleY="0.17291"
+        android:translateX="9.822"
+        android:translateY="9.694">
         <path
             android:fillColor="#005AC1"
             android:pathData="M163.269,175 h184.462 a81.2691,81.2691 0 0 1 0,162.538 h-184.462 a81.2691,81.2691 0 0 1 0,-162.538 z" />
