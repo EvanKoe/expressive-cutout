@@ -146,9 +146,15 @@ private fun ProfileList(
     }
 }
 
-/** The installed version, shown large, opening the full changelog on tap. */
+/**
+ * The installed version, shown large, opening the full changelog on tap. A pre-release suffix
+ * ("0.1.0-beta") becomes the trailing badge instead of being spelled out in the big number.
+ */
 @Composable
 private fun VersionCard(versionName: String, onClick: () -> Unit) {
+    val number = versionName.substringBefore('-')
+    val preRelease = versionName.contains('-')
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,22 +176,24 @@ private fun VersionCard(versionName: String, onClick: () -> Unit) {
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = versionName,
+                        text = number,
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.version_beta),
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
+                    if (preRelease) {
+                        Spacer(Modifier.width(12.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.version_beta),
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
                     }
                 }
                 Text(
