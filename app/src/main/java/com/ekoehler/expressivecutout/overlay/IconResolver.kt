@@ -1,10 +1,9 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.util.Log
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
 import com.airbnb.lottie.compose.LottieConstants
@@ -55,9 +54,11 @@ fun SystemEventType.animationLoopsByDefault(): Boolean =
     animatedIcon()?.iterations == LottieConstants.IterateForever
 
 /**
- * Turns a source-agnostic [CutoutSignal] into a renderable [IslandEvent], applying the
- * user's icon overrides and looking up app metadata. This is the one place that touches
- * the [PackageManager] and content resolver, so all the "impure" resolution lives here.
+ * Turns a source-agnostic [CutoutSignal] into a renderable [IslandEvent], applying the user's icon
+ * overrides and rasterising whatever art the signal carried. This is the one place that loads
+ * drawables and reads the content resolver, so all the "impure" resolution lives here. It
+ * deliberately asks the package manager nothing about other apps: everything shown comes from the
+ * notification or media session itself, so the app needs no package-visibility declaration.
  */
 class IconResolver(private val context: Context) {
 
@@ -76,7 +77,12 @@ class IconResolver(private val context: Context) {
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
         eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
     ): IslandEvent = when (signal) {
-        is CutoutSignal.Notification -> resolveNotification(signal)
+        is CutoutSignal.Notification -> resolveNotification(
+            signal,
+            dynamicEventColor,
+            dynamicEventColorRole,
+            dynamicEventColorOpacity,
+        )
         is CutoutSignal.System -> resolveSystem(
             signal.type,
             customIcons,
@@ -92,31 +98,33 @@ class IconResolver(private val context: Context) {
         is CutoutSignal.Timer -> resolveTimer(signal, timerSettings)
     }
 
-    private fun resolveNotification(signal: CutoutSignal.Notification): IslandEvent {
-        val packageManager = context.packageManager
-        val appLabel = runCatching {
-            val info = packageManager.getApplicationInfo(signal.packageName, 0)
-            packageManager.getApplicationLabel(info).toString()
-        }.getOrDefault(signal.packageName)
-
-        // The notification's own icon first — it is what the shade shows, it needs no package
-        // lookup, and it works for apps that have no launcher icon at all. The launcher icon is
-        // only the fallback for a notification that carries neither of its icons.
-        val icon = signal.notificationIcon()
-            ?: runCatching {
-                packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
-            }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
-                .map { IslandIcon.Raster(it) as IslandIcon }
-                .getOrDefault(IslandIcon.Vector(SystemEventType.DEVICE_UNLOCKED.defaultIcon))
+    private fun resolveNotification(
+        signal: CutoutSignal.Notification,
+        dynamicEventColor: Boolean,
+        dynamicEventColorRole: DynamicRole,
+        dynamicEventColorOpacity: Float,
+    ): IslandEvent {
+        // Everything shown comes from the notification itself — no app lookup, so the app needs no
+        // package-visibility declaration at all. A notification always carries a small icon, so
+        // the generic bell is a belt-and-braces fallback for one that somehow doesn't.
+        val icon = signal.notificationIcon() ?: IslandIcon.Vector(Icons.Rounded.Notifications)
 
         val title = signal.title?.takeIf { it.isNotBlank() }
+        val text = signal.text?.takeIf { it.isNotBlank() }
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
-            // Expanded shows the notification's title and text; the icon conveys the app.
-            label = title ?: appLabel,
-            detail = signal.text?.takeIf { it.isNotBlank() },
+            // Expanded shows the notification's title and text; the icon conveys the app. A
+            // notification with no title promotes its text to the primary line rather than
+            // leaving the island to name the app it came from.
+            label = title ?: text ?: context.getString(R.string.island_notification),
+            detail = if (title != null) text else null,
             accent = NOTIFICATION_ACCENT,
+            // A notification badge is a monochrome glyph far more often than a system event's is
+            // art, so it follows "Dynamic color for all events" too when that is on.
+            useThemeColor = dynamicEventColor,
+            themeColorRole = dynamicEventColorRole,
+            themeColorOpacity = dynamicEventColorOpacity,
             contentIntent = signal.contentIntent,
             notificationKey = signal.key,
             actions = signal.actions.map { action ->
@@ -133,10 +141,10 @@ class IconResolver(private val context: Context) {
 
     /**
      * The icon the posting app put on the notification itself, or null when it carries neither.
-     * A large icon is full-colour art (a sender's photo, a podcast cover) and is drawn as-is; the
-     * small icon is the monochrome status-bar glyph, so it is tinted to the badge's glyph colour
-     * rather than drawn flat — a white-on-transparent glyph would otherwise vanish on a light
-     * island background.
+     * Colour first: a large icon is full-colour art (a sender's photo, a podcast cover) and is
+     * drawn as-is. The small icon is Android's status-bar glyph — an alpha-only silhouette with no
+     * colour of its own — so it is tinted with the badge's ink, following the theme like every
+     * other glyph rather than being drawn as flat white pixels.
      */
     private fun CutoutSignal.Notification.notificationIcon(): IslandIcon? {
         largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it) }
@@ -145,27 +153,17 @@ class IconResolver(private val context: Context) {
     }
 
     private fun resolveMusic(signal: CutoutSignal.Music, settings: MusicTileSettings): IslandEvent {
-        val packageManager = context.packageManager
-        val appLabel = runCatching {
-            val info = packageManager.getApplicationInfo(signal.packageName, 0)
-            packageManager.getApplicationLabel(info).toString()
-        }.getOrDefault(signal.packageName)
-
-        // Fallback icon for the collapsed pill when there is no album art (or it's turned off):
-        // the player's own launcher icon reads better than a generic note.
-        val icon = runCatching {
-            packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
-        }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
-            .map { IslandIcon.Raster(it) as IslandIcon }
-            .getOrDefault(IslandIcon.Vector(DynamicTile.MUSIC.defaultIcon))
-
+        // The collapsed pill normally shows album art; the note glyph stands in when the session
+        // carries none (or the user turned art off). Deliberately not the player's launcher icon:
+        // resolving that would mean asking the system which apps are installed.
         val title = signal.title?.takeIf { it.isNotBlank() }
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
-            icon = icon,
-            // Track title on the primary line; artist (or the app) on the secondary line.
+            icon = IslandIcon.Vector(DynamicTile.MUSIC.defaultIcon),
+            // Track title on the primary line, artist on the secondary line — both from the media
+            // session itself, so an unnamed track falls back to "Music" rather than a package id.
             label = title ?: context.getString(DynamicTile.MUSIC.labelRes),
-            detail = signal.artist?.takeIf { it.isNotBlank() } ?: appLabel,
+            detail = signal.artist?.takeIf { it.isNotBlank() },
             accent = Color(DynamicTile.MUSIC.accent),
             contentIntent = signal.contentIntent,
             media = MediaTileOptions(
@@ -314,7 +312,6 @@ class IconResolver(private val context: Context) {
     }
 
     private companion object {
-        const val TAG = "IconResolver"
         val NOTIFICATION_ACCENT = Color(0xFF38BDF8)
 
         // Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'

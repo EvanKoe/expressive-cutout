@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Layers
@@ -59,8 +58,9 @@ private data class PermissionDoc(
 )
 
 /**
- * Every permission the app declares, in the order the user meets them during setup, followed by
- * the two quiet ones (network state and the scoped package query) that never show a prompt.
+ * Every permission the app declares, in the order the user meets them during setup, ending with
+ * the quiet one (network state) that is granted automatically and never prompts. This list is the
+ * whole manifest — if a permission is added there, it belongs here too.
  */
 private val PermissionDocs: List<PermissionDoc> = listOf(
     PermissionDoc(
@@ -71,7 +71,7 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
             "them. This is the one broad permission the app needs. What it reads is held in " +
             "memory for as long as the island shows it, and never written to disk.",
         uses = listOf(
-            "Show a notification on the island: its own icon, title, text and action buttons",
+            "Show a notification on the island: the icon the app put on it, its title, text and action buttons",
             "Let you reply inline, or trigger an action, and pass that straight back to the app that posted it",
             "Dismiss the real notification when you swipe the island away",
             "Detect an ongoing or incoming call, and the system countdown behind a timer notification",
@@ -124,20 +124,6 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
             "access, and cannot see networks you are not connected to.",
         uses = listOf(
             "Show the Wi-Fi connect and disconnect event on the island, with the network name",
-        ),
-    ),
-    PermissionDoc(
-        icon = Icons.Rounded.Apps,
-        title = "Launcher app lookup",
-        manifestName = "<queries> — launcher intent",
-        summary = "Not a permission you grant, but worth naming: Android hides other apps from " +
-            "us by default, and the island has to name the app a notification came from. This " +
-            "asks only for apps with a launcher entry, rather than the blanket \"see all apps\" " +
-            "permission — QUERY_ALL_PACKAGES was deliberately dropped in favour of it.",
-        uses = listOf(
-            "Resolve the name of the app that posted a notification",
-            "Resolve the name and icon of the media player behind the music tile, which comes from a media session rather than a notification",
-            "Fall back to an app's launcher icon for the rare notification that carries no icon of its own",
         ),
     ),
 )
