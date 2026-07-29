@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,7 +49,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -120,6 +120,8 @@ private fun ProfileList(
     ) {
         AppHeader()
 
+        Spacer(Modifier.height(24.dp))
+
         ThemeCard(
             selected = theme,
             onSelect = viewModel::setTheme,
@@ -142,26 +144,27 @@ private fun ProfileList(
 
 /**
  * The app's identity at the top of the tab: the launcher icon, the app name and the tagline.
- * The icon is composed from the adaptive-icon layers rather than @mipmap/ic_launcher, which
- * painterResource cannot load.
+ * The icon is drawn from the monochrome launcher layer so it takes its colours from the theme —
+ * a primary pill on a primaryContainer disc, with the sparkles knocked through to the disc.
  */
 @Composable
 private fun AppHeader() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 16.dp),
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
                 .size(104.dp)
                 .clip(CircleShape)
-                .background(colorResource(R.color.ic_launcher_background)),
+                .background(MaterialTheme.colorScheme.primaryContainer),
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
+            Icon(
+                painter = painterResource(R.drawable.ic_launcher_monochrome),
                 contentDescription = stringResource(R.string.app_icon_description),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxSize(),
             )
         }
