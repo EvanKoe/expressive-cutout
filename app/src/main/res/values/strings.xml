@@ -26,7 +26,6 @@
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
-    <string name="setup_subtitle">Turn on the access below so the island can appear over your camera cutout.</string>
     <string name="perm_notifications_title">Notification access</string>
     <string name="perm_notifications_desc">Lets the island mirror incoming app notifications.</string>
     <string name="perm_accessibility_title">Overlay access</string>

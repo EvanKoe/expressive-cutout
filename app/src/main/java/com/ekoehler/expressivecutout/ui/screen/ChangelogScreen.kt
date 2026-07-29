@@ -61,6 +61,7 @@ internal val Releases: List<Release> = listOf(
             "Animations screen: choose an expressive spring or ease-in-out style and tune speed and bounce against a live example",
         ),
         minor = listOf(
+            "Every screen drops its title bar for a fading top edge, so the content starts higher and scrolls away under the status bar",
             "Opt-in two-row incoming-call layout, with the number ellipsized under the name so it clears the camera",
             "The expanded incoming layout now matches the expanded cutout size and uses a single bottom-aligned label",
             "Incoming tile pinned to 80% of the screen width, with its own test-call button",

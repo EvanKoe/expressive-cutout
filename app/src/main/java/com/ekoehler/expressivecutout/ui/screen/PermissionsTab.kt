@@ -89,12 +89,6 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = stringResource(R.string.setup_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         AnimatedVisibility(visible = status.allEssentialGranted) {
             AllSetCard()
         }

@@ -21,16 +21,13 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarColors
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,11 +71,10 @@ private enum class HomeTab(
 }
 
 /**
- * Root of the in-app UI: a top title, the current tab's content, and a floating expressive
- * navigation bar. Content padding is computed once here so every tab clears both the app
- * bar and the floating nav bar without each having to know about them.
+ * Root of the in-app UI: the current tab's content between two scrims, and a floating expressive
+ * navigation bar. Content padding is computed once here so every tab clears both the top scrim and
+ * the floating nav bar without each having to know about them.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -124,31 +120,19 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                colors = TopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                // The Profile list presents the app itself (icon, name, tagline), so a "Profile"
-                // title above it would just repeat the heading.
-                title = {
-                    if (current != HomeTab.Profile || profileRoute != ProfileRoute.List) {
-                        Text(stringResource(current.labelRes))
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
+    // No tab has an app bar: each screen carries its own heading (the app identity or a section
+    // title on the list, the screen title in the back pill), so a bar would only waste height at
+    // the top. A scrim mirroring the bottom one stands in for it.
+    Scaffold { _ ->
         val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val statusBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        // The scrim is only a fade for *scrolled* content, so content at rest starts below it —
+        // same relationship the bottom padding has with the bottom scrim.
+        val topScrimHeight = statusBarTopInset + 40.dp
         val contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
-            top = innerPadding.calculateTopPadding() + 8.dp,
+            top = topScrimHeight + 8.dp,
             // Clear the floating nav bar (≈64dp tall) plus its bottom margin and the system bar.
             bottom = 96.dp + navBarBottomInset,
         )
@@ -228,6 +212,22 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     ),
             )
 
+            // Standing in for the app bar: content fades out under the status bar as it scrolls,
+            // instead of colliding with it.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(topScrimHeight)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to MaterialTheme.colorScheme.surfaceContainer,
+                            0.3f to MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f),
+                            1f to Color.Transparent,
+                        ),
+                    ),
+            )
+
             val barModifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -235,7 +235,10 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
 
             if (inSubScreen) {
                 val title = if (current == HomeTab.Profile) {
-                    stringResource(R.string.changelog_title)
+                    when (profileRoute) {
+                        ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
+                        else -> stringResource(R.string.profile_version)
+                    }
                 } else when (settingsRoute) {
                     SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                     SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
