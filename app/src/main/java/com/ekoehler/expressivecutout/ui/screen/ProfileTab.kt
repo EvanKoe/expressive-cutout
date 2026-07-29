@@ -10,8 +10,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -114,6 +118,8 @@ private fun ProfileList(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        AppHeader()
+
         ThemeCard(
             selected = theme,
             onSelect = viewModel::setTheme,
@@ -128,7 +134,6 @@ private fun ProfileList(
         BuyMeACoffeeCard(onClick = { openUrl(coffeeUrl) })
 
         DevCard(
-            versionName = versionName,
             onOpenGitHub = { openUrl(githubUrl) },
             onOpenCoffee = { openUrl(coffeeUrl) },
         )
@@ -136,13 +141,54 @@ private fun ProfileList(
 }
 
 /**
- * The "about" card that closes the tab: app name and version, the developer's photo, and the
- * two links out as filled buttons.
+ * The app's identity at the top of the tab: the launcher icon, the app name and the tagline.
+ * The icon is composed from the adaptive-icon layers rather than @mipmap/ic_launcher, which
+ * painterResource cannot load.
+ */
+@Composable
+private fun AppHeader() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(104.dp)
+                .clip(CircleShape)
+                .background(colorResource(R.color.ic_launcher_background)),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = stringResource(R.string.app_icon_description),
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+        Text(
+            text = stringResource(R.string.app_tagline),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+/**
+ * The "about" card that closes the tab: the developer's photo and the two links out as filled
+ * buttons. Name, version and tagline live in [AppHeader] instead.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DevCard(
-    versionName: String,
     onOpenGitHub: () -> Unit,
     onOpenCoffee: () -> Unit,
 ) {
@@ -157,20 +203,6 @@ private fun DevCard(
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = "${stringResource(R.string.app_name)} v$versionName",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.dev_card_tagline),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
-            )
-
             DevAvatar()
 
             Text(

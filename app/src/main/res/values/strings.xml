@@ -298,7 +298,6 @@
     <string name="nav_profile">Profile</string>
 
     <!-- Profile tab -->
-    <string name="profile_title">Profile</string>
     <string name="profile_theme">Theme</string>
     <string name="profile_version">Version</string>
     <string name="profile_version_subtitle">See what\'s new in this build</string>
@@ -311,7 +310,8 @@
     <string name="profile_github_title">Open GitHub repository</string>
     <string name="profile_github_subtitle">View the source code and releases</string>
     <string name="profile_github_url">https://github.com/EvanKoe/expressive-cutout</string>
-    <string name="dev_card_tagline">An offline dynamic island that follows Google\'s Material Expressive design</string>
+    <string name="app_tagline">An offline dynamic island that follows Google\'s Material Expressive design</string>
+    <string name="app_icon_description">Expressive Cutout icon</string>
     <string name="dev_card_author">Made by Evan Koehler</string>
     <string name="dev_card_github">View on GitHub</string>
     <string name="dev_card_avatar">Photo of the developer</string>

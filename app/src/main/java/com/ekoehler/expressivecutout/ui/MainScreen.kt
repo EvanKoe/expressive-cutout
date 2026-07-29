@@ -134,7 +134,13 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
                     actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                title = { Text(stringResource(current.labelRes)) },
+                // The Profile list presents the app itself (icon, name, tagline), so a "Profile"
+                // title above it would just repeat the heading.
+                title = {
+                    if (current != HomeTab.Profile || profileRoute != ProfileRoute.List) {
+                        Text(stringResource(current.labelRes))
+                    }
+                },
             )
         },
     ) { innerPadding ->
