@@ -302,10 +302,10 @@
     <string name="profile_appearance">Appearance</string>
     <string name="profile_theme">Theme</string>
     <string name="profile_version">Version</string>
-    <string name="profile_version_subtitle">See what\'s new in this release</string>
+    <string name="profile_version_subtitle">See what\'s new in this build</string>
+    <string name="version_beta">Beta</string>
     <string name="changelog_title">What\'s new</string>
-    <string name="changelog_subtitle">Every release, newest first.</string>
-    <string name="changelog_current">Current</string>
+    <string name="changelog_subtitle">Newest first. The app is in beta — versions below 0.1.0 were development builds and were never published.</string>
     <string name="changelog_major">Major features</string>
     <string name="changelog_minor">Minor features</string>
     <string name="changelog_fixes">Bug fixes</string>

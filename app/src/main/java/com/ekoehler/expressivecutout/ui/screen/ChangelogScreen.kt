@@ -48,11 +48,14 @@ internal data class Release(
     val fixes: List<String> = emptyList(),
 )
 
-/** The release history, newest first — the first entry is treated as the current release. */
+/**
+ * The release history, newest first — the first entry is the current build. 0.1.0 is the first
+ * beta; everything numbered below it was a development build that was never published.
+ */
 internal val Releases: List<Release> = listOf(
     Release(
-        version = "1.0.0",
-        headline = "Incoming calls and expressive animations",
+        version = "0.1.0",
+        headline = "First public beta — incoming calls and expressive animations",
         major = listOf(
             "Incoming-call tile with the caller's name, their number, and decline / answer buttons, opening the in-call view on tap",
             "Animations screen: choose an expressive spring or ease-in-out style and tune speed and bounce against a live example",
@@ -67,7 +70,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.8.0",
+        version = "0.0.8",
         headline = "Per-event customisation",
         major = listOf(
             "Material icon selector for events, replacing the app-icon picker, with a search filter over the full icon library",
@@ -80,7 +83,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.7.0",
+        version = "0.0.7",
         headline = "Timer tile",
         major = listOf(
             "Timer dynamic tile that mirrors the system countdown",
@@ -99,7 +102,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.6.0",
+        version = "0.0.6",
         headline = "Phone tile and lockscreen behaviour",
         major = listOf(
             "Phone dynamic tile: live call with contact photo, call duration, and call actions",
@@ -117,7 +120,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.5.0",
+        version = "0.0.5",
         headline = "Dynamic tiles and music playback",
         major = listOf(
             "Dynamic tiles, starting with a now-playing music tile: album art, playback controls, and per-tile settings screens",
@@ -136,7 +139,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.4.0",
+        version = "0.0.4",
         headline = "Backgrounds and swipe gestures",
         major = listOf(
             "Dedicated background screen: separate normal and expanded fills, gradients, and opacity",
@@ -151,7 +154,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.3.0",
+        version = "0.0.3",
         headline = "Notifications and inline replies",
         major = listOf(
             "Notification actions and inline reply, plus the Wi-Fi network name on connect",
@@ -168,7 +171,7 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.2.0",
+        version = "0.0.2",
         headline = "Size, position and behaviour",
         major = listOf(
             "Size and position controls for the island, alongside the first behaviour options",
@@ -181,8 +184,8 @@ internal val Releases: List<Release> = listOf(
         ),
     ),
     Release(
-        version = "0.1.0",
-        headline = "First release",
+        version = "0.0.1",
+        headline = "First build",
         major = listOf(
             "Expressive Cutout: a dynamic island overlay for punch-hole displays",
         ),
@@ -243,7 +246,7 @@ private fun ReleaseCard(release: Release, isCurrent: Boolean) {
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ) {
                         Text(
-                            text = stringResource(R.string.changelog_current),
+                            text = stringResource(R.string.version_beta),
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         )
