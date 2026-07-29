@@ -129,8 +129,8 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
 )
 
 /**
- * "Permission details": one card per declared permission, each split into what the grant is used
- * for and what it is not. Reached from the permissions card in Profile.
+ * "Permission details": one card per declared permission — what it is, then the specific things the
+ * app does with it. Reached from the permissions card in Profile.
  */
 @Composable
 fun PermissionDetailsScreen(contentPadding: PaddingValues) {
