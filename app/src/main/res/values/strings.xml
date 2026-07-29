@@ -309,11 +309,14 @@
     <string name="changelog_fixes">Bug fixes</string>
     <string name="profile_github_title">Open GitHub repository</string>
     <string name="profile_github_subtitle">View the source code and releases</string>
-    <string name="profile_github_url">https://github.com/EvanKoe/expressive-cutout</string>
+    <string name="profile_github_project_url">https://github.com/EvanKoe/expressive-cutout</string>
+    <string name="profile_github_url">https://github.com/EvanKoe</string>
+    <string name="profile_linkedin_url">https://www.linkedin.com/in/evan-koehler-it/</string>
     <string name="app_tagline">An offline dynamic island that follows Google\'s Material Expressive design</string>
     <string name="app_icon_description">Expressive Cutout icon</string>
     <string name="dev_card_author">Made by Evan Koehler</string>
     <string name="dev_card_github">View on GitHub</string>
+    <string name="dev_card_linkedin">LinkedIn</string>
     <string name="dev_card_avatar">Photo of the developer</string>
     <string name="profile_coffee_title">Buy me a coffee</string>
     <string name="profile_coffee_subtitle">Support the developer</string>

@@ -129,15 +129,18 @@ private fun ProfileList(
 
         VersionCard(versionName = versionName, onClick = onOpenChangelog)
 
-        val githubUrl = stringResource(R.string.profile_github_url)
-        GitHubCard(onClick = { openUrl(githubUrl) })
-
+        val githubProjectUrl = stringResource(R.string.profile_github_project_url)
+        val githubProfileUrl = stringResource(R.string.profile_github_url)
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
+        val linkedInUrl = stringResource(R.string.profile_linkedin_url)
+
+        GitHubCard(onClick = { openUrl(githubProjectUrl) })
         BuyMeACoffeeCard(onClick = { openUrl(coffeeUrl) })
 
         DevCard(
-            onOpenGitHub = { openUrl(githubUrl) },
+            onOpenGitHub = { openUrl(githubProfileUrl) },
             onOpenCoffee = { openUrl(coffeeUrl) },
+            onOpenLinkedIn = { openUrl(linkedInUrl) },
         )
     }
 }
@@ -194,6 +197,7 @@ private fun AppHeader() {
 private fun DevCard(
     onOpenGitHub: () -> Unit,
     onOpenCoffee: () -> Unit,
+    onOpenLinkedIn: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -237,6 +241,15 @@ private fun DevCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.profile_coffee_title))
+                }
+                Button(onClick = onOpenLinkedIn) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_linkedin),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.dev_card_linkedin))
                 }
             }
         }
