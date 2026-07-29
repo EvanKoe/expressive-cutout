@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,7 +62,7 @@ import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 
 /** The screens reachable from the Profile tab. Hoisted to MainScreen, like [SettingsRoute]. */
-enum class ProfileRoute { List, Changelog }
+enum class ProfileRoute { List, Changelog, PermissionDetails }
 
 /**
  * "Profile" destination: the app-wide theme choice, the version (which opens the changelog) and
@@ -73,20 +74,27 @@ fun ProfileTab(
     contentPadding: PaddingValues,
     route: ProfileRoute,
     onOpenChangelog: () -> Unit,
+    onOpenPermissionDetails: () -> Unit,
 ) {
     // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
     AnimatedContent(
         targetState = route,
         transitionSpec = {
-            val dir = if (targetState == ProfileRoute.Changelog) 1 else -1
+            val dir = if (targetState != ProfileRoute.List) 1 else -1
             (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
                 (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
         },
         label = "profileRoute",
     ) { current ->
         when (current) {
-            ProfileRoute.List -> ProfileList(viewModel, contentPadding, onOpenChangelog)
+            ProfileRoute.List -> ProfileList(
+                viewModel = viewModel,
+                contentPadding = contentPadding,
+                onOpenChangelog = onOpenChangelog,
+                onOpenPermissionDetails = onOpenPermissionDetails,
+            )
             ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
+            ProfileRoute.PermissionDetails -> PermissionDetailsScreen(contentPadding)
         }
     }
 }
@@ -96,6 +104,7 @@ private fun ProfileList(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
     onOpenChangelog: () -> Unit,
+    onOpenPermissionDetails: () -> Unit,
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -128,6 +137,8 @@ private fun ProfileList(
         )
 
         VersionCard(versionName = versionName, onClick = onOpenChangelog)
+
+        PermissionDetailsCard(onClick = onOpenPermissionDetails)
 
         val githubProjectUrl = stringResource(R.string.profile_github_project_url)
         val githubProfileUrl = stringResource(R.string.profile_github_url)
@@ -349,6 +360,49 @@ private fun VersionCard(versionName: String, onClick: () -> Unit) {
                 }
                 Text(
                     text = stringResource(R.string.profile_version_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** A clickable card that opens the per-permission explanations in [PermissionDetailsScreen]. */
+@Composable
+private fun PermissionDetailsCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Shield,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.profile_permissions_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.profile_permissions_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

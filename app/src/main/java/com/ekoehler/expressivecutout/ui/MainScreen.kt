@@ -207,6 +207,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             contentPadding = contentPadding,
                             route = profileRoute,
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
+                            onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
                         )
                     }
                 }
