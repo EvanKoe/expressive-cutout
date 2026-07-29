@@ -16,7 +16,7 @@ It runs entirely on your device. The app has no internet permission at all, so n
 be uploaded: no accounts, no analytics, no tracking, and it never asks Android which apps
 you have installed.
 
-[![Release](https://img.shields.io/badge/Release-0.1.0-lightgrey?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/releases)
+[![Download the latest release](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
 [![Stars](https://img.shields.io/github/stars/EvanKoe/expressive-cutout?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/stargazers)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -52,9 +52,6 @@ you have installed.
 [![Download the latest release](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
 
 </div>
-
-The app is in beta and releases are not published yet — the link above will point to the
-APK as soon as the first one is cut. A Play Store listing may follow later.
 
 Requires Android 10 (API 29) or newer. On first launch the app walks you through the three
 things it needs: notification access (to mirror notifications), the accessibility service
