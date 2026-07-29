@@ -29,7 +29,6 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -102,25 +101,10 @@ private fun ProfileList(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = stringResource(R.string.profile_appearance),
-            style = MaterialTheme.typography.titleLarge,
+        ThemeCard(
+            selected = theme,
+            onSelect = viewModel::setTheme,
         )
-        Text(
-            text = stringResource(R.string.profile_theme),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
-
-        ExpressiveSegmentedRow(
-            options = AppTheme.entries.map { stringResource(it.labelRes) },
-            selectedIndex = theme.ordinal,
-            onSelect = { viewModel.setTheme(AppTheme.entries[it]) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
         VersionCard(versionName = versionName, onClick = onOpenChangelog)
 
@@ -143,6 +127,34 @@ private fun ProfileList(
                 )
             },
         )
+    }
+}
+
+/** The app-wide theme choice: a title over the segmented selector, in a card of its own. */
+@Composable
+private fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.profile_theme),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            ExpressiveSegmentedRow(
+                options = AppTheme.entries.map { stringResource(it.labelRes) },
+                selectedIndex = selected.ordinal,
+                onSelect = { onSelect(AppTheme.entries[it]) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
