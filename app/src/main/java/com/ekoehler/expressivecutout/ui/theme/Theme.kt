@@ -11,6 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 /**
+ * Whether this choice resolves to a dark scheme right now. Exposed so callers that need to
+ * match the theme outside the composition — the system bars, for one — agree with it.
+ */
+@Composable
+fun AppTheme.isDark(): Boolean = when (this) {
+    AppTheme.SYSTEM -> isSystemInDarkTheme()
+    AppTheme.LIGHT -> false
+    AppTheme.DARK -> true
+}
+
+/**
  * App theme. Resolves the user's [AppTheme] choice to light/dark, then prefers Material You
  * dynamic colour on Android 12+ and falls back to a fixed brand scheme elsewhere.
  */
@@ -20,11 +31,7 @@ fun ExpressiveCutoutTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val darkTheme = when (appTheme) {
-        AppTheme.SYSTEM -> isSystemInDarkTheme()
-        AppTheme.LIGHT -> false
-        AppTheme.DARK -> true
-    }
+    val darkTheme = appTheme.isDark()
     val context = LocalContext.current
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
