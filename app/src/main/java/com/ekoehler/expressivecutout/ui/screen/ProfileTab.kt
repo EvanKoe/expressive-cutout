@@ -9,9 +9,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -38,10 +42,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
@@ -93,6 +100,12 @@ private fun ProfileList(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "—"
     }
+    val openUrl = { url: String ->
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, url.toUri())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -109,25 +122,103 @@ private fun ProfileList(
         VersionCard(versionName = versionName, onClick = onOpenChangelog)
 
         val githubUrl = stringResource(R.string.profile_github_url)
-        GitHubCard(
-            onClick = {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, githubUrl.toUri())
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            },
-        )
+        GitHubCard(onClick = { openUrl(githubUrl) })
 
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
-        BuyMeACoffeeCard(
-            onClick = {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, coffeeUrl.toUri())
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            },
+        BuyMeACoffeeCard(onClick = { openUrl(coffeeUrl) })
+
+        DevCard(
+            versionName = versionName,
+            onOpenGitHub = { openUrl(githubUrl) },
+            onOpenCoffee = { openUrl(coffeeUrl) },
         )
     }
+}
+
+/**
+ * The "about" card that closes the tab: app name and version, the developer's photo, and the
+ * two links out as filled buttons.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DevCard(
+    versionName: String,
+    onOpenGitHub: () -> Unit,
+    onOpenCoffee: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "${stringResource(R.string.app_name)} v$versionName",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.dev_card_tagline),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+            )
+
+            DevAvatar()
+
+            Text(
+                text = stringResource(R.string.dev_card_author),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 20.dp),
+            )
+
+            // Wraps to a second line on narrow screens rather than squeezing either label.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(onClick = onOpenGitHub) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_github),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.dev_card_github))
+                }
+                Button(onClick = onOpenCoffee) {
+                    Icon(
+                        imageVector = Icons.Rounded.Coffee,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.profile_coffee_title))
+                }
+            }
+        }
+    }
+}
+
+/** The developer's photo, cropped square with the same corner radius as the cards. */
+@Composable
+private fun DevAvatar() {
+    Image(
+        painter = painterResource(R.drawable.dev_avatar),
+        contentDescription = stringResource(R.string.dev_card_avatar),
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(112.dp)
+            .clip(RoundedCornerShape(28.dp)),
+    )
 }
 
 /** The app-wide theme choice: a title over the segmented selector, in a card of its own. */
@@ -146,7 +237,7 @@ private fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
         ) {
             Text(
                 text = stringResource(R.string.profile_theme),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
             )
             ExpressiveSegmentedRow(
                 options = AppTheme.entries.map { stringResource(it.labelRes) },
