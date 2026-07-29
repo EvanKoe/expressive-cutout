@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BatterySaver
-import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
@@ -44,10 +43,9 @@ import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 
 /**
- * One permission, explained. [uses] is what the grant is actually needed for and [notUsedFor] is
- * the reassurance half — the things people reasonably fear a permission like this is doing. The
- * copy lives here rather than in strings.xml so a permission is described next to the manifest
- * entry it documents, the same way [Releases] keeps its bullets in code.
+ * One permission, explained: what it is, and the specific things the app does with it. The copy
+ * lives here rather than in strings.xml so a permission is described next to the manifest entry it
+ * documents, the same way [Releases] keeps its bullets in code.
  */
 private data class PermissionDoc(
     val icon: ImageVector,
@@ -56,7 +54,6 @@ private data class PermissionDoc(
     val manifestName: String,
     val summary: String,
     val uses: List<String>,
-    val notUsedFor: List<String>,
     /** Only asked for on some Android versions, or only when a given feature is used. */
     val optional: Boolean = false,
 )
@@ -71,17 +68,13 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         title = "Notification access",
         manifestName = "BIND_NOTIFICATION_LISTENER_SERVICE",
         summary = "The island exists to show your notifications, so it has to be allowed to see " +
-            "them. This is the one broad permission the app needs.",
+            "them. This is the one broad permission the app needs. What it reads is held in " +
+            "memory for as long as the island shows it, and never written to disk.",
         uses = listOf(
-            "Show a notification on the island: its app icon, title, text and action buttons",
+            "Show a notification on the island: its own icon, title, text and action buttons",
             "Let you reply inline, or trigger an action, and pass that straight back to the app that posted it",
-            "Read the media session behind a now-playing notification, so the music tile can show the album art and control playback",
+            "Dismiss the real notification when you swipe the island away",
             "Detect an ongoing or incoming call, and the system countdown behind a timer notification",
-        ),
-        notUsedFor = listOf(
-            "Storing your notifications — they are held in memory only, for as long as the island shows them, and never written to disk",
-            "Sending anything anywhere: the app declares no internet permission, so it physically cannot upload a notification",
-            "Reading notifications you have hidden from the island in the settings",
         ),
     ),
     PermissionDoc(
@@ -90,16 +83,11 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
         summary = "Android only lets an accessibility service draw a window that survives above " +
             "other apps and the lockscreen. That window is the island — the service is used as a " +
-            "drawing surface, nothing more.",
+            "drawing surface, and requests no screen-content events.",
         uses = listOf(
             "Draw the island over the camera cutout, above whatever app is in the foreground",
             "Keep it there across app switches, and tear it down while the device is locked if you asked for that",
             "Receive your taps and swipes on the island itself",
-        ),
-        notUsedFor = listOf(
-            "Reading the content of the screen: the service requests no window-content events and inspects no view tree",
-            "Watching what you type, or which apps you open",
-            "Performing actions on your behalf in other apps",
         ),
     ),
     PermissionDoc(
@@ -107,12 +95,11 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         title = "Ignore battery optimisation",
         manifestName = "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
         summary = "Optional. Without it, aggressive power management can kill the overlay in the " +
-            "background, and the island stops appearing until you reopen the app.",
+            "background, and the island stops appearing until you reopen the app. There is no " +
+            "sync, no polling and no scheduled job behind it — the app idles until something " +
+            "reaches the island.",
         uses = listOf(
             "Ask the system, once, to leave the overlay service running",
-        ),
-        notUsedFor = listOf(
-            "Background work of any kind — there is no sync, no polling and no scheduled job. The app is idle unless something is on the island",
         ),
         optional = true,
     ),
@@ -121,12 +108,10 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         title = "Post notifications",
         manifestName = "POST_NOTIFICATIONS",
         summary = "Optional, and only asked for on Android 13 and later, the first time you tap " +
-            "one of the test buttons on the Permissions screen.",
+            "one of the test buttons on the Permissions screen. The app posts nothing you did " +
+            "not ask for.",
         uses = listOf(
             "Post the sample notification, call and reply used to preview the island without waiting for a real one",
-        ),
-        notUsedFor = listOf(
-            "Sending you anything else — the app never posts a notification you did not ask for. No ads, no promotions, no update nags",
         ),
         optional = true,
     ),
@@ -135,27 +120,24 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         title = "Network state",
         manifestName = "ACCESS_NETWORK_STATE",
         summary = "Read-only, granted automatically, and never prompted for. It reports whether " +
-            "you are connected and the name of the current Wi-Fi network.",
+            "you are connected and the name of the network you are on — it grants no internet " +
+            "access, and cannot see networks you are not connected to.",
         uses = listOf(
             "Show the Wi-Fi connect and disconnect event on the island, with the network name",
-        ),
-        notUsedFor = listOf(
-            "Using the network. This permission only reads connection state — it grants no internet access, and the app has no internet permission",
-            "Location: it cannot see nearby networks, only the one you are already connected to",
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Apps,
-        title = "Installed launcher apps",
+        title = "Launcher app lookup",
         manifestName = "<queries> — launcher intent",
-        summary = "Not a permission you grant, but worth naming: to draw an app's icon on the " +
-            "island the app has to resolve it. It asks the system only for apps with a launcher " +
-            "entry, rather than taking the blanket \"see all apps\" permission.",
+        summary = "Not a permission you grant, but worth naming: Android hides other apps from " +
+            "us by default, and the island has to name the app a notification came from. This " +
+            "asks only for apps with a launcher entry, rather than the blanket \"see all apps\" " +
+            "permission — QUERY_ALL_PACKAGES was deliberately dropped in favour of it.",
         uses = listOf(
-            "Resolve the icon and name of an app that posted a notification, or one you picked yourself",
-        ),
-        notUsedFor = listOf(
-            "Building a list of what you have installed. QUERY_ALL_PACKAGES was deliberately removed in favour of this narrower declaration",
+            "Resolve the name of the app that posted a notification",
+            "Resolve the name and icon of the media player behind the music tile, which comes from a media session rather than a notification",
+            "Fall back to an app's launcher icon for the rare notification that carries no icon of its own",
         ),
     ),
 )
@@ -275,12 +257,6 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 label = stringResource(R.string.permission_details_uses),
                 accent = MaterialTheme.colorScheme.primary,
                 items = doc.uses,
-            )
-            BulletGroup(
-                icon = Icons.Rounded.Block,
-                label = stringResource(R.string.permission_details_not),
-                accent = MaterialTheme.colorScheme.tertiary,
-                items = doc.notUsedFor,
             )
         }
     }

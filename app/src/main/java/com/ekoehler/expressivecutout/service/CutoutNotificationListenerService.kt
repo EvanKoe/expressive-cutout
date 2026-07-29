@@ -72,6 +72,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 key = notification.key,
                 contentIntent = notification.notification.contentIntent,
                 actions = notification.notification.surfaceableActions(),
+                // The posting app's own icons for this notification. Preferred over its launcher
+                // icon downstream, so the island badge shows what the shade shows.
+                largeIcon = notification.notification.getLargeIcon(),
+                smallIcon = notification.notification.smallIcon,
             ),
         )
     }

@@ -71,6 +71,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
@@ -1903,11 +1904,18 @@ private fun IconBadge(
                 modifier = Modifier.size(iconSize),
             )
 
+            // Full-colour art fills the badge disc; a monochrome glyph (a notification's small
+            // icon) is drawn at glyph size in the badge's ink instead, like a vector icon.
             is IslandIcon.Raster -> androidx.compose.foundation.Image(
                 bitmap = icon.bitmap,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
+                contentScale = if (icon.tint) ContentScale.Fit else ContentScale.Crop,
+                colorFilter = if (icon.tint) ColorFilter.tint(glyphColor) else null,
+                modifier = if (icon.tint) {
+                    Modifier.size(iconSize)
+                } else {
+                    Modifier.size(badgeSize * 0.78f).clip(CircleShape)
+                },
             )
 
             is IslandIcon.Lottie -> {

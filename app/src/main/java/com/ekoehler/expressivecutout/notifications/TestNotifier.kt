@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -99,6 +100,9 @@ object TestNotifier {
                         intent = markReadIntent,
                     ),
                 ),
+                // The same glyph the posted notification carries, so the preview goes through the
+                // real "icon from the notification" path rather than the launcher-icon fallback.
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )
     }

@@ -8,10 +8,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-        We resolve launcher icons/labels for two cases: apps the user picks in the
-        icon picker, and apps that post notifications. Notification sources are visible
-        via the NotificationListenerService exemption; launchable apps are covered by
-        the scoped <queries> below. This avoids the restricted QUERY_ALL_PACKAGES.
+        A notification's icon comes from the notification itself; this scoped query is what
+        lets us resolve the posting app's *name* (and its launcher icon, as the fallback for a
+        notification carrying no icon of its own) — plus the media player's name and icon for
+        the music tile, which arrives from a media session rather than a notification. Limited
+        to apps with a launcher entry, so it avoids the restricted QUERY_ALL_PACKAGES.
     -->
     <queries>
         <intent>

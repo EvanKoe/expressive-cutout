@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
@@ -28,6 +29,15 @@ fun Drawable.toImageBitmap(): ImageBitmap {
     draw(canvas)
     return bitmap.asImageBitmap()
 }
+
+/**
+ * Rasterises a notification's own [Icon] (its large icon or its small status-bar glyph), or null if
+ * it cannot be loaded — a resource icon has to be read out of the posting app's package, which can
+ * fail if that app is not visible to us or has since been uninstalled. Callers fall back.
+ */
+fun Icon.loadImageBitmapOrNull(context: Context): ImageBitmap? = runCatching {
+    loadDrawable(context)?.toImageBitmap()
+}.onFailure { Log.w(TAG, "Unable to load notification icon $this", it) }.getOrNull()
 
 /**
  * Loads a user-picked image URI into a down-sampled [ImageBitmap], or null if it can no

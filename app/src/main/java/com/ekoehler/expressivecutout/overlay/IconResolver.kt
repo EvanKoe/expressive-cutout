@@ -99,11 +99,15 @@ class IconResolver(private val context: Context) {
             packageManager.getApplicationLabel(info).toString()
         }.getOrDefault(signal.packageName)
 
-        val icon = runCatching {
-            packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
-        }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
-            .map { IslandIcon.Raster(it) as IslandIcon }
-            .getOrDefault(IslandIcon.Vector(SystemEventType.DEVICE_UNLOCKED.defaultIcon))
+        // The notification's own icon first — it is what the shade shows, it needs no package
+        // lookup, and it works for apps that have no launcher icon at all. The launcher icon is
+        // only the fallback for a notification that carries neither of its icons.
+        val icon = signal.notificationIcon()
+            ?: runCatching {
+                packageManager.getApplicationIcon(signal.packageName).toImageBitmap()
+            }.onFailure { Log.w(TAG, "No icon for ${signal.packageName}", it) }
+                .map { IslandIcon.Raster(it) as IslandIcon }
+                .getOrDefault(IslandIcon.Vector(SystemEventType.DEVICE_UNLOCKED.defaultIcon))
 
         val title = signal.title?.takeIf { it.isNotBlank() }
         return IslandEvent(
@@ -125,6 +129,19 @@ class IconResolver(private val context: Context) {
                 )
             },
         )
+    }
+
+    /**
+     * The icon the posting app put on the notification itself, or null when it carries neither.
+     * A large icon is full-colour art (a sender's photo, a podcast cover) and is drawn as-is; the
+     * small icon is the monochrome status-bar glyph, so it is tinted to the badge's glyph colour
+     * rather than drawn flat — a white-on-transparent glyph would otherwise vanish on a light
+     * island background.
+     */
+    private fun CutoutSignal.Notification.notificationIcon(): IslandIcon? {
+        largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it) }
+        smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
+        return null
     }
 
     private fun resolveMusic(signal: CutoutSignal.Music, settings: MusicTileSettings): IslandEvent {

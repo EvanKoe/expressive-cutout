@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.core
 
 import android.app.PendingIntent
 import android.app.RemoteInput
+import android.graphics.drawable.Icon
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryAlert
@@ -34,6 +35,16 @@ sealed interface CutoutSignal {
         val contentIntent: PendingIntent? = null,
         /** The notification's action buttons (e.g. "Archive", "Mark read"), if any. */
         val actions: List<Action> = emptyList(),
+        /**
+         * The notification's own large icon — full-colour art the posting app chose for this specific
+         * notification (a sender's photo, a podcast cover). Null when it set none.
+         */
+        val largeIcon: Icon? = null,
+        /**
+         * The notification's own small icon: the monochrome glyph the status bar shows. Always set by
+         * a valid notification, and the fallback when [largeIcon] is null.
+         */
+        val smallIcon: Icon? = null,
     ) : CutoutSignal {
 
         /**

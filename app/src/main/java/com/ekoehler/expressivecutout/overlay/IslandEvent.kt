@@ -17,7 +17,14 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
  */
 sealed interface IslandIcon {
     data class Vector(val image: ImageVector) : IslandIcon
-    data class Raster(val bitmap: ImageBitmap) : IslandIcon
+
+    /**
+     * A bitmap icon. Normally full-colour art that fills the badge (a launcher icon, a
+     * notification's large icon). When [tint] is true it is instead a monochrome glyph — a
+     * notification's small icon — so it is drawn glyph-sized and recoloured with the badge's ink,
+     * like an [IslandIcon.Vector], rather than filling the disc with its own (often white) pixels.
+     */
+    data class Raster(val bitmap: ImageBitmap, val tint: Boolean = false) : IslandIcon
 
     /**
      * A Lottie animation from `res/raw`, played when the collapsed pill appears. Used for events that

@@ -312,7 +312,6 @@
     <string name="permission_details_optional">Optional</string>
     <string name="permission_details_intro">Expressive Cutout draws an island over your screen, so it asks for a few sensitive-looking permissions. Here is exactly what each one is used for. Everything below happens on your device: the app has no internet permission at all, so nothing can be uploaded, and there is no analytics or tracking of any kind.</string>
     <string name="permission_details_uses">What it is used for</string>
-    <string name="permission_details_not">What it is never used for</string>
     <string name="permission_details_footer_title">Check it yourself</string>
     <string name="permission_details_footer">The app is fully open source. Every permission above is declared in the manifest, and you can read the code that uses it on GitHub — including the fact that no network calls are ever made.</string>
     <string name="profile_github_title">Open GitHub repository</string>
