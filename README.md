@@ -16,7 +16,7 @@ It runs entirely on your device. The app has no internet permission at all, so n
 be uploaded: no accounts, no analytics, no tracking, and it never asks Android which apps
 you have installed.
 
-[![Release](https://img.shields.io/badge/release-coming%20soon-lightgrey?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/releases)
+[![Release](https://img.shields.io/badge/Release-0.1.0-lightgrey?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/releases)
 [![Stars](https://img.shields.io/github/stars/EvanKoe/expressive-cutout?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/stargazers)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -38,6 +38,10 @@ you have installed.
 ## Screenshots
 
 <!-- Screenshots go here. -->
+| | | |
+|-|-|-|
+|<img width="864" height="1939" alt="Screenshot_20260729-153011" src="https://github.com/user-attachments/assets/9f7e4724-bd91-4486-8f0e-9500906024d2" />|<img width="1080" height="2424" alt="Screenshot_20260729-153006" src="https://github.com/user-attachments/assets/e803d2a2-8e9b-41e0-8688-54affaefa355" />|<img width="864" height="1939" alt="Screenshot_20260729-153043" src="https://github.com/user-attachments/assets/84f40ce3-7ef0-41b4-9d89-3790008de5bc" />|
+|<img width="1080" height="2424" alt="Screenshot_20260729-152844" src="https://github.com/user-attachments/assets/a905ca3b-ba28-41ff-a072-07752b79686a" />|<img width="1080" height="2424" alt="Screenshot_20260729-152838" src="https://github.com/user-attachments/assets/7f11c6b2-a736-4529-8718-268e6dba3852" />|<img width="1080" height="2424" alt="Screenshot_20260729-152826" src="https://github.com/user-attachments/assets/73a72048-8338-4c10-aeea-e4a1243b724a" />|
 
 ---
 
