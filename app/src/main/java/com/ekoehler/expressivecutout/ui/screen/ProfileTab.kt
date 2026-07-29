@@ -2,6 +2,13 @@ package com.ekoehler.expressivecutout.ui.screen
 
 import android.content.Intent
 import androidx.core.net.toUri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material3.Card
@@ -33,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
@@ -40,14 +49,42 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 
+/** The screens reachable from the Profile tab. Hoisted to MainScreen, like [SettingsRoute]. */
+enum class ProfileRoute { List, Changelog }
+
 /**
- * "Profile" destination: the app-wide theme choice and build metadata. The selected theme
- * is persisted and applied at the root of the activity.
+ * "Profile" destination: the app-wide theme choice, the version (which opens the changelog) and
+ * links out to the project. The selected theme is persisted and applied at the root of the activity.
  */
 @Composable
 fun ProfileTab(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    route: ProfileRoute,
+    onOpenChangelog: () -> Unit,
+) {
+    // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
+    AnimatedContent(
+        targetState = route,
+        transitionSpec = {
+            val dir = if (targetState == ProfileRoute.Changelog) 1 else -1
+            (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
+                (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
+        },
+        label = "profileRoute",
+    ) { current ->
+        when (current) {
+            ProfileRoute.List -> ProfileList(viewModel, contentPadding, onOpenChangelog)
+            ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
+        }
+    }
+}
+
+@Composable
+private fun ProfileList(
+    viewModel: AppViewModel,
+    contentPadding: PaddingValues,
+    onOpenChangelog: () -> Unit,
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -84,10 +121,7 @@ fun ProfileTab(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        InfoRow(
-            label = stringResource(R.string.profile_version),
-            value = versionName,
-        )
+        VersionCard(versionName = versionName, onClick = onOpenChangelog)
 
         val githubUrl = stringResource(R.string.profile_github_url)
         GitHubCard(
@@ -108,6 +142,49 @@ fun ProfileTab(
                 )
             },
         )
+    }
+}
+
+/** The installed version, shown large, opening the full changelog on tap. */
+@Composable
+private fun VersionCard(versionName: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.profile_version),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = versionName,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.profile_version_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -194,20 +271,5 @@ private fun BuyMeACoffeeCard(onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(text = label, style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

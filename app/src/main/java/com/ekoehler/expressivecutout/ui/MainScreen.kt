@@ -57,6 +57,7 @@ import com.ekoehler.expressivecutout.ui.components.BackNavBar
 import com.ekoehler.expressivecutout.ui.components.ExpressiveNavBar
 import com.ekoehler.expressivecutout.ui.components.NavBarItem
 import com.ekoehler.expressivecutout.ui.screen.PermissionsTab
+import com.ekoehler.expressivecutout.ui.screen.ProfileRoute
 import com.ekoehler.expressivecutout.ui.screen.ProfileTab
 import com.ekoehler.expressivecutout.ui.screen.SettingsRoute
 import com.ekoehler.expressivecutout.ui.screen.SettingsTab
@@ -82,6 +83,7 @@ private enum class HomeTab(
 fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var settingsRoute by rememberSaveable { mutableStateOf(SettingsRoute.List) }
+    var profileRoute by rememberSaveable { mutableStateOf(ProfileRoute.List) }
     // Which tile's settings are open (saved by name so it survives config change / process death).
     var selectedTileName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedTile = selectedTileName?.let { name -> DynamicTile.entries.firstOrNull { it.name == name } }
@@ -92,8 +94,17 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     val current = tabs[selectedIndex]
     val haptics = LocalHapticFeedback.current
 
-    // On a Settings detail screen the bottom bar becomes a back pill instead of the tab bar.
-    val inSubScreen = current == HomeTab.Settings && settingsRoute != SettingsRoute.List
+    // On a detail screen the bottom bar becomes a back pill instead of the tab bar.
+    val inSubScreen = (current == HomeTab.Settings && settingsRoute != SettingsRoute.List) ||
+        (current == HomeTab.Profile && profileRoute != ProfileRoute.List)
+
+    val navigateBack: () -> Unit = {
+        if (current == HomeTab.Profile) {
+            profileRoute = ProfileRoute.List
+        } else {
+            settingsRoute = settingsRoute.parent
+        }
+    }
 
     // Drives the predictive-back "peek" animation: 0f = at rest, 1f = fully committed.
     val backProgress = remember { Animatable(0f) }
@@ -105,7 +116,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 backProgress.snapTo(event.progress)
             }
             // Gesture committed: navigate back, then reset the transform for the new screen.
-            settingsRoute = settingsRoute.parent
+            navigateBack()
             backProgress.snapTo(0f)
         } catch (_: CancellationException) {
             // Gesture cancelled: ease the peek back to rest.
@@ -185,7 +196,12 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         )
 
                         HomeTab.Permissions -> PermissionsTab(contentPadding)
-                        HomeTab.Profile -> ProfileTab(viewModel, contentPadding)
+                        HomeTab.Profile -> ProfileTab(
+                            viewModel = viewModel,
+                            contentPadding = contentPadding,
+                            route = profileRoute,
+                            onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
+                        )
                     }
                 }
             }
@@ -211,7 +227,9 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 .padding(bottom = 16.dp)
 
             if (inSubScreen) {
-                val title = when (settingsRoute) {
+                val title = if (current == HomeTab.Profile) {
+                    stringResource(R.string.changelog_title)
+                } else when (settingsRoute) {
                     SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                     SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
                     SettingsRoute.DynamicTileDetail ->
@@ -227,7 +245,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 }
                 BackNavBar(
                     title = title,
-                    onBack = { settingsRoute = settingsRoute.parent },
+                    onBack = navigateBack,
                     modifier = barModifier,
                 )
             } else {
