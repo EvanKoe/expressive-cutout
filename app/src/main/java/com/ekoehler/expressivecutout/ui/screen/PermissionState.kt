@@ -10,7 +10,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.permissions.Permissions
+import com.ekoehler.expressivecutout.service.CutoutAccessibilityService
 
 /**
  * Live accessibility-grant state that re-reads on every [Lifecycle.Event.ON_RESUME], so returning
@@ -33,4 +35,17 @@ fun rememberAccessibilityGranted(): Boolean {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     return granted
+}
+
+/**
+ * True while the accessibility service is actually bound, as opposed to merely granted. Android
+ * keeps the grant in Settings.Secure across a reinstall or an app update but does not always
+ * rebind the service, leaving the island silently dead while every permission check still reads
+ * green. Collected from a [kotlinx.coroutines.flow.StateFlow] rather than re-read on resume so the
+ * warning clears the instant the service binds, instead of lingering until the next resume.
+ */
+@Composable
+fun rememberAccessibilityRunning(): Boolean {
+    val bound by CutoutAccessibilityService.bound.collectAsStateWithLifecycle()
+    return bound
 }

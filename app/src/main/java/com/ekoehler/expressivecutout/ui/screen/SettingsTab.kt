@@ -166,6 +166,9 @@ private fun SettingsList(
     val context = LocalContext.current
     // Re-reads on resume so returning from the system Accessibility settings updates immediately.
     val accessibilityAvailable = rememberAccessibilityGranted()
+    // Granted is not the same as running: Android keeps the grant across an app update but often
+    // leaves the service unbound, so the island is dead while the grant still reads green.
+    val accessibilityRunning = rememberAccessibilityRunning()
 
     Column(
         modifier = Modifier
@@ -186,6 +189,22 @@ private fun SettingsList(
                 onClick = { Permissions.openAccessibilitySettings(context) },
                 bgColor = MaterialTheme.colorScheme.primaryContainer,
                 fgColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+
+        // Granted but not bound — the grant survived an update, the service did not. Distinct from
+        // the card above: the fix is toggling the existing grant off and on, not granting it.
+        AnimatedVisibility(
+            visible = accessibilityAvailable && !accessibilityRunning,
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.ErrorOutline,
+                subtitle = stringResource(R.string.settings_access_stalled),
+                title = stringResource(R.string.settings_access_stalled_title),
+                onClick = { Permissions.openAccessibilitySettings(context) },
+                bgColor = MaterialTheme.colorScheme.errorContainer,
+                fgColor = MaterialTheme.colorScheme.onErrorContainer
             )
         }
 

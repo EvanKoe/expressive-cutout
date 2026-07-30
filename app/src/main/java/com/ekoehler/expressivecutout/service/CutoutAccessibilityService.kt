@@ -5,6 +5,9 @@ import android.view.accessibility.AccessibilityEvent
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The always-on host of the island. Its sole purpose is to provide a context that can add
@@ -23,6 +26,7 @@ class CutoutAccessibilityService : AccessibilityService() {
         overlay = IslandOverlayController(this).also { it.start() }
         systemEvents = SystemEventMonitor(this).also { it.start() }
         mediaPlayback = MediaPlaybackMonitor(this).also { it.start() }
+        _bound.value = true
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -42,11 +46,28 @@ class CutoutAccessibilityService : AccessibilityService() {
     }
 
     private fun teardown() {
+        _bound.value = false
         mediaPlayback?.stop()
         mediaPlayback = null
         systemEvents?.stop()
         systemEvents = null
         overlay?.stop()
         overlay = null
+    }
+
+    companion object {
+        private val _bound = MutableStateFlow(false)
+
+        /**
+         * True only while Android actually has this service bound — i.e. while the island is
+         * really running. Deliberately separate from
+         * [com.ekoehler.expressivecutout.permissions.Permissions.isAccessibilityGranted], which
+         * reads the user's *consent* out of Settings.Secure: that stays "enabled" across a
+         * reinstall or an app update while the binding is dead, so the app would otherwise report
+         * itself healthy while nothing at all is listening. Lives in the companion object rather
+         * than on the instance so the settings UI (same process — no android:process on the
+         * service) can observe it without a binder of its own.
+         */
+        val bound: StateFlow<Boolean> = _bound.asStateFlow()
     }
 }
