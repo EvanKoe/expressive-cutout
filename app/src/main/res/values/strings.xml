@@ -32,6 +32,9 @@
     <string name="perm_accessibility_desc">Draws the island over the cutout. No screen content is read.</string>
     <string name="perm_battery_title">Ignore battery optimisation</string>
     <string name="settings_access_missing">Overlay access is missing. Enable it now to see the island</string>
+    <string name="music_art_stroke_title">Ring around the cover</string>
+    <string name="music_art_stroke_desc">Draws a coloured ring around the album art, set slightly apart from it.</string>
+    <string name="music_art_stroke_color">Ring colour</string>
     <string name="settings_access_stalled_title">Overlay access needs a restart</string>
     <string name="settings_access_stalled">Still granted, but Android stopped the service — usually after an app update. Turn it off and on again to bring the island back</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>

@@ -82,15 +82,34 @@ internal fun MusicTileScreen(
             checked = settings.showAlbumArt,
             onCheckedChange = viewModel::setMusicShowAlbumArt,
         )
-        // Rotation only applies to the album cover, so it rides with the album-art toggle.
+        // Rotation and the ring only apply to the album cover, so they ride with its toggle.
         AnimatedVisibility(visible = settings.showAlbumArt) {
-            SettingsToggleCard(
-                shape = RoundedCornerShape(4.dp),
-                title = stringResource(R.string.music_rotate_art_title),
-                description = stringResource(R.string.music_rotate_art_desc),
-                checked = settings.rotateAlbumArt,
-                onCheckedChange = viewModel::setMusicRotateAlbumArt,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(4.dp),
+                    title = stringResource(R.string.music_rotate_art_title),
+                    description = stringResource(R.string.music_rotate_art_desc),
+                    checked = settings.rotateAlbumArt,
+                    onCheckedChange = viewModel::setMusicRotateAlbumArt,
+                )
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(4.dp),
+                    title = stringResource(R.string.music_art_stroke_title),
+                    description = stringResource(R.string.music_art_stroke_desc),
+                    checked = settings.albumArtStroke,
+                    onCheckedChange = viewModel::setMusicAlbumArtStroke,
+                )
+                AnimatedVisibility(visible = settings.albumArtStroke) {
+                    ColorPickerCard(
+                        label = stringResource(R.string.music_art_stroke_color),
+                        selected = settings.albumArtStrokeColor,
+                        onSelect = viewModel::setMusicAlbumArtStrokeColor,
+                        defaultLabel = stringResource(R.string.music_default_accent),
+                        defaultColor = MusicAccent,
+                        roundedCorners = 4.dp
+                    )
+                }
+            }
         }
 
         SettingsToggleCard(

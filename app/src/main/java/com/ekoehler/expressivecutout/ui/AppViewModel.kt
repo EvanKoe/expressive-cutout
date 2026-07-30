@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
@@ -244,6 +245,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }
 
+    fun setMusicAlbumArtStroke(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setAlbumArtStroke(enabled)
+    }
+
+    fun setMusicAlbumArtStrokeColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setAlbumArtStrokeColor(color)
+    }
+
     fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowControls(enabled)
     }
@@ -442,6 +451,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setActionButtonHeight(heightDp: Int) = viewModelScope.launch {
         appearancePreferences.setActionButtonHeight(heightDp)
+    }
+
+    fun setActionButtonAlignment(alignment: ActionButtonAlignment) = viewModelScope.launch {
+        appearancePreferences.setActionButtonAlignment(alignment)
     }
 
     fun setReplyInputStyle(style: ReplyInputStyle) = viewModelScope.launch {

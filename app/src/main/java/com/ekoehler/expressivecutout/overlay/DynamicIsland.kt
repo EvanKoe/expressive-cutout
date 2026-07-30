@@ -17,6 +17,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -108,6 +109,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
+import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
@@ -152,6 +154,12 @@ private const val REPLY_SENT_FEEDBACK_MS = 900L
 // Time for the rotating album art to complete one full turn.
 private const val ALBUM_SPIN_MS = 8000
 
+// The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
+// itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
+// the same on the collapsed pill and in the (larger) expanded layout.
+private const val ALBUM_STROKE_FRACTION = 0.055f
+private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
+
 // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
 // animation is expressed relative to this, so the user's single "animation duration" knob scales
 // them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
@@ -163,6 +171,17 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
  * height) plus its spacing. The controller grows the host window by the same amount so it never clips.
  */
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
+
+/**
+ * Maps the configured chip placement onto the [Row] arrangement that positions the chip row.
+ * [ActionButtonAlignment.FULL] stretches the chips with weight rather than positioning them, so it
+ * falls back to leading here (the arrangement is irrelevant once the chips fill the whole width).
+ */
+internal fun ActionButtonAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
+    ActionButtonAlignment.LEFT, ActionButtonAlignment.FULL -> Alignment.Start
+    ActionButtonAlignment.CENTER -> Alignment.CenterHorizontally
+    ActionButtonAlignment.RIGHT -> Alignment.End
+}
 
 /**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
@@ -603,6 +622,16 @@ private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitma
         ?: notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.art
 }
 
+/**
+ * The colour of the ring around the album cover, or null when the user hasn't asked for one. An
+ * enabled ring with no colour picked falls back to the tile's own accent, matching what the
+ * settings screen offers as its default swatch.
+ */
+@Composable
+private fun albumArtStrokeFor(event: IslandEvent): Color? =
+    event.media?.takeIf { it.albumArtStroke }
+        ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
+
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
@@ -623,6 +652,7 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
                 modifier = placement,
                 rotate = event.media?.rotateAlbumArt == true,
                 playing = nowPlaying?.isPlaying == true,
+                strokeColor = albumArtStrokeFor(event),
             )
 
             callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = placement)
@@ -760,8 +790,12 @@ private fun ExpandedContent(
                 showActions && event.actions.isNotEmpty() -> {
                     // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+                    // Full-length: each chip takes an equal weighted share of the whole width; the
+                    // other alignments size chips to content and position the row as a group.
+                    val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         event.actions.take(3).forEach { action ->
@@ -773,6 +807,7 @@ private fun ExpandedContent(
                                 onClick = {
                                     if (action.reply != null) onStartReply(action) else onAction(action)
                                 },
+                                modifier = if (full) Modifier.weight(1f) else Modifier,
                             )
                         }
                     }
@@ -793,6 +828,7 @@ private fun ActionChip(
     fill: Color,
     heightDp: Int,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val shape = when (style) {
@@ -823,7 +859,7 @@ private fun ActionChip(
         color = container,
         contentColor = content,
         border = border,
-        modifier = Modifier
+        modifier = modifier
             .height(heightDp.dp)
             .pressScale(interaction),
     ) {
@@ -1212,6 +1248,7 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                         size = 44.dp,
                         rotate = event.media?.rotateAlbumArt == true,
                         playing = nowPlaying?.isPlaying == true,
+                        strokeColor = albumArtStrokeFor(event),
                     )
                 } else {
                     IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
@@ -1826,7 +1863,8 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
 
 /**
  * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
- * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused.
+ * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
+ * non-null [strokeColor] rings the cover, set apart from it by a small gap.
  */
 @Composable
 private fun AlbumArt(
@@ -1835,6 +1873,8 @@ private fun AlbumArt(
     modifier: Modifier = Modifier,
     rotate: Boolean = false,
     playing: Boolean = false,
+    /** Colour of the ring drawn around the cover, or null to leave it bare. */
+    strokeColor: Color? = null,
 ) {
     val angle = remember { Animatable(0f) }
     // Spin only while enabled and playing; on pause the effect cancels and the angle holds. Restart
@@ -1850,18 +1890,38 @@ private fun AlbumArt(
             )
         }
     }
-    // A spinning square would visibly swing its corners, so a rotatable cover is drawn as a circle.
-    val shape = if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
-    androidx.compose.foundation.Image(
-        bitmap = bitmap,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier
-            .size(size)
-            .rotate(if (rotate) angle.value else 0f)
-            .clip(shape),
-    )
+    // The ring sits inside the cover's existing footprint rather than around it, so switching it on
+    // never grows the badge or shoves the pill's text along. Without a ring the artwork fills the
+    // footprint exactly as before.
+    val strokeWidth = if (strokeColor != null) size * ALBUM_STROKE_FRACTION else 0.dp
+    val gap = if (strokeColor != null) size * ALBUM_STROKE_GAP_FRACTION else 0.dp
+    val coverSize = size - (strokeWidth + gap) * 2
+
+    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+        if (strokeColor != null) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    // A spinning square would visibly swing its corners, so a rotatable cover — and
+                    // the ring tracking it — is drawn as a circle.
+                    .border(strokeWidth, strokeColor, albumArtShape(rotate, size)),
+            )
+        }
+        androidx.compose.foundation.Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(coverSize)
+                .rotate(if (rotate) angle.value else 0f)
+                .clip(albumArtShape(rotate, coverSize)),
+        )
+    }
 }
+
+/** Circle for a spinning cover, else a rounded square whose radius scales with [size]. */
+private fun albumArtShape(rotate: Boolean, size: Dp) =
+    if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
 
 @Composable
 private fun IconBadge(
