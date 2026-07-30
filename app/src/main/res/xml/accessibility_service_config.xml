@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    We do not need to observe accessibility events to draw the overlay; the service
-    exists purely so we may host a TYPE_ACCESSIBILITY_OVERLAY window without the
-    SYSTEM_ALERT_WINDOW permission. canRetrieveWindowContent is false so no screen
-    content is ever read.
+    The service exists chiefly so we may host a TYPE_ACCESSIBILITY_OVERLAY window without
+    the SYSTEM_ALERT_WINDOW permission. It also listens for typeWindowStateChanged to learn
+    which app is in the foreground (package name only), so the music tile can hide while the
+    playing app is open. canRetrieveWindowContent is false, so no screen content is ever read.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"

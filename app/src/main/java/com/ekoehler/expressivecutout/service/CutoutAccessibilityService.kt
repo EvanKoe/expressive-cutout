@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.service
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
+import com.ekoehler.expressivecutout.core.ForegroundAppBus
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
@@ -10,10 +11,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The always-on host of the island. Its sole purpose is to provide a context that can add
+ * The always-on host of the island. Its main purpose is to provide a context that can add
  * a TYPE_ACCESSIBILITY_OVERLAY window (no SYSTEM_ALERT_WINDOW required) and to keep the
- * overlay controller and system-event monitor alive for the lifetime of the binding. It
- * deliberately ignores accessibility events and never inspects window content.
+ * overlay controller and system-event monitor alive for the lifetime of the binding.
+ *
+ * It also tracks which app is in the foreground — read from the package name on
+ * window-state-changed events only, never from window content (canRetrieveWindowContent stays
+ * false) — so the music tile can hide itself while the playing app is open.
  */
 class CutoutAccessibilityService : AccessibilityService() {
 
@@ -30,7 +34,11 @@ class CutoutAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // No-op: we host an overlay, we do not react to accessibility events.
+        // The only event we react to: note which app moved to the foreground so the overlay can
+        // hide the music tile while the playing app is open. Only the package name is read.
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
+        ForegroundAppBus.update(pkg)
     }
 
     override fun onInterrupt() = Unit

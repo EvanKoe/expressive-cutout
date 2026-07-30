@@ -258,6 +258,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setExpandOnPlay(enabled)
     }
 
+    fun setMusicVisibleInPlayerApp(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setVisibleInPlayerApp(enabled)
+    }
+
     fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowControls(enabled)
     }

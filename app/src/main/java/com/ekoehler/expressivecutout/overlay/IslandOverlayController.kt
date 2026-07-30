@@ -34,6 +34,7 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.core.ForegroundAppBus
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
@@ -146,6 +147,12 @@ class IslandOverlayController(private val context: Context) {
     // The last resolved music event, so the pill can return after a notification/system event that
     // briefly took over the cutout while playback carried on.
     private var lastMusicEvent: IslandEvent? = null
+    // The package of the app currently in the foreground, from the accessibility service. Drives the
+    // "Visible in player app" option: when off, the music cutout hides while this matches the player.
+    private var foregroundPackage: String? = null
+    // True while the music cutout is being held hidden because the playing app is in the foreground
+    // and "Visible in player app" is off, so it can be brought back when the user leaves that app.
+    private var playerAppHidden = false
     // True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
     // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
     private var callActive = false
@@ -204,6 +211,7 @@ class IslandOverlayController(private val context: Context) {
         observePhoneSettings()
         observeTimerSettings()
         observeNowPlaying()
+        observeForegroundApp()
         observeOnCall()
         observeRunningTimer()
         observePreviewPin()
@@ -369,7 +377,11 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private fun observeMusicSettings() = scope.launch {
-        musicTilePreferences.settings.collect { musicSettings = it }
+        musicTilePreferences.settings.collect {
+            musicSettings = it
+            // Toggling "Visible in player app" should take effect immediately, even mid-playback.
+            applyPlayerAppVisibility()
+        }
     }
 
     private fun observePhoneSettings() = scope.launch {
@@ -390,9 +402,69 @@ class IslandOverlayController(private val context: Context) {
             musicPlaying = now?.isPlaying == true
             // Once the session ends there's nothing to return to.
             if (now == null) lastMusicEvent = null
+            // Playback starting/stopping (or switching apps) can change whether the player is the
+            // foreground app, so re-evaluate the "Visible in player app" hide.
+            applyPlayerAppVisibility()
             // Only steer the music pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.media == null) return@collect
             if (musicPlaying) dismissJob?.cancel() else scheduleDismiss()
+        }
+    }
+
+    /**
+     * Track the foreground app so the music cutout can hide while the playing app is open (the
+     * "Visible in player app" option). The package name arrives from the accessibility service's
+     * window-state-changed events; no window content is read.
+     */
+    private fun observeForegroundApp() = scope.launch {
+        ForegroundAppBus.packageName.collect { pkg ->
+            foregroundPackage = pkg
+            applyPlayerAppVisibility()
+        }
+    }
+
+    /** True when the app currently playing music is the one in the foreground. */
+    private fun musicPlayerInForeground(): Boolean {
+        val player = NowPlayingBus.state.value?.packageName ?: return false
+        return foregroundPackage != null && foregroundPackage == player
+    }
+
+    /**
+     * The music cutout should be held hidden right now: "Visible in player app" is off, music is
+     * playing, and the playing app is the one on screen.
+     */
+    private fun shouldHideForPlayerApp(): Boolean =
+        !musicSettings.visibleInPlayerApp && musicPlaying && musicPlayerInForeground()
+
+    /**
+     * Enforce "Visible in player app": while the playing app is in the foreground and the option is
+     * off, clear the music cutout (only the music pill — notifications and other events are left
+     * alone); when the user leaves that app, bring the music pill back if playback is still live and
+     * nothing else has taken the cutout. Idempotent via [playerAppHidden].
+     */
+    private fun applyPlayerAppVisibility() {
+        if (previewPinned || lockHidden) return
+        if (shouldHideForPlayerApp()) {
+            if (playerAppHidden) return
+            playerAppHidden = true
+            if (currentEvent.value?.media != null) {
+                dismissJob?.cancel()
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowHeight()
+            }
+        } else {
+            if (!playerAppHidden) return
+            playerAppHidden = false
+            if (currentEvent.value == null) {
+                musicPillToReturnTo()?.let { pill ->
+                    forcedExpanded.value = null
+                    expanded = false
+                    currentEvent.value = pill
+                    syncWindowHeight()
+                }
+            }
         }
     }
 
@@ -724,6 +796,16 @@ class IslandOverlayController(private val context: Context) {
 
                 else -> scheduleDismiss()
             }
+            // Playback is now tracked (musicPlaying / lastMusicEvent), so if "Visible in player app"
+            // is off and the playing app is on screen, hide the music cutout we just showed. It
+            // returns via musicPillToReturnTo() once the user leaves that app.
+            if (signal is CutoutSignal.Music && shouldHideForPlayerApp()) {
+                playerAppHidden = true
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowHeight()
+            }
         }
     }
 
@@ -866,6 +948,8 @@ class IslandOverlayController(private val context: Context) {
         if (showingLiveTile()) return null
         if (!musicPlaying) return null
         if (tileEnabled[DynamicTile.MUSIC] == false) return null
+        // Stay hidden while the playing app is in the foreground and "Visible in player app" is off.
+        if (shouldHideForPlayerApp()) return null
         return lastMusicEvent?.copy(initiallyExpanded = false)
     }
 
