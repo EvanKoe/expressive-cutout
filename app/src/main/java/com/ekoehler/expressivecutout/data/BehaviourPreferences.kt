@@ -61,6 +61,7 @@ data class BehaviourSettings(
     val expandedDisappearOnShrink: Boolean = DEFAULT_DISAPPEAR_ON_SHRINK,
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
     val showActionButtons: Boolean = DEFAULT_SHOW_ACTION_BUTTONS,
+    val toastOnAction: Boolean = DEFAULT_TOAST_ON_ACTION,
     val shrinkOnSwipeUp: Boolean = DEFAULT_SHRINK_ON_SWIPE_UP,
     val swipeToDismiss: Boolean = DEFAULT_SWIPE_TO_DISMISS,
     val swipeDismissDirection: SwipeDismissDirection = DEFAULT_SWIPE_DISMISS_DIRECTION,
@@ -81,6 +82,7 @@ data class BehaviourSettings(
         const val DEFAULT_DISAPPEAR_ON_SHRINK = false
         const val DEFAULT_NOTIFICATIONS_AUTO_EXPAND = false
         const val DEFAULT_SHOW_ACTION_BUTTONS = true
+        const val DEFAULT_TOAST_ON_ACTION = true
         const val DEFAULT_SHRINK_ON_SWIPE_UP = true
         const val DEFAULT_SWIPE_TO_DISMISS = true
         val DEFAULT_SWIPE_DISMISS_DIRECTION = SwipeDismissDirection.BOTH
@@ -120,6 +122,7 @@ class BehaviourPreferences(private val context: Context) {
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
             showActionButtons = prefs[SHOW_ACTION_BUTTONS] ?: BehaviourSettings.DEFAULT_SHOW_ACTION_BUTTONS,
+            toastOnAction = prefs[TOAST_ON_ACTION] ?: BehaviourSettings.DEFAULT_TOAST_ON_ACTION,
             shrinkOnSwipeUp = prefs[SHRINK_ON_SWIPE_UP] ?: BehaviourSettings.DEFAULT_SHRINK_ON_SWIPE_UP,
             swipeToDismiss = prefs[SWIPE_TO_DISMISS] ?: BehaviourSettings.DEFAULT_SWIPE_TO_DISMISS,
             swipeDismissDirection = prefs[SWIPE_DISMISS_DIRECTION]
@@ -188,6 +191,10 @@ class BehaviourPreferences(private val context: Context) {
         it[SHOW_ACTION_BUTTONS] = enabled
     }
 
+    suspend fun setToastOnAction(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[TOAST_ON_ACTION] = enabled
+    }
+
     suspend fun setShrinkOnSwipeUp(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHRINK_ON_SWIPE_UP] = enabled
     }
@@ -217,6 +224,7 @@ class BehaviourPreferences(private val context: Context) {
         val DISAPPEAR_ON_SHRINK = booleanPreferencesKey("expanded_disappear_on_shrink")
         val NOTIF_AUTO_EXPAND = booleanPreferencesKey("notifications_auto_expand")
         val SHOW_ACTION_BUTTONS = booleanPreferencesKey("show_action_buttons")
+        val TOAST_ON_ACTION = booleanPreferencesKey("toast_on_action")
         val SHRINK_ON_SWIPE_UP = booleanPreferencesKey("shrink_on_swipe_up")
         val SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
         val SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")

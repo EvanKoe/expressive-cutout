@@ -111,6 +111,7 @@ import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -181,6 +182,13 @@ internal fun ActionButtonAlignment.toHorizontal(): Alignment.Horizontal = when (
     ActionButtonAlignment.LEFT, ActionButtonAlignment.FULL -> Alignment.Start
     ActionButtonAlignment.CENTER -> Alignment.CenterHorizontally
     ActionButtonAlignment.RIGHT -> Alignment.End
+}
+
+/** Maps the configured "Sent" confirmation placement onto its [Row] arrangement. */
+internal fun SentAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
+    SentAlignment.LEFT -> Alignment.Start
+    SentAlignment.CENTER -> Alignment.CenterHorizontally
+    SentAlignment.RIGHT -> Alignment.End
 }
 
 /**
@@ -772,6 +780,7 @@ private fun ExpandedContent(
                 replySent -> ReplySentRow(
                     tint = sendColor,
                     heightDp = appearance.actionButtonHeightDp,
+                    alignment = appearance.sentAlignment,
                 )
                 // Typing a reply: the input field replaces the chips until sent or cancelled.
                 replyingTo != null -> ReplyRow(
@@ -904,7 +913,7 @@ private fun Modifier.pressScale(
  * so the user gets clear feedback that the message went out before the island dismisses.
  */
 @Composable
-private fun ReplySentRow(tint: Color, heightDp: Int) {
+private fun ReplySentRow(tint: Color, heightDp: Int, alignment: SentAlignment) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         appear.animateTo(
@@ -913,8 +922,9 @@ private fun ReplySentRow(tint: Color, heightDp: Int) {
         )
     }
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, alignment.toHorizontal()),
     ) {
         Box(
             modifier = Modifier

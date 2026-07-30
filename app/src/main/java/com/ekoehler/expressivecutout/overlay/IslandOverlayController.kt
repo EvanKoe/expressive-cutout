@@ -749,10 +749,18 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * Fire the current notification's tap action and dismiss the island, mirroring what tapping
-     * the real notification does.
+     * the real notification does. A live tile is the exception: tapping it opens its app (the
+     * dialer's in-call screen, the player) but leaves the pill up, since the call/playback is still
+     * running and there'd otherwise be no way to bring the tile back. It stays until the call ends
+     * or the user swipes it away.
      */
     private fun onActivate() {
         val intent = currentEvent.value?.contentIntent
+        if (isPinnedLiveTile()) {
+            dismissJob?.cancel()
+            intent?.let(::sendPendingIntent)
+            return
+        }
         dismissIsland()
         intent?.let(::sendPendingIntent)
     }

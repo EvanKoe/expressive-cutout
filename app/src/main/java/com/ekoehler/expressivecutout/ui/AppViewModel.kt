@@ -13,6 +13,7 @@ import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
+import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -393,6 +394,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowActionButtons(enabled)
     }
 
+    fun setToastOnAction(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setToastOnAction(enabled)
+    }
+
     fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShrinkOnSwipeUp(enabled)
     }
@@ -463,5 +468,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setCancelButtonOnLeft(onLeft: Boolean) = viewModelScope.launch {
         appearancePreferences.setCancelButtonOnLeft(onLeft)
+    }
+
+    fun setSentAlignment(alignment: SentAlignment) = viewModelScope.launch {
+        appearancePreferences.setSentAlignment(alignment)
     }
 }
