@@ -677,7 +677,7 @@ class IslandOverlayController(private val context: Context) {
             // show. The timer rests collapsed — it is the countdown pill; a tap opens its controls.
             val autoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
-                is CutoutSignal.Music -> true
+                is CutoutSignal.Music -> musicSettings.expandOnPlay
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false

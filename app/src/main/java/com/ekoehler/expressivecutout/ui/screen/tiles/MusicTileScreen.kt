@@ -113,6 +113,14 @@ internal fun MusicTileScreen(
         }
 
         SettingsToggleCard(
+            shape = RoundedCornerShape(4.dp),
+            title = stringResource(R.string.music_expand_on_play_title),
+            description = stringResource(R.string.music_expand_on_play_desc),
+            checked = settings.expandOnPlay,
+            onCheckedChange = viewModel::setMusicExpandOnPlay,
+        )
+
+        SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
             title = stringResource(R.string.music_show_controls_title),
             description = stringResource(R.string.music_show_controls_desc),

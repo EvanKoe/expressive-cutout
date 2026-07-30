@@ -254,6 +254,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setAlbumArtStrokeColor(color)
     }
 
+    fun setMusicExpandOnPlay(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setExpandOnPlay(enabled)
+    }
+
     fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowControls(enabled)
     }

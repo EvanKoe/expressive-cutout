@@ -111,6 +111,8 @@
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
     <string name="music_rotate_art_title">Spin album art</string>
     <string name="music_rotate_art_desc">Rotate the album cover while music plays; it stops when paused.</string>
+    <string name="music_expand_on_play_title">Expand on play</string>
+    <string name="music_expand_on_play_desc">Automatically expand the cutout when music starts playing; otherwise it only opens the normal cutout.</string>
     <string name="music_show_controls_title">Playback controls</string>
     <string name="music_show_controls_desc">Show previous, play/pause and next buttons on the expanded cutout.</string>
     <string name="music_buttons_title">Playback buttons</string>
