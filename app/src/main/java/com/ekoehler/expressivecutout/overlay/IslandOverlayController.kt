@@ -630,7 +630,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun pillTouchRect(viewWidth: Int, viewHeight: Int): Rect {
         val dims = effectiveDims(layoutState.value, expanded)
-        val bonusDp = if (expanded) expandedActionsBonusDp() else 0
+        val bonusDp = currentHeightBonusDp(expanded)
         val pillWidthPx = displayWidthPx * dims.widthPercent / 100
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
@@ -658,7 +658,7 @@ class IslandOverlayController(private val context: Context) {
     /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
         val dims = effectiveDims(layout, expanded)
-        val bonus = if (expanded) expandedActionsBonusDp() else 0
+        val bonus = currentHeightBonusDp(expanded)
         return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
     }
 
@@ -674,10 +674,9 @@ class IslandOverlayController(private val context: Context) {
             expanded -> layout.expanded
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false
-                val twoRow = incoming && event.call.incomingExpandedLayout &&
-                    event.call.showActions && event.actions.isNotEmpty()
-                if (twoRow) {
-                    // The two-row incoming layout matches the expanded cutout's size exactly.
+                if (isTwoRowCall()) {
+                    // The two-row incoming layout starts from the expanded cutout (grown by the button
+                    // row via currentHeightBonusDp).
                     layout.expanded
                 } else {
                     // Match the pill's name-driven width so the trailing call button(s) stay tappable:
@@ -694,6 +693,25 @@ class IslandOverlayController(private val context: Context) {
             }
             else -> layout.collapsed
         }
+    }
+
+    /**
+     * The extra height the currently-drawn state claims below its base dimensions: the expanded island's
+     * action row when expanded, or the incoming two-row call layout's button row. Mirrors the height
+     * bonus [DynamicIsland] applies, so the window and touchable region stay as tall as what it renders.
+     */
+    private fun currentHeightBonusDp(expanded: Boolean): Int = when {
+        expanded -> expandedActionsBonusDp()
+        isTwoRowCall() -> callIncomingExtraDp()
+        else -> 0
+    }
+
+    /** Whether the shown event is an incoming call rendered in the taller two-row layout. */
+    private fun isTwoRowCall(): Boolean {
+        val event = currentEvent.value ?: return false
+        val call = event.call ?: return false
+        val incoming = OnCallBus.state.value?.ongoing == false
+        return incoming && call.incomingExpandedLayout && call.showActions && event.actions.isNotEmpty()
     }
 
     /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */

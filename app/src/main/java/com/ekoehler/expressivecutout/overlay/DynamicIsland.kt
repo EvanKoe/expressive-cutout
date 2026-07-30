@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -305,16 +306,19 @@ fun DynamicIsland(
         }
     }
     val dims = when {
-        // The two-row incoming layout matches the expanded cutout's size exactly.
+        // The two-row incoming layout starts from the expanded cutout and grows by its button row.
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
-    val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions)) {
-        expandedActionsExtraDp(appearance.actionButtonHeightDp)
-    } else {
-        0
+    val heightBonus = when {
+        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
+            expandedActionsExtraDp(appearance.actionButtonHeightDp)
+        // The incoming two-row layout grows past the expanded height so its Take / Hang up row has its
+        // own space below a caller row that clears the camera hole (calls never enter the expanded state).
+        callTwoRow -> callIncomingExtraDp()
+        else -> 0
     }
     // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
     // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
@@ -1440,13 +1444,23 @@ private const val CALL_NAME_SIZE_SP = 15
 // A little breathing room so the name never sits flush against the button before the pill grows.
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons), sized to fit
-// within the expanded cutout's height.
-private const val CALL_INCOMING_PADDING_DP = 10
-private const val CALL_INCOMING_TOP_PAD_DP = 6
-private const val CALL_INCOMING_ROW_SPACING_DP = 8
-private const val CALL_INCOMING_BUTTON_DP = 42
-private const val CALL_INCOMING_AVATAR_DP = 36
+// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
+// grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the camera
+// hole with a flexible gap before the buttons pinned to the bottom edge.
+private const val CALL_INCOMING_SIDE_PAD_DP = 14
+private const val CALL_INCOMING_BOTTOM_PAD_DP = 14
+// Top clearance for the camera hole, matching the empty top the expanded card leaves for it.
+private const val CALL_INCOMING_TOP_PAD_DP = 34
+private const val CALL_INCOMING_BUTTON_GAP_DP = 10
+private const val CALL_INCOMING_BUTTON_DP = 44
+private const val CALL_INCOMING_AVATAR_DP = 40
+
+/**
+ * The extra height (over the expanded cutout) the incoming two-row layout claims for its bottom Take /
+ * Hang up row, mirroring [expandedActionsExtraDp]. Shared with the overlay controller so the window and
+ * touchable region stay as tall as what [IncomingCallExpandedContent] renders.
+ */
+internal fun callIncomingExtraDp(): Int = CALL_INCOMING_BUTTON_DP + CALL_INCOMING_BUTTON_GAP_DP
 
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
@@ -1596,10 +1610,11 @@ private fun CallSingleRowContent(
 }
 
 /**
- * The incoming-call two-row layout, sized to match the expanded cutout. Top: the caller's photo and a
- * single label — their contact name if they have one, otherwise their number — bottom-aligned so it
- * sits below the camera hole. Bottom: full-width Take (answer, primary) and Hang up (decline, red)
- * buttons, degrading to a single full-width button if the dialer exposes only one of the two actions.
+ * The incoming-call two-row layout, sized to the expanded cutout plus [callIncomingExtraDp]. Top (below
+ * a camera-clearing pad): the caller's photo and a single label — their contact name if they have one,
+ * otherwise their number. Bottom (pinned to the edge, a flexible gap between): full-width Take (answer,
+ * primary) and Hang up (decline, red) buttons, degrading to a single full-width button if the dialer
+ * exposes only one of the two actions.
  */
 @Composable
 private fun IncomingCallExpandedContent(
@@ -1616,24 +1631,23 @@ private fun IncomingCallExpandedContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(
-                start = CALL_INCOMING_PADDING_DP.dp,
-                end = CALL_INCOMING_PADDING_DP.dp,
+                start = CALL_INCOMING_SIDE_PAD_DP.dp,
+                end = CALL_INCOMING_SIDE_PAD_DP.dp,
                 top = CALL_INCOMING_TOP_PAD_DP.dp,
-                bottom = CALL_INCOMING_PADDING_DP.dp,
+                bottom = CALL_INCOMING_BOTTOM_PAD_DP.dp,
             ),
-        verticalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
     ) {
-        // Caller row — its content bottom-aligned in the space above the buttons, so the single label
-        // (already the name when known, else the number) sits clear of the camera hole.
+        // Caller row — pinned just below the top camera clearance, so the single label (already the
+        // name when known, else the number) sits clear of the camera hole.
         Row(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
         ) {
             if (photo != null) {
                 ContactPhoto(bitmap = photo, size = CALL_INCOMING_AVATAR_DP.dp)
             } else {
-                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 22.dp)
+                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
             }
             Text(
                 text = event.label,
@@ -1645,11 +1659,13 @@ private fun IncomingCallExpandedContent(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        // A flexible gap pushes the button row down to the bottom edge.
+        Spacer(modifier = Modifier.weight(1f))
         // Button row — Take (answer) then Hang up (decline), each filling half the width.
         if (call.showActions && (answer != null || hangUp != null)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_BUTTON_GAP_DP.dp),
             ) {
                 if (answer != null) {
                     CallWideButton(
