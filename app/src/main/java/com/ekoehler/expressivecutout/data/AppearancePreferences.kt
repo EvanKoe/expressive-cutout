@@ -163,6 +163,41 @@ enum class ActionButtonStyle {
     }
 }
 
+/** Horizontal placement of the expanded island's action-chip row. */
+enum class ActionButtonAlignment {
+    /** Chips hug the leading edge (the historical look). */
+    LEFT,
+    /** Chips are centred across the island. */
+    CENTER,
+    /** Chips hug the trailing edge. */
+    RIGHT,
+
+    /** Chips share the full width equally (each grows to fill), like CSS `flex: 1`. */
+    FULL,
+    ;
+
+    companion object {
+        fun deserialize(value: String?): ActionButtonAlignment? =
+            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
+    }
+}
+
+/** Horizontal placement of the post-send "Sent" confirmation row shown before the island dismisses. */
+enum class SentAlignment {
+    /** Hugs the leading edge (the historical look). */
+    LEFT,
+    /** Centred across the island. */
+    CENTER,
+    /** Hugs the trailing edge. */
+    RIGHT,
+    ;
+
+    companion object {
+        fun deserialize(value: String?): SentAlignment? =
+            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
+    }
+}
+
 /** Visual treatment of the inline reply text field. */
 enum class ReplyInputStyle {
     /** Material 3 Expressive: a fully-rounded (pill) field. */
@@ -201,8 +236,10 @@ data class AppearanceSettings(
     val actionButtonStyle: ActionButtonStyle = DEFAULT_ACTION_BUTTON_STYLE,
     val actionButtonColor: CutoutColor? = DEFAULT_ACTION_BUTTON_COLOR,
     val actionButtonHeightDp: Int = DEFAULT_ACTION_BUTTON_HEIGHT_DP,
+    val actionButtonAlignment: ActionButtonAlignment = DEFAULT_ACTION_BUTTON_ALIGNMENT,
     val replyInputStyle: ReplyInputStyle = DEFAULT_REPLY_INPUT_STYLE,
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
+    val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -224,8 +261,12 @@ data class AppearanceSettings(
         val DEFAULT_ACTION_BUTTON_STYLE = ActionButtonStyle.EXPRESSIVE_TONAL
         // null follows the notification's own accent, as the chips historically did.
         val DEFAULT_ACTION_BUTTON_COLOR: CutoutColor? = null
+        // Chips historically hugged the leading edge.
+        val DEFAULT_ACTION_BUTTON_ALIGNMENT = ActionButtonAlignment.LEFT
         val DEFAULT_REPLY_INPUT_STYLE = ReplyInputStyle.EXPRESSIVE
         const val DEFAULT_CANCEL_ON_LEFT = false
+        // The confirmation historically hugged the leading edge.
+        val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
@@ -255,9 +296,13 @@ class AppearancePreferences(private val context: Context) {
             actionButtonColor = CutoutColor.deserialize(prefs[ACTION_BUTTON_COLOR]),
             actionButtonHeightDp = (prefs[ACTION_BUTTON_HEIGHT] ?: AppearanceSettings.DEFAULT_ACTION_BUTTON_HEIGHT_DP)
                 .coerceIn(AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP, AppearanceSettings.MAX_ACTION_BUTTON_HEIGHT_DP),
+            actionButtonAlignment = ActionButtonAlignment.deserialize(prefs[ACTION_BUTTON_ALIGNMENT])
+                ?: AppearanceSettings.DEFAULT_ACTION_BUTTON_ALIGNMENT,
             replyInputStyle = ReplyInputStyle.deserialize(prefs[REPLY_INPUT_STYLE])
                 ?: AppearanceSettings.DEFAULT_REPLY_INPUT_STYLE,
             cancelButtonOnLeft = prefs[CANCEL_ON_LEFT] ?: AppearanceSettings.DEFAULT_CANCEL_ON_LEFT,
+            sentAlignment = SentAlignment.deserialize(prefs[SENT_ALIGNMENT])
+                ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
         )
     }
 
@@ -314,12 +359,20 @@ class AppearancePreferences(private val context: Context) {
         )
     }
 
+    suspend fun setActionButtonAlignment(alignment: ActionButtonAlignment) = context.appearanceDataStore.edit {
+        it[ACTION_BUTTON_ALIGNMENT] = alignment.name
+    }
+
     suspend fun setReplyInputStyle(style: ReplyInputStyle) = context.appearanceDataStore.edit {
         it[REPLY_INPUT_STYLE] = style.name
     }
 
     suspend fun setCancelButtonOnLeft(onLeft: Boolean) = context.appearanceDataStore.edit {
         it[CANCEL_ON_LEFT] = onLeft
+    }
+
+    suspend fun setSentAlignment(alignment: SentAlignment) = context.appearanceDataStore.edit {
+        it[SENT_ALIGNMENT] = alignment.name
     }
 
     private companion object {
@@ -336,7 +389,9 @@ class AppearancePreferences(private val context: Context) {
         val ACTION_BUTTON_STYLE = stringPreferencesKey("action_button_style")
         val ACTION_BUTTON_COLOR = stringPreferencesKey("action_button_color")
         val ACTION_BUTTON_HEIGHT = intPreferencesKey("action_button_height_dp")
+        val ACTION_BUTTON_ALIGNMENT = stringPreferencesKey("action_button_alignment")
         val REPLY_INPUT_STYLE = stringPreferencesKey("reply_input_style")
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
+        val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
     }
 }

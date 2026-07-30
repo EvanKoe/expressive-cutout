@@ -7,6 +7,12 @@ import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.BehaviourPreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Backs the buttons on the in-app test notification so tapping them actually does something the
@@ -16,20 +22,35 @@ import com.ekoehler.expressivecutout.R
 class TestReplyReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        val appContext = context.applicationContext
         val message = when (intent.action) {
             ACTION_REPLY -> {
                 val text = RemoteInput.getResultsFromIntent(intent)
                     ?.getCharSequence(KEY_REPLY)
                     ?.toString()
                     .orEmpty()
-                context.getString(R.string.test_notification_reply_sent, text)
+                appContext.getString(R.string.test_notification_reply_sent, text)
             }
 
-            else -> context.getString(R.string.test_notification_marked_read)
+            else -> appContext.getString(R.string.test_notification_marked_read)
         }
 
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        NotificationManagerCompat.from(context).cancel(TestNotifier.NOTIFICATION_ID)
+        // Keep the receiver alive past onReceive so the "Toast on action" preference can be read off
+        // the main thread; goAsync() gives us a short window, which finish() closes when we're done.
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val toastOnAction = BehaviourPreferences(appContext).settings.first().toastOnAction
+                withContext(Dispatchers.Main) {
+                    if (toastOnAction) {
+                        Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
+                    }
+                    NotificationManagerCompat.from(appContext).cancel(TestNotifier.NOTIFICATION_ID)
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     companion object {

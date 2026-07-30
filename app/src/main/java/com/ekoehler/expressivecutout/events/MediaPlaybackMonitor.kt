@@ -6,13 +6,17 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.net.Uri
 import android.util.Log
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.content.getSystemService
+import androidx.core.net.toUri
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaTransport
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 
@@ -130,11 +134,26 @@ class MediaPlaybackMonitor(private val context: Context) {
     private val MediaController.isPlaying: Boolean
         get() = playbackState?.state == PlaybackState.STATE_PLAYING
 
-    private fun MediaMetadata.albumArt() = (
+    /**
+     * The cover the session itself carries: a bitmap if the player published one, else a URI we can
+     * read locally. A player pointing at a remote CDN (Spotify) yields null here and the tile falls
+     * back to the cover lifted off its media notification — see
+     * [com.ekoehler.expressivecutout.core.MediaArtBus].
+     */
+    private fun MediaMetadata.albumArt(): ImageBitmap? = (
         getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         )?.toArtImageBitmap()
+        ?: artUri()?.loadImageBitmapOrNull(context)
+
+    /** The art URI a player publishes in place of a bitmap, if it gave one at all. */
+    private fun MediaMetadata.artUri(): Uri? = listOf(
+        MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+        MediaMetadata.METADATA_KEY_ART_URI,
+        MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
+    ).firstNotNullOfOrNull { key -> getString(key)?.takeIf { it.isNotBlank() } }
+        ?.let { runCatching { it.toUri() }.getOrNull() }
 
     /** Bridges the tile's transport buttons to the active session's controls. */
     private class ControllerTransport(private val controller: MediaController) : MediaTransport {

@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
@@ -12,6 +13,7 @@ import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
+import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -244,6 +246,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }
 
+    fun setMusicAlbumArtStroke(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setAlbumArtStroke(enabled)
+    }
+
+    fun setMusicAlbumArtStrokeColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setAlbumArtStrokeColor(color)
+    }
+
+    fun setMusicExpandOnPlay(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setExpandOnPlay(enabled)
+    }
+
+    fun setMusicVisibleInPlayerApp(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setVisibleInPlayerApp(enabled)
+    }
+
     fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowControls(enabled)
     }
@@ -384,6 +402,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowActionButtons(enabled)
     }
 
+    fun setToastOnAction(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setToastOnAction(enabled)
+    }
+
     fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShrinkOnSwipeUp(enabled)
     }
@@ -444,11 +466,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setActionButtonHeight(heightDp)
     }
 
+    fun setActionButtonAlignment(alignment: ActionButtonAlignment) = viewModelScope.launch {
+        appearancePreferences.setActionButtonAlignment(alignment)
+    }
+
     fun setReplyInputStyle(style: ReplyInputStyle) = viewModelScope.launch {
         appearancePreferences.setReplyInputStyle(style)
     }
 
     fun setCancelButtonOnLeft(onLeft: Boolean) = viewModelScope.launch {
         appearancePreferences.setCancelButtonOnLeft(onLeft)
+    }
+
+    fun setSentAlignment(alignment: SentAlignment) = viewModelScope.launch {
+        appearancePreferences.setSentAlignment(alignment)
     }
 }

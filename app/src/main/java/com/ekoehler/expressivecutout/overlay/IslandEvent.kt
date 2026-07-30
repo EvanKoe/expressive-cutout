@@ -140,6 +140,10 @@ data class MediaTileOptions(
     val showAlbumArt: Boolean,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
+    /** Ring the album art, set apart from it by a small gap. */
+    val albumArtStroke: Boolean = false,
+    /** Colour of that ring; null falls back to the tile's accent. */
+    val albumArtStrokeColor: CutoutColor? = null,
     val showControls: Boolean,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,

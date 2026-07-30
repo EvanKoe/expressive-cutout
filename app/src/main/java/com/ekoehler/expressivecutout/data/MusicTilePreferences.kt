@@ -73,6 +73,14 @@ data class MusicButtonStyle(
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
+    /** Draw a ring around the album cover, separated from it by a small gap. */
+    val albumArtStroke: Boolean = DEFAULT_ALBUM_ART_STROKE,
+    /** Colour of that ring; null keeps the tile's own pink accent. */
+    val albumArtStrokeColor: CutoutColor? = null,
+    /** Automatically expand the cutout when playback starts, rather than only opening the normal cutout. */
+    val expandOnPlay: Boolean = DEFAULT_EXPAND_ON_PLAY,
+    /** Keep the music cutout visible even while the app playing the music is in the foreground. */
+    val visibleInPlayerApp: Boolean = DEFAULT_VISIBLE_IN_PLAYER_APP,
     val showControls: Boolean = DEFAULT_SHOW_CONTROLS,
     /** Shared style of the previous / next (skip) buttons. */
     val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
@@ -82,6 +90,9 @@ data class MusicTileSettings(
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
         const val DEFAULT_ROTATE_ALBUM_ART = false
+        const val DEFAULT_ALBUM_ART_STROKE = false
+        const val DEFAULT_EXPAND_ON_PLAY = true
+        const val DEFAULT_VISIBLE_IN_PLAYER_APP = true
         const val DEFAULT_SHOW_CONTROLS = true
     }
 }
@@ -93,6 +104,11 @@ class MusicTilePreferences(private val context: Context) {
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
+            albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
+            albumArtStrokeColor = CutoutColor.deserialize(prefs[ALBUM_ART_STROKE_COLOR]),
+            expandOnPlay = prefs[EXPAND_ON_PLAY] ?: MusicTileSettings.DEFAULT_EXPAND_ON_PLAY,
+            visibleInPlayerApp = prefs[VISIBLE_IN_PLAYER_APP]
+                ?: MusicTileSettings.DEFAULT_VISIBLE_IN_PLAYER_APP,
             showControls = prefs[SHOW_CONTROLS] ?: MusicTileSettings.DEFAULT_SHOW_CONTROLS,
             skipButton = MusicButtonStyle(
                 color = CutoutColor.deserialize(prefs[SKIP_COLOR]),
@@ -117,6 +133,27 @@ class MusicTilePreferences(private val context: Context) {
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[ROTATE_ALBUM_ART] = enabled
+    }
+
+    suspend fun setAlbumArtStroke(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[ALBUM_ART_STROKE] = enabled
+    }
+
+    /** A null [color] clears the override, restoring the ring's tile-accent default. */
+    suspend fun setAlbumArtStrokeColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+        if (color == null) {
+            it.remove(ALBUM_ART_STROKE_COLOR)
+        } else {
+            it[ALBUM_ART_STROKE_COLOR] = color.serialize()
+        }
+    }
+
+    suspend fun setExpandOnPlay(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[EXPAND_ON_PLAY] = enabled
+    }
+
+    suspend fun setVisibleInPlayerApp(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[VISIBLE_IN_PLAYER_APP] = enabled
     }
 
     suspend fun setShowControls(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -186,6 +223,10 @@ class MusicTilePreferences(private val context: Context) {
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
+        val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
+        val ALBUM_ART_STROKE_COLOR = stringPreferencesKey("album_art_stroke_color")
+        val EXPAND_ON_PLAY = booleanPreferencesKey("expand_on_play")
+        val VISIBLE_IN_PLAYER_APP = booleanPreferencesKey("visible_in_player_app")
         val SHOW_CONTROLS = booleanPreferencesKey("show_controls")
         val SKIP_COLOR = stringPreferencesKey("skip_button_color")
         val SKIP_OPACITY = floatPreferencesKey("skip_button_opacity")

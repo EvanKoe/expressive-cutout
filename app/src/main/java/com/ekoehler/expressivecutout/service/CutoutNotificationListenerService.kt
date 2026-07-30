@@ -1,17 +1,25 @@
 package com.ekoehler.expressivecutout.service
 
 import android.app.Notification
+import android.content.ComponentName
+import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.MediaArt
+import com.ekoehler.expressivecutout.core.MediaArtBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimer
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
+import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
@@ -31,16 +39,23 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // Key of the count-down notification currently driving the timer tile, mirroring [currentCallKey].
     private var currentTimerKey: String? = null
 
+    // Key of the media notification the current album cover was lifted from, so the cover is
+    // dropped when that exact notification goes away. Mirrors [currentCallKey].
+    private var currentMediaArtKey: String? = null
+
     override fun onListenerConnected() {
         instance = this
+        _bound.value = true
     }
 
     override fun onListenerDisconnected() {
         if (instance === this) instance = null
+        _bound.value = false
     }
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        _bound.value = false
         super.onDestroy()
     }
 
@@ -58,6 +73,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             handleTimer(notification)
             return
         }
+        // A player's MediaStyle notification carries the album cover as its large icon. Lift it
+        // before shouldSurface() drops the notification for being ongoing — it is the only cover we
+        // can get for a player that publishes its art as a remote URI rather than a bitmap. This
+        // deliberately does not return: whether the notification also becomes a pill is unchanged.
+        notification.publishMediaArt()
+
         if (!notification.shouldSurface()) return
 
         val extras = notification.notification.extras
@@ -90,6 +111,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         if (sbn?.key != null && sbn.key == currentTimerKey) {
             currentTimerKey = null
             RunningTimerBus.update(null)
+        }
+        // The player cleared its media notification — the cover it carried is no longer current.
+        if (sbn?.key != null && sbn.key == currentMediaArtKey) {
+            currentMediaArtKey = null
+            MediaArtBus.update(null)
         }
         super.onNotificationRemoved(sbn)
     }
@@ -178,6 +204,21 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         )
     }
 
+    /**
+     * Publish this notification's large icon as the current album cover, if it is a media
+     * notification carrying one. Detected by the media-session extra rather than the template
+     * string, so it covers both the platform and the AndroidX MediaStyle. The icon is usually a
+     * plain bitmap, so no package lookup is involved.
+     */
+    private fun StatusBarNotification.publishMediaArt() {
+        if (notification.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) != true) return
+        val art = notification.getLargeIcon()
+            ?.loadImageBitmapOrNull(this@CutoutNotificationListenerService)
+            ?: return
+        currentMediaArtKey = key
+        MediaArtBus.update(MediaArt(packageName = packageName, art = art))
+    }
+
     private fun StatusBarNotification.shouldSurface(): Boolean {
         if (packageName == this@CutoutNotificationListenerService.packageName) return false
         val flags = notification.flags
@@ -193,6 +234,32 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // (the framework's listener callbacks and the overlay both run there).
         @Volatile
         private var instance: CutoutNotificationListenerService? = null
+
+        private val _bound = MutableStateFlow(false)
+
+        /**
+         * True only while Android actually has this listener bound — i.e. while notifications and
+         * media sessions are really flowing. Deliberately separate from
+         * [com.ekoehler.expressivecutout.permissions.Permissions.isNotificationAccessGranted], which
+         * reads the user's *consent* out of Settings.Secure: that stays "enabled" across a reinstall
+         * or an app update while the binding is dead, so every dynamic tile (music, phone, timer) is
+         * silently starved while the grant still reads green. Mirrors
+         * [com.ekoehler.expressivecutout.service.CutoutAccessibilityService.bound].
+         */
+        val bound: StateFlow<Boolean> = _bound.asStateFlow()
+
+        /**
+         * Ask the framework to (re)bind this listener. Android often leaves the binding dead after
+         * an app update while the grant survives, and there is nothing the app can do from inside a
+         * service that never connected — so this is called from the UI on resume when the grant
+         * reads green but [bound] is still false, healing the stale binding without making the user
+         * toggle the permission off and on by hand. A no-op if the grant isn't actually held.
+         */
+        fun requestRebind(context: Context) {
+            val component = ComponentName(context, CutoutNotificationListenerService::class.java)
+            runCatching { NotificationListenerService.requestRebind(component) }
+                .onFailure { Log.w(TAG, "Failed to request listener rebind", it) }
+        }
 
         /**
          * Cancel the notification with [key] from the system, exactly as swiping it away in the

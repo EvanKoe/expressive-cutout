@@ -68,6 +68,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -324,6 +325,7 @@ internal fun ColorPickerCard(
     defaultColor: Color? = null,
     presetColors: List<Long> = DefaultPresetColors,
     dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
+    roundedCorners: Dp = 24.dp
 ) {
     var showPicker by remember { mutableStateOf(false) }
     // A Solid colour that isn't one of the presets is the user's own custom pick.
@@ -334,7 +336,7 @@ internal fun ColorPickerCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(roundedCorners),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(

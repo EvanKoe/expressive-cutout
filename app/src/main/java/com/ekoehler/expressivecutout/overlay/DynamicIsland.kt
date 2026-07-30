@@ -17,6 +17,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -102,11 +104,15 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
+import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -150,6 +156,12 @@ private const val REPLY_SENT_FEEDBACK_MS = 900L
 // Time for the rotating album art to complete one full turn.
 private const val ALBUM_SPIN_MS = 8000
 
+// The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
+// itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
+// the same on the collapsed pill and in the (larger) expanded layout.
+private const val ALBUM_STROKE_FRACTION = 0.055f
+private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
+
 // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
 // animation is expressed relative to this, so the user's single "animation duration" knob scales
 // them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
@@ -161,6 +173,24 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
  * height) plus its spacing. The controller grows the host window by the same amount so it never clips.
  */
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
+
+/**
+ * Maps the configured chip placement onto the [Row] arrangement that positions the chip row.
+ * [ActionButtonAlignment.FULL] stretches the chips with weight rather than positioning them, so it
+ * falls back to leading here (the arrangement is irrelevant once the chips fill the whole width).
+ */
+internal fun ActionButtonAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
+    ActionButtonAlignment.LEFT, ActionButtonAlignment.FULL -> Alignment.Start
+    ActionButtonAlignment.CENTER -> Alignment.CenterHorizontally
+    ActionButtonAlignment.RIGHT -> Alignment.End
+}
+
+/** Maps the configured "Sent" confirmation placement onto its [Row] arrangement. */
+internal fun SentAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
+    SentAlignment.LEFT -> Alignment.Start
+    SentAlignment.CENTER -> Alignment.CenterHorizontally
+    SentAlignment.RIGHT -> Alignment.End
+}
 
 /**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
@@ -276,16 +306,19 @@ fun DynamicIsland(
         }
     }
     val dims = when {
-        // The two-row incoming layout matches the expanded cutout's size exactly.
+        // The two-row incoming layout starts from the expanded cutout and grows by its button row.
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
-    val heightBonus = if (isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions)) {
-        expandedActionsExtraDp(appearance.actionButtonHeightDp)
-    } else {
-        0
+    val heightBonus = when {
+        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
+            expandedActionsExtraDp(appearance.actionButtonHeightDp)
+        // The incoming two-row layout grows past the expanded height so its Take / Hang up row has its
+        // own space below a caller row that clears the camera hole (calls never enter the expanded state).
+        callTwoRow -> callIncomingExtraDp()
+        else -> 0
     }
     // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
     // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
@@ -587,12 +620,36 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
         bottomEnd = bottomRight,
     )
 
+/**
+ * The cover to draw for the music tile, or null to fall back to the note glyph. The media session's
+ * own art wins; a player that publishes its cover as a remote URI (Spotify) leaves the session
+ * without one, so the tile uses the cover lifted off that same player's media notification. Matched
+ * on package so a stale cover is never drawn over a different player's track.
+ */
+@Composable
+private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
+    val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
+    if (event.media?.showAlbumArt != true) return null
+    return nowPlaying?.albumArt
+        ?: notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.art
+}
+
+/**
+ * The colour of the ring around the album cover, or null when the user hasn't asked for one. An
+ * enabled ring with no colour picked falls back to the tile's own accent, matching what the
+ * settings screen offers as its default swatch.
+ */
+@Composable
+private fun albumArtStrokeFor(event: IslandEvent): Color? =
+    event.media?.takeIf { it.albumArtStroke }
+        ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
+
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val albumArt = albumArtFor(event, nowPlaying)
     val callPhoto = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
     val badgeSize = (heightDp * 0.72f).dp
 
@@ -607,6 +664,7 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
                 modifier = placement,
                 rotate = event.media?.rotateAlbumArt == true,
                 playing = nowPlaying?.isPlaying == true,
+                strokeColor = albumArtStrokeFor(event),
             )
 
             callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = placement)
@@ -726,6 +784,7 @@ private fun ExpandedContent(
                 replySent -> ReplySentRow(
                     tint = sendColor,
                     heightDp = appearance.actionButtonHeightDp,
+                    alignment = appearance.sentAlignment,
                 )
                 // Typing a reply: the input field replaces the chips until sent or cancelled.
                 replyingTo != null -> ReplyRow(
@@ -744,8 +803,12 @@ private fun ExpandedContent(
                 showActions && event.actions.isNotEmpty() -> {
                     // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+                    // Full-length: each chip takes an equal weighted share of the whole width; the
+                    // other alignments size chips to content and position the row as a group.
+                    val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         event.actions.take(3).forEach { action ->
@@ -757,6 +820,7 @@ private fun ExpandedContent(
                                 onClick = {
                                     if (action.reply != null) onStartReply(action) else onAction(action)
                                 },
+                                modifier = if (full) Modifier.weight(1f) else Modifier,
                             )
                         }
                     }
@@ -777,6 +841,7 @@ private fun ActionChip(
     fill: Color,
     heightDp: Int,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val shape = when (style) {
@@ -807,7 +872,7 @@ private fun ActionChip(
         color = container,
         contentColor = content,
         border = border,
-        modifier = Modifier
+        modifier = modifier
             .height(heightDp.dp)
             .pressScale(interaction),
     ) {
@@ -852,7 +917,7 @@ private fun Modifier.pressScale(
  * so the user gets clear feedback that the message went out before the island dismisses.
  */
 @Composable
-private fun ReplySentRow(tint: Color, heightDp: Int) {
+private fun ReplySentRow(tint: Color, heightDp: Int, alignment: SentAlignment) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         appear.animateTo(
@@ -861,8 +926,9 @@ private fun ReplySentRow(tint: Color, heightDp: Int) {
         )
     }
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, alignment.toHorizontal()),
     ) {
         Box(
             modifier = Modifier
@@ -1176,7 +1242,7 @@ private fun ReplySendButton(
 @Composable
 private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
-    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val albumArt = albumArtFor(event, nowPlaying)
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -1196,6 +1262,7 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                         size = 44.dp,
                         rotate = event.media?.rotateAlbumArt == true,
                         playing = nowPlaying?.isPlaying == true,
+                        strokeColor = albumArtStrokeFor(event),
                     )
                 } else {
                     IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
@@ -1377,13 +1444,23 @@ private const val CALL_NAME_SIZE_SP = 15
 // A little breathing room so the name never sits flush against the button before the pill grows.
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons), sized to fit
-// within the expanded cutout's height.
-private const val CALL_INCOMING_PADDING_DP = 10
-private const val CALL_INCOMING_TOP_PAD_DP = 6
-private const val CALL_INCOMING_ROW_SPACING_DP = 8
-private const val CALL_INCOMING_BUTTON_DP = 42
-private const val CALL_INCOMING_AVATAR_DP = 36
+// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
+// grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the camera
+// hole with a flexible gap before the buttons pinned to the bottom edge.
+private const val CALL_INCOMING_SIDE_PAD_DP = 14
+private const val CALL_INCOMING_BOTTOM_PAD_DP = 14
+// Top clearance for the camera hole, matching the empty top the expanded card leaves for it.
+private const val CALL_INCOMING_TOP_PAD_DP = 34
+private const val CALL_INCOMING_BUTTON_GAP_DP = 10
+private const val CALL_INCOMING_BUTTON_DP = 44
+private const val CALL_INCOMING_AVATAR_DP = 40
+
+/**
+ * The extra height (over the expanded cutout) the incoming two-row layout claims for its bottom Take /
+ * Hang up row, mirroring [expandedActionsExtraDp]. Shared with the overlay controller so the window and
+ * touchable region stay as tall as what [IncomingCallExpandedContent] renders.
+ */
+internal fun callIncomingExtraDp(): Int = CALL_INCOMING_BUTTON_DP + CALL_INCOMING_BUTTON_GAP_DP
 
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
@@ -1533,10 +1610,11 @@ private fun CallSingleRowContent(
 }
 
 /**
- * The incoming-call two-row layout, sized to match the expanded cutout. Top: the caller's photo and a
- * single label — their contact name if they have one, otherwise their number — bottom-aligned so it
- * sits below the camera hole. Bottom: full-width Take (answer, primary) and Hang up (decline, red)
- * buttons, degrading to a single full-width button if the dialer exposes only one of the two actions.
+ * The incoming-call two-row layout, sized to the expanded cutout plus [callIncomingExtraDp]. Top (below
+ * a camera-clearing pad): the caller's photo and a single label — their contact name if they have one,
+ * otherwise their number. Bottom (pinned to the edge, a flexible gap between): full-width Take (answer,
+ * primary) and Hang up (decline, red) buttons, degrading to a single full-width button if the dialer
+ * exposes only one of the two actions.
  */
 @Composable
 private fun IncomingCallExpandedContent(
@@ -1553,24 +1631,23 @@ private fun IncomingCallExpandedContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(
-                start = CALL_INCOMING_PADDING_DP.dp,
-                end = CALL_INCOMING_PADDING_DP.dp,
+                start = CALL_INCOMING_SIDE_PAD_DP.dp,
+                end = CALL_INCOMING_SIDE_PAD_DP.dp,
                 top = CALL_INCOMING_TOP_PAD_DP.dp,
-                bottom = CALL_INCOMING_PADDING_DP.dp,
+                bottom = CALL_INCOMING_BOTTOM_PAD_DP.dp,
             ),
-        verticalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
     ) {
-        // Caller row — its content bottom-aligned in the space above the buttons, so the single label
-        // (already the name when known, else the number) sits clear of the camera hole.
+        // Caller row — pinned just below the top camera clearance, so the single label (already the
+        // name when known, else the number) sits clear of the camera hole.
         Row(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
         ) {
             if (photo != null) {
                 ContactPhoto(bitmap = photo, size = CALL_INCOMING_AVATAR_DP.dp)
             } else {
-                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 22.dp)
+                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
             }
             Text(
                 text = event.label,
@@ -1582,11 +1659,13 @@ private fun IncomingCallExpandedContent(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        // A flexible gap pushes the button row down to the bottom edge.
+        Spacer(modifier = Modifier.weight(1f))
         // Button row — Take (answer) then Hang up (decline), each filling half the width.
         if (call.showActions && (answer != null || hangUp != null)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_ROW_SPACING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_BUTTON_GAP_DP.dp),
             ) {
                 if (answer != null) {
                     CallWideButton(
@@ -1810,7 +1889,8 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
 
 /**
  * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
- * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused.
+ * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
+ * non-null [strokeColor] rings the cover, set apart from it by a small gap.
  */
 @Composable
 private fun AlbumArt(
@@ -1819,6 +1899,8 @@ private fun AlbumArt(
     modifier: Modifier = Modifier,
     rotate: Boolean = false,
     playing: Boolean = false,
+    /** Colour of the ring drawn around the cover, or null to leave it bare. */
+    strokeColor: Color? = null,
 ) {
     val angle = remember { Animatable(0f) }
     // Spin only while enabled and playing; on pause the effect cancels and the angle holds. Restart
@@ -1834,18 +1916,38 @@ private fun AlbumArt(
             )
         }
     }
-    // A spinning square would visibly swing its corners, so a rotatable cover is drawn as a circle.
-    val shape = if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
-    androidx.compose.foundation.Image(
-        bitmap = bitmap,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier
-            .size(size)
-            .rotate(if (rotate) angle.value else 0f)
-            .clip(shape),
-    )
+    // The ring sits inside the cover's existing footprint rather than around it, so switching it on
+    // never grows the badge or shoves the pill's text along. Without a ring the artwork fills the
+    // footprint exactly as before.
+    val strokeWidth = if (strokeColor != null) size * ALBUM_STROKE_FRACTION else 0.dp
+    val gap = if (strokeColor != null) size * ALBUM_STROKE_GAP_FRACTION else 0.dp
+    val coverSize = size - (strokeWidth + gap) * 2
+
+    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+        if (strokeColor != null) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    // A spinning square would visibly swing its corners, so a rotatable cover — and
+                    // the ring tracking it — is drawn as a circle.
+                    .border(strokeWidth, strokeColor, albumArtShape(rotate, size)),
+            )
+        }
+        androidx.compose.foundation.Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(coverSize)
+                .rotate(if (rotate) angle.value else 0f)
+                .clip(albumArtShape(rotate, coverSize)),
+        )
+    }
 }
+
+/** Circle for a spinning cover, else a rounded square whose radius scales with [size]. */
+private fun albumArtShape(rotate: Boolean, size: Dp) =
+    if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
 
 @Composable
 private fun IconBadge(

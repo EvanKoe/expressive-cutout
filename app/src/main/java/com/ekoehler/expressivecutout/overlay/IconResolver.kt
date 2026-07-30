@@ -169,6 +169,8 @@ class IconResolver(private val context: Context) {
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
                 rotateAlbumArt = settings.rotateAlbumArt,
+                albumArtStroke = settings.albumArtStroke,
+                albumArtStrokeColor = settings.albumArtStrokeColor,
                 showControls = settings.showControls,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,
