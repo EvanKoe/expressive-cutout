@@ -6,12 +6,15 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.MediaArt
+import com.ekoehler.expressivecutout.core.MediaArtBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimer
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
+import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
@@ -30,6 +33,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     // Key of the count-down notification currently driving the timer tile, mirroring [currentCallKey].
     private var currentTimerKey: String? = null
+
+    // Key of the media notification the current album cover was lifted from, so the cover is
+    // dropped when that exact notification goes away. Mirrors [currentCallKey].
+    private var currentMediaArtKey: String? = null
 
     override fun onListenerConnected() {
         instance = this
@@ -58,6 +65,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             handleTimer(notification)
             return
         }
+        // A player's MediaStyle notification carries the album cover as its large icon. Lift it
+        // before shouldSurface() drops the notification for being ongoing — it is the only cover we
+        // can get for a player that publishes its art as a remote URI rather than a bitmap. This
+        // deliberately does not return: whether the notification also becomes a pill is unchanged.
+        notification.publishMediaArt()
+
         if (!notification.shouldSurface()) return
 
         val extras = notification.notification.extras
@@ -90,6 +103,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         if (sbn?.key != null && sbn.key == currentTimerKey) {
             currentTimerKey = null
             RunningTimerBus.update(null)
+        }
+        // The player cleared its media notification — the cover it carried is no longer current.
+        if (sbn?.key != null && sbn.key == currentMediaArtKey) {
+            currentMediaArtKey = null
+            MediaArtBus.update(null)
         }
         super.onNotificationRemoved(sbn)
     }
@@ -176,6 +194,21 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             remoteInputs = inputs,
             hint = freeForm.label?.toString(),
         )
+    }
+
+    /**
+     * Publish this notification's large icon as the current album cover, if it is a media
+     * notification carrying one. Detected by the media-session extra rather than the template
+     * string, so it covers both the platform and the AndroidX MediaStyle. The icon is usually a
+     * plain bitmap, so no package lookup is involved.
+     */
+    private fun StatusBarNotification.publishMediaArt() {
+        if (notification.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) != true) return
+        val art = notification.getLargeIcon()
+            ?.loadImageBitmapOrNull(this@CutoutNotificationListenerService)
+            ?: return
+        currentMediaArtKey = key
+        MediaArtBus.update(MediaArt(packageName = packageName, art = art))
     }
 
     private fun StatusBarNotification.shouldSurface(): Boolean {

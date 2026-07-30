@@ -102,6 +102,8 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
@@ -587,12 +589,26 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
         bottomEnd = bottomRight,
     )
 
+/**
+ * The cover to draw for the music tile, or null to fall back to the note glyph. The media session's
+ * own art wins; a player that publishes its cover as a remote URI (Spotify) leaves the session
+ * without one, so the tile uses the cover lifted off that same player's media notification. Matched
+ * on package so a stale cover is never drawn over a different player's track.
+ */
+@Composable
+private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
+    val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
+    if (event.media?.showAlbumArt != true) return null
+    return nowPlaying?.albumArt
+        ?: notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.art
+}
+
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val albumArt = albumArtFor(event, nowPlaying)
     val callPhoto = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
     val badgeSize = (heightDp * 0.72f).dp
 
@@ -1176,7 +1192,7 @@ private fun ReplySendButton(
 @Composable
 private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
-    val albumArt = event.media?.takeIf { it.showAlbumArt }?.let { nowPlaying?.albumArt }
+    val albumArt = albumArtFor(event, nowPlaying)
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
