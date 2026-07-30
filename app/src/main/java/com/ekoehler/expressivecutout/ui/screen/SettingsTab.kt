@@ -56,6 +56,11 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 import java.nio.file.WatchEvent
 
+// TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
+// are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
+// false in anything shipped.
+private const val FORCE_STALLED_CARDS_FOR_TESTING = false
+
 /**
  * "Settings" destination. A lightweight list that navigates to focused sub-screens — so the
  * heavy live preview (and the pinned overlay) only exist while the "Size & position" screen
@@ -169,6 +174,11 @@ private fun SettingsList(
     // Granted is not the same as running: Android keeps the grant across an app update but often
     // leaves the service unbound, so the island is dead while the grant still reads green.
     val accessibilityRunning = rememberAccessibilityRunning()
+    // The same stale-binding trap hits the notification listener, which feeds every dynamic tile
+    // (music, phone, timer). MainActivity asks for a rebind on resume, but surface a card too in
+    // case that best-effort request doesn't take on this OEM.
+    val notificationsGranted = rememberNotificationAccessGranted()
+    val notificationsRunning = rememberNotificationListenerRunning()
 
     Column(
         modifier = Modifier
@@ -195,7 +205,7 @@ private fun SettingsList(
         // Granted but not bound — the grant survived an update, the service did not. Distinct from
         // the card above: the fix is toggling the existing grant off and on, not granting it.
         AnimatedVisibility(
-            visible = accessibilityAvailable && !accessibilityRunning,
+            visible = FORCE_STALLED_CARDS_FOR_TESTING || (accessibilityAvailable && !accessibilityRunning),
             modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
         ) {
             SettingsListItem(
@@ -203,6 +213,22 @@ private fun SettingsList(
                 subtitle = stringResource(R.string.settings_access_stalled),
                 title = stringResource(R.string.settings_access_stalled_title),
                 onClick = { Permissions.openAccessibilitySettings(context) },
+                bgColor = MaterialTheme.colorScheme.errorContainer,
+                fgColor = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+
+        // Notification access granted but the listener isn't bound — dynamic tiles are starved
+        // even though the grant reads green. Same off-and-on fix as the accessibility card above.
+        AnimatedVisibility(
+            visible = FORCE_STALLED_CARDS_FOR_TESTING || (notificationsGranted && !notificationsRunning),
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.ErrorOutline,
+                subtitle = stringResource(R.string.settings_notif_stalled),
+                title = stringResource(R.string.settings_notif_stalled_title),
+                onClick = { Permissions.openNotificationAccessSettings(context) },
                 bgColor = MaterialTheme.colorScheme.errorContainer,
                 fgColor = MaterialTheme.colorScheme.onErrorContainer
             )

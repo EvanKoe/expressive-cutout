@@ -9,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ekoehler.expressivecutout.permissions.Permissions
+import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.MainScreen
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
@@ -34,6 +36,20 @@ class MainActivity : ComponentActivity() {
             ExpressiveCutoutTheme(appTheme = theme) {
                 MainScreen(viewModel)
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Android keeps the notification-access grant across an app update but often leaves the
+        // listener unbound, silently starving every dynamic tile (music, phone, timer) while the
+        // grant still reads green. If the grant is held but the listener isn't actually connected,
+        // ask the framework to rebind it — healing the stale binding without making the user toggle
+        // the permission off and on by hand.
+        if (Permissions.isNotificationAccessGranted(this) &&
+            !CutoutNotificationListenerService.bound.value
+        ) {
+            CutoutNotificationListenerService.requestRebind(this)
         }
     }
 }
