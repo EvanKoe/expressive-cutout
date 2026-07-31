@@ -98,7 +98,8 @@ internal fun SizePositionScreen(
             ),
             selectedIndex = tab,
             onSelect = { tab = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
+                .padding(top = 12.dp),
         )
         when (tab) {
             0 -> DimensionsEditor(
@@ -136,9 +137,6 @@ private fun DimensionsEditor(
     // Start on the mode that matches the saved radii (re-derived when the persisted dimensions
     // load in or the tab switches), so opening the screen reflects the current shape.
     var cornerMode by remember(dimensions) { mutableStateOf(cornerModeFor(dimensions)) }
-    // Default the preview backdrop to the phone's current light/dark setting.
-    val systemInDark = isSystemInDarkTheme()
-    var previewDark by remember { mutableStateOf(systemInDark) }
 
     fun commit() = onChange(
         IslandDimensions.of(
@@ -153,53 +151,7 @@ private fun DimensionsEditor(
         ),
     )
 
-    val previewLabel = stringResource(R.string.preview_label)
-    val previewDetail = stringResource(R.string.preview_detail)
-    val previewEvent = remember(previewLabel, previewDetail) {
-        IslandEvent(
-            id = 0L,
-            icon = IslandIcon.Vector(Icons.Rounded.Notifications),
-            label = previewLabel,
-            detail = previewDetail,
-            accent = Color(0xFF60A5FA),
-        )
-    }
-    val cutout = rememberTopCutout()
-
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.appearance_preview),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalIconButton(onClick = { previewDark = !previewDark }) {
-                Icon(
-                    imageVector = if (previewDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                    contentDescription = stringResource(R.string.cd_toggle_preview_theme),
-                )
-            }
-        }
-
-        IslandPreviewPanel(
-            background = if (previewDark) Color(0xFF0B0B0C) else Color(0xFFEDEFF3),
-            cutout = cutout,
-            widthPercent = width.roundToInt(),
-            heightDp = height.roundToInt(),
-            cornerTopLeftDp = cornerTl.roundToInt(),
-            cornerTopRightDp = cornerTr.roundToInt(),
-            cornerBottomLeftDp = cornerBl.roundToInt(),
-            cornerBottomRightDp = cornerBr.roundToInt(),
-            offsetXDp = offsetX.roundToInt(),
-            offsetYDp = offsetY.roundToInt(),
-            expanded = expandedPreview,
-            event = previewEvent,
-        )
-
         AdjustableSlider(
             label = stringResource(R.string.appearance_width),
             valueText = "${width.roundToInt()}%",
@@ -310,6 +262,21 @@ private fun CornerRadiusControls(
     val range = IslandDimensions.MIN_CORNER_DP.toFloat()..IslandDimensions.MAX_CORNER_DP.toFloat()
     val modes = CornerMode.entries
 
+    fun onCornerChanged(callback: (Float) -> Unit, newCorner: Float) {
+        if (newCorner >= 1) {
+            callback(newCorner)
+        }
+    }
+
+    fun onAllChanged(newCorner: Float) {
+        if (newCorner >= 1) {
+            onTlChange(newCorner)
+            onBlChange(newCorner)
+            onBrChange(newCorner)
+            onTrChange(newCorner)
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = stringResource(R.string.appearance_corner),
@@ -333,7 +300,7 @@ private fun CornerRadiusControls(
                 label = stringResource(R.string.appearance_corner_all),
                 value = cornerTl,
                 range = range,
-                onValueChange = { onTlChange(it); onTrChange(it); onBlChange(it); onBrChange(it) },
+                onValueChange = { onAllChanged(it) },
                 onCommit = onCommit,
             )
 
@@ -342,23 +309,23 @@ private fun CornerRadiusControls(
                     label = stringResource(R.string.appearance_corner_top),
                     value = cornerTl,
                     range = range,
-                    onValueChange = { onTlChange(it); onTrChange(it) },
+                    onValueChange = { onCornerChanged(onTlChange, it); onCornerChanged(onTrChange, it) },
                     onCommit = onCommit,
                 )
                 CornerSlider(
                     label = stringResource(R.string.appearance_corner_bottom),
                     value = cornerBl,
                     range = range,
-                    onValueChange = { onBlChange(it); onBrChange(it) },
+                    onValueChange = { onCornerChanged(onBlChange, it); onCornerChanged(onBrChange, it) },
                     onCommit = onCommit,
                 )
             }
 
             CornerMode.Each -> {
-                CornerSlider(stringResource(R.string.appearance_corner_tl), cornerTl, range, onTlChange, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_tr), cornerTr, range, onTrChange, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_bl), cornerBl, range, onBlChange, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_br), cornerBr, range, onBrChange, onCommit)
+                CornerSlider(stringResource(R.string.appearance_corner_tl),cornerTl, range, { onCornerChanged(onTlChange, it) }, onCommit)
+                CornerSlider(stringResource(R.string.appearance_corner_tr), cornerTr, range, { onCornerChanged(onTrChange, it) }, onCommit)
+                CornerSlider(stringResource(R.string.appearance_corner_bl), cornerBl, range, { onCornerChanged(onBlChange, it) }, onCommit)
+                CornerSlider(stringResource(R.string.appearance_corner_br), cornerBr, range, { onCornerChanged(onBrChange, it) }, onCommit)
             }
         }
     }
