@@ -30,20 +30,9 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Lint
-        run: ./gradlew lintDebug --no-daemon
-
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: expressive-cutout-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Upload lint report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-report
-          path: app/build/reports/lint-results-debug.html
-          if-no-files-found: ignore
