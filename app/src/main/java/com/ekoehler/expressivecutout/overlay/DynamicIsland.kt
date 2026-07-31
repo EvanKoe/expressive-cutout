@@ -611,13 +611,18 @@ private fun IslandSurface(
     }
 }
 
-/** Builds a rounded shape with each corner independently sized (LTR-mapped). */
+/**
+ * Builds a rounded shape with each corner independently sized (LTR-mapped). Corners are clamped to
+ * be non-negative: the spring animation driving the radii overshoots below its target, so easing a
+ * corner down to 0 dp momentarily produces a negative value, which Compose refuses to render
+ * ("RoundRect with negative corners could not be rendered"). Clamping yields a plain rectangle at 0.
+ */
 private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: Dp) =
     RoundedCornerShape(
-        topStart = topLeft,
-        topEnd = topRight,
-        bottomStart = bottomLeft,
-        bottomEnd = bottomRight,
+        topStart = topLeft.coerceAtLeast(0.dp),
+        topEnd = topRight.coerceAtLeast(0.dp),
+        bottomStart = bottomLeft.coerceAtLeast(0.dp),
+        bottomEnd = bottomRight.coerceAtLeast(0.dp),
     )
 
 /**
