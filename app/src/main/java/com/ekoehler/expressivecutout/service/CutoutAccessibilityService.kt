@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.res.Configuration
 import android.view.accessibility.AccessibilityEvent
 import com.ekoehler.expressivecutout.core.ForegroundAppBus
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
@@ -39,6 +40,16 @@ class CutoutAccessibilityService : AccessibilityService() {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
         ForegroundAppBus.update(pkg)
+    }
+
+    /**
+     * Forward device rotations to the overlay so it can rebuild its top-of-screen window for the new
+     * geometry — otherwise the touchable-region carve-out that lets the notification shade through
+     * beside the pill goes stale in landscape and the band swallows the shade pull.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlay?.onOrientationChanged(newConfig.orientation)
     }
 
     override fun onInterrupt() = Unit
