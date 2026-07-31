@@ -343,7 +343,7 @@ fun DynamicIsland(
         spec, label = "islandWidth"
     )
     val height by animateDpAsState(
-        if (isStickToCamera) (collapsed.heightDp * 2.2f).dp else (dims.heightDp + heightBonus).dp,
+        if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp else (dims.heightDp + heightBonus).dp,
         spec, label = "islandHeight"
     )
     val cornerRadius = (collapsed.heightDp / 2f).dp

@@ -777,7 +777,7 @@ class IslandOverlayController(private val context: Context) {
         val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         if (isStickToCamera) {
-            val islandLengthDp = (layout.collapsed.heightDp * 2.2f).toInt()
+            val islandLengthDp = displayWidthDp.value * (layout.collapsed.widthPercent / 100f)
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val collapsed = layout.collapsed
@@ -795,7 +795,7 @@ class IslandOverlayController(private val context: Context) {
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         val dims = effectiveDims(layout, expanded)
         if (isStickToCamera) {
-            val islandLengthDp = (dims.heightDp * 2.2f).toInt()
+            val islandLengthDp = displayWidthDp.value * (dims.widthPercent / 100f)
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val bonus = currentHeightBonusDp(expanded)
