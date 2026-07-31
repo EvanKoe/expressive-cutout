@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.map
 
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
 
+/** How the cutout behaves when the device is in horizontal/landscape orientation. */
+enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER }
+
 /** Which horizontal swipe directions dismiss the cutout, when swipe-to-dismiss is enabled. */
 enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
 
@@ -52,6 +55,7 @@ data class BehaviourSettings(
     val cutoutEnabled: Boolean = DEFAULT_CUTOUT_ENABLED,
     val hideOnLockscreen: Boolean = DEFAULT_HIDE_ON_LOCKSCREEN,
     val hideInLandscape: Boolean = DEFAULT_HIDE_IN_LANDSCAPE,
+    val horizontalCutoutMode: HorizontalCutoutMode = DEFAULT_HORIZONTAL_CUTOUT_MODE,
     val animationStyle: AnimationStyle = DEFAULT_ANIMATION_STYLE,
     val animationSpeed: AnimationSpeed = DEFAULT_ANIMATION_SPEED,
     val animationBounce: AnimationBounce = DEFAULT_ANIMATION_BOUNCE,
@@ -72,6 +76,7 @@ data class BehaviourSettings(
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
         const val DEFAULT_HIDE_IN_LANDSCAPE = false
+        val DEFAULT_HORIZONTAL_CUTOUT_MODE = HorizontalCutoutMode.CENTER
         // Baseline for the island's primary expand/collapse transition; the reveal, background fade
         // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
         const val DEFAULT_ANIMATION_DURATION_MS = 220
@@ -102,10 +107,21 @@ data class BehaviourSettings(
 class BehaviourPreferences(private val context: Context) {
 
     val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
+        val rawMode = prefs[HORIZONTAL_CUTOUT_MODE]
+        val hideLandscape = prefs[HIDE_IN_LANDSCAPE] ?: BehaviourSettings.DEFAULT_HIDE_IN_LANDSCAPE
+        val horizontalCutoutMode = if (rawMode != null) {
+            runCatching { HorizontalCutoutMode.valueOf(rawMode) }.getOrDefault(BehaviourSettings.DEFAULT_HORIZONTAL_CUTOUT_MODE)
+        } else if (hideLandscape) {
+            HorizontalCutoutMode.HIDDEN
+        } else {
+            BehaviourSettings.DEFAULT_HORIZONTAL_CUTOUT_MODE
+        }
+
         BehaviourSettings(
             cutoutEnabled = prefs[CUTOUT_ENABLED] ?: BehaviourSettings.DEFAULT_CUTOUT_ENABLED,
             hideOnLockscreen = prefs[HIDE_ON_LOCKSCREEN] ?: BehaviourSettings.DEFAULT_HIDE_ON_LOCKSCREEN,
-            hideInLandscape = prefs[HIDE_IN_LANDSCAPE] ?: BehaviourSettings.DEFAULT_HIDE_IN_LANDSCAPE,
+            hideInLandscape = hideLandscape || (horizontalCutoutMode == HorizontalCutoutMode.HIDDEN),
+            horizontalCutoutMode = horizontalCutoutMode,
             animationStyle = prefs[ANIMATION_STYLE]
                 ?.let { runCatching { AnimationStyle.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_ANIMATION_STYLE,
@@ -147,6 +163,14 @@ class BehaviourPreferences(private val context: Context) {
 
     suspend fun setHideInLandscape(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_IN_LANDSCAPE] = enabled
+        if (enabled) {
+            it[HORIZONTAL_CUTOUT_MODE] = HorizontalCutoutMode.HIDDEN.name
+        }
+    }
+
+    suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = context.behaviourDataStore.edit {
+        it[HORIZONTAL_CUTOUT_MODE] = mode.name
+        it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN)
     }
 
     suspend fun setAnimationStyle(style: AnimationStyle) = context.behaviourDataStore.edit {
@@ -222,6 +246,7 @@ class BehaviourPreferences(private val context: Context) {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
         val HIDE_IN_LANDSCAPE = booleanPreferencesKey("hide_in_landscape")
+        val HORIZONTAL_CUTOUT_MODE = stringPreferencesKey("horizontal_cutout_mode")
         val ANIMATION_STYLE = stringPreferencesKey("animation_style")
         val ANIMATION_SPEED = stringPreferencesKey("animation_speed")
         val ANIMATION_BOUNCE = stringPreferencesKey("animation_bounce")

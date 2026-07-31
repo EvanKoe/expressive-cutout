@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -44,6 +47,7 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
@@ -122,6 +126,7 @@ class IslandOverlayController(private val context: Context) {
     // an actual portrait <-> landscape flip. Also the single source of truth for the current
     // orientation, ready for orientation-specific layout settings later.
     private var currentOrientation: Int = context.resources.configuration.orientation
+    private val orientationState = MutableStateFlow(currentOrientation)
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
@@ -190,6 +195,7 @@ class IslandOverlayController(private val context: Context) {
     // True while the window has been torn down because "hide on lockscreen" or "hide in landscape" is active.
     // Guards signal handling and drives whether the window currently exists.
     private var overlayHidden = false
+    private var savedEventBeforeHide: IslandEvent? = null
 
     // Re-evaluate lock visibility whenever the screen or lock state changes. All are protected
     // system broadcasts.
@@ -255,7 +261,9 @@ class IslandOverlayController(private val context: Context) {
     private fun applyLockVisibility() {
         val shouldHideLock = behaviourState.value.hideOnLockscreen &&
             keyguardManager?.isKeyguardLocked == true
-        val shouldHideLandscape = behaviourState.value.hideInLandscape &&
+        val isLandscapeHidden = behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.HIDDEN ||
+            behaviourState.value.hideInLandscape
+        val shouldHideLandscape = isLandscapeHidden &&
             currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         val shouldHide = shouldHideLock || shouldHideLandscape
 
@@ -264,6 +272,9 @@ class IslandOverlayController(private val context: Context) {
                 overlayHidden = true
                 dismissJob?.cancel()
                 windowResizeJob?.cancel()
+                if (currentEvent.value != null) {
+                    savedEventBeforeHide = currentEvent.value
+                }
                 currentEvent.value = null
                 removeOverlay()
             }
@@ -272,6 +283,37 @@ class IslandOverlayController(private val context: Context) {
                 overlayHidden = false
                 addOverlay()
                 syncWindowSize()
+                restoreActiveState()
+            }
+        }
+    }
+
+    private fun restoreActiveState() {
+        when {
+            previewPinned -> {
+                dismissJob?.cancel()
+                forcedExpanded.value = previewExpanded
+                expanded = previewExpanded
+                currentEvent.value = previewEvent
+            }
+            callActive && lastCallEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentEvent.value = lastCallEvent
+            }
+            musicPlaying && lastMusicEvent != null && !playerAppHidden -> {
+                dismissJob?.cancel()
+                currentEvent.value = lastMusicEvent
+            }
+            timerActive && lastTimerEvent != null -> {
+                dismissJob?.cancel()
+                currentEvent.value = lastTimerEvent
+            }
+            savedEventBeforeHide != null -> {
+                dismissJob?.cancel()
+                currentEvent.value = savedEventBeforeHide
+                savedEventBeforeHide = null
+                scheduleDismiss()
             }
         }
     }
@@ -310,6 +352,7 @@ class IslandOverlayController(private val context: Context) {
     fun onOrientationChanged(orientation: Int) {
         if (orientation == currentOrientation) return
         currentOrientation = orientation
+        orientationState.value = orientation
         displayWidthPx = computeDisplayWidthPx()
         displayWidthDp.value = (displayWidthPx / density).toInt()
         applyLockVisibility()
@@ -329,6 +372,15 @@ class IslandOverlayController(private val context: Context) {
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
+                val orientation by orientationState.collectAsStateWithLifecycle()
+                val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                    (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
+                     behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
+                val effectiveForced = if (isNoExpandLandscape) false else forced
+                val isStickToCamera = orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                    behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+                val rot270 = isRotation270()
+
                 // Theme the overlay so the "Dynamic color for all events" badge picks up the app's
                 // real primary / on-primary (Material You or the brand fallback), not the M3 baseline.
                 ExpressiveCutoutTheme {
@@ -337,7 +389,10 @@ class IslandOverlayController(private val context: Context) {
                         collapsed = layout.collapsed,
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
-                        forcedExpanded = forced,
+                        forcedExpanded = effectiveForced,
+                        isStickToCamera = isStickToCamera,
+                        isRotation270 = rot270,
+                        offsetYDp = layout.collapsed.offsetYDp,
                         animationStyle = behaviour.animationStyle,
                         animationSpeed = behaviour.animationSpeed,
                         animationBounce = behaviour.animationBounce,
@@ -630,9 +685,11 @@ class IslandOverlayController(private val context: Context) {
     private fun resizeWindow(targetWidthPx: Int, targetHeightPx: Int) {
         val view = composeView ?: return
         val params = layoutParams ?: return
-        if (params.width != targetWidthPx || params.height != targetHeightPx) {
+        val targetGravity = computeWindowGravity()
+        if (params.width != targetWidthPx || params.height != targetHeightPx || params.gravity != targetGravity) {
             params.width = targetWidthPx
             params.height = targetHeightPx
+            params.gravity = targetGravity
             runCatching { windowManager.updateViewLayout(view, params) }
         }
     }
@@ -695,6 +752,11 @@ class IslandOverlayController(private val context: Context) {
      * so the rounded edges, drop shadow and tap "boop" scale all stay comfortably tappable.
      */
     private fun pillTouchRect(viewWidth: Int, viewHeight: Int): Rect {
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) {
+            return Rect(0, 0, viewWidth, viewHeight)
+        }
         val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = currentHeightBonusDp(expanded)
         val pillWidthPx = displayWidthPx * dims.widthPercent / 100
@@ -712,6 +774,12 @@ class IslandOverlayController(private val context: Context) {
 
     /** Tall enough for whichever state extends lowest — used for the initial, safe window size. */
     private fun windowHeightPx(layout: IslandLayout): Int {
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) {
+            val islandLengthDp = (layout.collapsed.heightDp * 2.2f).toInt()
+            return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
+        }
         val collapsed = layout.collapsed
         val expanded = layout.expanded
         val lowestDp = maxOf(
@@ -723,7 +791,13 @@ class IslandOverlayController(private val context: Context) {
 
     /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         val dims = effectiveDims(layout, expanded)
+        if (isStickToCamera) {
+            val islandLengthDp = (dims.heightDp * 2.2f).toInt()
+            return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
+        }
         val bonus = currentHeightBonusDp(expanded)
         return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
     }
@@ -739,11 +813,15 @@ class IslandOverlayController(private val context: Context) {
      * whole screen) is what lets the notification shade be pulled from beside the pill in landscape.
      */
     private fun windowWidthPx(layout: IslandLayout, expanded: Boolean): Int {
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         val dims = effectiveDims(layout, expanded)
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
-        val offsetXPx = (abs(dims.offsetXDp) * density).toInt()
-        val marginPx = (WINDOW_MARGIN_DP * density).toInt()
-        return (pillWidthPx + 2 * (offsetXPx + marginPx)).coerceAtMost(displayWidthPx)
+        if (isStickToCamera) {
+            val totalDp = dims.offsetYDp + dims.heightDp + TOUCH_MARGIN_DP * 2
+            return (totalDp * density).toInt()
+        }
+        val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f)
+        return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
     }
 
     /**
@@ -818,13 +896,17 @@ class IslandOverlayController(private val context: Context) {
             .collect { (pinned, expandedTab) ->
                 previewPinned = pinned
                 previewExpanded = expandedTab
+                val isNoExpandLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE &&
+                    (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
+                     behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
+                val targetExpanded = if (isNoExpandLandscape) false else expandedTab
                 if (pinned) {
                     dismissJob?.cancel()
-                    forcedExpanded.value = expandedTab
-                    expanded = expandedTab
+                    forcedExpanded.value = targetExpanded
+                    expanded = targetExpanded
                     currentEvent.value = previewEvent
                 } else {
-                    forcedExpanded.value = null
+                    forcedExpanded.value = if (isNoExpandLandscape) false else null
                     expanded = false
                     currentEvent.value = null
                 }
@@ -834,10 +916,6 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
-            // Window is torn down for lockscreen/landscape — drop signals so nothing is queued behind it.
-            if (overlayHidden) return@collect
-            // Master switch: nothing shows when the cutout is disabled.
-            if (!behaviourState.value.cutoutEnabled) return@collect
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
@@ -847,9 +925,11 @@ class IslandOverlayController(private val context: Context) {
             // Skip the running timer when the timer tile is turned off.
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
 
-            // Expand for a notification (when configured) or the music / phone tile, so its details
-            // show. The timer rests collapsed — it is the countdown pill; a tap opens its controls.
-            val autoExpand = when (signal) {
+            val isNoExpandLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE &&
+                (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
+                 behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
+
+            val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> musicSettings.expandOnPlay
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
@@ -857,11 +937,9 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
             }
-            // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
-            currentSystemEventType = (signal as? CutoutSignal.System)?.type
-            forcedExpanded.value = null
-            expanded = autoExpand
-            currentEvent.value = resolver.resolve(
+            val autoExpand = if (isNoExpandLandscape) false else rawAutoExpand
+
+            val resolvedEvent = resolver.resolve(
                 signal,
                 customIcons,
                 musicSettings,
@@ -874,25 +952,55 @@ class IslandOverlayController(private val context: Context) {
                 eventAnimatedIconLoops,
                 eventColors,
             ).copy(initiallyExpanded = autoExpand)
+
+            if (overlayHidden) {
+                if (behaviourState.value.cutoutEnabled) {
+                    savedEventBeforeHide = resolvedEvent
+                    when (signal) {
+                        is CutoutSignal.Music -> {
+                            musicPlaying = true
+                            lastMusicEvent = resolvedEvent
+                        }
+                        is CutoutSignal.Call -> {
+                            callActive = true
+                            lastCallEvent = resolvedEvent
+                        }
+                        is CutoutSignal.Timer -> {
+                            timerActive = true
+                            lastTimerEvent = resolvedEvent
+                        }
+                        else -> {}
+                    }
+                }
+                return@collect
+            }
+
+            if (!behaviourState.value.cutoutEnabled) return@collect
+
+            // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
+            currentSystemEventType = (signal as? CutoutSignal.System)?.type
+            forcedExpanded.value = if (isNoExpandLandscape) false else null
+            expanded = autoExpand
+            currentEvent.value = resolvedEvent
             syncWindowSize()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than
             // starting the auto-dismiss timer — it stays for as long as playback / the call lasts.
             when (signal) {
                 is CutoutSignal.Music -> {
                     musicPlaying = true
-                    lastMusicEvent = currentEvent.value
+                    lastMusicEvent = resolvedEvent
                     dismissJob?.cancel()
                 }
 
                 is CutoutSignal.Call -> {
                     callActive = true
-                    lastCallEvent = currentEvent.value
+                    lastCallEvent = resolvedEvent
                     dismissJob?.cancel()
                 }
 
                 is CutoutSignal.Timer -> {
                     timerActive = true
-                    lastTimerEvent = currentEvent.value
+                    lastTimerEvent = resolvedEvent
                     dismissJob?.cancel()
                 }
 
@@ -903,21 +1011,23 @@ class IslandOverlayController(private val context: Context) {
             // returns via musicPillToReturnTo() once the user leaves that app.
             if (signal is CutoutSignal.Music && shouldHideForPlayerApp()) {
                 playerAppHidden = true
-                forcedExpanded.value = null
-                expanded = false
                 currentEvent.value = null
-                syncWindowSize()
+                removeOverlay()
             }
         }
     }
 
     /** Pause auto-dismiss while expanded; on collapse either hide or return to the normal cutout. */
     private fun onExpandedChanged(isExpanded: Boolean) {
+        val isNoExpandLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE &&
+            (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
+             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
+        val targetExpanded = if (isNoExpandLandscape) false else isExpanded
         val wasExpanded = expanded
-        expanded = isExpanded
+        expanded = targetExpanded
         syncWindowSize()
         when {
-            isExpanded -> dismissJob?.cancel()
+            targetExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
             // While music plays or a call is live, keep the collapsed pill up instead of dismissing.
             isPinnedLiveTile() -> dismissJob?.cancel()
@@ -1122,6 +1232,46 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    private fun computeWindowGravity(): Int {
+        if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) {
+            return Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+        return when (behaviourState.value.horizontalCutoutMode) {
+            HorizontalCutoutMode.STICK_TO_CAMERA -> getLandscapeCameraGravity()
+            else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+    }
+
+    private fun isRotation270(): Boolean {
+        @Suppress("DEPRECATION")
+        val display = windowManager.defaultDisplay
+        return display?.rotation == android.view.Surface.ROTATION_270
+    }
+
+    private fun getLandscapeCameraGravity(): Int {
+        @Suppress("DEPRECATION")
+        val display = windowManager.defaultDisplay
+        return when (display?.rotation) {
+            android.view.Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+            android.view.Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
+            else -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+        }
+    }
+
+    private fun getLandscapeCameraRotation(): Float {
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.display
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        }
+        return when (display?.rotation) {
+            android.view.Surface.ROTATION_90 -> 90f
+            android.view.Surface.ROTATION_270 -> -90f
+            else -> 0f
+        }
+    }
+
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         @Suppress("DEPRECATION")
         val overlayType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
@@ -1139,7 +1289,7 @@ class IslandOverlayController(private val context: Context) {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            gravity = computeWindowGravity()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS

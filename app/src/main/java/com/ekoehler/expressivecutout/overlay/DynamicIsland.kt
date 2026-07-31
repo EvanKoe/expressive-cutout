@@ -205,6 +205,9 @@ fun DynamicIsland(
     expanded: IslandDimensions,
     displayWidthDp: Int,
     forcedExpanded: Boolean?,
+    isStickToCamera: Boolean = false,
+    isRotation270: Boolean = false,
+    offsetYDp: Int = 6,
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
     animationBounce: AnimationBounce,
@@ -230,8 +233,8 @@ fun DynamicIsland(
     }
     val shownEvent = lastEvent
 
-    // Keyed on the shown event so tapping persists during that event and resets for a new one.
-    var tapExpanded by remember(shownEvent?.id) { mutableStateOf(shownEvent?.initiallyExpanded ?: false) }
+    val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
+    var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
     // The reply action currently being typed for, if any. Reset when the event changes.
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
@@ -242,7 +245,7 @@ fun DynamicIsland(
     // The phone tile has no expanded state: it is shown as one bigger "normal" cutout, so tapping
     // never expands it and its size never switches to the expanded dimensions.
     val isCall = shownEvent?.call != null
-    val isExpanded = if (isCall) false else (forcedExpanded ?: tapExpanded)
+    val isExpanded = if (isCall || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
@@ -335,14 +338,21 @@ fun DynamicIsland(
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
     // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
     val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
-    val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
-    val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
-    val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
-    val offsetY by animateDpAsState(dims.offsetYDp.dp, spec, label = "islandOffsetY")
-    val topLeft by animateDpAsState(dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
-    val topRight by animateDpAsState(dims.cornerTopRightDp.dp, spec, label = "cornerTR")
-    val bottomLeft by animateDpAsState(dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
-    val bottomRight by animateDpAsState(dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
+    val width by animateDpAsState(
+        if (isStickToCamera) collapsed.heightDp.dp else (displayWidthDp * dims.widthPercent / 100f).dp,
+        spec, label = "islandWidth"
+    )
+    val height by animateDpAsState(
+        if (isStickToCamera) (collapsed.heightDp * 2.2f).dp else (dims.heightDp + heightBonus).dp,
+        spec, label = "islandHeight"
+    )
+    val cornerRadius = (collapsed.heightDp / 2f).dp
+    val offsetX by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetXDp.dp, spec, label = "islandOffsetX")
+    val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
+    val topLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
+    val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
+    val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
+    val bottomRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
     // Drives the background cross-fade between the normal and expanded fills, in step with the size.
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
@@ -363,11 +373,16 @@ fun DynamicIsland(
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
+        val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
+        val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
+
         // Position the island in the full-size (non-clipping) window; then animate visibility.
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(x = offsetX, y = offsetY),
+                .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
+                .padding(start = stickPaddingStart, end = stickPaddingEnd)
+                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
         ) {
             // Keep rendering through the exit (until `reveal` reaches 0) so the shrink-back animates.
             if (present || reveal.value > 0f) {
@@ -386,7 +401,7 @@ fun DynamicIsland(
                             alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
                         .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
-                            if (forcedExpanded != null) return@pointerInput
+                            if (forcedExpanded == true) return@pointerInput
                             detectTapGestures {
                                 // While typing a reply, ignore taps on the surface itself.
                                 if (replying) return@detectTapGestures
@@ -396,11 +411,10 @@ fun DynamicIsland(
                                     if (shownEvent?.contentIntent != null) onActivate()
                                     return@detectTapGestures
                                 }
-                                // Once expanded, tapping a notification opens its app (like tapping
-                                // the real notification); anything else just toggles expand/collapse.
-                                if (isExpanded && shownEvent?.contentIntent != null) {
+                                // Once expanded, or in normal-only mode (forcedExpanded == false), tapping a notification opens its app.
+                                if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
                                     onActivate()
-                                } else {
+                                } else if (forcedExpanded == null) {
                                     tapExpanded = !tapExpanded
                                     scope.launch {
                                         boopScale.animateTo(1.02f, tween(durationMillis = scaled(120), easing = EmphasizedEasing))
@@ -503,7 +517,7 @@ fun DynamicIsland(
                                     },
                                 )
                             } else {
-                                CollapsedContent(e, collapsed.heightDp)
+                                CollapsedContent(e, collapsed.heightDp, isStickToCamera)
                             }
                         }
                     }
@@ -650,7 +664,7 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
         ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
 
 @Composable
-private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
+private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera: Boolean = false) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
@@ -660,8 +674,11 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         val placement = Modifier
-            .align(Alignment.CenterStart)
-            .padding(start = (heightDp * 0.16f).dp)
+            .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
+            .padding(
+                start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
+                bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+            )
         when {
             albumArt != null -> AlbumArt(
                 bitmap = albumArt,
@@ -682,7 +699,7 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int) {
             )
         }
         // The timer tile shows the remaining time on the trailing edge, opposite its icon.
-        if (event.timer != null) {
+        if (event.timer != null && !isStickToCamera) {
             timerRemainingText()?.let { remaining ->
                 Text(
                     text = remaining,

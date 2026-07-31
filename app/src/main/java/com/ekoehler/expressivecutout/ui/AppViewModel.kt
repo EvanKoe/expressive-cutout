@@ -16,6 +16,7 @@ import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -364,6 +365,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setHideInLandscape(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideInLandscape(enabled)
+    }
+
+    fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = viewModelScope.launch {
+        behaviourPreferences.setHorizontalCutoutMode(mode)
     }
 
     fun setAnimationStyle(style: AnimationStyle) = viewModelScope.launch {
