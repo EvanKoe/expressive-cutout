@@ -262,6 +262,8 @@
     <string name="animation_bounce_small">Small</string>
     <string name="behaviour_hide_lockscreen">Hide on lockscreen</string>
     <string name="behaviour_hide_lockscreen_desc">Don\'t show the cutout while the device is locked. The overlay is fully removed until you unlock, so it uses no resources.</string>
+    <string name="behaviour_hide_landscape">Hide in landscape</string>
+    <string name="behaviour_hide_landscape_desc">Remove the overlay when the device is rotated horizontally, so it never blocks games, videos, or the notification shade.</string>
     <string name="behaviour_animation_duration">Animation duration</string>
     <string name="behaviour_normal_duration">Normal cutout duration</string>
     <string name="behaviour_auto_collapse">Collapse automatically</string>

@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
@@ -71,6 +72,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.lang.reflect.Proxy
+import kotlin.math.abs
 
 /**
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
@@ -107,15 +109,19 @@ class IslandOverlayController(private val context: Context) {
     private val timerTilePreferences = TimerTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
-    // Full display width, used by the island to size itself as a percentage of the screen.
-    private val displayWidthPx: Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            windowManager.maximumWindowMetrics.bounds.width()
-        } else {
-            @Suppress("DEPRECATION")
-            context.resources.displayMetrics.widthPixels
-        }
-    private val displayWidthDp: Int = (displayWidthPx / density).toInt()
+    // Full display width, used by the island to size itself as a percentage of the screen. Read from
+    // the *current* window metrics so it follows the device between portrait and landscape — recomputed
+    // on rotation by [onOrientationChanged]. (maximumWindowMetrics would stay pinned to the natural
+    // orientation, leaving the landscape pill and its touchable-region carve-out mis-sized.) The px value
+    // is read live by the touchable region; the dp value is a flow so the pill re-sizes on rotation
+    // without recreating the ComposeView.
+    private var displayWidthPx: Int = computeDisplayWidthPx()
+    private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
+
+    // The orientation the live window geometry was built for, so [onOrientationChanged] only reacts to
+    // an actual portrait <-> landscape flip. Also the single source of truth for the current
+    // orientation, ready for orientation-specific layout settings later.
+    private var currentOrientation: Int = context.resources.configuration.orientation
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
@@ -181,9 +187,9 @@ class IslandOverlayController(private val context: Context) {
     // The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be removed.
     private var insetsListener: Any? = null
 
-    // True while the window has been torn down because "hide on lockscreen" is on and the device is
-    // locked. Guards signal handling and drives whether the window currently exists.
-    private var lockHidden = false
+    // True while the window has been torn down because "hide on lockscreen" or "hide in landscape" is active.
+    // Guards signal handling and drives whether the window currently exists.
+    private var overlayHidden = false
 
     // Re-evaluate lock visibility whenever the screen or lock state changes. All are protected
     // system broadcasts.
@@ -242,30 +248,73 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Enforce "hide on lockscreen" by fully adding or removing the overlay window as the lock state
-     * changes. Tearing the window down — rather than just hiding it — means nothing is composed or
-     * drawn while the device is locked, which matters on low-end hardware. Re-checked on screen
-     * on/off, on unlock, and whenever the setting itself is toggled. Idempotent: the [lockHidden]
-     * guard makes repeat calls in the same state no-ops.
+     * Enforce "hide on lockscreen" and "hide in landscape" by fully adding or removing the overlay window.
+     * Tearing the window down — rather than just hiding it — means nothing is composed or drawn while
+     * locked or in landscape, and gesture areas stay completely unblocked.
      */
     private fun applyLockVisibility() {
-        val shouldHide = behaviourState.value.hideOnLockscreen &&
+        val shouldHideLock = behaviourState.value.hideOnLockscreen &&
             keyguardManager?.isKeyguardLocked == true
+        val shouldHideLandscape = behaviourState.value.hideInLandscape &&
+            currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        val shouldHide = shouldHideLock || shouldHideLandscape
+
         when {
-            shouldHide && !lockHidden -> {
-                lockHidden = true
+            shouldHide && !overlayHidden -> {
+                overlayHidden = true
                 dismissJob?.cancel()
                 windowResizeJob?.cancel()
                 currentEvent.value = null
                 removeOverlay()
             }
 
-            !shouldHide && lockHidden -> {
-                lockHidden = false
+            !shouldHide && overlayHidden -> {
+                overlayHidden = false
                 addOverlay()
-                syncWindowHeight()
+                syncWindowSize()
             }
         }
+    }
+
+    /** The current window width in px, following the device's live orientation. */
+    private fun computeDisplayWidthPx(): Int {
+        val (width, height) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            val metrics = context.resources.displayMetrics
+            metrics.widthPixels to metrics.heightPixels
+        }
+        // In landscape mode, size relative to portrait width so the pill remains reasonably sized
+        // and leaves ample space on either side of the top edge for the notification shade pull.
+        return if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            minOf(width, height)
+        } else {
+            width
+        }
+    }
+
+    /**
+     * React to a device rotation. The pill sizes itself as a percentage of the screen width, so on a
+     * portrait <-> landscape flip both the pill and the window that hugs it ([syncWindowSize]) must be
+     * recomputed for the new width — otherwise the landscape window is sized for portrait and the band
+     * ends up covering the shade-pull area. Recompute the width, let the pill re-size via [displayWidthDp],
+     * and re-hug the window; the window is updated in place, never torn down (re-adding it leaves the
+     * overlay fully touchable).
+     *
+     * Gated on an actual portrait <-> landscape flip via [currentOrientation]; other configuration
+     * changes (font scale, night mode, …) are ignored. This is the hook for orientation-specific layout
+     * settings later — [currentOrientation] is the single place the live orientation is tracked.
+     */
+    fun onOrientationChanged(orientation: Int) {
+        if (orientation == currentOrientation) return
+        currentOrientation = orientation
+        displayWidthPx = computeDisplayWidthPx()
+        displayWidthDp.value = (displayWidthPx / density).toInt()
+        applyLockVisibility()
+        if (overlayHidden) return
+        syncWindowSize()
     }
 
     private fun addOverlay() {
@@ -279,6 +328,7 @@ class IslandOverlayController(private val context: Context) {
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
+                val widthDp by displayWidthDp.collectAsStateWithLifecycle()
                 // Theme the overlay so the "Dynamic color for all events" badge picks up the app's
                 // real primary / on-primary (Material You or the brand fallback), not the M3 baseline.
                 ExpressiveCutoutTheme {
@@ -286,7 +336,7 @@ class IslandOverlayController(private val context: Context) {
                         event = event,
                         collapsed = layout.collapsed,
                         expanded = layout.expanded,
-                        displayWidthDp = displayWidthDp,
+                        displayWidthDp = widthDp,
                         forcedExpanded = forced,
                         animationStyle = behaviour.animationStyle,
                         animationSpeed = behaviour.animationSpeed,
@@ -339,7 +389,7 @@ class IslandOverlayController(private val context: Context) {
         appearancePreferences.settings.collect {
             appearanceState.value = it
             // The action-button height feeds the expanded window's extra room; keep them in step.
-            syncWindowHeight()
+            syncWindowSize()
         }
     }
 
@@ -443,7 +493,7 @@ class IslandOverlayController(private val context: Context) {
      * nothing else has taken the cutout. Idempotent via [playerAppHidden].
      */
     private fun applyPlayerAppVisibility() {
-        if (previewPinned || lockHidden) return
+        if (previewPinned || overlayHidden) return
         if (shouldHideForPlayerApp()) {
             if (playerAppHidden) return
             playerAppHidden = true
@@ -452,7 +502,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = null
                 expanded = false
                 currentEvent.value = null
-                syncWindowHeight()
+                syncWindowSize()
             }
         } else {
             if (!playerAppHidden) return
@@ -462,7 +512,7 @@ class IslandOverlayController(private val context: Context) {
                     forcedExpanded.value = null
                     expanded = false
                     currentEvent.value = pill
-                    syncWindowHeight()
+                    syncWindowSize()
                 }
             }
         }
@@ -526,7 +576,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
             layoutState.value = layout
-            syncWindowHeight()
+            syncWindowSize()
         }
     }
 
@@ -536,36 +586,52 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Resize the window to hug the current island state (collapsed vs expanded height), so the
-     * empty band below a collapsed pill stops swallowing touches. The pill itself is still
-     * animated inside Compose — this only changes the window at the two rest states, never per
-     * frame, so the expand/collapse animation stays smooth.
+     * Resize the window to hug the current island state (collapsed vs expanded) in *both* width and
+     * height, so the empty band around the pill stops swallowing touches — most importantly the
+     * notification-shade pull, which happens beside the pill. Hugging the width (not spanning the whole
+     * screen) is what keeps the shade reachable in landscape: the wide areas either side of the pill are
+     * then outside the window entirely and fall through, rather than relying on the touchable-region
+     * carve-out — which the framework does not honour for this overlay in landscape.
      *
-     * Grow/shrink is asymmetric: growing (expand) happens immediately so the window always has
-     * room for the pill before it animates open; shrinking (collapse) is deferred until the pill
-     * has finished collapsing, so the window never clips it mid-animation.
+     * The pill itself is still animated inside Compose — this only changes the window at the two rest
+     * states, never per frame, so the expand/collapse animation stays smooth.
+     *
+     * Width is held at the widest state (never varied on expand/collapse): the window is centred, so
+     * resizing its width mid-animation would re-centre it a frame out of step with the pill and make the
+     * pill appear to slide sideways. Height is safe to vary because the window is top-anchored (it grows
+     * downward), and is grown immediately on expand but shrunk only after the collapse animation finishes,
+     * so the window always has room for the pill and never clips it mid-animation.
      */
-    private fun syncWindowHeight() {
-        requestWindowHeight(windowHeightPx(layoutState.value, expanded))
+    private fun syncWindowSize() {
+        requestWindowSize(
+            windowWidthPx(layoutState.value),
+            windowHeightPx(layoutState.value, expanded),
+        )
     }
 
-    private fun requestWindowHeight(targetHeightPx: Int) {
+    private fun requestWindowSize(targetWidthPx: Int, targetHeightPx: Int) {
         val params = layoutParams ?: return
         windowResizeJob?.cancel()
-        if (targetHeightPx >= params.height) {
-            resizeWindowHeight(targetHeightPx)
-        } else {
+        val currentWidth = params.width
+        val currentHeight = params.height
+        // MATCH_PARENT is -1; treat it as "already large enough" so the first sizing shrinks straight to fit.
+        val grownWidth = if (currentWidth < 0) targetWidthPx else maxOf(targetWidthPx, currentWidth)
+        val grownHeight = maxOf(targetHeightPx, currentHeight)
+        resizeWindow(grownWidth, grownHeight)
+        val shrinks = (currentWidth >= 0 && targetWidthPx < currentWidth) || targetHeightPx < currentHeight
+        if (shrinks) {
             windowResizeJob = scope.launch {
                 delay(WINDOW_SHRINK_DELAY_MS)
-                resizeWindowHeight(targetHeightPx)
+                resizeWindow(targetWidthPx, targetHeightPx)
             }
         }
     }
 
-    private fun resizeWindowHeight(targetHeightPx: Int) {
+    private fun resizeWindow(targetWidthPx: Int, targetHeightPx: Int) {
         val view = composeView ?: return
         val params = layoutParams ?: return
-        if (params.height != targetHeightPx) {
+        if (params.width != targetWidthPx || params.height != targetHeightPx) {
+            params.width = targetWidthPx
             params.height = targetHeightPx
             runCatching { windowManager.updateViewLayout(view, params) }
         }
@@ -662,6 +728,24 @@ class IslandOverlayController(private val context: Context) {
         return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
     }
 
+    /** Wide enough for whichever state is widest — used for the initial, safe window size. */
+    private fun windowWidthPx(layout: IslandLayout): Int =
+        maxOf(windowWidthPx(layout, expanded = false), windowWidthPx(layout, expanded = true))
+
+    /**
+     * Width needed to contain just one state's pill, centred, with room for its horizontal offset and a
+     * margin on each side (for the rounded edges, shadow and tap "boop" scale). Capped at the display
+     * width so a very wide pill falls back to a full-width band. Keeping this to the pill (rather than the
+     * whole screen) is what lets the notification shade be pulled from beside the pill in landscape.
+     */
+    private fun windowWidthPx(layout: IslandLayout, expanded: Boolean): Int {
+        val dims = effectiveDims(layout, expanded)
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val offsetXPx = (abs(dims.offsetXDp) * density).toInt()
+        val marginPx = (WINDOW_MARGIN_DP * density).toInt()
+        return (pillWidthPx + 2 * (offsetXPx + marginPx)).coerceAtMost(displayWidthPx)
+    }
+
     /**
      * The dimensions the island is actually drawn at right now: the expanded state when expanded, the
      * bigger call cutout when the shown event is a phone call (it has no expanded state), otherwise
@@ -687,7 +771,7 @@ class IslandOverlayController(private val context: Context) {
                         else -> 1
                     }
                     layout.collapsed.asCallCutout(
-                        callCutoutWidthPercent(event.label, trailingButtons, incoming, displayWidthDp, density),
+                        callCutoutWidthPercent(event.label, trailingButtons, incoming, displayWidthDp.value, density),
                     )
                 }
             }
@@ -744,14 +828,14 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
-                syncWindowHeight()
+                syncWindowSize()
             }
     }
 
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
-            // Window is torn down for the lockscreen — drop signals so nothing is queued behind it.
-            if (lockHidden) return@collect
+            // Window is torn down for lockscreen/landscape — drop signals so nothing is queued behind it.
+            if (overlayHidden) return@collect
             // Master switch: nothing shows when the cutout is disabled.
             if (!behaviourState.value.cutoutEnabled) return@collect
             // Skip system events the user disabled for the pill.
@@ -790,7 +874,7 @@ class IslandOverlayController(private val context: Context) {
                 eventAnimatedIconLoops,
                 eventColors,
             ).copy(initiallyExpanded = autoExpand)
-            syncWindowHeight()
+            syncWindowSize()
             // A music/call signal is only emitted while that tile is live, so pin it up rather than
             // starting the auto-dismiss timer — it stays for as long as playback / the call lasts.
             when (signal) {
@@ -822,7 +906,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = null
                 expanded = false
                 currentEvent.value = null
-                syncWindowHeight()
+                syncWindowSize()
             }
         }
     }
@@ -831,7 +915,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onExpandedChanged(isExpanded: Boolean) {
         val wasExpanded = expanded
         expanded = isExpanded
-        syncWindowHeight()
+        syncWindowSize()
         when {
             isExpanded -> dismissJob?.cancel()
             previewPinned -> Unit
@@ -935,7 +1019,7 @@ class IslandOverlayController(private val context: Context) {
         expanded = false
         val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
-        syncWindowHeight()
+        syncWindowSize()
         if (returnToLive) {
             dismissJob = scope.launch {
                 delay(MUSIC_RETURN_DELAY_MS)
@@ -943,7 +1027,7 @@ class IslandOverlayController(private val context: Context) {
                     forcedExpanded.value = null
                     expanded = false
                     currentEvent.value = pill
-                    syncWindowHeight()
+                    syncWindowSize()
                 }
             }
         }
@@ -1034,17 +1118,19 @@ class IslandOverlayController(private val context: Context) {
                     currentEvent.value = null
                 }
             }
-            syncWindowHeight()
+            syncWindowSize()
         }
     }
 
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         @Suppress("DEPRECATION")
         val overlayType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-        // Full-width, fixed-height band. Starts non-touchable (nothing showing) and becomes
-        // touchable only while the island is visible (so tap-to-expand works).
+        // A fixed band centred at the top, sized to hug the pill (see syncWindowSize) rather than span the
+        // whole screen — so the areas either side stay free for the notification-shade pull, in landscape
+        // too. Starts non-touchable (nothing showing) and becomes touchable only while the island is
+        // visible (so tap-to-expand works).
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            windowWidthPx(IslandLayout.DEFAULT),
             windowHeightPx(IslandLayout.DEFAULT),
             overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or

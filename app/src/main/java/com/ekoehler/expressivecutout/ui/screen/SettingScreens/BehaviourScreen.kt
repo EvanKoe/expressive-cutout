@@ -69,6 +69,13 @@ internal fun BehaviourScreen(
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
         )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_hide_landscape),
+            description = stringResource(R.string.behaviour_hide_landscape_desc),
+            checked = behaviour.hideInLandscape,
+            onCheckedChange = viewModel::setHideInLandscape,
+        )
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
             label = stringResource(R.string.behaviour_normal_duration),

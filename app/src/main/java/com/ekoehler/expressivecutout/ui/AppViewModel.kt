@@ -362,6 +362,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }
 
+    fun setHideInLandscape(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHideInLandscape(enabled)
+    }
+
     fun setAnimationStyle(style: AnimationStyle) = viewModelScope.launch {
         behaviourPreferences.setAnimationStyle(style)
     }
