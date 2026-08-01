@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" alt="Expressive Cutout icon" width="128" height="128">
+<img width="1280" height="640" alt="Frame 25" src="https://github.com/user-attachments/assets/d801de28-eac6-4ffd-8474-55d9a8af4dc3" />
+
 
 # Expressive Cutout
 
