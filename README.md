@@ -58,7 +58,7 @@ things it needs: notification access (to mirror notifications), the accessibilit
 (to draw the overlay — no screen content is read), and optionally an exemption from battery
 optimisation so the island stays reliable in the background.
 
-Join our [Discord server](https://discord.gg/epbuFCmH3) for feedback, feature requests, bug report and share with the Expressive by Evan community!
+Join our [Discord server](https://discord.gg/uG5XWj2N5v) for feedback, feature requests, bug report and share with the Expressive by Evan community!
 
 ---
 
