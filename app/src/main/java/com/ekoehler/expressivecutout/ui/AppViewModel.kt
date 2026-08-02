@@ -147,6 +147,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptySet(),
         )
 
+    /** Packages allowed on the cutout but never allowed to auto-expand it. */
+    val normalOnlyApps: StateFlow<Set<String>> =
+        appPreferences.normalOnlyPackages.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
     val musicTile: StateFlow<MusicTileSettings> =
         musicTilePreferences.settings.stateIn(
             scope = viewModelScope,
@@ -261,6 +269,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAppEnabled(packageName: String, enabled: Boolean) = viewModelScope.launch {
         appPreferences.setEnabled(packageName, enabled)
+    }
+
+    fun setAppNormalOnly(packageName: String, normalOnly: Boolean) = viewModelScope.launch {
+        appPreferences.setNormalOnly(packageName, normalOnly)
     }
 
     fun setMusicShowAlbumArt(enabled: Boolean) = viewModelScope.launch {

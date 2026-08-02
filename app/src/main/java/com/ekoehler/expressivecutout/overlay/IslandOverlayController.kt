@@ -162,6 +162,8 @@ class IslandOverlayController(private val context: Context) {
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
     // Packages the user muted on the Apps screen: nothing they post reaches the cutout.
     private var disabledApps: Set<String> = emptySet()
+    // Packages allowed on the cutout but never allowed to expand it on their own.
+    private var normalOnlyApps: Set<String> = emptySet()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
@@ -505,8 +507,9 @@ class IslandOverlayController(private val context: Context) {
         dynamicTilePreferences.enabled.collect { tileEnabled = it }
     }
 
-    private fun observeAppPreferences() = scope.launch {
-        appPreferences.disabledPackages.collect { disabledApps = it }
+    private fun observeAppPreferences() {
+        scope.launch { appPreferences.disabledPackages.collect { disabledApps = it } }
+        scope.launch { appPreferences.normalOnlyPackages.collect { normalOnlyApps = it } }
     }
 
     private fun observeMusicSettings() = scope.launch {
@@ -1043,7 +1046,11 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
             }
-            val autoExpand = if (isNoExpandLandscape) false else rawAutoExpand
+            // "Normal only": this app's pill has no expanded state at all. Suppressing auto-expand
+            // here keeps the window from ever being sized for it; the flag carried on the event is
+            // what stops a tap toggling it open (and opens the app instead) — see [IslandEvent.normalOnly].
+            val normalOnly = signal.sourcePackage() in normalOnlyApps
+            val autoExpand = if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
 
             val resolvedEvent = resolver.resolve(
                 signal,
@@ -1058,7 +1065,7 @@ class IslandOverlayController(private val context: Context) {
                 eventAnimatedIcons,
                 eventAnimatedIconLoops,
                 eventColors,
-            ).copy(initiallyExpanded = autoExpand)
+            ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
 
             if (overlayHidden) {
                 if (behaviourState.value.cutoutEnabled) {

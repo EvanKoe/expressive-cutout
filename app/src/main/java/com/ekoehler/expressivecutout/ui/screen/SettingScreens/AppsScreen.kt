@@ -6,8 +6,12 @@ import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Build
+import android.util.LruCache
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +30,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Android
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -48,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,6 +65,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -75,10 +84,13 @@ internal fun AppsScreen(
 ) {
     val context = LocalContext.current
     val disabled by viewModel.disabledApps.collectAsStateWithLifecycle()
+    val normalOnly by viewModel.normalOnlyApps.collectAsStateWithLifecycle()
     val apps by produceState<List<InstalledApp>?>(initialValue = null, context) {
         value = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
     }
     var query by rememberSaveable { mutableStateOf("") }
+    // Only one row's options are open at a time, so the list never turns into a wall of controls.
+    var expandedPackage by rememberSaveable { mutableStateOf<String?>(null) }
 
     val loaded = apps
     if (loaded == null) {
@@ -148,71 +160,165 @@ internal fun AppsScreen(
                 app = app,
                 shape = appGroupShape(index = index, lastIndex = lastIndex),
                 enabled = app.packageName !in disabled,
+                normalOnly = app.packageName in normalOnly,
+                expanded = expandedPackage == app.packageName,
+                onExpandToggle = {
+                    expandedPackage = if (expandedPackage == app.packageName) null else app.packageName
+                },
                 onEnabledChange = { viewModel.setAppEnabled(app.packageName, it) },
+                onNormalOnlyChange = { viewModel.setAppNormalOnly(app.packageName, it) },
             )
         }
     }
 }
 
-/** Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp. */
-private fun appGroupShape(index: Int, lastIndex: Int): Shape = RoundedCornerShape(
-    topStart = if (index == 0) 32.dp else 4.dp,
-    topEnd = if (index == 0) 32.dp else 4.dp,
-    bottomStart = if (index == lastIndex) 32.dp else 4.dp,
-    bottomEnd = if (index == lastIndex) 32.dp else 4.dp,
-)
+// Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp.
+// Hoisted to constants rather than built per item — with a few hundred rows the allocation churn
+// during a fling is pure waste.
+private val GroupShapeFirst = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+private val GroupShapeMiddle = RoundedCornerShape(4.dp)
+private val GroupShapeLast = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp)
+private val GroupShapeOnly = RoundedCornerShape(32.dp)
 
+private fun appGroupShape(index: Int, lastIndex: Int): Shape = when {
+    index == 0 && index == lastIndex -> GroupShapeOnly
+    index == 0 -> GroupShapeFirst
+    index == lastIndex -> GroupShapeLast
+    else -> GroupShapeMiddle
+}
+
+/**
+ * One app: identity and the allow switch on the collapsed row, with the per-app options revealed
+ * underneath when the row is tapped. The chevron rotates to advertise that there is more here —
+ * without it the extra settings would be invisible.
+ */
 @Composable
 private fun AppCard(
     app: InstalledApp,
     shape: Shape,
     enabled: Boolean,
+    normalOnly: Boolean,
+    expanded: Boolean,
+    onExpandToggle: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
+    onNormalOnlyChange: (Boolean) -> Unit,
 ) {
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "appChevron",
+    )
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AppIcon(packageName = app.packageName)
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = app.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onExpandToggle)
+                    .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppIcon(packageName = app.packageName)
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = app.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        // Surface the override on the collapsed row, so a configured app is
+                        // recognisable without opening it.
+                        text = if (enabled && normalOnly) {
+                            stringResource(R.string.apps_normal_only_title)
+                        } else {
+                            app.packageName
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (enabled && normalOnly) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .rotate(chevronRotation),
                 )
-                Text(
-                    text = app.packageName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Spacer(Modifier.width(12.dp))
+                // Thin divider between the (tappable) row and the switch, as on the tiles screen.
+                Box(
+                    modifier = Modifier
+                        .height(28.dp)
+                        .width(1.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant),
                 )
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = enabled, onCheckedChange = onEnabledChange)
             }
-            Spacer(Modifier.width(12.dp))
-            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.apps_normal_only_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                text = stringResource(R.string.apps_normal_only_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        // Meaningless for a muted app — nothing of theirs reaches the cutout at all.
+                        Switch(
+                            checked = normalOnly,
+                            onCheckedChange = onNormalOnlyChange,
+                            enabled = enabled,
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 /**
- * The app's launcher icon, rasterised off the main thread the first time this row is composed and
- * dropped again once it scrolls out. A neutral placeholder stands in while it loads, or for good if
- * the icon can't be read.
+ * The app's launcher icon, served from [iconCache] when we already have it and rasterised off the
+ * main thread otherwise. A neutral placeholder stands in while it loads, or for good if the icon
+ * can't be read.
  */
 @Composable
 private fun AppIcon(packageName: String) {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(initialValue = null, packageName) {
-        value = withContext(Dispatchers.IO) { loadAppIcon(context, packageName) }
+    // Seeding from the cache means a row scrolled back into view paints its icon on the very first
+    // frame — no null pass, no second composition, no package-manager round trip.
+    val icon by produceState(initialValue = iconCache.get(packageName), packageName) {
+        if (value != null) return@produceState
+        val loaded = withContext(Dispatchers.IO) {
+            iconLoadLimit.withPermit { loadAppIcon(context, packageName) }
+        }
+        if (loaded != null) iconCache.put(packageName, loaded)
+        value = loaded
     }
     Box(
         modifier = Modifier
@@ -292,3 +398,17 @@ private fun Drawable.toListIconBitmap(): ImageBitmap {
 }
 
 private const val ICON_PX = 96
+
+/**
+ * Decoded launcher icons, held across scrolls and across visits to the screen. Without this every
+ * row that came back into view re-hit the package manager and re-rasterised its adaptive icon,
+ * which is what made a fling stutter. At 96px an entry is ~36 KB, so the cap is a few MB.
+ */
+private val iconCache = LruCache<String, ImageBitmap>(128)
+
+/**
+ * Caps how many icons decode at once. A fast fling composes rows faster than they load, and
+ * Dispatchers.IO would happily run dozens of package-manager binder calls in parallel — which
+ * contend with each other and starve the main thread instead of finishing sooner.
+ */
+private val iconLoadLimit = Semaphore(4)

@@ -14,10 +14,16 @@ import kotlinx.coroutines.flow.map
 private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataStore(name = "per_app_prefs")
 
 /**
- * Per-app opt-outs: the packages the user muted on the Apps screen. Nothing they post reaches the
- * cutout — neither their notifications nor their media. Only the opt-outs are stored (absent means
- * enabled), so newly installed apps are allowed by default and the set stays small, mirroring
- * [DynamicTilePreferences].
+ * Per-app overrides set on the Apps screen:
+ *
+ * - [disabledPackages] — apps muted outright. Nothing they post reaches the cutout, neither their
+ *   notifications nor their media.
+ * - [normalOnlyPackages] — apps kept on the normal cutout, which for them has no expanded state at
+ *   all. Tapping the pill opens the app instead of toggling it open, the same treatment the phone
+ *   tile gets by its nature.
+ *
+ * Both store only the opt-outs (absent means the default), so newly installed apps behave normally
+ * and the sets stay small, mirroring [DynamicTilePreferences].
  */
 class AppPreferences(private val context: Context) {
 
@@ -25,12 +31,22 @@ class AppPreferences(private val context: Context) {
         prefs[DISABLED_KEY].orEmpty()
     }
 
+    val normalOnlyPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
+        prefs[NORMAL_ONLY_KEY].orEmpty()
+    }
+
     suspend fun setEnabled(packageName: String, enabled: Boolean) = context.perAppDataStore.edit { prefs ->
         val current = prefs[DISABLED_KEY].orEmpty()
         prefs[DISABLED_KEY] = if (enabled) current - packageName else current + packageName
     }
 
+    suspend fun setNormalOnly(packageName: String, normalOnly: Boolean) = context.perAppDataStore.edit { prefs ->
+        val current = prefs[NORMAL_ONLY_KEY].orEmpty()
+        prefs[NORMAL_ONLY_KEY] = if (normalOnly) current + packageName else current - packageName
+    }
+
     private companion object {
         val DISABLED_KEY = stringSetPreferencesKey("disabled_packages")
+        val NORMAL_ONLY_KEY = stringSetPreferencesKey("normal_only_packages")
     }
 }
