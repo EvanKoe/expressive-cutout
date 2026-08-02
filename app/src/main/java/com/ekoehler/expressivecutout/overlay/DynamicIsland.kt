@@ -1582,15 +1582,6 @@ private fun CallSingleRowContent(
         }
         if (call.showActions) {
             if (incoming) {
-                if (hangUp != null) {
-                    CallCircleButton(
-                        icon = Icons.Rounded.CallEnd,
-                        description = "Decline",
-                        container = MaterialTheme.colorScheme.error,
-                        content = MaterialTheme.colorScheme.onError,
-                        onClick = { onAction(hangUp) },
-                    )
-                }
                 if (answer != null) {
                     CallCircleButton(
                         icon = Icons.Rounded.Call,
@@ -1598,6 +1589,15 @@ private fun CallSingleRowContent(
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
                         onClick = { onAction(answer) },
+                    )
+                }
+                if (hangUp != null) {
+                    CallCircleButton(
+                        icon = Icons.Rounded.CallEnd,
+                        description = "Decline",
+                        container = MaterialTheme.colorScheme.error,
+                        content = MaterialTheme.colorScheme.onError,
+                        onClick = { onAction(hangUp) },
                     )
                 }
             } else if (hangUp != null) {

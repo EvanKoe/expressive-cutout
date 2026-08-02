@@ -430,6 +430,7 @@ class IslandOverlayController(private val context: Context) {
     /** True when the app handling the live call is the one in the foreground. */
     private fun phoneAppInForeground(): Boolean {
         val phonePkg = OnCallBus.state.value?.packageName ?: return false
+        if (phonePkg == context.packageName) return false
         return foregroundPackage != null && foregroundPackage == phonePkg
     }
 
