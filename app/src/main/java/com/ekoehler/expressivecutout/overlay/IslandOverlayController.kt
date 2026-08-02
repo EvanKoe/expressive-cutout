@@ -803,7 +803,8 @@ class IslandOverlayController(private val context: Context) {
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
-        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
+        val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
+        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
             expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
         } else {
             0
@@ -990,11 +991,11 @@ class IslandOverlayController(private val context: Context) {
         // The others (Pause / Resume / Add 1 min) only change a running timer, so keep the pill up.
         if (currentEvent.value?.timer != null) {
             if (action.destructive) dismissIsland()
-            sendPendingIntent(action.intent)
+            action.intent?.let(::sendPendingIntent)
             return
         }
         dismissIsland()
-        sendPendingIntent(action.intent)
+        action.intent?.let(::sendPendingIntent)
     }
 
     /**
@@ -1003,11 +1004,12 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
+        val intent = action.intent ?: return
         dismissIsland()
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }
         RemoteInput.addResultsToIntent(reply.remoteInputs.toTypedArray(), fillIn, results)
-        sendPendingIntent(action.intent, fillIn)
+        sendPendingIntent(intent, fillIn)
     }
 
     /**

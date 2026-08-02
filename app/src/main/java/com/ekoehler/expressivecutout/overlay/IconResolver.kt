@@ -259,9 +259,20 @@ class IconResolver(private val context: Context) {
             else -> null
         }
 
+        val icon: IslandIcon = if (settings.useAnimatedIcon) {
+            IslandIcon.Lottie(
+                resId = R.raw.assistant_sparkles,
+                iterations = LottieConstants.IterateForever,
+                scale = 1.6f,
+                tint = true,
+            )
+        } else {
+            IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon)
+        }
+
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
-            icon = IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon),
+            icon = icon,
             label = label,
             detail = answerText,
             accent = Color(DynamicTile.ASSISTANT.accent),

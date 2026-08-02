@@ -21,10 +21,13 @@ data class AssistantTileSettings(
     val maxCutoutHeightPercent: Int = DEFAULT_MAX_CUTOUT_HEIGHT_PERCENT,
     /** Colour of the icon container (the disc behind the assistant glyph). Null = default. */
     val iconContainerColor: CutoutColor? = null,
+    /** Whether to use the animated sparkles Lottie icon instead of the static glyph. */
+    val useAnimatedIcon: Boolean = DEFAULT_USE_ANIMATED_ICON,
 ) {
     companion object {
         const val DEFAULT_DISPLAY_ANSWER_IN_CUTOUT = true
         const val DEFAULT_MAX_CUTOUT_HEIGHT_PERCENT = 35
+        const val DEFAULT_USE_ANIMATED_ICON = false
     }
 }
 
@@ -36,6 +39,7 @@ class AssistantTilePreferences(private val context: Context) {
             displayAnswerInCutout = prefs[DISPLAY_ANSWER_IN_CUTOUT] ?: AssistantTileSettings.DEFAULT_DISPLAY_ANSWER_IN_CUTOUT,
             maxCutoutHeightPercent = prefs[MAX_CUTOUT_HEIGHT_PERCENT] ?: AssistantTileSettings.DEFAULT_MAX_CUTOUT_HEIGHT_PERCENT,
             iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
+            useAnimatedIcon = prefs[USE_ANIMATED_ICON] ?: AssistantTileSettings.DEFAULT_USE_ANIMATED_ICON,
         )
     }
 
@@ -51,9 +55,14 @@ class AssistantTilePreferences(private val context: Context) {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }
 
+    suspend fun setUseAnimatedIcon(enabled: Boolean) = context.assistantTileDataStore.edit {
+        it[USE_ANIMATED_ICON] = enabled
+    }
+
     private companion object {
         val DISPLAY_ANSWER_IN_CUTOUT = booleanPreferencesKey("display_answer_in_cutout")
         val MAX_CUTOUT_HEIGHT_PERCENT = intPreferencesKey("max_cutout_height_percent")
         val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
+        val USE_ANIMATED_ICON = booleanPreferencesKey("use_animated_icon")
     }
 }

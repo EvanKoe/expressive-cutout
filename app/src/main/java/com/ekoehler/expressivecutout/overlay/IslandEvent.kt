@@ -170,7 +170,7 @@ data class MediaTileOptions(
  */
 data class IslandAction(
     val label: String,
-    val intent: PendingIntent,
+    val intent: PendingIntent? = null,
     val reply: IslandReply? = null,
     /** True for a destructive call action (hang up / end call / decline), so the phone tile can tint it apart. */
     val destructive: Boolean = false,

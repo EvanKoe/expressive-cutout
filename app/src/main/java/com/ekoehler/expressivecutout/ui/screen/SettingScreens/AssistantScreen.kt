@@ -53,6 +53,14 @@ internal fun AssistantScreen(
             onCheckedChange = viewModel::setAssistantDisplayAnswerInCutout,
         )
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(4.dp),
+            title = stringResource(R.string.assistant_animated_icon_title),
+            description = stringResource(R.string.assistant_animated_icon_desc),
+            checked = settings.useAnimatedIcon,
+            onCheckedChange = viewModel::setAssistantUseAnimatedIcon,
+        )
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),

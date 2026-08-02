@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -145,9 +144,6 @@ private val PillTextColorDark = Color(0xFF0A0A0A)
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
 private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
 
-// Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0).
-private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-
 // Vertical spacing added around the action row on top of the chip height itself.
 private const val ACTIONS_ROW_SPACING_DP = 14
 
@@ -246,10 +242,11 @@ fun DynamicIsland(
     // then this action/text pair is dispatched (which dismisses the island).
     var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
     val confirmingSent = sentReply != null
-    // The phone tile has no expanded state: it is shown as one bigger "normal" cutout, so tapping
-    // never expands it and its size never switches to the expanded dimensions.
+    // The phone tile has no expanded state (and assistant when display answer is false): shown as normal cutout, so tapping never expands it.
     val isCall = shownEvent?.call != null
-    val isExpanded = if (isCall) false else (forcedExpanded ?: tapExpanded)
+    val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
+    val isNormalOnly = isCall || isAssistantNormalOnly
+    val isExpanded = if (isNormalOnly) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
@@ -306,7 +303,7 @@ fun DynamicIsland(
     // Any incoming call is pinned to the full width; the two-row layout also uses the taller shape.
     val density = LocalDensity.current.density
     val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
-        if (isCall && shownEvent != null) {
+        if (isCall) {
             callCutoutWidthPercent(shownEvent.label, callTrailingButtons, callIncoming, displayWidthDp, density)
         } else {
             CALL_MIN_WIDTH_PERCENT
@@ -319,14 +316,18 @@ fun DynamicIsland(
         isExpanded -> expanded
         else -> collapsed
     }
-    var assistantTextHeightDp by remember(shownEvent?.id, shownEvent?.assistant?.answerText) { mutableStateOf(0) }
+    // The assistant streams its answer as a rapid series of fresh events, each with a new id (the
+    // resolver stamps one per emission). Keying this on the id would reset it to 0 on every token, so
+    // the fit-to-content height would keep collapsing to its 110dp floor and springing back — the
+    // bounce. Key it on the tile kind instead so the measured height persists across the whole stream
+    // and only resets when a different (non-assistant) event takes over.
+    var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val heightBonus = when {
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
-            val totalContentHeightDp = if (assistantTextHeightDp > 0) (assistantTextHeightDp + 72) else 110
-            val minHeightDp = minOf(120, dims.heightDp)
-            val targetHeightDp = totalContentHeightDp.coerceIn(minHeightDp, maxCutoutHeightDp)
+            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
+            val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
         isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
@@ -351,8 +352,18 @@ fun DynamicIsland(
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
     // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
     val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
+    // While the assistant streams its answer the target height creeps up token by token; the bouncy
+    // spatial spring would re-overshoot on every nudge and make the cutout bob (see `dpSmooth`). Grow
+    // that height with a critically damped spring instead, but keep the springy `spec` for the normal
+    // expand/collapse (and while the pill is hidden, where the size snaps straight to the next state).
+    val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
+    val heightSpec: AnimationSpec<Dp> = when {
+        reveal.value == 0f -> snap()
+        isAssistantAnswer -> motion.dpSmooth()
+        else -> spec
+    }
     val width by animateDpAsState((displayWidthDp * dims.widthPercent / 100f).dp, spec, label = "islandWidth")
-    val height by animateDpAsState((dims.heightDp + heightBonus).dp, spec, label = "islandHeight")
+    val height by animateDpAsState((dims.heightDp + heightBonus).dp, heightSpec, label = "islandHeight")
     val offsetX by animateDpAsState(dims.offsetXDp.dp, spec, label = "islandOffsetX")
     val offsetY by animateDpAsState(dims.offsetYDp.dp, spec, label = "islandOffsetY")
     val topLeft by animateDpAsState(dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
@@ -393,6 +404,7 @@ fun DynamicIsland(
                         .height(revealHeight)
                         .graphicsLayer {
                             scaleX = boopScale.value
+                            scaleY = boopScale.value
                             // Follow the finger during a dismiss swipe, fading as it slides away.
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
@@ -403,27 +415,44 @@ fun DynamicIsland(
                         }
                         .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
                             if (forcedExpanded != null) return@pointerInput
-                            detectTapGestures {
-                                // While typing a reply, ignore taps on the surface itself.
-                                if (replying) return@detectTapGestures
-                                // The phone tile is normal-only, so a tap never toggles it open;
-                                // instead it opens the dialer's in-call screen (its content intent).
-                                if (isCall) {
-                                    if (shownEvent?.contentIntent != null) onActivate()
-                                    return@detectTapGestures
-                                }
-                                // Once expanded, tapping a notification opens its app (like tapping
-                                // the real notification); anything else just toggles expand/collapse.
-                                if (isExpanded && shownEvent?.contentIntent != null) {
-                                    onActivate()
-                                } else {
-                                    tapExpanded = !tapExpanded
-                                    scope.launch {
-                                        boopScale.animateTo(1.02f, tween(durationMillis = scaled(120), easing = EmphasizedEasing))
-                                        boopScale.animateTo(1f, tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EmphasizedEasing))
+                            detectTapGestures(
+                                onPress = {
+                                    if (replying) return@detectTapGestures
+                                    if (!isExpanded) {
+                                        scope.launch {
+                                            boopScale.animateTo(0.96f, motion.boop())
+                                        }
+                                    }
+                                    tryAwaitRelease()
+                                    if (!isExpanded) {
+                                        scope.launch {
+                                            boopScale.animateTo(1f, motion.boop())
+                                        }
+                                    }
+                                },
+                                onTap = {
+                                    // While typing a reply, ignore taps on the surface itself.
+                                    if (replying) return@detectTapGestures
+                                    // The phone tile is normal-only, so a tap never toggles it open;
+                                    // instead it opens the dialer's in-call screen (its content intent).
+                                    if (isNormalOnly) {
+                                        if (shownEvent?.contentIntent != null) onActivate()
+                                        return@detectTapGestures
+                                    }
+                                    // Once expanded, tapping a notification opens its app (like tapping
+                                    // the real notification); anything else just toggles expand/collapse.
+                                    if (isExpanded && shownEvent?.contentIntent != null) {
+                                        onActivate()
+                                    } else {
+                                        tapExpanded = !tapExpanded
+                                        if (isExpanded) {
+                                            scope.launch {
+                                                motion.pop(boopScale, peak = 1.02f)
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            )
                         }
                         // Swipe up on the expanded island to shrink it back to the normal cutout.
                         .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, shownEvent?.id) {
@@ -517,7 +546,8 @@ fun DynamicIsland(
                                         }
                                         replyingTo = null
                                     },
-                                    onHeightMeasured = { assistantTextHeightDp = it },
+                                    onDismiss = onDismiss,
+                                    onHeightMeasured = { assistantContentHeightDp = it },
                                 )
                             } else {
                                 CollapsedContent(e, collapsed.heightDp)
@@ -755,6 +785,7 @@ private fun ExpandedContent(
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
+    onDismiss: () -> Unit = {},
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
@@ -769,7 +800,13 @@ private fun ExpandedContent(
     }
     // The assistant tile: icon + text response with vertical scrolling.
     if (event.assistant != null) {
-        AssistantExpandedContent(event = event, onHeightMeasured = onHeightMeasured)
+        AssistantExpandedContent(
+            event = event,
+            showActions = showActions,
+            appearance = appearance,
+            onDismiss = onDismiss,
+            onHeightMeasured = onHeightMeasured,
+        )
         return
     }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
@@ -1897,6 +1934,9 @@ private fun TimerExpandedContent(
 @Composable
 private fun AssistantExpandedContent(
     event: IslandEvent,
+    showActions: Boolean,
+    appearance: AppearanceSettings,
+    onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     val assistant = event.assistant ?: return
@@ -1910,11 +1950,17 @@ private fun AssistantExpandedContent(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = maxCutoutHeightDp)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Measure the scroll *content*, not the viewport. The scroll container above is clamped
+                // to the island's live (animating) height, so measuring it would feed that height back
+                // into its own fit-to-content target — the loop that made the cutout bob as the answer
+                // streamed in. The content column is laid out with unbounded height, so its reported
+                // height is the answer's true natural height, independent of the surrounding animation.
                 .onGloballyPositioned { coordinates ->
                     val hDp = (coordinates.size.height / density).toInt()
                     if (hDp > 0) {
@@ -1939,27 +1985,34 @@ private fun AssistantExpandedContent(
                 )
             }
 
-            // Answer content text displayed below title header, scrollable up to maxCutoutHeightDp
+            // Answer content text displayed below title header
             if (assistant.displayAnswerInCutout) {
                 Spacer(Modifier.height(8.dp))
                 val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
+                Text(
+                    text = textToDisplay,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor.copy(alpha = 0.88f),
+                )
+            }
+
+            // Close action button at the end, obeying action button settings
+            if (showActions) {
+                Spacer(Modifier.height(14.dp))
+                val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
+                val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = textToDisplay,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.88f),
-                        onTextLayout = { textLayoutResult ->
-                            val rawTextHeightPx = textLayoutResult.size.height
-                            val textHeightDp = (rawTextHeightPx / density).toInt()
-                            if (textHeightDp > 0) {
-                                onHeightMeasured?.invoke(textHeightDp)
-                            }
-                        },
+                    ActionChip(
+                        action = IslandAction(label = "Close"),
+                        style = appearance.actionButtonStyle,
+                        fill = chipFill,
+                        heightDp = appearance.actionButtonHeightDp,
+                        onClick = onDismiss,
+                        modifier = if (full) Modifier.weight(1f) else Modifier,
                     )
                 }
             }

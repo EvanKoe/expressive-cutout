@@ -332,6 +332,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         assistantTilePreferences.setIconContainerColor(color)
     }
 
+    fun setAssistantUseAnimatedIcon(enabled: Boolean) = viewModelScope.launch {
+        assistantTilePreferences.setUseAnimatedIcon(enabled)
+    }
+
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setSkipColor(color)
     }
