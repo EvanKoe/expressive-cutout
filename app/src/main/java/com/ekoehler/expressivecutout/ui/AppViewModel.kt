@@ -10,6 +10,7 @@ import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
+import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -63,6 +64,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val phoneTilePreferences = PhoneTilePreferences(application)
     private val timerTilePreferences = TimerTilePreferences(application)
     private val assistantTilePreferences = AssistantTilePreferences(application)
+    private val appPreferences = AppPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -135,6 +137,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
+        )
+
+    /** Packages the user muted on the Apps screen; everything else is allowed on the cutout. */
+    val disabledApps: StateFlow<Set<String>> =
+        appPreferences.disabledPackages.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
+    /** Packages allowed on the cutout but never allowed to auto-expand it. */
+    val normalOnlyApps: StateFlow<Set<String>> =
+        appPreferences.normalOnlyPackages.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
         )
 
     val musicTile: StateFlow<MusicTileSettings> =
@@ -247,6 +265,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {
         dynamicTilePreferences.setEnabled(tile, enabled)
+    }
+
+    fun setAppEnabled(packageName: String, enabled: Boolean) = viewModelScope.launch {
+        appPreferences.setEnabled(packageName, enabled)
+    }
+
+    fun setAppNormalOnly(packageName: String, normalOnly: Boolean) = viewModelScope.launch {
+        appPreferences.setNormalOnly(packageName, normalOnly)
     }
 
     fun setMusicShowAlbumArt(enabled: Boolean) = viewModelScope.launch {

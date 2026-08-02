@@ -81,6 +81,12 @@ data class IslandEvent(
     val iconContainerColor: CutoutColor? = null,
     val initiallyExpanded: Boolean = false,
     /**
+     * The user set "Normal only" for the posting app on the Apps screen: this pill has no expanded
+     * state, so a tap opens the app via [contentIntent] instead of toggling it open. Same treatment
+     * the phone tile gets by its nature, but chosen per app rather than implied by the tile.
+     */
+    val normalOnly: Boolean = false,
+    /**
      * The tap action to run when the expanded island is tapped (a notification's content
      * intent). Null for events that have nothing to open (system events).
      */

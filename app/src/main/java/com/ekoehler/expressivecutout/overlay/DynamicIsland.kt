@@ -248,7 +248,7 @@ fun DynamicIsland(
     // The phone tile has no expanded state (and assistant when display answer is false): shown as normal cutout, so tapping never expands it.
     val isCall = shownEvent?.call != null
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
-    val isNormalOnly = isCall || isAssistantNormalOnly
+    val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
     val isExpanded = if (isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.

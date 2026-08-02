@@ -54,6 +54,30 @@ internal data class Release(
  */
 internal val Releases: List<Release> = listOf(
     Release(
+        version = "0.1.2",
+        headline = "Per-app configuration and the assistant tile",
+        major = listOf(
+            "Per-app configuration: choose which apps the island reacts to, and restrict an app to the normal cutout only",
+            "Assistant dynamic tile",
+        ),
+        fixes = listOf(
+            "Music dynamic tile",
+            "Call dynamic tile",
+        ),
+    ),
+    Release(
+        version = "0.1.1",
+        headline = "Maintenance release",
+        minor = listOf(
+            "Automated release builds through GitHub Actions",
+        ),
+        fixes = listOf(
+            "Dynamic tiles",
+            "Crash when the cutout corner radius was set to 0 dp",
+            "Horizontal notification panel",
+        ),
+    ),
+    Release(
         version = "0.1.0",
         headline = "First public beta — incoming calls and expressive animations",
         major = listOf(

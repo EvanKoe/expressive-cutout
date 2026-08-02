@@ -17,6 +17,7 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaTransport
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
@@ -40,6 +41,7 @@ class MediaPlaybackMonitor(private val context: Context) {
     private val sessionManager = context.getSystemService<MediaSessionManager>()
     private val listenerComponent = ComponentName(context, CutoutNotificationListenerService::class.java)
     private val dynamicTilePreferences = DynamicTilePreferences(context)
+    private val appPreferences = AppPreferences(context)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Controllers we're currently watching, paired with the callback registered on each.
@@ -47,6 +49,9 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     // Enabled state of dynamic tiles
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
+
+    // Packages the user muted on the Apps screen; their sessions are ignored outright.
+    private var disabledApps: Set<String> = emptySet()
 
     // The track last surfaced as a "show" signal, so we don't re-pop on every state tick.
     private var lastShownKey: String? = null
@@ -61,6 +66,13 @@ class MediaPlaybackMonitor(private val context: Context) {
         scope.launch {
             dynamicTilePreferences.enabled.collect { enabled ->
                 tileEnabled = enabled
+                sync()
+            }
+        }
+        // Muting an app mid-playback should drop its tile straight away, so re-sync on every change.
+        scope.launch {
+            appPreferences.disabledPackages.collect { disabled ->
+                disabledApps = disabled
                 sync()
             }
         }
@@ -122,7 +134,9 @@ class MediaPlaybackMonitor(private val context: Context) {
      */
     private fun sync() {
         val validControllers = watched.keys.filter { controller ->
-            if (isAssistantPackage(controller.packageName)) {
+            if (controller.packageName in disabledApps) {
+                false
+            } else if (isAssistantPackage(controller.packageName)) {
                 // If Assistant tile is turned off, ignore assistant media session entirely
                 tileEnabled[DynamicTile.ASSISTANT] != false
             } else {

@@ -114,6 +114,15 @@
     <string name="settings_icons_subtitle">Pick an icon for each notification and system event</string>
     <string name="settings_behaviour_subtitle">How the expanded island collapses and dismisses</string>
     <string name="settings_dynamic_tiles_subtitle">Live tiles the cutout can show, like now‑playing music</string>
+    <string name="settings_apps_subtitle">Choose which apps are allowed to use the cutout</string>
+
+    <!-- Apps screen -->
+    <string name="apps_title">Apps</string>
+    <string name="apps_screen_desc">Turn an app off and nothing it posts reaches the cutout — neither its notifications nor its media.</string>
+    <string name="apps_search_hint">Search apps</string>
+    <string name="apps_none_found">No app matches your search.</string>
+    <string name="apps_normal_only_title">Normal only</string>
+    <string name="apps_normal_only_desc">Keep this app on the normal cutout, never the expanded one. Tapping the pill opens the app.</string>
 
     <!-- Dynamic tiles screen -->
     <string name="dynamic_tiles_title">Dynamic tiles</string>
