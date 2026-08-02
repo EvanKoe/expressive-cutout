@@ -153,6 +153,9 @@ class IslandOverlayController(private val context: Context) {
     // True while the music cutout is being held hidden because the playing app is in the foreground
     // and "Visible in player app" is off, so it can be brought back when the user leaves that app.
     private var playerAppHidden = false
+    // True while the phone cutout is being held hidden because the phone app is full screen in the
+    // foreground, so it can be brought back when the user leaves the phone app.
+    private var phoneAppHidden = false
     // True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
     // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
     private var callActive = false
@@ -420,6 +423,50 @@ class IslandOverlayController(private val context: Context) {
         ForegroundAppBus.packageName.collect { pkg ->
             foregroundPackage = pkg
             applyPlayerAppVisibility()
+            applyPhoneAppVisibility()
+        }
+    }
+
+    /** True when the app handling the live call is the one in the foreground. */
+    private fun phoneAppInForeground(): Boolean {
+        val phonePkg = OnCallBus.state.value?.packageName ?: return false
+        return foregroundPackage != null && foregroundPackage == phonePkg
+    }
+
+    /**
+     * The phone cutout should be held hidden right now: a call is active and the phone app is
+     * full screen in the foreground.
+     */
+    private fun shouldHideForPhoneApp(): Boolean =
+        callActive && phoneAppInForeground()
+
+    /**
+     * Clear the call cutout while the phone app is in the foreground full screen; when the user
+     * leaves that app while a call is still running, bring the call cutout back.
+     */
+    private fun applyPhoneAppVisibility() {
+        if (previewPinned || lockHidden) return
+        if (shouldHideForPhoneApp()) {
+            if (phoneAppHidden) return
+            phoneAppHidden = true
+            if (currentEvent.value?.call != null) {
+                dismissJob?.cancel()
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowHeight()
+            }
+        } else {
+            if (!phoneAppHidden) return
+            phoneAppHidden = false
+            if (currentEvent.value == null) {
+                callPillToReturnTo()?.let { pill ->
+                    forcedExpanded.value = null
+                    expanded = false
+                    currentEvent.value = pill
+                    syncWindowHeight()
+                }
+            }
         }
     }
 
@@ -479,7 +526,11 @@ class IslandOverlayController(private val context: Context) {
     private fun observeOnCall() = scope.launch {
         OnCallBus.state.collect { call ->
             callActive = call != null
-            if (call == null) lastCallEvent = null
+            if (call == null) {
+                lastCallEvent = null
+                phoneAppHidden = false
+            }
+            applyPhoneAppVisibility()
             // Only steer the call pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.call == null) return@collect
             if (callActive) dismissJob?.cancel() else scheduleDismiss()
@@ -824,6 +875,13 @@ class IslandOverlayController(private val context: Context) {
                 currentEvent.value = null
                 syncWindowHeight()
             }
+            if (signal is CutoutSignal.Call && shouldHideForPhoneApp()) {
+                phoneAppHidden = true
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowHeight()
+            }
         }
     }
 
@@ -975,6 +1033,7 @@ class IslandOverlayController(private val context: Context) {
         if (showingLiveTile()) return null
         if (!callActive) return null
         if (tileEnabled[DynamicTile.PHONE] == false) return null
+        if (shouldHideForPhoneApp()) return null
         return lastCallEvent?.copy(initiallyExpanded = false)
     }
 

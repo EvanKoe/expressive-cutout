@@ -1,5 +1,6 @@
 *.iml
 .gradle/
+.gemini/
 /local.properties
 /.idea/
 .DS_Store

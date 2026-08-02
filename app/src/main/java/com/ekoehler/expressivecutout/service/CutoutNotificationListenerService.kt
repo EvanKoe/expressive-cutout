@@ -127,6 +127,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private fun handleCall(sbn: StatusBarNotification) {
         val call = CallNotificationParser.parse(sbn, this)
+        val prevOngoing = OnCallBus.state.value?.ongoing
         OnCallBus.update(
             OnCall(
                 callerLabel = call.callerLabel,
@@ -134,9 +135,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 photo = call.photo,
                 startTimeMs = call.startTimeMs,
                 ongoing = call.ongoing,
+                packageName = sbn.packageName,
             ),
         )
-        if (sbn.key != currentCallKey) {
+        if (sbn.key != currentCallKey || prevOngoing != call.ongoing) {
             currentCallKey = sbn.key
             IslandEventBus.emit(
                 CutoutSignal.Call(
