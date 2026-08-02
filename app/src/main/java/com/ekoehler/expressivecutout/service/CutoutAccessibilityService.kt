@@ -2,7 +2,10 @@ package com.ekoehler.expressivecutout.service
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.ForegroundAppBus
+import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
@@ -15,15 +18,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * a TYPE_ACCESSIBILITY_OVERLAY window (no SYSTEM_ALERT_WINDOW required) and to keep the
  * overlay controller and system-event monitor alive for the lifetime of the binding.
  *
- * It also tracks which app is in the foreground — read from the package name on
- * window-state-changed events only, never from window content (canRetrieveWindowContent stays
- * false) — so the music tile can hide itself while the playing app is open.
+ * It tracks which app is in the foreground, and inspects assistant windows for live response text.
  */
 class CutoutAccessibilityService : AccessibilityService() {
 
     private var overlay: IslandOverlayController? = null
     private var systemEvents: SystemEventMonitor? = null
     private var mediaPlayback: MediaPlaybackMonitor? = null
+    private var lastAssistantKey: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -33,12 +35,104 @@ class CutoutAccessibilityService : AccessibilityService() {
         _bound.value = true
     }
 
+    private fun isAssistantPackage(packageName: String): Boolean {
+        val pkg = packageName.lowercase()
+        return pkg == "com.google.android.googlequicksearchbox" ||
+            pkg == "com.google.android.apps.googleassistant" ||
+            pkg == "com.google.android.apps.bard" ||
+            pkg == "com.google.android.apps.gemini" ||
+            pkg == "com.samsung.android.bixby.agent" ||
+            pkg == "com.samsung.android.bixby.service" ||
+            pkg == "com.amazon.dee.app" ||
+            pkg == "com.openai.chatgpt" ||
+            pkg == "com.microsoft.copilot" ||
+            pkg.contains("assistant") ||
+            pkg.contains("bixby") ||
+            pkg.contains("gemini")
+    }
+
+    private val DISCLAIMER_PATTERNS = listOf(
+        "can make mistakes",
+        "gemini is ai",
+        "gemini is an ai",
+        "display inaccurate info",
+        "check responses",
+        "type, talk, or share",
+        "ask gemini",
+        "gemini advanced",
+    )
+
+    private fun isDisclaimer(text: String): Boolean {
+        val lower = text.lowercase()
+        return DISCLAIMER_PATTERNS.any { lower.contains(it) }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // The only event we react to: note which app moved to the foreground so the overlay can
-        // hide the music tile while the playing app is open. Only the package name is read.
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        val pkg = event.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
-        ForegroundAppBus.update(pkg)
+        val ev = event ?: return
+        val pkg = ev.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
+
+        if (ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            ForegroundAppBus.update(pkg)
+        }
+
+        if (isAssistantPackage(pkg)) {
+            inspectAssistantWindow(pkg, ev)
+        } else if (lastAssistantKey != null && ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // User navigated away from assistant app/overlay — dismiss assistant cutout
+            lastAssistantKey = null
+            IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
+        }
+    }
+
+    private fun inspectAssistantWindow(pkg: String, event: AccessibilityEvent) {
+        val rootNode = rootInActiveWindow ?: event.source
+        if (rootNode == null) {
+            if (lastAssistantKey != null) {
+                lastAssistantKey = null
+                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
+            }
+            return
+        }
+
+        val textList = mutableListOf<String>()
+        collectTextNodes(rootNode, textList)
+
+        if (textList.isEmpty()) {
+            if (lastAssistantKey != null) {
+                lastAssistantKey = null
+                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
+            }
+            return
+        }
+
+        val title = textList.firstOrNull { it.isNotBlank() }
+        val responseText = textList.filter { it.isNotBlank() && it != title }.joinToString("\n").ifBlank { title }
+
+        val lastKey = "$pkg|$title|$responseText"
+        if (lastKey != lastAssistantKey) {
+            lastAssistantKey = lastKey
+            IslandEventBus.emit(
+                CutoutSignal.Assistant(
+                    packageName = pkg,
+                    title = title,
+                    text = responseText,
+                    contentIntent = null,
+                    active = true,
+                ),
+            )
+        }
+    }
+
+    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<String>) {
+        if (node == null) return
+        val text = node.text?.toString()?.trim()
+        if (!text.isNullOrBlank() && text.length > 1 && !isDisclaimer(text)) {
+            list.add(text)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            collectTextNodes(child, list)
+        }
     }
 
     override fun onInterrupt() = Unit

@@ -23,6 +23,13 @@
     <string name="tile_phone_desc">Show the current call, caller and controls</string>
     <string name="tile_timer">Timer</string>
     <string name="tile_timer_desc">Show a running countdown timer on the cutout</string>
+    <string name="tile_assistant">Assistant</string>
+    <string name="tile_assistant_desc">Show voice assistant speech and responses on the cutout</string>
+    <string name="assistant_display_answer_title">Display assistant answer in cutout</string>
+    <string name="assistant_display_answer_desc">Show the text response of the voice assistant in the cutout</string>
+    <string name="assistant_max_height_title">Max cutout height</string>
+    <string name="assistant_max_height_desc">Maximum height of the cutout as a percentage of screen height (%1$d%%)</string>
+    <string name="assistant_tile_note">When enabled, voice assistant responses are surfaced on this dynamic tile instead of falling into the music tile.</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>

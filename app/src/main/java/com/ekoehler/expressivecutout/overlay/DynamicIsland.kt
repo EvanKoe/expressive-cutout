@@ -77,6 +77,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
@@ -84,6 +86,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -93,6 +97,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import com.ekoehler.expressivecutout.core.DynamicTile
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbnb.lottie.LottieProperty
@@ -312,7 +317,15 @@ fun DynamicIsland(
         isExpanded -> expanded
         else -> collapsed
     }
+    var assistantContentHeightDp by remember(event?.id, event?.assistant?.answerText) { mutableStateOf(0) }
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val heightBonus = when {
+        isExpanded && event?.assistant != null && event.assistant.displayAnswerInCutout -> {
+            val maxCutoutHeightDp = (screenHeightDp * event.assistant.maxCutoutHeightPercent / 100)
+            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else dims.heightDp
+            val targetHeightDp = fitHeightDp.coerceIn(dims.heightDp, maxCutoutHeightDp)
+            (targetHeightDp - dims.heightDp).coerceAtLeast(0)
+        }
         isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
             expandedActionsExtraDp(appearance.actionButtonHeightDp)
         // The incoming two-row layout grows past the expanded height so its Take / Hang up row has its
@@ -501,6 +514,7 @@ fun DynamicIsland(
                                         }
                                         replyingTo = null
                                     },
+                                    onHeightMeasured = { assistantContentHeightDp = it },
                                 )
                             } else {
                                 CollapsedContent(e, collapsed.heightDp)
@@ -747,6 +761,11 @@ private fun ExpandedContent(
     // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
         TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
+        return
+    }
+    // The assistant tile: icon + text response with vertical scrolling.
+    if (event.assistant != null) {
+        AssistantExpandedContent(event = event)
         return
     }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
@@ -1861,6 +1880,51 @@ private fun TimerExpandedContent(
                             onClick = { onAction(action) },
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The assistant tile's expanded layout: an assistant icon + the voice response text, wrapped in a
+ * scrollable column constrained by max cutout height percentage.
+ */
+@Composable
+private fun AssistantExpandedContent(event: IslandEvent) {
+    val assistant = event.assistant ?: return
+    val contentColor = LocalContentColor.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            IconBadge(event = event, badgeSize = 40.dp, iconSize = 24.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = event.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = contentColor,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (assistant.displayAnswerInCutout) {
+                    Spacer(Modifier.height(4.dp))
+                    val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
+                    Text(
+                        text = textToDisplay,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor.copy(alpha = 0.88f),
+                    )
                 }
             }
         }
