@@ -178,6 +178,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                                 selectedTileName = tile.name
                                 settingsRoute = SettingsRoute.DynamicTileDetail
                             },
+                            onOpenApps = { settingsRoute = SettingsRoute.Apps },
                             onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
                             onOpenAnimation = { settingsRoute = SettingsRoute.Animation },
                             onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
@@ -246,6 +247,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         selectedTile?.let { stringResource(it.labelRes) } ?: stringResource(R.string.dynamic_tiles_title)
                     SettingsRoute.EventDetail ->
                         selectedEvent?.let { stringResource(it.labelRes) } ?: stringResource(R.string.section_icons_title)
+                    SettingsRoute.Apps -> stringResource(R.string.apps_title)
                     SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                     SettingsRoute.Animation -> stringResource(R.string.animation_title)
                     SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)

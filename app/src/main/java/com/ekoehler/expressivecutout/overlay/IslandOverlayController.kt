@@ -43,6 +43,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
@@ -114,6 +115,7 @@ class IslandOverlayController(private val context: Context) {
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
     private val assistantTilePreferences = AssistantTilePreferences(context)
+    private val appPreferences = AppPreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen. Read from
@@ -158,6 +160,8 @@ class IslandOverlayController(private val context: Context) {
     private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
     private var eventDynamicColorOpacity: Float = 1f
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
+    // Packages the user muted on the Apps screen: nothing they post reaches the cutout.
+    private var disabledApps: Set<String> = emptySet()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
@@ -237,6 +241,7 @@ class IslandOverlayController(private val context: Context) {
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
         observeTilePreferences()
+        observeAppPreferences()
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
@@ -498,6 +503,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun observeTilePreferences() = scope.launch {
         dynamicTilePreferences.enabled.collect { tileEnabled = it }
+    }
+
+    private fun observeAppPreferences() = scope.launch {
+        appPreferences.disabledPackages.collect { disabledApps = it }
     }
 
     private fun observeMusicSettings() = scope.launch {
@@ -1009,6 +1018,8 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
             // Skip assistant responses when the assistant tile is turned off.
             if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
+            // Skip anything posted by an app the user muted on the Apps screen.
+            if (signal.sourcePackage() in disabledApps) return@collect
 
             if (signal is CutoutSignal.Assistant && !signal.active) {
                 assistantActive = false
@@ -1266,6 +1277,19 @@ class IslandOverlayController(private val context: Context) {
         it.media != null || it.call != null || it.timer != null
     } == true
 
+    /**
+     * The app a signal came from, or null for a device-level event (which belongs to no app and is
+     * governed by the Events screen instead).
+     */
+    private fun CutoutSignal.sourcePackage(): String? = when (this) {
+        is CutoutSignal.Notification -> packageName
+        is CutoutSignal.Music -> packageName
+        is CutoutSignal.Call -> packageName
+        is CutoutSignal.Timer -> packageName
+        is CutoutSignal.Assistant -> packageName
+        is CutoutSignal.System -> null
+    }
+
     private fun musicPillToReturnTo(): IslandEvent? {
         if (showingLiveTile()) return null
         if (!musicPlaying) return null
@@ -1279,6 +1303,8 @@ class IslandOverlayController(private val context: Context) {
         if (showingLiveTile()) return null
         if (!callActive) return null
         if (tileEnabled[DynamicTile.PHONE] == false) return null
+        // The dialer stays on the call bus even when muted, so don't bring its pill back.
+        if (OnCallBus.state.value?.packageName in disabledApps) return null
         if (shouldHideForPhoneApp()) return null
         return lastCallEvent?.copy(initiallyExpanded = false)
     }
