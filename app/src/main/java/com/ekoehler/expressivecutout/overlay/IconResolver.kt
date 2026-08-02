@@ -252,20 +252,18 @@ class IconResolver(private val context: Context) {
         val rawTitle = signal.title?.takeIf { it.isNotBlank() }
         val rawText = signal.text?.takeIf { it.isNotBlank() }
 
-        val label = rawTitle ?: defaultLabel
+        val label = defaultLabel
         val answerText = when {
-            rawText != null && rawText != label -> {
-                if (rawTitle != null && rawTitle != defaultLabel) "$rawTitle\n$rawText" else rawText
-            }
-            rawTitle != null && rawTitle != defaultLabel -> rawTitle
-            else -> rawText
+            rawText != null && !rawText.equals(defaultLabel, ignoreCase = true) -> rawText
+            rawTitle != null && !rawTitle.equals(defaultLabel, ignoreCase = true) -> rawTitle
+            else -> null
         }
 
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon),
             label = label,
-            detail = rawText ?: rawTitle,
+            detail = answerText,
             accent = Color(DynamicTile.ASSISTANT.accent),
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,

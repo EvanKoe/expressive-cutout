@@ -31,11 +31,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -317,14 +319,15 @@ fun DynamicIsland(
         isExpanded -> expanded
         else -> collapsed
     }
-    var assistantContentHeightDp by remember(event?.id, event?.assistant?.answerText) { mutableStateOf(0) }
+    var assistantTextHeightDp by remember(shownEvent?.id, shownEvent?.assistant?.answerText) { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val heightBonus = when {
-        isExpanded && event?.assistant != null && event.assistant.displayAnswerInCutout -> {
-            val maxCutoutHeightDp = (screenHeightDp * event.assistant.maxCutoutHeightPercent / 100)
-            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else dims.heightDp
-            val targetHeightDp = fitHeightDp.coerceIn(dims.heightDp, maxCutoutHeightDp)
-            (targetHeightDp - dims.heightDp).coerceAtLeast(0)
+        isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
+            val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
+            val totalContentHeightDp = if (assistantTextHeightDp > 0) (assistantTextHeightDp + 72) else 110
+            val minHeightDp = minOf(120, dims.heightDp)
+            val targetHeightDp = totalContentHeightDp.coerceIn(minHeightDp, maxCutoutHeightDp)
+            (targetHeightDp - dims.heightDp)
         }
         isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
             expandedActionsExtraDp(appearance.actionButtonHeightDp)
@@ -514,7 +517,7 @@ fun DynamicIsland(
                                         }
                                         replyingTo = null
                                     },
-                                    onHeightMeasured = { assistantContentHeightDp = it },
+                                    onHeightMeasured = { assistantTextHeightDp = it },
                                 )
                             } else {
                                 CollapsedContent(e, collapsed.heightDp)
@@ -752,6 +755,7 @@ private fun ExpandedContent(
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
+    onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
@@ -765,7 +769,7 @@ private fun ExpandedContent(
     }
     // The assistant tile: icon + text response with vertical scrolling.
     if (event.assistant != null) {
-        AssistantExpandedContent(event = event)
+        AssistantExpandedContent(event = event, onHeightMeasured = onHeightMeasured)
         return
     }
     // Content sits in the lower part of the card, leaving the top clear of the camera hole.
@@ -1891,39 +1895,71 @@ private fun TimerExpandedContent(
  * scrollable column constrained by max cutout height percentage.
  */
 @Composable
-private fun AssistantExpandedContent(event: IslandEvent) {
+private fun AssistantExpandedContent(
+    event: IslandEvent,
+    onHeightMeasured: ((Int) -> Unit)? = null,
+) {
     val assistant = event.assistant ?: return
     val contentColor = LocalContentColor.current
+    val density = LocalDensity.current.density
+    val configuration = LocalConfiguration.current
+    val maxCutoutHeightDp = (configuration.screenHeightDp * assistant.maxCutoutHeightPercent / 100).dp
+    val maxHeaderWidthDp = (configuration.screenWidthDp * 0.47f).dp
 
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .heightIn(max = maxCutoutHeightDp)
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.Top,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    val hDp = (coordinates.size.height / density).toInt()
+                    if (hDp > 0) {
+                        onHeightMeasured?.invoke(hDp + 28)
+                    }
+                },
         ) {
-            IconBadge(event = event, badgeSize = 40.dp, iconSize = 24.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+            // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
+            Row(
+                modifier = Modifier.widthIn(max = maxHeaderWidthDp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
+                Spacer(Modifier.width(10.dp))
                 Text(
                     text = event.label,
                     style = MaterialTheme.typography.titleMedium,
                     color = contentColor,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                if (assistant.displayAnswerInCutout) {
-                    Spacer(Modifier.height(4.dp))
-                    val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
+            }
+
+            // Answer content text displayed below title header, scrollable up to maxCutoutHeightDp
+            if (assistant.displayAnswerInCutout) {
+                Spacer(Modifier.height(8.dp))
+                val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                ) {
                     Text(
                         text = textToDisplay,
                         style = MaterialTheme.typography.bodyMedium,
                         color = contentColor.copy(alpha = 0.88f),
+                        onTextLayout = { textLayoutResult ->
+                            val rawTextHeightPx = textLayoutResult.size.height
+                            val textHeightDp = (rawTextHeightPx / density).toInt()
+                            if (textHeightDp > 0) {
+                                onHeightMeasured?.invoke(textHeightDp)
+                            }
+                        },
                     )
                 }
             }
