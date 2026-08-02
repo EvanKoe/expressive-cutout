@@ -18,6 +18,7 @@ import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -386,6 +387,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
+    }
+
+    fun setHideInLandscape(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHideInLandscape(enabled)
+    }
+
+    fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = viewModelScope.launch {
+        behaviourPreferences.setHorizontalCutoutMode(mode)
     }
 
     fun setAnimationStyle(style: AnimationStyle) = viewModelScope.launch {
