@@ -28,7 +28,8 @@
     <string name="assistant_display_answer_title">Display assistant answer in cutout</string>
     <string name="assistant_display_answer_desc">Show the text response of the voice assistant in the cutout</string>
     <string name="assistant_max_height_title">Max cutout height</string>
-    <string name="assistant_max_height_desc">Maximum height of the cutout as a percentage of screen height (%1$d%%)</string>
+    <string name="assistant_max_height_desc">Share of the screen height the answer can fill</string>
+    <string name="assistant_max_height_value">%1$d%%</string>
     <string name="assistant_tile_note">When enabled, voice assistant responses are surfaced on this dynamic tile instead of falling into the music tile.</string>
     <string name="assistant_animated_icon_title">Use animated icon</string>
     <string name="assistant_animated_icon_desc">Show an animated sparkles icon instead of the static assistant glyph</string>

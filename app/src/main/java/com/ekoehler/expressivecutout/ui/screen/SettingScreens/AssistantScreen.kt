@@ -1,16 +1,14 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,34 +51,31 @@ internal fun AssistantScreen(
             onCheckedChange = viewModel::setAssistantDisplayAnswerInCutout,
         )
 
+        // The max height only matters while the answer is actually rendered in the cutout.
+        AnimatedVisibility(visible = settings.displayAnswerInCutout) {
+            var sliderValue by remember(settings.maxCutoutHeightPercent) {
+                mutableFloatStateOf(settings.maxCutoutHeightPercent.toFloat())
+            }
+            SettingsSliderCard(
+                shape = RoundedCornerShape(4.dp),
+                title = stringResource(R.string.assistant_max_height_title),
+                description = stringResource(R.string.assistant_max_height_desc),
+                valueText = stringResource(R.string.assistant_max_height_value, sliderValue.toInt()),
+                value = sliderValue,
+                valueRange = 10f..80f,
+                step = 5f,
+                onValueChange = { sliderValue = it },
+                onCommit = { viewModel.setAssistantMaxCutoutHeightPercent(sliderValue.toInt()) },
+            )
+        }
+
         SettingsToggleCard(
-            shape = RoundedCornerShape(4.dp),
+            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
             title = stringResource(R.string.assistant_animated_icon_title),
             description = stringResource(R.string.assistant_animated_icon_desc),
             checked = settings.useAnimatedIcon,
             onCheckedChange = viewModel::setAssistantUseAnimatedIcon,
         )
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                var sliderValue by remember(settings.maxCutoutHeightPercent) {
-                    mutableFloatStateOf(settings.maxCutoutHeightPercent.toFloat())
-                }
-                AdjustableSlider(
-                    label = stringResource(R.string.assistant_max_height_title),
-                    valueText = stringResource(R.string.assistant_max_height_desc, sliderValue.toInt()),
-                    value = sliderValue,
-                    valueRange = 10f..80f,
-                    step = 5f,
-                    onValueChange = { sliderValue = it },
-                    onCommit = { viewModel.setAssistantMaxCutoutHeightPercent(sliderValue.toInt()) },
-                )
-            }
-        }
 
         Text(
             text = stringResource(R.string.tile_icon_container_title),
