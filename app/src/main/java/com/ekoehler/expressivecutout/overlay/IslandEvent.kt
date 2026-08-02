@@ -111,6 +111,18 @@ data class IslandEvent(
      * [com.ekoehler.expressivecutout.core.RunningTimerBus]. Null for every other event.
      */
     val timer: TimerTileOptions? = null,
+    /**
+     * When non-null this is the assistant tile: the island displays voice assistant speech/response text
+     * in the cutout, capped at [maxCutoutHeightPercent] of screen height. Null otherwise.
+     */
+    val assistant: AssistantTileOptions? = null,
+)
+
+/** Which parts of the assistant tile to render (display text, max height). */
+data class AssistantTileOptions(
+    val displayAnswerInCutout: Boolean,
+    val maxCutoutHeightPercent: Int,
+    val answerText: String?,
 )
 
 /** Which parts of the timer tile to render (and how its buttons look), per the tile's settings. */
@@ -158,7 +170,7 @@ data class MediaTileOptions(
  */
 data class IslandAction(
     val label: String,
-    val intent: PendingIntent,
+    val intent: PendingIntent? = null,
     val reply: IslandReply? = null,
     /** True for a destructive call action (hang up / end call / decline), so the phone tile can tint it apart. */
     val destructive: Boolean = false,

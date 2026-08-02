@@ -58,6 +58,8 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.AssistantTilePreferences
+import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
@@ -111,6 +113,7 @@ class IslandOverlayController(private val context: Context) {
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
+    private val assistantTilePreferences = AssistantTilePreferences(context)
     private val density = context.resources.displayMetrics.density
 
     // Full display width, used by the island to size itself as a percentage of the screen. Read from
@@ -127,6 +130,15 @@ class IslandOverlayController(private val context: Context) {
     // orientation, ready for orientation-specific layout settings later.
     private var currentOrientation: Int = context.resources.configuration.orientation
     private val orientationState = MutableStateFlow(currentOrientation)
+
+    private val displayHeightPx: Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.maximumWindowMetrics.bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            context.resources.displayMetrics.heightPixels
+        }
+    private val displayHeightDp: Int = (displayHeightPx / density).toInt()
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
@@ -149,6 +161,7 @@ class IslandOverlayController(private val context: Context) {
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
+    private var assistantSettings: AssistantTileSettings = AssistantTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -164,6 +177,9 @@ class IslandOverlayController(private val context: Context) {
     // True while the music cutout is being held hidden because the playing app is in the foreground
     // and "Visible in player app" is off, so it can be brought back when the user leaves that app.
     private var playerAppHidden = false
+    // True while the phone cutout is being held hidden because the phone app is full screen in the
+    // foreground, so it can be brought back when the user leaves the phone app.
+    private var phoneAppHidden = false
     // True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
     // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
     private var callActive = false
@@ -172,6 +188,8 @@ class IslandOverlayController(private val context: Context) {
     // the whole countdown, and — like [lastCallEvent] — lets the pill return after an interruption.
     private var timerActive = false
     private var lastTimerEvent: IslandEvent? = null
+    private var assistantActive = false
+    private var lastAssistantEvent: IslandEvent? = null
 
     // A neutral sample shown while the settings screen pins the island open.
     private val previewEvent by lazy {
@@ -222,6 +240,7 @@ class IslandOverlayController(private val context: Context) {
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
+        observeAssistantSettings()
         observeNowPlaying()
         observeForegroundApp()
         observeOnCall()
@@ -497,6 +516,10 @@ class IslandOverlayController(private val context: Context) {
         timerTilePreferences.settings.collect { timerSettings = it }
     }
 
+    private fun observeAssistantSettings() = scope.launch {
+        assistantTilePreferences.settings.collect { assistantSettings = it }
+    }
+
     /**
      * Follow live playback so the music cutout stays up for exactly as long as music plays. While
      * something is playing we hold the (already-shown) music pill open indefinitely; when it pauses
@@ -525,6 +548,51 @@ class IslandOverlayController(private val context: Context) {
         ForegroundAppBus.packageName.collect { pkg ->
             foregroundPackage = pkg
             applyPlayerAppVisibility()
+            applyPhoneAppVisibility()
+        }
+    }
+
+    /** True when the app handling the live call is the one in the foreground. */
+    private fun phoneAppInForeground(): Boolean {
+        val phonePkg = OnCallBus.state.value?.packageName ?: return false
+        if (phonePkg == context.packageName) return false
+        return foregroundPackage != null && foregroundPackage == phonePkg
+    }
+
+    /**
+     * The phone cutout should be held hidden right now: a call is active and the phone app is
+     * full screen in the foreground.
+     */
+    private fun shouldHideForPhoneApp(): Boolean =
+        callActive && phoneAppInForeground()
+
+    /**
+     * Clear the call cutout while the phone app is in the foreground full screen; when the user
+     * leaves that app while a call is still running, bring the call cutout back.
+     */
+    private fun applyPhoneAppVisibility() {
+        if (previewPinned || overlayHidden) return
+        if (shouldHideForPhoneApp()) {
+            if (phoneAppHidden) return
+            phoneAppHidden = true
+            if (currentEvent.value?.call != null) {
+                dismissJob?.cancel()
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowSize()
+            }
+        } else {
+            if (!phoneAppHidden) return
+            phoneAppHidden = false
+            if (currentEvent.value == null) {
+                callPillToReturnTo()?.let { pill ->
+                    forcedExpanded.value = null
+                    expanded = false
+                    currentEvent.value = pill
+                    syncWindowSize()
+                }
+            }
         }
     }
 
@@ -584,7 +652,11 @@ class IslandOverlayController(private val context: Context) {
     private fun observeOnCall() = scope.launch {
         OnCallBus.state.collect { call ->
             callActive = call != null
-            if (call == null) lastCallEvent = null
+            if (call == null) {
+                lastCallEvent = null
+                phoneAppHidden = false
+            }
+            applyPhoneAppVisibility()
             // Only steer the call pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.call == null) return@collect
             if (callActive) dismissJob?.cancel() else scheduleDismiss()
@@ -625,8 +697,11 @@ class IslandOverlayController(private val context: Context) {
     /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
     private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
 
-    /** Any live tile (music, a call or a running timer) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer()
+    /** The assistant cutout should stay pinned up (no auto-dismiss) while assistant is active. */
+    private fun isPinnedAssistant(): Boolean = assistantActive && currentEvent.value?.assistant != null
+
+    /** Any live tile (music, a call, a running timer, or assistant) is currently pinned up. */
+    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant()
 
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
@@ -862,10 +937,17 @@ class IslandOverlayController(private val context: Context) {
      * action row when expanded, or the incoming two-row call layout's button row. Mirrors the height
      * bonus [DynamicIsland] applies, so the window and touchable region stay as tall as what it renders.
      */
-    private fun currentHeightBonusDp(expanded: Boolean): Int = when {
-        expanded -> expandedActionsBonusDp()
-        isTwoRowCall() -> callIncomingExtraDp()
-        else -> 0
+    private fun currentHeightBonusDp(expanded: Boolean): Int {
+        val event = currentEvent.value
+        if (expanded && event?.assistant != null && event.assistant.displayAnswerInCutout) {
+            val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
+            return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+        }
+        return when {
+            expanded -> expandedActionsBonusDp()
+            isTwoRowCall() -> callIncomingExtraDp()
+            else -> 0
+        }
     }
 
     /** Whether the shown event is an incoming call rendered in the taller two-row layout. */
@@ -883,7 +965,8 @@ class IslandOverlayController(private val context: Context) {
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
-        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
+        val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
+        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
             expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
         } else {
             0
@@ -924,6 +1007,17 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
             // Skip the running timer when the timer tile is turned off.
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
+            // Skip assistant responses when the assistant tile is turned off.
+            if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
+
+            if (signal is CutoutSignal.Assistant && !signal.active) {
+                assistantActive = false
+                lastAssistantEvent = null
+                if (currentEvent.value?.assistant != null) {
+                    dismissIsland()
+                }
+                return@collect
+            }
 
             val isNoExpandLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE &&
                 (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
@@ -932,6 +1026,7 @@ class IslandOverlayController(private val context: Context) {
             val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> musicSettings.expandOnPlay
+                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
@@ -945,6 +1040,7 @@ class IslandOverlayController(private val context: Context) {
                 musicSettings,
                 phoneSettings,
                 timerSettings,
+                assistantSettings,
                 eventDynamicColor,
                 eventDynamicColorRole,
                 eventDynamicColorOpacity,
@@ -983,8 +1079,8 @@ class IslandOverlayController(private val context: Context) {
             expanded = autoExpand
             currentEvent.value = resolvedEvent
             syncWindowSize()
-            // A music/call signal is only emitted while that tile is live, so pin it up rather than
-            // starting the auto-dismiss timer — it stays for as long as playback / the call lasts.
+            // A music/call/assistant signal is only emitted while that tile is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as playback / the call / assistant lasts.
             when (signal) {
                 is CutoutSignal.Music -> {
                     musicPlaying = true
@@ -1004,6 +1100,12 @@ class IslandOverlayController(private val context: Context) {
                     dismissJob?.cancel()
                 }
 
+                is CutoutSignal.Assistant -> {
+                    assistantActive = true
+                    lastAssistantEvent = currentEvent.value
+                    dismissJob?.cancel()
+                }
+
                 else -> scheduleDismiss()
             }
             // Playback is now tracked (musicPlaying / lastMusicEvent), so if "Visible in player app"
@@ -1013,6 +1115,13 @@ class IslandOverlayController(private val context: Context) {
                 playerAppHidden = true
                 currentEvent.value = null
                 removeOverlay()
+            }
+            if (signal is CutoutSignal.Call && shouldHideForPhoneApp()) {
+                phoneAppHidden = true
+                forcedExpanded.value = null
+                expanded = false
+                currentEvent.value = null
+                syncWindowSize()
             }
         }
     }
@@ -1076,11 +1185,11 @@ class IslandOverlayController(private val context: Context) {
         // The others (Pause / Resume / Add 1 min) only change a running timer, so keep the pill up.
         if (currentEvent.value?.timer != null) {
             if (action.destructive) dismissIsland()
-            sendPendingIntent(action.intent)
+            action.intent?.let(::sendPendingIntent)
             return
         }
         dismissIsland()
-        sendPendingIntent(action.intent)
+        action.intent?.let(::sendPendingIntent)
     }
 
     /**
@@ -1089,11 +1198,12 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
+        val intent = action.intent ?: return
         dismissIsland()
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }
         RemoteInput.addResultsToIntent(reply.remoteInputs.toTypedArray(), fillIn, results)
-        sendPendingIntent(action.intent, fillIn)
+        sendPendingIntent(intent, fillIn)
     }
 
     /**
@@ -1169,6 +1279,7 @@ class IslandOverlayController(private val context: Context) {
         if (showingLiveTile()) return null
         if (!callActive) return null
         if (tileEnabled[DynamicTile.PHONE] == false) return null
+        if (shouldHideForPhoneApp()) return null
         return lastCallEvent?.copy(initiallyExpanded = false)
     }
 

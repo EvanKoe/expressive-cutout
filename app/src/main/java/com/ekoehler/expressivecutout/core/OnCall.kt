@@ -38,4 +38,6 @@ data class OnCall(
     val photo: ImageBitmap?,
     val startTimeMs: Long?,
     val ongoing: Boolean,
+    val packageName: String? = null,
 )
+

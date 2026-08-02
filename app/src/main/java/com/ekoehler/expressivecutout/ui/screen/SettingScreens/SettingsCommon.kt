@@ -69,32 +69,102 @@ internal fun AdjustableSlider(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(
-                onClick = {
-                    onValueChange((value - step).coerceIn(valueRange))
-                    onCommit()
-                },
+        SliderRow(
+            value = value,
+            valueRange = valueRange,
+            step = step,
+            onValueChange = onValueChange,
+            onCommit = onCommit,
+        )
+    }
+}
+
+/** The slider itself flanked by the -/+ step buttons, without any label. */
+@Composable
+private fun SliderRow(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    onValueChange: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        FilledTonalIconButton(
+            onClick = {
+                onValueChange((value - step).coerceIn(valueRange))
+                onCommit()
+            },
+        ) {
+            Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onCommit,
+            valueRange = valueRange,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 6.dp),
+        )
+        FilledTonalIconButton(
+            onClick = {
+                onValueChange((value + step).coerceIn(valueRange))
+                onCommit()
+            },
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.cd_increase))
+        }
+    }
+}
+
+/**
+ * A surface card laid out like [SettingsToggleCard] — title, short description, and a trailing
+ * value in place of the switch — with the slider underneath.
+ */
+@Composable
+internal fun SettingsSliderCard(
+    shape: Shape,
+    title: String,
+    description: String,
+    valueText: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    onValueChange: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = valueText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-            Slider(
+            SliderRow(
                 value = value,
-                onValueChange = onValueChange,
-                onValueChangeFinished = onCommit,
                 valueRange = valueRange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 6.dp),
+                step = step,
+                onValueChange = onValueChange,
+                onCommit = onCommit,
             )
-            FilledTonalIconButton(
-                onClick = {
-                    onValueChange((value + step).coerceIn(valueRange))
-                    onCommit()
-                },
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.cd_increase))
-            }
         }
     }
 }

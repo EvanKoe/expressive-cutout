@@ -56,6 +56,7 @@ internal fun DynamicTilesScreen(
     // The icon-container colour each tile lets the user pick, mirrored onto its list badge below.
     val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
     val timer by viewModel.timerTile.collectAsStateWithLifecycle()
+    val assistant by viewModel.assistantTile.collectAsStateWithLifecycle()
 
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
@@ -71,6 +72,7 @@ internal fun DynamicTilesScreen(
                 val containerColor = when (tile) {
                     DynamicTile.PHONE -> phone.iconContainerColor
                     DynamicTile.TIMER -> timer.iconContainerColor
+                    DynamicTile.ASSISTANT -> assistant.iconContainerColor
                     DynamicTile.MUSIC -> null
                 }
                 DynamicTileCard(

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.screen.AssistantScreen
 
 /**
  * Routes a [DynamicTile] to its own settings screen. Each tile's settings live in a dedicated file
@@ -19,5 +20,6 @@ internal fun TileSettingsScreen(
         DynamicTile.MUSIC -> MusicTileScreen(viewModel, contentPadding)
         DynamicTile.PHONE -> PhoneTileScreen(viewModel, contentPadding)
         DynamicTile.TIMER -> TimerTileScreen(viewModel, contentPadding)
+        DynamicTile.ASSISTANT -> AssistantScreen(viewModel, contentPadding)
     }
 }

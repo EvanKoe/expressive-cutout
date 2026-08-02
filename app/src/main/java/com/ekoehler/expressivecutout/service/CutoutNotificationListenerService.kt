@@ -43,6 +43,9 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // dropped when that exact notification goes away. Mirrors [currentCallKey].
     private var currentMediaArtKey: String? = null
 
+    // Key of the assistant notification currently driving the assistant tile.
+    private var currentAssistantKey: String? = null
+
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
@@ -127,6 +130,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private fun handleCall(sbn: StatusBarNotification) {
         val call = CallNotificationParser.parse(sbn, this)
+        val prevOngoing = OnCallBus.state.value?.ongoing
         OnCallBus.update(
             OnCall(
                 callerLabel = call.callerLabel,
@@ -134,9 +138,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 photo = call.photo,
                 startTimeMs = call.startTimeMs,
                 ongoing = call.ongoing,
+                packageName = sbn.packageName,
             ),
         )
-        if (sbn.key != currentCallKey) {
+        if (sbn.key != currentCallKey || prevOngoing != call.ongoing) {
             currentCallKey = sbn.key
             IslandEventBus.emit(
                 CutoutSignal.Call(
@@ -269,6 +274,23 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             val service = instance ?: return
             runCatching { service.cancelNotification(key) }
                 .onFailure { Log.w(TAG, "Failed to cancel notification $key", it) }
+        }
+
+        /**
+         * Look up active notifications posted by [packageName] and return a pair of (title, text/bigText).
+         */
+        fun getNotificationTextForPackage(packageName: String): Pair<String?, String?>? {
+            val service = instance ?: return null
+            val notifications = runCatching { service.activeNotifications }.getOrNull() ?: return null
+            val sbn = notifications.firstOrNull { it.packageName.equals(packageName, ignoreCase = true) } ?: return null
+            val extras = sbn.notification?.extras ?: return null
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+                ?: extras.getCharSequence("android.title")?.toString()
+            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()
+            return Pair(title, bigText)
         }
     }
 }

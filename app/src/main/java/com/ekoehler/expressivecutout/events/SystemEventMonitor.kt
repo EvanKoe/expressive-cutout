@@ -28,12 +28,27 @@ class SystemEventMonitor(private val context: Context) {
     private val connectivityManager = context.getSystemService<ConnectivityManager>()
     private val audioManager = context.getSystemService<AudioManager>()
 
+    @Volatile
+    private var isLowBatteryState = false
+
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val type = when (intent.action) {
-                Intent.ACTION_POWER_CONNECTED -> SystemEventType.CHARGING_STARTED
+                Intent.ACTION_POWER_CONNECTED -> {
+                    isLowBatteryState = false
+                    SystemEventType.CHARGING_STARTED
+                }
                 Intent.ACTION_POWER_DISCONNECTED -> SystemEventType.CHARGING_STOPPED
-                Intent.ACTION_BATTERY_LOW -> SystemEventType.BATTERY_LOW
+                Intent.ACTION_BATTERY_LOW -> {
+                    if (!isLowBatteryState) {
+                        isLowBatteryState = true
+                        SystemEventType.BATTERY_LOW
+                    } else null
+                }
+                Intent.ACTION_BATTERY_OKAY -> {
+                    isLowBatteryState = false
+                    null
+                }
                 Intent.ACTION_USER_PRESENT -> SystemEventType.DEVICE_UNLOCKED
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> SystemEventType.USB_MOUNTED
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> SystemEventType.USB_UNMOUNTED
@@ -82,6 +97,7 @@ class SystemEventMonitor(private val context: Context) {
         addAction(Intent.ACTION_POWER_CONNECTED)
         addAction(Intent.ACTION_POWER_DISCONNECTED)
         addAction(Intent.ACTION_BATTERY_LOW)
+        addAction(Intent.ACTION_BATTERY_OKAY)
         addAction(Intent.ACTION_USER_PRESENT)
         addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
         addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)

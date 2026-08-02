@@ -14,7 +14,7 @@ class TestCallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_END -> TestCaller.end()
-            ACTION_ANSWER -> TestCaller.answer()
+            ACTION_ANSWER -> TestCaller.answer(context)
         }
     }
 

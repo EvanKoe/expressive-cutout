@@ -12,13 +12,20 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaTransport
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
+import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
 
 /**
  * Watches the device's active media sessions and drives the music tile. It keeps [NowPlayingBus]
@@ -32,9 +39,14 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     private val sessionManager = context.getSystemService<MediaSessionManager>()
     private val listenerComponent = ComponentName(context, CutoutNotificationListenerService::class.java)
+    private val dynamicTilePreferences = DynamicTilePreferences(context)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Controllers we're currently watching, paired with the callback registered on each.
     private val watched = mutableMapOf<MediaController, MediaController.Callback>()
+
+    // Enabled state of dynamic tiles
+    private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
 
     // The track last surfaced as a "show" signal, so we don't re-pop on every state tick.
     private var lastShownKey: String? = null
@@ -46,6 +58,12 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     fun start() {
         val manager = sessionManager ?: return
+        scope.launch {
+            dynamicTilePreferences.enabled.collect { enabled ->
+                tileEnabled = enabled
+                sync()
+            }
+        }
         runCatching {
             manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
             rebind(manager.getActiveSessions(listenerComponent))
@@ -56,6 +74,7 @@ class MediaPlaybackMonitor(private val context: Context) {
         sessionManager?.let { runCatching { it.removeOnActiveSessionsChangedListener(sessionsListener) } }
         watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
         watched.clear()
+        scope.coroutineContext.cancelChildren()
         lastShownKey = null
         NowPlayingBus.update(null)
     }
@@ -82,12 +101,36 @@ class MediaPlaybackMonitor(private val context: Context) {
         sync()
     }
 
+    private fun isAssistantPackage(packageName: String): Boolean {
+        val pkg = packageName.lowercase()
+        return pkg == "com.google.android.googlequicksearchbox" ||
+            pkg == "com.google.android.apps.googleassistant" ||
+            pkg == "com.google.android.apps.bard" ||
+            pkg == "com.samsung.android.bixby.agent" ||
+            pkg == "com.samsung.android.bixby.service" ||
+            pkg == "com.amazon.dee.app" ||
+            pkg == "com.openai.chatgpt" ||
+            pkg == "com.microsoft.copilot" ||
+            pkg.contains("assistant") ||
+            pkg.contains("bixby") ||
+            pkg.contains("gemini")
+    }
+
     /**
      * Recompute the surfaced session: prefer one that's actually playing, else any active one.
      * Publishes its live state to [NowPlayingBus] and pops the island when a new track starts.
      */
     private fun sync() {
-        val primary = watched.keys.firstOrNull { it.isPlaying } ?: watched.keys.firstOrNull()
+        val validControllers = watched.keys.filter { controller ->
+            if (isAssistantPackage(controller.packageName)) {
+                // If Assistant tile is turned off, ignore assistant media session entirely
+                tileEnabled[DynamicTile.ASSISTANT] != false
+            } else {
+                true
+            }
+        }
+
+        val primary = validControllers.firstOrNull { it.isPlaying } ?: validControllers.firstOrNull()
         if (primary == null) {
             NowPlayingBus.update(null)
             lastShownKey = null
@@ -96,9 +139,26 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         val playing = primary.isPlaying
         val metadata = primary.metadata
-        val title = metadata?.getText(MediaMetadata.METADATA_KEY_TITLE)?.toString()
-        val artist = metadata?.getText(MediaMetadata.METADATA_KEY_ARTIST)?.toString()
+
+        val rawTitle = metadata?.getText(MediaMetadata.METADATA_KEY_TITLE)?.toString()
+            ?: metadata?.getText(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.toString()
+        val rawArtist = metadata?.getText(MediaMetadata.METADATA_KEY_ARTIST)?.toString()
             ?: metadata?.getText(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.toString()
+            ?: metadata?.getText(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)?.toString()
+            ?: metadata?.getText(MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION)?.toString()
+            ?: metadata?.getText(MediaMetadata.METADATA_KEY_ALBUM)?.toString()
+            ?: metadata?.getText(MediaMetadata.METADATA_KEY_AUTHOR)?.toString()
+
+        var title = rawTitle
+        var artist = rawArtist
+
+        if (isAssistantPackage(primary.packageName)) {
+            // Assistant sessions are handled exclusively via NotificationListenerService
+            NowPlayingBus.update(null)
+            lastShownKey = null
+            return
+        }
+
         val albumArt = metadata?.albumArt()
 
         NowPlayingBus.update(
