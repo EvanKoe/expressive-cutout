@@ -359,6 +359,18 @@ fun DynamicIsland(
             animationSpec = motion.float(baseMs = if (present) 320 else 200),
         )
     }
+    // A dismiss swipe leaves the pill translated and faded (the alpha is derived from that offset), and
+    // [dismissOffsetX] is keyed on the sticky [shownEvent] so it survives the event clearing. With
+    // "shows when empty" the surface then never goes away, so the resting pill would sit off-centre at
+    // reduced opacity. Finish the exit instead: hide it, recentre, and grow back from the dot as usual.
+    // `present` is true either side of this hand-off, so the reveal above never competes for `reveal`.
+    LaunchedEffect(emptyPill) {
+        if (emptyPill && dismissOffsetX.value != 0f) {
+            reveal.snapTo(0f)
+            dismissOffsetX.snapTo(0f)
+            reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
+        }
+    }
     // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
     // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
