@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -62,6 +64,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,7 +79,6 @@ import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -183,16 +185,35 @@ internal fun ShowsWhenEmptyScreen(
                     text = stringResource(R.string.shows_when_empty_on_click),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                ExpressiveSegmentedRow(
-                    options = listOf(
-                        stringResource(R.string.shows_when_empty_click_none),
-                        stringResource(R.string.shows_when_empty_click_open_app),
-                        stringResource(R.string.shows_when_empty_click_open_center),
-                    ),
-                    selectedIndex = clickAction.ordinal,
-                    onSelect = { viewModel.setShowsWhenEmptyClickAction(EmptyClickAction.entries[it]) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                EmptyClickAction.entries.forEach { action ->
+                    val label = when (action) {
+                        EmptyClickAction.NONE -> stringResource(R.string.shows_when_empty_click_none)
+                        EmptyClickAction.OPEN_APP -> stringResource(R.string.shows_when_empty_click_open_app)
+                        EmptyClickAction.OPEN_CENTER -> stringResource(R.string.shows_when_empty_click_open_center)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .selectable(
+                                selected = clickAction == action,
+                                onClick = { viewModel.setShowsWhenEmptyClickAction(action) },
+                                role = Role.RadioButton,
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = clickAction == action,
+                            onClick = null,
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
             }
         }
 
