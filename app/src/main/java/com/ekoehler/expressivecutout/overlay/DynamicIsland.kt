@@ -1044,20 +1044,42 @@ private fun CenterContent(
                 )
             } else {
                 // Every shortcut shares the width equally (flex: 1), so the row always fills the
-                // cutout with evenly-spread buttons — either a fixed disc centred in each slot, or a
-                // container that fills its slot into a pill.
+                // cutout with evenly-spread buttons. Under the EXPAND press animation a pressed button
+                // borrows width from its siblings (they spring thinner) instead of overflowing in
+                // place — the same give-and-take as the action chips (see [ActionChipRow]).
+                val redistribute = LocalActionButtonAnimation.current == ActionButtonAnimation.EXPAND &&
+                    shortcuts.size > 1
+                val interactions = remember(shortcuts.size) {
+                    List(shortcuts.size) { MutableInteractionSource() }
+                }
+                val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
+                val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    shortcuts.forEach { shortcut ->
+                    shortcuts.forEachIndexed { i, shortcut ->
+                        val target = when {
+                            !redistribute || pressedIndex < 0 -> 1f
+                            i == pressedIndex -> 1f + FULL_EXPAND_DELTA
+                            else -> 1f - FULL_EXPAND_DELTA / (shortcuts.size - 1)
+                        }
+                        val weight by animateFloatAsState(
+                            targetValue = target,
+                            animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
+                            label = "centerWeight",
+                        )
                         CenterShortcutButton(
                             shortcut = shortcut,
                             showLabel = showLabels,
                             fillContainer = fillContainers,
                             active = shortcut is CenterShortcut.Torch && torchOn,
                             onClick = { onShortcut(shortcut) },
-                            modifier = Modifier.weight(1f),
+                            interaction = interactions[i],
+                            // When redistributing, the width give-and-take IS the press animation, so
+                            // the button must not also widen itself in place.
+                            animatePress = !redistribute,
+                            modifier = Modifier.weight(weight),
                         )
                     }
                 }
@@ -1079,8 +1101,9 @@ private fun CenterShortcutButton(
     active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    interaction: MutableInteractionSource = remember { MutableInteractionSource() },
+    animatePress: Boolean = true,
 ) {
-    val interaction = remember { MutableInteractionSource() }
     val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
     val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
     val shapeModifier = if (fillContainer) {
@@ -1099,7 +1122,7 @@ private fun CenterShortcutButton(
             shape = CircleShape,
             color = containerColor,
             contentColor = glyphColor,
-            modifier = shapeModifier.pressScale(interaction),
+            modifier = shapeModifier.then(if (animatePress) Modifier.pressScale(interaction) else Modifier),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName) }
