@@ -92,6 +92,7 @@ data class BehaviourSettings(
     val showsWhenEmptyIconColor: CutoutColor? = null,
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
+    val centerShortcuts: List<CenterShortcut> = CenterShortcut.DEFAULTS,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -186,6 +187,7 @@ class BehaviourPreferences(private val context: Context) {
                 ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
             showsWhenEmptyClickPackage = prefs[SHOWS_WHEN_EMPTY_CLICK_PACKAGE],
+            centerShortcuts = CenterShortcut.decodeList(prefs[CENTER_SHORTCUTS]),
         )
     }
 
@@ -313,6 +315,11 @@ class BehaviourPreferences(private val context: Context) {
         else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName
     }
 
+    /** Persist the ordered set of shortcuts shown in the expanded "center". */
+    suspend fun setCenterShortcuts(shortcuts: List<CenterShortcut>) = context.behaviourDataStore.edit {
+        it[CENTER_SHORTCUTS] = CenterShortcut.encodeList(shortcuts)
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -340,5 +347,6 @@ class BehaviourPreferences(private val context: Context) {
         val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
         val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")
+        val CENTER_SHORTCUTS = stringPreferencesKey("center_shortcuts")
     }
 }

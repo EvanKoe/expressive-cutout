@@ -28,7 +28,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,6 +41,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,9 +67,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.overlay.CenterShortcutCatalog
 import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -92,6 +101,8 @@ internal fun ShowsWhenEmptyScreen(
     var showIconSheet by remember { mutableStateOf(false) }
     var showMaterialPicker by remember { mutableStateOf(false) }
     var showAppPicker by remember { mutableStateOf(false) }
+    var showAddShortcut by remember { mutableStateOf(false) }
+    var showCenterAppPicker by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -158,7 +169,7 @@ internal fun ShowsWhenEmptyScreen(
             }
         }
 
-        // What tapping the resting pill does. "Open center" is greyed out — it's a planned feature.
+        // What tapping the resting pill does: nothing, open an app, or expand the shortcut center.
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(32.dp),
@@ -180,7 +191,6 @@ internal fun ShowsWhenEmptyScreen(
                     ),
                     selectedIndex = clickAction.ordinal,
                     onSelect = { viewModel.setShowsWhenEmptyClickAction(EmptyClickAction.entries[it]) },
-                    disabledIndices = setOf(EmptyClickAction.OPEN_CENTER.ordinal),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -191,6 +201,22 @@ internal fun ShowsWhenEmptyScreen(
             AppChoiceCard(
                 packageName = clickPackage,
                 onChoose = { showAppPicker = true },
+            )
+        }
+
+        // Once "Open center" is chosen, edit the shortcuts shown in the expanded center.
+        AnimatedVisibility(visible = clickAction == EmptyClickAction.OPEN_CENTER) {
+            CenterShortcutsCard(
+                shortcuts = behaviour.centerShortcuts,
+                onAdd = { showAddShortcut = true },
+                onRemove = { index ->
+                    viewModel.setCenterShortcuts(
+                        behaviour.centerShortcuts.toMutableList().apply { removeAt(index) },
+                    )
+                },
+                onMove = { index, delta ->
+                    viewModel.setCenterShortcuts(behaviour.centerShortcuts.moved(index, delta))
+                },
             )
         }
     }
@@ -233,6 +259,39 @@ internal fun ShowsWhenEmptyScreen(
             onDismiss = { showAppPicker = false },
         )
     }
+
+    if (showAddShortcut) {
+        AddShortcutSheet(
+            onPickBuiltin = { shortcut ->
+                showAddShortcut = false
+                viewModel.setCenterShortcuts(behaviour.centerShortcuts + shortcut)
+            },
+            onChooseApp = {
+                showAddShortcut = false
+                showCenterAppPicker = true
+            },
+            onDismiss = { showAddShortcut = false },
+        )
+    }
+
+    if (showCenterAppPicker) {
+        AppPickerSheet(
+            onPick = { packageName ->
+                showCenterAppPicker = false
+                viewModel.setCenterShortcuts(
+                    behaviour.centerShortcuts + CenterShortcut.LaunchApp(packageName),
+                )
+            },
+            onDismiss = { showCenterAppPicker = false },
+        )
+    }
+}
+
+/** Moves the item at [index] by [delta] positions, returning the list unchanged if out of range. */
+private fun <T> List<T>.moved(index: Int, delta: Int): List<T> {
+    val target = index + delta
+    if (index !in indices || target !in indices) return this
+    return toMutableList().apply { add(target, removeAt(index)) }
 }
 
 /** The chosen "open app" target: the app's icon + name, or a hint to pick one, plus a choose button. */
@@ -276,6 +335,205 @@ private fun AppChoiceCard(packageName: String?, onChoose: () -> Unit) {
                 Text(stringResource(R.string.shows_when_empty_choose_app))
             }
         }
+    }
+}
+
+/**
+ * The editor for the expanded center's shortcut row: the current shortcuts in order, each with
+ * move-up / move-down / remove controls, plus an "Add shortcut" button. Shown while the empty
+ * pill's on-click is [EmptyClickAction.OPEN_CENTER].
+ */
+@Composable
+private fun CenterShortcutsCard(
+    shortcuts: List<CenterShortcut>,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.shows_when_empty_center_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.shows_when_empty_center_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (shortcuts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.center_shortcuts_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                shortcuts.forEachIndexed { index, shortcut ->
+                    CenterShortcutRow(
+                        shortcut = shortcut,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < shortcuts.lastIndex,
+                        onMoveUp = { onMove(index, -1) },
+                        onMoveDown = { onMove(index, 1) },
+                        onRemove = { onRemove(index) },
+                    )
+                }
+            }
+            FilledTonalButton(onClick = onAdd, modifier = Modifier.padding(top = 4.dp)) {
+                Icon(imageVector = Icons.Rounded.Add, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.center_add_shortcut),
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** One shortcut in the editor: its glyph (or app icon) and label, with reorder and remove controls. */
+@Composable
+private fun CenterShortcutRow(
+    shortcut: CenterShortcut,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CenterShortcutIcon(shortcut)
+        Text(
+            text = centerShortcutLabel(shortcut),
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp),
+        )
+        IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+            Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = stringResource(R.string.center_move_up))
+        }
+        IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.center_move_down))
+        }
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.center_remove))
+        }
+    }
+}
+
+/** A round badge for a shortcut: the real launcher icon for an app, otherwise its catalog glyph. */
+@Composable
+private fun CenterShortcutIcon(shortcut: CenterShortcut) {
+    if (shortcut is CenterShortcut.LaunchApp) {
+        AppIcon(packageName = shortcut.packageName)
+        return
+    }
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = CenterShortcutCatalog.iconFor(shortcut),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+/** A shortcut's label: its fixed string resource, or the app's display name for a launcher. */
+@Composable
+private fun centerShortcutLabel(shortcut: CenterShortcut): String {
+    CenterShortcutCatalog.labelResFor(shortcut)?.let { return stringResource(it) }
+    val pkg = (shortcut as? CenterShortcut.LaunchApp)?.packageName ?: return ""
+    return rememberAppLabel(pkg)
+}
+
+/** A bottom sheet to add a shortcut: pick an app, or any of the built-in actions. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddShortcutSheet(
+    onPickBuiltin: (CenterShortcut) -> Unit,
+    onChooseApp: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Text(
+            text = stringResource(R.string.center_add_shortcut),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+        )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        ) {
+            item {
+                AddShortcutRow(
+                    icon = Icons.Rounded.Apps,
+                    label = stringResource(R.string.center_add_choose_app),
+                    onClick = onChooseApp,
+                )
+            }
+            items(CenterShortcut.BUILTINS, key = { it.encode() }) { shortcut ->
+                AddShortcutRow(
+                    icon = CenterShortcutCatalog.iconFor(shortcut),
+                    label = centerShortcutLabel(shortcut),
+                    onClick = { onPickBuiltin(shortcut) },
+                )
+            }
+        }
+    }
+}
+
+/** A single tappable row in the add-shortcut sheet: a round glyph badge and a label. */
+@Composable
+private fun AddShortcutRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 14.dp),
+        )
     }
 }
 

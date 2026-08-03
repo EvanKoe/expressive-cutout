@@ -79,8 +79,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
@@ -91,6 +93,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -131,6 +134,7 @@ import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
@@ -187,6 +191,13 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+ * Extra height the expanded "center" claims below the base expanded cutout for its titled shortcut
+ * row. The controller mirrors this (see [IslandOverlayController]'s height-bonus logic) so the host
+ * window and touchable region stay as tall as what's rendered.
+ */
+internal const val CENTER_SHORTCUTS_EXTRA_DP = 96
+
+/**
  * Maps the configured chip placement onto the [Row] arrangement that positions the chip row.
  * [ActionButtonAlignment.FULL] stretches the chips with weight rather than positioning them, so it
  * falls back to leading here (the arrangement is irrelevant once the chips fill the whole width).
@@ -236,7 +247,10 @@ fun DynamicIsland(
     showsWhenEmpty: Boolean,
     emptyIcon: IconSource? = null,
     emptyIconColor: CutoutColor? = null,
+    emptyOpensCenter: Boolean = false,
+    centerShortcuts: List<CenterShortcut> = emptyList(),
     onEmptyClick: () -> Unit = {},
+    onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -265,7 +279,16 @@ fun DynamicIsland(
     val isCall = shownEvent?.call != null
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
     val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
-    val isExpanded = if (emptyPill || isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
+    // The resting empty pill has no event, but with "Open center" a tap expands it into a shortcut
+    // grid. That reuses [tapExpanded] so it inherits auto-collapse; every other empty pill (and the
+    // normal-only tiles) stays collapsed.
+    val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
+    val isExpanded = when {
+        forcedExpanded == false -> false
+        emptyPill -> centerExpanded
+        isNormalOnly -> false
+        else -> forcedExpanded ?: tapExpanded
+    }
     val boopScale = remember { Animatable(1f) }
     // The cutout body's tap feedback follows the same setting as its buttons: [ActionButtonAnimation.SCALE]
     // squishes the whole pill via [boopScale], [ActionButtonAnimation.EXPAND] widens it instead — this runs
@@ -293,8 +316,10 @@ fun DynamicIsland(
 
     // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
-    LaunchedEffect(isExpanded, event != null) {
-        if (event != null) onExpandedChange(isExpanded)
+    LaunchedEffect(isExpanded, event != null, emptyPill, emptyOpensCenter) {
+        // Fire for real events, and for the empty pill's center so the controller grows the host
+        // window and touchable region to cover the expanded shortcut grid.
+        if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
     }
     // User-expanded (not the pinned preview) optionally collapses after the delay — never while
     // a reply is being typed or its "sent" confirmation is still showing.
@@ -336,7 +361,7 @@ fun DynamicIsland(
 
     // The two-row incoming layout starts from the expanded cutout and grows by its button row.
     val dims = when {
-        emptyPill -> collapsed
+        emptyPill && !isExpanded -> collapsed
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
@@ -352,6 +377,7 @@ fun DynamicIsland(
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     val heightBonus = when {
+        emptyPill && isExpanded -> CENTER_SHORTCUTS_EXTRA_DP
         emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
@@ -504,9 +530,19 @@ fun DynamicIsland(
                                 },
                                 onTap = {
                                     if (emptyPill) {
-                                        // The resting pill has no expanded state; its tap runs the
-                                        // configured "On click" action (e.g. open an app).
-                                        onEmptyClick()
+                                        // "Open center" expands the resting pill into the shortcut
+                                        // grid (a second tap toggles it closed); every other "On
+                                        // click" action (e.g. open an app) runs via onEmptyClick.
+                                        if (emptyOpensCenter) {
+                                            if (forcedExpanded == null) {
+                                                tapExpanded = !tapExpanded
+                                                if (tapExpanded) {
+                                                    scope.launch { motion.pop(boopScale, peak = 1.02f) }
+                                                }
+                                            }
+                                        } else {
+                                            onEmptyClick()
+                                        }
                                         return@detectTapGestures
                                     }
 
@@ -604,7 +640,18 @@ fun DynamicIsland(
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
                         if (emptyPill) {
-                            if (emptyIcon != null) {
+                            if (showExpanded) {
+                                CenterContent(
+                                    shortcuts = centerShortcuts,
+                                    onShortcut = { shortcut ->
+                                        // In-place toggles (torch) keep the center open; everything
+                                        // else closes it as we act, so it isn't left over the screen
+                                        // (and out of a screenshot the shortcut may trigger).
+                                        if (!shortcut.keepsCenterOpen) tapExpanded = false
+                                        onCenterShortcut(shortcut)
+                                    },
+                                )
+                            } else if (emptyIcon != null) {
                                 EmptyPillContent(
                                     icon = emptyIcon,
                                     containerColor = emptyIconColor,
@@ -914,6 +961,136 @@ private fun EmptyPillContent(
             }
         }
     }
+}
+
+// The diameter of each shortcut's round button in the expanded center.
+private val CenterDiscDp = 52.dp
+
+/**
+ * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
+ * a titled row of round shortcut buttons, scrolling horizontally when they overflow. Sits in the
+ * lower part of the cutout (clear of the camera), mirroring [ExpandedContent]'s placement.
+ */
+@Composable
+private fun CenterContent(
+    shortcuts: List<CenterShortcut>,
+    onShortcut: (CenterShortcut) -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.center_shortcuts_title),
+                color = LocalContentColor.current,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (shortcuts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.center_shortcuts_empty),
+                    color = LocalContentColor.current.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    shortcuts.forEach { shortcut ->
+                        CenterShortcutButton(shortcut = shortcut, onClick = { onShortcut(shortcut) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A single center shortcut: a round tinted disc with the shortcut's glyph (or the real launcher icon
+ * for an app), and a small label beneath. Shares the island's [pressScale] so the press feel matches
+ * the action chips.
+ */
+@Composable
+private fun CenterShortcutButton(shortcut: CenterShortcut, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.widthIn(max = 72.dp),
+    ) {
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            shape = CircleShape,
+            color = LocalContentColor.current.copy(alpha = 0.14f),
+            contentColor = LocalContentColor.current,
+            modifier = Modifier
+                .size(CenterDiscDp)
+                .pressScale(interaction),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName) }
+                if (appIcon != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = appIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
+                    )
+                } else {
+                    Icon(
+                        imageVector = CenterShortcutCatalog.iconFor(shortcut),
+                        contentDescription = null,
+                        modifier = Modifier.size(CenterDiscDp * 0.46f),
+                    )
+                }
+            }
+        }
+        Text(
+            text = centerShortcutLabel(shortcut),
+            color = LocalContentColor.current.copy(alpha = 0.85f),
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** The label for a shortcut: its fixed string resource, or the app's display name for a launcher. */
+@Composable
+private fun centerShortcutLabel(shortcut: CenterShortcut): String {
+    CenterShortcutCatalog.labelResFor(shortcut)?.let { return stringResource(it) }
+    val pkg = (shortcut as? CenterShortcut.LaunchApp)?.packageName ?: return ""
+    val context = LocalContext.current
+    val label by produceState(initialValue = pkg, pkg) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            }.getOrDefault(pkg)
+        }
+    }
+    return label
+}
+
+/** Loads an app's launcher icon off the main thread, or null if the package is gone. */
+@Composable
+private fun rememberAppIcon(packageName: String): ImageBitmap? {
+    val context = LocalContext.current
+    val icon by produceState<ImageBitmap?>(initialValue = null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(packageName).toBitmap().asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    return icon
 }
 
 /**

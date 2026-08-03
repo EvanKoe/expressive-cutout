@@ -20,6 +20,7 @@ import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
@@ -511,6 +512,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowsWhenEmptyClickPackage(packageName: String?) = viewModelScope.launch {
         behaviourPreferences.setShowsWhenEmptyClickPackage(packageName)
+    }
+
+    fun setCenterShortcuts(shortcuts: List<CenterShortcut>) = viewModelScope.launch {
+        behaviourPreferences.setCenterShortcuts(shortcuts)
     }
 
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
