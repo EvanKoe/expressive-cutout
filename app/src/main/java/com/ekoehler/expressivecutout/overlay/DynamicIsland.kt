@@ -196,7 +196,7 @@ internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp +
  * the controller reserves this for the host window and touchable region so they never clip the
  * tallest (labels-on) layout — the window being a touch taller than the content is invisible.
  */
-internal const val CENTER_SHORTCUTS_EXTRA_DP = 120
+internal const val CENTER_SHORTCUTS_EXTRA_DP = 135
 
 // Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
 // content, used when fitting the island height to its measured shortcut row.
@@ -1001,8 +1001,8 @@ private fun EmptyPillContent(
     }
 }
 
-// The diameter of each shortcut's round button in the expanded center.
-private val CenterDiscDp = 52.dp
+// The height of each shortcut button in the expanded center (its diameter too, in disc mode).
+private val CenterDiscDp = 64.dp
 
 /**
  * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
