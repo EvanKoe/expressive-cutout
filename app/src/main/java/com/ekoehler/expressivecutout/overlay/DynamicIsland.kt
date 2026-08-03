@@ -275,6 +275,9 @@ fun DynamicIsland(
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
     var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    // Bumped on every center shortcut press so the auto-collapse timer restarts on interaction —
+    // the open center only shrinks after the inactivity delay, not a fixed time after it opened.
+    var centerInteraction by remember { mutableStateOf(0) }
     // The reply action currently being typed for, if any. Reset when the event changes.
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
@@ -330,7 +333,7 @@ fun DynamicIsland(
     }
     // User-expanded (not the pinned preview) optionally collapses after the delay — never while
     // a reply is being typed or its "sent" confirmation is still showing.
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent) {
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
         if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
             delay(autoCollapseMs)
             tapExpanded = false
@@ -676,6 +679,9 @@ fun DynamicIsland(
                                     fillContainers = centerFillContainers,
                                     onContentHeight = { centerContentHeightDp = it },
                                     onShortcut = { shortcut ->
+                                        // Any press counts as activity, restarting the auto-collapse
+                                        // timer so the center stays up while it's being used.
+                                        centerInteraction++
                                         // In-place toggles (torch) keep the center open; everything
                                         // else closes it as we act, so it isn't left over the screen
                                         // (and out of a screenshot the shortcut may trigger).
