@@ -946,27 +946,16 @@ private fun ExpandedContent(
                 showActions && event.actions.isNotEmpty() -> {
                     // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
-                    // Full-length: each chip takes an equal weighted share of the whole width; the
-                    // other alignments size chips to content and position the row as a group.
-                    val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        event.actions.take(3).forEach { action ->
-                            ActionChip(
-                                action = action,
-                                style = appearance.actionButtonStyle,
-                                fill = chipFill,
-                                heightDp = appearance.actionButtonHeightDp,
-                                onClick = {
-                                    if (action.reply != null) onStartReply(action) else onAction(action)
-                                },
-                                modifier = if (full) Modifier.weight(1f) else Modifier,
-                            )
-                        }
-                    }
+                    ActionChipRow(
+                        actions = event.actions.take(3),
+                        style = appearance.actionButtonStyle,
+                        fill = chipFill,
+                        heightDp = appearance.actionButtonHeightDp,
+                        alignment = appearance.actionButtonAlignment,
+                        onChip = { action ->
+                            if (action.reply != null) onStartReply(action) else onAction(action)
+                        },
+                    )
                 }
             }
         }
@@ -985,8 +974,9 @@ private fun ActionChip(
     heightDp: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    interaction: MutableInteractionSource = remember { MutableInteractionSource() },
+    animatePress: Boolean = true,
 ) {
-    val interaction = remember { MutableInteractionSource() }
     val shape = when (style) {
         ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
         else -> CircleShape
@@ -1017,7 +1007,7 @@ private fun ActionChip(
         border = border,
         modifier = modifier
             .height(heightDp.dp)
-            .pressScale(interaction),
+            .then(if (animatePress) Modifier.pressScale(interaction) else Modifier),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -1040,7 +1030,76 @@ private fun ActionChip(
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
 // How far the EXPAND press animation widens a button, on each side.
-private val PressExpandDp = 6.dp
+private val PressExpandDp = 3.dp
+
+// In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
+// the EXPAND animation: it grows by this share while the others give up the same total between them,
+// so the row always fills exactly its own width.
+private const val FULL_EXPAND_DELTA = 0.15f
+
+/**
+ * The expanded action chips row. In [ActionButtonAlignment.FULL] the chips share the width equally;
+ * every other alignment sizes them to content and positions the row as a group. When the button
+ * animation is [ActionButtonAnimation.EXPAND] *and* the row is full with more than one chip, a
+ * pressed chip borrows width from its siblings ([FULL_EXPAND_DELTA]) — its weight springs up while
+ * theirs spring down by the same total — an expressive give-and-take that keeps the row at 100%.
+ * In every other case each chip animates itself in place via [ActionChip]'s own [pressScale].
+ */
+@Composable
+private fun ActionChipRow(
+    actions: List<IslandAction>,
+    style: ActionButtonStyle,
+    fill: Color,
+    heightDp: Int,
+    alignment: ActionButtonAlignment,
+    onChip: (IslandAction) -> Unit,
+) {
+    val full = alignment == ActionButtonAlignment.FULL
+    val redistribute = full && actions.size > 1 &&
+        LocalActionButtonAnimation.current == ActionButtonAnimation.EXPAND
+    val interactions = remember(actions.size) { List(actions.size) { MutableInteractionSource() } }
+    // Which chip is currently held (first press wins) — drives the width give-and-take. Collected for
+    // every chip on each composition so the number of composable calls stays constant.
+    val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
+    val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, alignment.toHorizontal()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        actions.forEachIndexed { i, action ->
+            val chipModifier = when {
+                redistribute -> {
+                    val target = when {
+                        pressedIndex < 0 -> 1f
+                        i == pressedIndex -> 1f + FULL_EXPAND_DELTA
+                        else -> 1f - FULL_EXPAND_DELTA / (actions.size - 1)
+                    }
+                    val weight by animateFloatAsState(
+                        targetValue = target,
+                        animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
+                        label = "chipWeight",
+                    )
+                    Modifier.weight(weight)
+                }
+                full -> Modifier.weight(1f)
+                else -> Modifier
+            }
+            ActionChip(
+                action = action,
+                style = style,
+                fill = fill,
+                heightDp = heightDp,
+                onClick = { onChip(action) },
+                modifier = chipModifier,
+                interaction = interactions[i],
+                // When redistributing, the give-and-take of widths IS the press animation, so the
+                // chip must not also expand itself in place.
+                animatePress = !redistribute,
+            )
+        }
+    }
+}
 
 /**
  * The press reaction shared by the action chips and the reply buttons, so every tap on the island

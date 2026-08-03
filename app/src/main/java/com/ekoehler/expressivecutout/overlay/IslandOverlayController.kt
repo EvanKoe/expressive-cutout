@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.Surface
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
@@ -1398,15 +1399,15 @@ class IslandOverlayController(private val context: Context) {
     private fun isRotation270(): Boolean {
         @Suppress("DEPRECATION")
         val display = windowManager.defaultDisplay
-        return display?.rotation == android.view.Surface.ROTATION_270
+        return display?.rotation == Surface.ROTATION_270
     }
 
     private fun getLandscapeCameraGravity(): Int {
         @Suppress("DEPRECATION")
         val display = windowManager.defaultDisplay
         return when (display?.rotation) {
-            android.view.Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
-            android.view.Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
+            Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+            Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
             else -> Gravity.LEFT or Gravity.CENTER_VERTICAL
         }
     }
@@ -1419,8 +1420,8 @@ class IslandOverlayController(private val context: Context) {
             windowManager.defaultDisplay
         }
         return when (display?.rotation) {
-            android.view.Surface.ROTATION_90 -> 90f
-            android.view.Surface.ROTATION_270 -> -90f
+            Surface.ROTATION_90 -> 90f
+            Surface.ROTATION_270 -> -90f
             else -> 0f
         }
     }
