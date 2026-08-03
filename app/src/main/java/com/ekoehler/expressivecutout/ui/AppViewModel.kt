@@ -518,6 +518,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCenterShortcuts(shortcuts)
     }
 
+    fun setCenterShowLabels(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterShowLabels(enabled)
+    }
+
+    fun setCenterFillContainers(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterFillContainers(enabled)
+    }
+
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissDirection(direction)
     }

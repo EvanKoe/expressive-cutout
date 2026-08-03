@@ -206,18 +206,34 @@ internal fun ShowsWhenEmptyScreen(
 
         // Once "Open center" is chosen, edit the shortcuts shown in the expanded center.
         AnimatedVisibility(visible = clickAction == EmptyClickAction.OPEN_CENTER) {
-            CenterShortcutsCard(
-                shortcuts = behaviour.centerShortcuts,
-                onAdd = { showAddShortcut = true },
-                onRemove = { index ->
-                    viewModel.setCenterShortcuts(
-                        behaviour.centerShortcuts.toMutableList().apply { removeAt(index) },
-                    )
-                },
-                onMove = { index, delta ->
-                    viewModel.setCenterShortcuts(behaviour.centerShortcuts.moved(index, delta))
-                },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(32.dp),
+                    title = stringResource(R.string.shows_when_empty_center_labels),
+                    description = stringResource(R.string.shows_when_empty_center_labels_desc),
+                    checked = behaviour.centerShowLabels,
+                    onCheckedChange = viewModel::setCenterShowLabels,
+                )
+                SettingsToggleCard(
+                    shape = RoundedCornerShape(32.dp),
+                    title = stringResource(R.string.shows_when_empty_center_fill),
+                    description = stringResource(R.string.shows_when_empty_center_fill_desc),
+                    checked = behaviour.centerFillContainers,
+                    onCheckedChange = viewModel::setCenterFillContainers,
+                )
+                CenterShortcutsCard(
+                    shortcuts = behaviour.centerShortcuts,
+                    onAdd = { showAddShortcut = true },
+                    onRemove = { index ->
+                        viewModel.setCenterShortcuts(
+                            behaviour.centerShortcuts.toMutableList().apply { removeAt(index) },
+                        )
+                    },
+                    onMove = { index, delta ->
+                        viewModel.setCenterShortcuts(behaviour.centerShortcuts.moved(index, delta))
+                    },
+                )
+            }
         }
     }
 

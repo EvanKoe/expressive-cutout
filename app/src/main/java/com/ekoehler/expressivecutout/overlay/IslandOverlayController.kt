@@ -441,6 +441,8 @@ class IslandOverlayController(private val context: Context) {
                         emptyIconColor = behaviour.showsWhenEmptyIconColor,
                         emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
                         centerShortcuts = behaviour.centerShortcuts,
+                        centerShowLabels = behaviour.centerShowLabels,
+                        centerFillContainers = behaviour.centerFillContainers,
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
@@ -1178,6 +1180,8 @@ class IslandOverlayController(private val context: Context) {
         // touchable region sized to whatever it's showing (collapsed pill vs. expanded grid).
         if (currentEvent.value == null) {
             expanded = targetExpanded
+            // Sync the flashlight state when the center opens so a torch shortcut shows lit/unlit.
+            if (targetExpanded) CenterShortcutExecutor.syncTorchState(context)
             syncWindowSize()
             return
         }

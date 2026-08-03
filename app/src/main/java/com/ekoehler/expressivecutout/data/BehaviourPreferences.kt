@@ -93,6 +93,8 @@ data class BehaviourSettings(
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
     val centerShortcuts: List<CenterShortcut> = CenterShortcut.DEFAULTS,
+    val centerShowLabels: Boolean = CENTER_SHOW_LABELS,
+    val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -126,6 +128,8 @@ data class BehaviourSettings(
         const val SHOWS_WHEN_EMPTY = false
         const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
+        const val CENTER_SHOW_LABELS = true
+        const val CENTER_FILL_CONTAINERS = false
     }
 }
 
@@ -188,6 +192,8 @@ class BehaviourPreferences(private val context: Context) {
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
             showsWhenEmptyClickPackage = prefs[SHOWS_WHEN_EMPTY_CLICK_PACKAGE],
             centerShortcuts = CenterShortcut.decodeList(prefs[CENTER_SHORTCUTS]),
+            centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
+            centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
         )
     }
 
@@ -320,6 +326,16 @@ class BehaviourPreferences(private val context: Context) {
         it[CENTER_SHORTCUTS] = CenterShortcut.encodeList(shortcuts)
     }
 
+    /** Whether each center shortcut shows its name beneath it. */
+    suspend fun setCenterShowLabels(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[CENTER_SHOW_LABELS] = enabled
+    }
+
+    /** Whether each center shortcut's coloured container fills its slot (pill) or stays a disc. */
+    suspend fun setCenterFillContainers(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[CENTER_FILL_CONTAINERS] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -348,5 +364,7 @@ class BehaviourPreferences(private val context: Context) {
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
         val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")
         val CENTER_SHORTCUTS = stringPreferencesKey("center_shortcuts")
+        val CENTER_SHOW_LABELS = booleanPreferencesKey("center_show_labels")
+        val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
     }
 }

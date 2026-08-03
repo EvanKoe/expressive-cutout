@@ -53,6 +53,18 @@ object CenterShortcutExecutor {
     }.isSuccess
 
     /**
+     * Publish the current torch state into [TorchStateBus] without changing it — called when the
+     * center opens so the torch shortcut renders lit/unlit correctly from the first frame.
+     */
+    fun syncTorchState(context: Context) {
+        val cameraManager = context.getSystemService<CameraManager>() ?: return
+        scope.launch {
+            val (_, isOn) = readTorchState(context, cameraManager) ?: return@launch
+            TorchStateBus.update(isOn)
+        }
+    }
+
+    /**
      * Toggle the camera flash. Rather than keep a resident [CameraManager.TorchCallback] alive
      * between taps, we register one only long enough to read the authoritative current state — the
      * camera service reports it near-immediately on registration — unregister it, then flip. A
@@ -63,7 +75,10 @@ object CenterShortcutExecutor {
         val cameraManager = context.getSystemService<CameraManager>() ?: return false
         scope.launch {
             val (cameraId, isOn) = readTorchState(context, cameraManager) ?: return@launch
-            runCatching { cameraManager.setTorchMode(cameraId, !isOn) }
+            val next = !isOn
+            if (runCatching { cameraManager.setTorchMode(cameraId, next) }.isSuccess) {
+                TorchStateBus.update(next)
+            }
         }
         return true
     }

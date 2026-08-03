@@ -82,7 +82,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
@@ -126,6 +125,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
+import com.ekoehler.expressivecutout.core.TorchStateBus
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
@@ -191,11 +191,16 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
- * Extra height the expanded "center" claims below the base expanded cutout for its titled shortcut
- * row. The controller mirrors this (see [IslandOverlayController]'s height-bonus logic) so the host
- * window and touchable region stay as tall as what's rendered.
+ * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
+ * visible island fits its measured content exactly (see the height-bonus logic in [DynamicIsland]);
+ * the controller reserves this for the host window and touchable region so they never clip the
+ * tallest (labels-on) layout — the window being a touch taller than the content is invisible.
  */
-internal const val CENTER_SHORTCUTS_EXTRA_DP = 96
+internal const val CENTER_SHORTCUTS_EXTRA_DP = 120
+
+// Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
+// content, used when fitting the island height to its measured shortcut row.
+private const val CENTER_TOP_GAP_DP = 8
 
 /**
  * Maps the configured chip placement onto the [Row] arrangement that positions the chip row.
@@ -249,6 +254,8 @@ fun DynamicIsland(
     emptyIconColor: CutoutColor? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
+    centerShowLabels: Boolean = true,
+    centerFillContainers: Boolean = false,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -374,10 +381,23 @@ fun DynamicIsland(
     // bounce. Key it on the tile kind instead so the measured height persists across the whole stream
     // and only resets when a different (non-assistant) event takes over.
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
+    // The empty pill's center fits its own content: the shortcut row measures itself so the cutout is
+    // exactly as tall as it needs to be (shorter with labels off), instead of a fixed reservation.
+    var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     val heightBonus = when {
-        emptyPill && isExpanded -> CENTER_SHORTCUTS_EXTRA_DP
+        emptyPill && isExpanded -> {
+            // Fit the cutout to the measured shortcut content (camera clearance + content), so it's
+            // exactly as tall as needed — shorter with labels off. Falls back to the reserve until
+            // the first measurement lands. dims is the expanded layout, so this resolves the island
+            // height to (collapsed clearance + gap + content) regardless of the expanded height.
+            if (centerContentHeightDp > 0) {
+                collapsed.heightDp + CENTER_TOP_GAP_DP + centerContentHeightDp - dims.heightDp
+            } else {
+                CENTER_SHORTCUTS_EXTRA_DP
+            }
+        }
         emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
@@ -643,6 +663,9 @@ fun DynamicIsland(
                             if (showExpanded) {
                                 CenterContent(
                                     shortcuts = centerShortcuts,
+                                    showLabels = centerShowLabels,
+                                    fillContainers = centerFillContainers,
+                                    onContentHeight = { centerContentHeightDp = it },
                                     onShortcut = { shortcut ->
                                         // In-place toggles (torch) keep the center open; everything
                                         // else closes it as we act, so it isn't left over the screen
@@ -974,14 +997,22 @@ private val CenterDiscDp = 52.dp
 @Composable
 private fun CenterContent(
     shortcuts: List<CenterShortcut>,
+    showLabels: Boolean,
+    fillContainers: Boolean,
+    onContentHeight: (Int) -> Unit,
     onShortcut: (CenterShortcut) -> Unit,
 ) {
+    val density = LocalDensity.current.density
+    // Only togglable shortcuts have a lit state; the torch reads live from the bus.
+    val torchOn by TorchStateBus.on.collectAsStateWithLifecycle()
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 16.dp)
+                // Report the content's natural height so the cutout can fit itself to it.
+                .onGloballyPositioned { onContentHeight((it.size.height / density).toInt()) },
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
@@ -997,14 +1028,22 @@ private fun CenterContent(
                     fontSize = 12.sp,
                 )
             } else {
+                // Every shortcut shares the width equally (flex: 1), so the row always fills the
+                // cutout with evenly-spread buttons — either a fixed disc centred in each slot, or a
+                // container that fills its slot into a pill.
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     shortcuts.forEach { shortcut ->
-                        CenterShortcutButton(shortcut = shortcut, onClick = { onShortcut(shortcut) })
+                        CenterShortcutButton(
+                            shortcut = shortcut,
+                            showLabel = showLabels,
+                            fillContainer = fillContainers,
+                            active = shortcut is CenterShortcut.Torch && torchOn,
+                            onClick = { onShortcut(shortcut) },
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -1013,27 +1052,39 @@ private fun CenterContent(
 }
 
 /**
- * A single center shortcut: a round tinted disc with the shortcut's glyph (or the real launcher icon
- * for an app), and a small label beneath. Shares the island's [pressScale] so the press feel matches
- * the action chips.
+ * A single center shortcut: its container (a fixed disc, or a slot-filling pill when [fillContainer])
+ * holding the glyph or the real launcher icon, with a small label beneath. A togglable shortcut that
+ * is [active] lights up in the theme's primary / on-primary. Shares the island's [pressScale].
  */
 @Composable
-private fun CenterShortcutButton(shortcut: CenterShortcut, onClick: () -> Unit) {
+private fun CenterShortcutButton(
+    shortcut: CenterShortcut,
+    showLabel: Boolean,
+    fillContainer: Boolean,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val interaction = remember { MutableInteractionSource() }
+    val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
+    val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
+    val shapeModifier = if (fillContainer) {
+        Modifier.fillMaxWidth().height(CenterDiscDp)
+    } else {
+        Modifier.size(CenterDiscDp)
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.widthIn(max = 72.dp),
+        modifier = modifier,
     ) {
         Surface(
             onClick = onClick,
             interactionSource = interaction,
             shape = CircleShape,
-            color = LocalContentColor.current.copy(alpha = 0.14f),
-            contentColor = LocalContentColor.current,
-            modifier = Modifier
-                .size(CenterDiscDp)
-                .pressScale(interaction),
+            color = containerColor,
+            contentColor = glyphColor,
+            modifier = shapeModifier.pressScale(interaction),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName) }
@@ -1047,18 +1098,21 @@ private fun CenterShortcutButton(shortcut: CenterShortcut, onClick: () -> Unit) 
                     Icon(
                         imageVector = CenterShortcutCatalog.iconFor(shortcut),
                         contentDescription = null,
+                        tint = glyphColor,
                         modifier = Modifier.size(CenterDiscDp * 0.46f),
                     )
                 }
             }
         }
-        Text(
-            text = centerShortcutLabel(shortcut),
-            color = LocalContentColor.current.copy(alpha = 0.85f),
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (showLabel) {
+            Text(
+                text = centerShortcutLabel(shortcut),
+                color = LocalContentColor.current.copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
