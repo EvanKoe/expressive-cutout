@@ -308,7 +308,7 @@ private fun AppCard(
  * can't be read.
  */
 @Composable
-private fun AppIcon(packageName: String) {
+internal fun AppIcon(packageName: String) {
     val context = LocalContext.current
     // Seeding from the cache means a row scrolled back into view paints its icon on the very first
     // frame — no null pass, no second composition, no package-manager round trip.
@@ -358,7 +358,7 @@ internal data class InstalledApp(
  * avoids the restricted QUERY_ALL_PACKAGES permission — the manifest's <queries> element is what
  * makes these visible on Android 11+.
  */
-private fun loadLaunchableApps(context: Context): List<InstalledApp> {
+internal fun loadLaunchableApps(context: Context): List<InstalledApp> {
     val pm = context.packageManager
     val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
     val resolved = runCatching {

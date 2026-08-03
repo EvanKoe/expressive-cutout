@@ -320,6 +320,12 @@
     <string name="shows_when_empty_show_icon">Show icon</string>
     <string name="shows_when_empty_show_icon_desc">Display an icon on the pill while it is empty</string>
     <string name="shows_when_empty_container_color">Container color</string>
+    <string name="shows_when_empty_on_click">On click</string>
+    <string name="shows_when_empty_click_none">None</string>
+    <string name="shows_when_empty_click_open_app">Open app</string>
+    <string name="shows_when_empty_click_open_center">Open center</string>
+    <string name="shows_when_empty_choose_app">Choose app</string>
+    <string name="shows_when_empty_no_app">No app selected</string>
     <string name="swipe_target_expanded">Expanded</string>
     <string name="swipe_target_both">Both</string>
     <string name="swipe_target_normal">Normal</string>

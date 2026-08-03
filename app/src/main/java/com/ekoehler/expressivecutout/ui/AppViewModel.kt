@@ -25,6 +25,7 @@ import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
+import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
@@ -502,6 +503,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowsWhenEmptyIconColor(color: CutoutColor?) = viewModelScope.launch {
         behaviourPreferences.setShowsWhenEmptyIconColor(color)
+    }
+
+    fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyClickAction(action)
+    }
+
+    fun setShowsWhenEmptyClickPackage(packageName: String?) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyClickPackage(packageName)
     }
 
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {

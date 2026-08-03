@@ -49,6 +49,7 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -436,6 +437,7 @@ class IslandOverlayController(private val context: Context) {
                         emptyIcon = behaviour.showsWhenEmptyIcon.takeIf { behaviour.showsWhenEmptyShowIcon },
                         emptyIconColor = behaviour.showsWhenEmptyIconColor,
                         actionButtonAnimation = behaviour.actionButtonAnimation,
+                        onEmptyClick = ::onEmptyClick,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
                         onAction = ::onAction,
@@ -1187,6 +1189,21 @@ class IslandOverlayController(private val context: Context) {
      * running and there'd otherwise be no way to bring the tile back. It stays until the call ends
      * or the user swipes it away.
      */
+    /**
+     * A tap on the resting (empty) pill. Its behaviour is the user's "On click" choice: [OPEN_APP]
+     * launches the chosen app; [NONE] (and, for now, the reserved [OPEN_CENTER]) do nothing beyond
+     * the press animation the pill already plays.
+     */
+    private fun onEmptyClick() {
+        val behaviour = behaviourState.value
+        if (behaviour.showsWhenEmptyClickAction != EmptyClickAction.OPEN_APP) return
+        val packageName = behaviour.showsWhenEmptyClickPackage ?: return
+        val launch = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        } ?: return
+        runCatching { context.startActivity(launch) }
+    }
+
     private fun onActivate() {
         val intent = currentEvent.value?.contentIntent
         if (isPinnedLiveTile()) {

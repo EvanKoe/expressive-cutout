@@ -53,6 +53,13 @@ enum class AnimationBounce { BIG, NORMAL, SMALL }
 enum class ActionButtonAnimation { SCALE, EXPAND }
 
 /**
+ * What tapping the resting (event-less) empty pill does. [NONE] only plays the press animation;
+ * [OPEN_APP] launches the app chosen in [BehaviourSettings.showsWhenEmptyClickPackage]; [OPEN_CENTER]
+ * is reserved for a future feature. Ordered to match the settings selector.
+ */
+enum class EmptyClickAction { NONE, OPEN_APP, OPEN_CENTER }
+
+/**
  * How the island behaves once expanded. [expandedAutoCollapse] chooses between collapsing after
  * [expandedCollapseSeconds] or staying until tapped. When that shrink happens,
  * [expandedDisappearOnShrink] decides whether the island disappears entirely (true) or returns
@@ -83,6 +90,8 @@ data class BehaviourSettings(
     val showsWhenEmptyShowIcon: Boolean = SHOWS_WHEN_EMPTY_SHOW_ICON,
     val showsWhenEmptyIcon: IconSource? = null,
     val showsWhenEmptyIconColor: CutoutColor? = null,
+    val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
+    val showsWhenEmptyClickPackage: String? = null,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -115,6 +124,7 @@ data class BehaviourSettings(
         const val MAX_COLLAPSE_SECONDS = 15
         const val SHOWS_WHEN_EMPTY = false
         const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
+        val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
     }
 }
 
@@ -172,6 +182,10 @@ class BehaviourPreferences(private val context: Context) {
             showsWhenEmptyShowIcon = prefs[SHOWS_WHEN_EMPTY_SHOW_ICON] ?: BehaviourSettings.SHOWS_WHEN_EMPTY_SHOW_ICON,
             showsWhenEmptyIcon = prefs[SHOWS_WHEN_EMPTY_ICON]?.let { IconSource.decode(it) },
             showsWhenEmptyIconColor = CutoutColor.deserialize(prefs[SHOWS_WHEN_EMPTY_ICON_COLOR]),
+            showsWhenEmptyClickAction = prefs[SHOWS_WHEN_EMPTY_CLICK_ACTION]
+                ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
+            showsWhenEmptyClickPackage = prefs[SHOWS_WHEN_EMPTY_CLICK_PACKAGE],
         )
     }
 
@@ -290,6 +304,15 @@ class BehaviourPreferences(private val context: Context) {
         else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
     }
 
+    suspend fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = context.behaviourDataStore.edit {
+        it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
+    }
+
+    suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = context.behaviourDataStore.edit {
+        if (packageName == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE)
+        else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -315,5 +338,7 @@ class BehaviourPreferences(private val context: Context) {
         val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
         val SHOWS_WHEN_EMPTY_ICON = stringPreferencesKey("shows_when_empty_icon")
         val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
+        val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
+        val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")
     }
 }

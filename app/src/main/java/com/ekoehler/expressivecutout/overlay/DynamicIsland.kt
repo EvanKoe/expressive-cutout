@@ -236,6 +236,7 @@ fun DynamicIsland(
     showsWhenEmpty: Boolean,
     emptyIcon: IconSource? = null,
     emptyIconColor: CutoutColor? = null,
+    onEmptyClick: () -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -502,7 +503,12 @@ fun DynamicIsland(
                                     }
                                 },
                                 onTap = {
-                                    if (emptyPill) return@detectTapGestures
+                                    if (emptyPill) {
+                                        // The resting pill has no expanded state; its tap runs the
+                                        // configured "On click" action (e.g. open an app).
+                                        onEmptyClick()
+                                        return@detectTapGestures
+                                    }
 
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
