@@ -63,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +92,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -111,6 +113,9 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.MediaArtBus
 import com.ekoehler.expressivecutout.core.NowPlaying
@@ -127,6 +132,7 @@ import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
@@ -228,6 +234,8 @@ fun DynamicIsland(
     swipeDismissDirection: SwipeDismissDirection,
     swipeDismissTarget: SwipeDismissTarget,
     showsWhenEmpty: Boolean,
+    emptyIcon: IconSource? = null,
+    emptyIconColor: CutoutColor? = null,
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -589,7 +597,16 @@ fun DynamicIsland(
                     progress = expandProgress,
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
-                        if (!emptyPill) {
+                        if (emptyPill) {
+                            if (emptyIcon != null) {
+                                EmptyPillContent(
+                                    icon = emptyIcon,
+                                    containerColor = emptyIconColor,
+                                    heightDp = collapsed.heightDp,
+                                    isStickToCamera = isStickToCamera,
+                                )
+                            }
+                        } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
                                     // The phone tile: one bigger normal cutout — caller on the left,
@@ -819,6 +836,74 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * 0.24f).dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The resting (event-less) pill's optional glyph, centred on the collapsed cutout. A user-chosen
+ * [containerColor] draws a filled disc with contrasting ink behind the glyph; without one, the glyph
+ * sits directly on the pill in its content colour. The glyph is a picked image or a Material icon.
+ */
+@Composable
+private fun EmptyPillContent(
+    icon: IconSource,
+    containerColor: CutoutColor?,
+    heightDp: Int,
+    isStickToCamera: Boolean = false,
+) {
+    val context = LocalContext.current
+    val badgeSize = (heightDp * 0.72f).dp
+    val iconSize = (heightDp * 0.46f).dp
+
+    val disc = containerColor?.resolve()
+    val glyphColor = when {
+        disc != null -> if (disc.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        else -> LocalContentColor.current
+    }
+
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
+        value = when (icon) {
+            is IconSource.Image -> withContext(Dispatchers.IO) {
+                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
+            }
+            is IconSource.Material -> null
+        }
+    }
+    val materialIcon = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Sit on the leading edge like the normal cutout's icon (clear of the camera), or centred at
+        // the bottom when the pill is stuck beside the camera — mirroring CollapsedContent.
+        val placement = Modifier
+            .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
+            .padding(
+                start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
+                bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+            )
+        Box(
+            modifier = placement
+                .size(badgeSize)
+                .clip(CircleShape)
+                .then(if (disc != null) Modifier.background(disc) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            val loaded = bitmap
+            when {
+                loaded != null -> androidx.compose.foundation.Image(
+                    bitmap = loaded,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
+                )
+
+                materialIcon != null -> Icon(
+                    imageVector = materialIcon,
+                    contentDescription = null,
+                    tint = glyphColor,
+                    modifier = Modifier.size(iconSize),
                 )
             }
         }

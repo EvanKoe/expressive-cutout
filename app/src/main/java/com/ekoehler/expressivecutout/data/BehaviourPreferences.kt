@@ -79,7 +79,10 @@ data class BehaviourSettings(
     val swipeToDismiss: Boolean = DEFAULT_SWIPE_TO_DISMISS,
     val swipeDismissDirection: SwipeDismissDirection = DEFAULT_SWIPE_DISMISS_DIRECTION,
     val swipeDismissTarget: SwipeDismissTarget = DEFAULT_SWIPE_DISMISS_TARGET,
-    val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY
+    val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY,
+    val showsWhenEmptyShowIcon: Boolean = SHOWS_WHEN_EMPTY_SHOW_ICON,
+    val showsWhenEmptyIcon: IconSource? = null,
+    val showsWhenEmptyIconColor: CutoutColor? = null,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -111,6 +114,7 @@ data class BehaviourSettings(
         const val MIN_COLLAPSE_SECONDS = 1
         const val MAX_COLLAPSE_SECONDS = 15
         const val SHOWS_WHEN_EMPTY = false
+        const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
     }
 }
 
@@ -165,6 +169,9 @@ class BehaviourPreferences(private val context: Context) {
                 ?.let { runCatching { SwipeDismissTarget.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_SWIPE_DISMISS_TARGET,
             showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
+            showsWhenEmptyShowIcon = prefs[SHOWS_WHEN_EMPTY_SHOW_ICON] ?: BehaviourSettings.SHOWS_WHEN_EMPTY_SHOW_ICON,
+            showsWhenEmptyIcon = prefs[SHOWS_WHEN_EMPTY_ICON]?.let { IconSource.decode(it) },
+            showsWhenEmptyIconColor = CutoutColor.deserialize(prefs[SHOWS_WHEN_EMPTY_ICON_COLOR]),
         )
     }
 
@@ -265,6 +272,24 @@ class BehaviourPreferences(private val context: Context) {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
 
+    suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOWS_WHEN_EMPTY_SHOW_ICON] = enabled
+    }
+
+    suspend fun setShowsWhenEmptyIcon(icon: IconSource) = context.behaviourDataStore.edit {
+        it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
+    }
+
+    /** Drop the chosen icon so the empty pill shows no glyph. */
+    suspend fun clearShowsWhenEmptyIcon() = context.behaviourDataStore.edit {
+        it.remove(SHOWS_WHEN_EMPTY_ICON)
+    }
+
+    suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
+        if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
+        else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -287,5 +312,8 @@ class BehaviourPreferences(private val context: Context) {
         val SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SWIPE_DISMISS_TARGET = stringPreferencesKey("swipe_dismiss_target")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
+        val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
+        val SHOWS_WHEN_EMPTY_ICON = stringPreferencesKey("shows_when_empty_icon")
+        val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
     }
 }

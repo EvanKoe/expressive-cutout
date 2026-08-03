@@ -484,6 +484,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowsWhenEmpty(enabled)
     }
 
+    fun setShowsWhenEmptyShowIcon(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
+    }
+
+    fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Image(uri))
+    }
+
+    fun setShowsWhenEmptyMaterialIcon(iconName: String) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Material(iconName))
+    }
+
+    fun resetShowsWhenEmptyIcon() = viewModelScope.launch {
+        behaviourPreferences.clearShowsWhenEmptyIcon()
+    }
+
+    fun setShowsWhenEmptyIconColor(color: CutoutColor?) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIconColor(color)
+    }
+
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissDirection(direction)
     }

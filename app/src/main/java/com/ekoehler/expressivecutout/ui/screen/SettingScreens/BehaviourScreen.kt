@@ -54,6 +54,7 @@ private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape
 internal fun BehaviourScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
@@ -194,12 +195,13 @@ internal fun BehaviourScreen(
                 )
             }
         }
-        SettingsToggleCard(
+        SettingsToggleNavCard(
             shape = groupedShape(isFirst = false, isLast = true),
             title = stringResource(R.string.behaviour_empty_pill),
             description = stringResource(R.string.behaviour_empty_pill_desc),
             checked = behaviour.showsWhenEmpty,
-            onCheckedChange = viewModel::setShowsWhenEmpty
+            onCheckedChange = viewModel::setShowsWhenEmpty,
+            onClick = onOpenShowsWhenEmpty,
         )
     }
 }

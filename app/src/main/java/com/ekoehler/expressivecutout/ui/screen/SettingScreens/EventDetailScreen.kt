@@ -322,7 +322,7 @@ internal fun EventDetailScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IconChooserSheet(
+internal fun IconChooserSheet(
     hasOverride: Boolean,
     onChooseImage: () -> Unit,
     onChooseMaterial: () -> Unit,
