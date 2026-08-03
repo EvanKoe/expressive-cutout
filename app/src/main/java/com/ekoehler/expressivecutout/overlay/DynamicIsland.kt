@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.overlay
 
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.os.Build
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -256,6 +258,7 @@ fun DynamicIsland(
     centerShortcuts: List<CenterShortcut> = emptyList(),
     centerShowLabels: Boolean = true,
     centerFillContainers: Boolean = false,
+    centerThemedIcons: Boolean = false,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -677,6 +680,7 @@ fun DynamicIsland(
                                     shortcuts = centerShortcuts,
                                     showLabels = centerShowLabels,
                                     fillContainers = centerFillContainers,
+                                    themedIcons = centerThemedIcons,
                                     onContentHeight = { centerContentHeightDp = it },
                                     onShortcut = { shortcut ->
                                         // Any press counts as activity, restarting the auto-collapse
@@ -1014,6 +1018,7 @@ private fun CenterContent(
     shortcuts: List<CenterShortcut>,
     showLabels: Boolean,
     fillContainers: Boolean,
+    themedIcons: Boolean,
     onContentHeight: (Int) -> Unit,
     onShortcut: (CenterShortcut) -> Unit,
 ) {
@@ -1073,6 +1078,7 @@ private fun CenterContent(
                             shortcut = shortcut,
                             showLabel = showLabels,
                             fillContainer = fillContainers,
+                            themedIcon = themedIcons,
                             active = shortcut is CenterShortcut.Torch && torchOn,
                             onClick = { onShortcut(shortcut) },
                             interaction = interactions[i],
@@ -1098,6 +1104,7 @@ private fun CenterShortcutButton(
     shortcut: CenterShortcut,
     showLabel: Boolean,
     fillContainer: Boolean,
+    themedIcon: Boolean,
     active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1125,15 +1132,24 @@ private fun CenterShortcutButton(
             modifier = shapeModifier.then(if (animatePress) Modifier.pressScale(interaction) else Modifier),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName) }
-                if (appIcon != null) {
-                    androidx.compose.foundation.Image(
-                        bitmap = appIcon,
+                val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName, themedIcon) }
+                when {
+                    // A themed (monochrome) app icon: tint its glyph to match the built-in shortcuts.
+                    // Its safe-zone padding means it reads well filling the whole button.
+                    appIcon?.themed == true -> Icon(
+                        bitmap = appIcon.bitmap,
+                        contentDescription = null,
+                        tint = glyphColor,
+                        modifier = Modifier.size(CenterDiscDp),
+                    )
+
+                    appIcon != null -> androidx.compose.foundation.Image(
+                        bitmap = appIcon.bitmap,
                         contentDescription = null,
                         modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
                     )
-                } else {
-                    Icon(
+
+                    else -> Icon(
                         imageVector = CenterShortcutCatalog.iconFor(shortcut),
                         contentDescription = null,
                         tint = glyphColor,
@@ -1171,14 +1187,31 @@ private fun centerShortcutLabel(shortcut: CenterShortcut): String {
     return label
 }
 
-/** Loads an app's launcher icon off the main thread, or null if the package is gone. */
+/** An app's loaded icon, and whether it's the themed (monochrome, tint-me) glyph vs the full-colour icon. */
+private class LoadedAppIcon(val bitmap: ImageBitmap, val themed: Boolean)
+
+/**
+ * Loads an app's launcher icon off the main thread, or null if the package is gone. When [themed] is
+ * on and the app ships an adaptive icon with a monochrome layer (API 33+), that layer is returned to
+ * be tinted like the built-in shortcut glyphs; otherwise the full-colour icon is used.
+ */
 @Composable
-private fun rememberAppIcon(packageName: String): ImageBitmap? {
+private fun rememberAppIcon(packageName: String, themed: Boolean): LoadedAppIcon? {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(initialValue = null, packageName) {
+    val icon by produceState<LoadedAppIcon?>(initialValue = null, packageName, themed) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                context.packageManager.getApplicationIcon(packageName).toBitmap().asImageBitmap()
+                val drawable = context.packageManager.getApplicationIcon(packageName)
+                val monochrome = if (themed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    (drawable as? AdaptiveIconDrawable)?.monochrome
+                } else {
+                    null
+                }
+                if (monochrome != null) {
+                    LoadedAppIcon(monochrome.toBitmap().asImageBitmap(), themed = true)
+                } else {
+                    LoadedAppIcon(drawable.toBitmap().asImageBitmap(), themed = false)
+                }
             }.getOrNull()
         }
     }

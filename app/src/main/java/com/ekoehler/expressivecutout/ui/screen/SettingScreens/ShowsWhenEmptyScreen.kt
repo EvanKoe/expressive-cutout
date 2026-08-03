@@ -221,6 +221,16 @@ internal fun ShowsWhenEmptyScreen(
                     checked = behaviour.centerFillContainers,
                     onCheckedChange = viewModel::setCenterFillContainers,
                 )
+                // Only meaningful when the row includes an app — themed icons apply to app shortcuts.
+                if (behaviour.centerShortcuts.any { it is CenterShortcut.LaunchApp }) {
+                    SettingsToggleCard(
+                        shape = RoundedCornerShape(32.dp),
+                        title = stringResource(R.string.shows_when_empty_center_themed),
+                        description = stringResource(R.string.shows_when_empty_center_themed_desc),
+                        checked = behaviour.centerThemedIcons,
+                        onCheckedChange = viewModel::setCenterThemedIcons,
+                    )
+                }
                 CenterShortcutsCard(
                     shortcuts = behaviour.centerShortcuts,
                     onAdd = { showAddShortcut = true },

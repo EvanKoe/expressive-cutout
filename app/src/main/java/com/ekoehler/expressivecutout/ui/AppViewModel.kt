@@ -526,6 +526,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCenterFillContainers(enabled)
     }
 
+    fun setCenterThemedIcons(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterThemedIcons(enabled)
+    }
+
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissDirection(direction)
     }

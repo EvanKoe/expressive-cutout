@@ -95,6 +95,7 @@ data class BehaviourSettings(
     val centerShortcuts: List<CenterShortcut> = CenterShortcut.DEFAULTS,
     val centerShowLabels: Boolean = CENTER_SHOW_LABELS,
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
+    val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -130,6 +131,7 @@ data class BehaviourSettings(
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
         const val CENTER_SHOW_LABELS = true
         const val CENTER_FILL_CONTAINERS = false
+        const val CENTER_THEMED_ICONS = false
     }
 }
 
@@ -194,6 +196,7 @@ class BehaviourPreferences(private val context: Context) {
             centerShortcuts = CenterShortcut.decodeList(prefs[CENTER_SHORTCUTS]),
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
+            centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
         )
     }
 
@@ -336,6 +339,11 @@ class BehaviourPreferences(private val context: Context) {
         it[CENTER_FILL_CONTAINERS] = enabled
     }
 
+    /** Whether app shortcuts in the center use their themed (monochrome) icon. */
+    suspend fun setCenterThemedIcons(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[CENTER_THEMED_ICONS] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -366,5 +374,6 @@ class BehaviourPreferences(private val context: Context) {
         val CENTER_SHORTCUTS = stringPreferencesKey("center_shortcuts")
         val CENTER_SHOW_LABELS = booleanPreferencesKey("center_show_labels")
         val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
+        val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
     }
 }

@@ -334,6 +334,8 @@
     <string name="shows_when_empty_center_labels_desc">Show a name under each shortcut in the center</string>
     <string name="shows_when_empty_center_fill">Fill containers</string>
     <string name="shows_when_empty_center_fill_desc">Stretch each shortcut\'s coloured background into a pill</string>
+    <string name="shows_when_empty_center_themed">Use themed icons</string>
+    <string name="shows_when_empty_center_themed_desc">Show app shortcuts as monochrome themed icons</string>
     <string name="center_add_shortcut">Add shortcut</string>
     <string name="center_add_choose_app">Choose app…</string>
     <string name="center_move_up">Move up</string>
