@@ -223,6 +223,7 @@ fun DynamicIsland(
     swipeToDismiss: Boolean,
     swipeDismissDirection: SwipeDismissDirection,
     swipeDismissTarget: SwipeDismissTarget,
+    showsWhenEmpty: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -234,7 +235,9 @@ fun DynamicIsland(
     if (event != null) {
         lastEvent = event
     }
+
     val shownEvent = lastEvent
+    val emptyPill = event == null && showsWhenEmpty
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
     var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
@@ -249,7 +252,7 @@ fun DynamicIsland(
     val isCall = shownEvent?.call != null
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
     val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
-    val isExpanded = if (isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
+    val isExpanded = if (emptyPill || isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
@@ -312,13 +315,16 @@ fun DynamicIsland(
             CALL_MIN_WIDTH_PERCENT
         }
     }
+
+    // The two-row incoming layout starts from the expanded cutout and grows by its button row.
     val dims = when {
-        // The two-row incoming layout starts from the expanded cutout and grows by its button row.
+        emptyPill -> collapsed
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
+
     // The assistant streams its answer as a rapid series of fresh events, each with a new id (the
     // resolver stamps one per emission). Keying this on the id would reset it to 0 on every token, so
     // the fit-to-content height would keep collapsing to its 110dp floor and springing back — the
@@ -326,7 +332,9 @@ fun DynamicIsland(
     // and only resets when a different (non-assistant) event takes over.
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
+
     val heightBonus = when {
+        emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
             val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
@@ -335,16 +343,16 @@ fun DynamicIsland(
         }
         isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
             expandedActionsExtraDp(appearance.actionButtonHeightDp)
-        // The incoming two-row layout grows past the expanded height so its Take / Hang up row has its
-        // own space below a caller row that clears the camera hole (calls never enter the expanded state).
         callTwoRow -> callIncomingExtraDp()
         else -> 0
     }
+
     // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
     // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
     // runs 0 (dot) → 1 (full pill); it eases in on show and back out on hide.
-    val present = event != null
+    val present = event != null || showsWhenEmpty
     val reveal = remember { Animatable(0f) }
+
     LaunchedEffect(present) {
         reveal.animateTo(
             targetValue = if (present) 1f else 0f,
@@ -428,7 +436,11 @@ fun DynamicIsland(
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
-                        .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
+                        // Keyed on [emptyPill] too: when a collapsed cutout is dismissed none of the
+                        // other keys change (shownEvent stays put for the exit), so without it this
+                        // block would keep the stale `emptyPill = false` and a tap on the resting pill
+                        // would fire the departed notification's content intent.
+                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, shownEvent?.id) {
                             if (forcedExpanded == true) return@pointerInput
                             detectTapGestures(
                                 onPress = {
@@ -446,14 +458,18 @@ fun DynamicIsland(
                                     }
                                 },
                                 onTap = {
+                                    if (emptyPill) return@detectTapGestures
+
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
+
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
                                         if (shownEvent?.contentIntent != null) onActivate()
                                         return@detectTapGestures
                                     }
+
                                     // Once expanded — or while the island is pinned to the normal cutout
                                     // in landscape (forcedExpanded == false) — tapping a notification opens
                                     // its app; anything else just toggles expand/collapse.
@@ -471,8 +487,10 @@ fun DynamicIsland(
                             )
                         }
                         // Swipe up on the expanded island to shrink it back to the normal cutout.
-                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, shownEvent?.id) {
-                            if (forcedExpanded != null || !shrinkOnSwipeUp) return@pointerInput
+                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, emptyPill, shownEvent?.id) {
+                            // The resting empty cutout has no expanded state to shrink back from, so
+                            // don't install the detector at all — it would only swallow vertical drags.
+                            if (forcedExpanded != null || !shrinkOnSwipeUp || emptyPill) return@pointerInput
                             val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
                             var dragTotal = 0f
                             detectVerticalDragGestures(
@@ -489,13 +507,15 @@ fun DynamicIsland(
                         }
                         // Swipe sideways to dismiss the cutout (and, for a notification, clear it from
                         // the system). Only the direction(s) and cutout state(s) the user allows let go.
-                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, shownEvent?.id) {
+                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, emptyPill, shownEvent?.id) {
                             val targetAllows = when (swipeDismissTarget) {
                                 SwipeDismissTarget.BOTH -> true
                                 SwipeDismissTarget.EXPANDED -> isExpanded
                                 SwipeDismissTarget.NORMAL -> !isExpanded
                             }
-                            if (forcedExpanded != null || !swipeToDismiss || replying || !targetAllows) return@pointerInput
+                            // The resting empty cutout is meant to stay: a swipe must neither slide it
+                            // away nor clear the departed notification it still remembers.
+                            if (forcedExpanded != null || !swipeToDismiss || replying || emptyPill || !targetAllows) return@pointerInput
                             val allowLeft = swipeDismissDirection != SwipeDismissDirection.RIGHT
                             val allowRight = swipeDismissDirection != SwipeDismissDirection.LEFT
                             val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
@@ -533,40 +553,42 @@ fun DynamicIsland(
                     progress = expandProgress,
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
-                        shownEvent?.let { e ->
-                            if (e.call != null) {
-                                // The phone tile: one bigger normal cutout — caller on the left,
-                                // hang-up on the right — with no separate expanded layout.
-                                CallNormalContent(event = e, onAction = onAction)
-                            } else if (showExpanded) {
-                                ExpandedContent(
-                                    event = e,
-                                    showActions = showActions,
-                                    appearance = appearance,
-                                    replyingTo = replyingTo,
-                                    replySent = confirmingSent,
-                                    onAction = onAction,
-                                    onStartReply = { replyingTo = it },
-                                    onCancelReply = { replyingTo = null },
-                                    onSendReply = { text ->
-                                        // Swap the field for the "Sent" confirmation, then dispatch
-                                        // the reply once it has been seen. Launched from the (un-keyed)
-                                        // composition scope so a notification arriving mid-hold can't
-                                        // cancel the send.
-                                        replyingTo?.let { action ->
-                                            sentReply = action to text
-                                            scope.launch {
-                                                delay(REPLY_SENT_FEEDBACK_MS)
-                                                onReply(action, text)
+                        if (!emptyPill) {
+                            shownEvent?.let { e ->
+                                if (e.call != null) {
+                                    // The phone tile: one bigger normal cutout — caller on the left,
+                                    // hang-up on the right — with no separate expanded layout.
+                                    CallNormalContent(event = e, onAction = onAction)
+                                } else if (showExpanded) {
+                                    ExpandedContent(
+                                        event = e,
+                                        showActions = showActions,
+                                        appearance = appearance,
+                                        replyingTo = replyingTo,
+                                        replySent = confirmingSent,
+                                        onAction = onAction,
+                                        onStartReply = { replyingTo = it },
+                                        onCancelReply = { replyingTo = null },
+                                        onSendReply = { text ->
+                                            // Swap the field for the "Sent" confirmation, then dispatch
+                                            // the reply once it has been seen. Launched from the (un-keyed)
+                                            // composition scope so a notification arriving mid-hold can't
+                                            // cancel the send.
+                                            replyingTo?.let { action ->
+                                                sentReply = action to text
+                                                scope.launch {
+                                                    delay(REPLY_SENT_FEEDBACK_MS)
+                                                    onReply(action, text)
+                                                }
                                             }
-                                        }
-                                        replyingTo = null
-                                    },
-                                    onDismiss = onDismiss,
-                                    onHeightMeasured = { assistantContentHeightDp = it },
-                                )
-                            } else {
-                                CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                                            replyingTo = null
+                                        },
+                                        onDismiss = onDismiss,
+                                        onHeightMeasured = { assistantContentHeightDp = it },
+                                    )
+                                } else {
+                                    CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                                }
                             }
                         }
                     }

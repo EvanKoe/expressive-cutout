@@ -475,6 +475,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setSwipeToDismiss(enabled)
     }
 
+    fun setShowsWhenEmpty(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmpty(enabled)
+    }
+
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissDirection(direction)
     }

@@ -431,6 +431,7 @@ class IslandOverlayController(private val context: Context) {
                         swipeToDismiss = behaviour.swipeToDismiss,
                         swipeDismissDirection = behaviour.swipeDismissDirection,
                         swipeDismissTarget = behaviour.swipeDismissTarget,
+                        showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
                         onAction = ::onAction,
@@ -722,9 +723,16 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    /** Only intercept touches while the island is actually on screen. */
+    /**
+     * Only intercept touches while the island is actually on screen — plus while the resting empty
+     * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
+     * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
+     * unaffected; the pill's own footprint does stop passing touches through.
+     */
     private fun observeVisibility() = scope.launch {
-        currentEvent.collect { setTouchable(it != null) }
+        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
+            setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+        }
     }
 
     /**

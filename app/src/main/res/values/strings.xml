@@ -312,6 +312,8 @@
     <string name="swipe_dir_right">Right</string>
     <string name="swipe_dir_both">Both</string>
     <string name="behaviour_swipe_target">Dismiss from</string>
+    <string name="behaviour_empty_pill">Cutout stays on screen when empty</string>
+    <string name="behaviour_empty_pill_desc">When no notification is displayed, the cutout stays on the screen</string>
     <string name="swipe_target_expanded">Expanded</string>
     <string name="swipe_target_both">Both</string>
     <string name="swipe_target_normal">Normal</string>

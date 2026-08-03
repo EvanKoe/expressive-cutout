@@ -71,6 +71,7 @@ data class BehaviourSettings(
     val swipeToDismiss: Boolean = DEFAULT_SWIPE_TO_DISMISS,
     val swipeDismissDirection: SwipeDismissDirection = DEFAULT_SWIPE_DISMISS_DIRECTION,
     val swipeDismissTarget: SwipeDismissTarget = DEFAULT_SWIPE_DISMISS_TARGET,
+    val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -100,6 +101,7 @@ data class BehaviourSettings(
         const val MAX_NORMAL_SECONDS = 10
         const val MIN_COLLAPSE_SECONDS = 1
         const val MAX_COLLAPSE_SECONDS = 15
+        const val SHOWS_WHEN_EMPTY = false
     }
 }
 
@@ -150,6 +152,7 @@ class BehaviourPreferences(private val context: Context) {
             swipeDismissTarget = prefs[SWIPE_DISMISS_TARGET]
                 ?.let { runCatching { SwipeDismissTarget.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_SWIPE_DISMISS_TARGET,
+            showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
         )
     }
 
@@ -242,6 +245,10 @@ class BehaviourPreferences(private val context: Context) {
         it[SWIPE_DISMISS_TARGET] = target.name
     }
 
+    suspend fun setShowsWhenEmpty(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOWS_WHEN_EMPTY] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -262,5 +269,6 @@ class BehaviourPreferences(private val context: Context) {
         val SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
         val SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SWIPE_DISMISS_TARGET = stringPreferencesKey("swipe_dismiss_target")
+        val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
     }
 }
