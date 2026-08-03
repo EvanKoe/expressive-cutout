@@ -7,6 +7,7 @@ import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -433,6 +434,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAnimationBounce(bounce: AnimationBounce) = viewModelScope.launch {
         behaviourPreferences.setAnimationBounce(bounce)
+    }
+
+    fun setActionButtonAnimation(animation: ActionButtonAnimation) = viewModelScope.launch {
+        behaviourPreferences.setActionButtonAnimation(animation)
     }
 
     fun setAnimationDurationMs(ms: Int) = viewModelScope.launch {

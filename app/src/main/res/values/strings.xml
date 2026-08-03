@@ -279,6 +279,9 @@
     <string name="animation_bounce_big">Big</string>
     <string name="animation_bounce_normal">Normal</string>
     <string name="animation_bounce_small">Small</string>
+    <string name="animation_button">Button animation</string>
+    <string name="animation_button_scale">Scale</string>
+    <string name="animation_button_expand">Expand</string>
     <string name="behaviour_hide_lockscreen">Hide on lockscreen</string>
     <string name="behaviour_hide_lockscreen_desc">Don\'t show the cutout while the device is locked. The overlay is fully removed until you unlock, so it uses no resources.</string>
     <string name="behaviour_hide_landscape">Hide in landscape</string>

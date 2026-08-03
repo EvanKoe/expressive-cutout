@@ -61,7 +61,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,6 +119,7 @@ import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
+import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.AnimationBounce
@@ -214,6 +217,7 @@ fun DynamicIsland(
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
     animationBounce: AnimationBounce,
+    actionButtonAnimation: ActionButtonAnimation,
     animationDurationMs: Int,
     autoCollapse: Boolean,
     autoCollapseMs: Long,
@@ -254,6 +258,11 @@ fun DynamicIsland(
     val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
     val isExpanded = if (emptyPill || isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
     val boopScale = remember { Animatable(1f) }
+    // The cutout body's tap feedback follows the same setting as its buttons: [ActionButtonAnimation.SCALE]
+    // squishes the whole pill via [boopScale], [ActionButtonAnimation.EXPAND] widens it instead — this runs
+    // 0 (resting) → 1 (pressed) and only ever leaves 0 for that flavour, so the two never fight.
+    val pressExpand = remember { Animatable(0f) }
+    val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -419,6 +428,7 @@ fun DynamicIsland(
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
 
+    CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
     Box(modifier = Modifier.fillMaxSize()) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
@@ -438,7 +448,13 @@ fun DynamicIsland(
                         .width(revealWidth)
                         .height(revealHeight)
                         .graphicsLayer {
-                            scaleX = boopScale.value
+                            // Widen by PressExpandDp on each side while pressed (EXPAND), expressed as a
+                            // scale relative to the pill's own measured width so the window never resizes.
+                            // Only one of the two is ever off its resting value, so combining them is safe
+                            // and leaves the expanded pop (which drives boopScale past 1) untouched.
+                            val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
+                            val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
+                            scaleX = boopScale.value * widen
                             scaleY = boopScale.value
                             // Follow the finger during a dismiss swipe, fading as it slides away.
                             translationX = dismissOffsetX.value
@@ -452,20 +468,28 @@ fun DynamicIsland(
                         // other keys change (shownEvent stays put for the exit), so without it this
                         // block would keep the stale `emptyPill = false` and a tap on the resting pill
                         // would fire the departed notification's content intent.
-                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, shownEvent?.id) {
+                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
                             if (forcedExpanded == true) return@pointerInput
                             detectTapGestures(
                                 onPress = {
                                     if (replying) return@detectTapGestures
                                     if (!isExpanded) {
                                         scope.launch {
-                                            boopScale.animateTo(0.96f, motion.boop())
+                                            if (pressWidens) {
+                                                pressExpand.animateTo(1f, motion.boop())
+                                            } else {
+                                                boopScale.animateTo(0.96f, motion.boop())
+                                            }
                                         }
                                     }
                                     tryAwaitRelease()
                                     if (!isExpanded) {
                                         scope.launch {
-                                            boopScale.animateTo(1f, motion.boop())
+                                            if (pressWidens) {
+                                                pressExpand.animateTo(0f, motion.boop())
+                                            } else {
+                                                boopScale.animateTo(1f, motion.boop())
+                                            }
                                         }
                                     }
                                 },
@@ -607,6 +631,7 @@ fun DynamicIsland(
                 }
             }
         }
+    }
     }
 }
 
@@ -1008,24 +1033,49 @@ private fun ActionChip(
 }
 
 /**
- * The expressive "squish" on press: a springy scale-down that settles back with a little
- * bounce when released. Shared by the action chips and the reply buttons so every tap on the
- * island feels the same.
+ * The button press reaction, chosen in settings and provided by [DynamicIsland] so every
+ * [pressScale] call site (action chips, reply buttons, call buttons) picks it up without threading
+ * the setting through each one. Defaults to [ActionButtonAnimation.SCALE].
+ */
+private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
+
+// How far the EXPAND press animation widens a button, on each side.
+private val PressExpandDp = 6.dp
+
+/**
+ * The press reaction shared by the action chips and the reply buttons, so every tap on the island
+ * feels the same. Two flavours, selected via [LocalActionButtonAnimation]:
+ * [ActionButtonAnimation.SCALE] is the expressive "squish" — a springy scale-down that settles back
+ * with a little bounce on release; [ActionButtonAnimation.EXPAND] instead briefly widens the button
+ * by [PressExpandDp] on each side. Both animate on the same spring and via [graphicsLayer], so the
+ * surrounding layout never reflows.
  */
 @Composable
 private fun Modifier.pressScale(
     interaction: MutableInteractionSource,
     pressedScale: Float = 0.88f,
 ): Modifier {
+    val animation = LocalActionButtonAnimation.current
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
+    val progress by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
         label = "pressScale",
     )
     return this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        when (animation) {
+            ActionButtonAnimation.SCALE -> {
+                val scale = 1f + (pressedScale - 1f) * progress
+                scaleX = scale
+                scaleY = scale
+            }
+            ActionButtonAnimation.EXPAND -> {
+                // Grow the width by PressExpandDp on each side, expressed as a scale relative to the
+                // button's own measured width so layout stays put.
+                val extraPx = PressExpandDp.toPx() * 2f * progress
+                if (size.width > 0f) scaleX = (size.width + extraPx) / size.width
+            }
+        }
     }
 }
 

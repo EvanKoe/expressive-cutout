@@ -46,6 +46,13 @@ enum class AnimationSpeed { SLOW, DEFAULT, FAST }
 enum class AnimationBounce { BIG, NORMAL, SMALL }
 
 /**
+ * How the action buttons (and reply buttons) react to a press. [SCALE] springs down and back like
+ * a squish; [EXPAND] briefly widens the button by a few dp instead. Ordered to match the settings
+ * selector so the ordinal doubles as the segment index.
+ */
+enum class ActionButtonAnimation { SCALE, EXPAND }
+
+/**
  * How the island behaves once expanded. [expandedAutoCollapse] chooses between collapsing after
  * [expandedCollapseSeconds] or staying until tapped. When that shrink happens,
  * [expandedDisappearOnShrink] decides whether the island disappears entirely (true) or returns
@@ -59,6 +66,7 @@ data class BehaviourSettings(
     val animationStyle: AnimationStyle = DEFAULT_ANIMATION_STYLE,
     val animationSpeed: AnimationSpeed = DEFAULT_ANIMATION_SPEED,
     val animationBounce: AnimationBounce = DEFAULT_ANIMATION_BOUNCE,
+    val actionButtonAnimation: ActionButtonAnimation = DEFAULT_ACTION_BUTTON_ANIMATION,
     val animationDurationMs: Int = DEFAULT_ANIMATION_DURATION_MS,
     val normalDurationSeconds: Int = DEFAULT_NORMAL_SECONDS,
     val expandedAutoCollapse: Boolean = DEFAULT_AUTO_COLLAPSE,
@@ -84,6 +92,7 @@ data class BehaviourSettings(
         val DEFAULT_ANIMATION_STYLE = AnimationStyle.EXPRESSIVE
         val DEFAULT_ANIMATION_SPEED = AnimationSpeed.DEFAULT
         val DEFAULT_ANIMATION_BOUNCE = AnimationBounce.NORMAL
+        val DEFAULT_ACTION_BUTTON_ANIMATION = ActionButtonAnimation.SCALE
         const val DEFAULT_NORMAL_SECONDS = 3
         const val DEFAULT_AUTO_COLLAPSE = true
         const val DEFAULT_COLLAPSE_SECONDS = 5
@@ -133,6 +142,9 @@ class BehaviourPreferences(private val context: Context) {
             animationBounce = prefs[ANIMATION_BOUNCE]
                 ?.let { runCatching { AnimationBounce.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_ANIMATION_BOUNCE,
+            actionButtonAnimation = prefs[ACTION_BUTTON_ANIMATION]
+                ?.let { runCatching { ActionButtonAnimation.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_ACTION_BUTTON_ANIMATION,
             animationDurationMs = (prefs[ANIMATION_DURATION_MS] ?: BehaviourSettings.DEFAULT_ANIMATION_DURATION_MS)
                 .coerceIn(BehaviourSettings.MIN_ANIMATION_DURATION_MS, BehaviourSettings.MAX_ANIMATION_DURATION_MS),
             normalDurationSeconds = (prefs[NORMAL_SECONDS] ?: BehaviourSettings.DEFAULT_NORMAL_SECONDS)
@@ -186,6 +198,10 @@ class BehaviourPreferences(private val context: Context) {
 
     suspend fun setAnimationBounce(bounce: AnimationBounce) = context.behaviourDataStore.edit {
         it[ANIMATION_BOUNCE] = bounce.name
+    }
+
+    suspend fun setActionButtonAnimation(animation: ActionButtonAnimation) = context.behaviourDataStore.edit {
+        it[ACTION_BUTTON_ANIMATION] = animation.name
     }
 
     suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
@@ -257,6 +273,7 @@ class BehaviourPreferences(private val context: Context) {
         val ANIMATION_STYLE = stringPreferencesKey("animation_style")
         val ANIMATION_SPEED = stringPreferencesKey("animation_speed")
         val ANIMATION_BOUNCE = stringPreferencesKey("animation_bounce")
+        val ACTION_BUTTON_ANIMATION = stringPreferencesKey("action_button_animation")
         val ANIMATION_DURATION_MS = intPreferencesKey("animation_duration_ms")
         val NORMAL_SECONDS = intPreferencesKey("normal_duration_seconds")
         val AUTO_COLLAPSE = booleanPreferencesKey("expanded_auto_collapse")

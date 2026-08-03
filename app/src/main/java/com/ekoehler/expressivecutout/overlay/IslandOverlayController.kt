@@ -432,6 +432,7 @@ class IslandOverlayController(private val context: Context) {
                         swipeDismissDirection = behaviour.swipeDismissDirection,
                         swipeDismissTarget = behaviour.swipeDismissTarget,
                         showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
+                        actionButtonAnimation = behaviour.actionButtonAnimation,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
                         onAction = ::onAction,
