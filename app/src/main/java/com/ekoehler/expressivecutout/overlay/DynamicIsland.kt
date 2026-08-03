@@ -429,10 +429,15 @@ fun DynamicIsland(
     // reduced opacity. Finish the exit instead: hide it, recentre, and grow back from the dot as usual.
     // `present` is true either side of this hand-off, so the reveal above never competes for `reveal`.
     LaunchedEffect(emptyPill) {
-        if (emptyPill && dismissOffsetX.value != 0f) {
-            reveal.snapTo(0f)
-            dismissOffsetX.snapTo(0f)
-            reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
+        if (emptyPill) {
+            // A fresh resting pill always starts with its center closed — never inherit a prior
+            // notification's expanded state (after opening its app, swiping it away, etc.).
+            tapExpanded = false
+            if (dismissOffsetX.value != 0f) {
+                reveal.snapTo(0f)
+                dismissOffsetX.snapTo(0f)
+                reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
+            }
         }
     }
     // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
@@ -580,6 +585,10 @@ fun DynamicIsland(
                                     // in landscape (forcedExpanded == false) — tapping a notification opens
                                     // its app; anything else just toggles expand/collapse.
                                     if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
+                                        // Opening the app dismisses the event; collapse now so the
+                                        // resting empty pill doesn't inherit this expanded state and
+                                        // pop straight into the shortcut center — it shrinks instead.
+                                        tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
                                         tapExpanded = !tapExpanded
