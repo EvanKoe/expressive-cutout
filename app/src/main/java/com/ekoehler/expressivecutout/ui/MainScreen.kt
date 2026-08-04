@@ -4,10 +4,13 @@ import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -59,6 +62,7 @@ import com.ekoehler.expressivecutout.ui.screen.ProfileTab
 import com.ekoehler.expressivecutout.ui.screen.SettingsRoute
 import com.ekoehler.expressivecutout.ui.screen.SettingsTab
 import com.ekoehler.expressivecutout.ui.screen.parent
+import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 
 private enum class HomeTab(
@@ -153,11 +157,10 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 }
             }
             Box(modifier = Modifier.fillMaxSize().then(contentTransform)) {
-                // Fade-through between the three top-level tabs.
                 AnimatedContent(
                     targetState = current,
                     transitionSpec = {
-                        fadeIn(tween(220, delayMillis = 90)) togetherWith fadeOut(tween(90))
+                        slideInHorizontally(tween(220, delayMillis = 90)) togetherWith slideOutHorizontally(tween(90))
                     },
                     label = "homeTab",
                 ) { tab ->

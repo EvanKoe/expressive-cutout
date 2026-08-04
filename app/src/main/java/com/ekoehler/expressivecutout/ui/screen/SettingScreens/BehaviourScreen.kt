@@ -32,6 +32,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
@@ -63,6 +66,8 @@ internal fun BehaviourScreen(
     var seconds by remember(behaviour.expandedCollapseSeconds) {
         mutableStateOf(behaviour.expandedCollapseSeconds.toFloat())
     }
+
+    val haptics = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -208,7 +213,10 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_empty_pill_desc),
             checked = behaviour.showsWhenEmpty,
             onCheckedChange = viewModel::setShowsWhenEmpty,
-            onClick = onOpenShowsWhenEmpty,
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenShowsWhenEmpty()
+            }
         )
     }
 }

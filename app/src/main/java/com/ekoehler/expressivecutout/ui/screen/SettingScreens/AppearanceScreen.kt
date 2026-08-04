@@ -64,14 +64,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -107,6 +110,7 @@ internal fun AppearanceScreen(
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val systemInDark = isSystemInDarkTheme()
@@ -134,40 +138,6 @@ internal fun AppearanceScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.appearance_preview),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalIconButton(onClick = { previewDark = !previewDark }) {
-                Icon(
-                    imageVector = if (previewDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                    contentDescription = stringResource(R.string.cd_toggle_preview_theme),
-                )
-            }
-        }
-
-        IslandPreviewPanel(
-            background = if (previewDark) Color(0xFF0B0B0C) else Color(0xFFEDEFF3),
-            cutout = cutout,
-            widthPercent = expanded.widthPercent,
-            heightDp = expanded.heightDp,
-            cornerTopLeftDp = expanded.cornerTopLeftDp,
-            cornerTopRightDp = expanded.cornerTopRightDp,
-            cornerBottomLeftDp = expanded.cornerBottomLeftDp,
-            cornerBottomRightDp = expanded.cornerBottomRightDp,
-            offsetXDp = expanded.offsetXDp,
-            offsetYDp = expanded.offsetYDp,
-            expanded = true,
-            event = previewEvent,
-            appearance = appearance,
-        )
-
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.appearance_shadow_title),
@@ -212,11 +182,17 @@ internal fun AppearanceScreen(
 
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
-        BackgroundCard(onClick = onOpenBackground)
+        BackgroundCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenBackground()
+        })
 
         // Opens the dedicated screen for the expanded cutout's action chips and reply field
         // (including the send/cancel reply-button colours).
-        ActionButtonsCard(onClick = onOpenActionButtons)
+        ActionButtonsCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenActionButtons()
+        })
     }
 }
 

@@ -45,9 +45,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -207,6 +210,7 @@ private fun SettingsList(
                 onClick = { Permissions.openAccessibilitySettings(context) },
                 bgColor = MaterialTheme.colorScheme.primaryContainer,
                 fgColor = MaterialTheme.colorScheme.onPrimaryContainer
+
             )
         }
 
@@ -347,12 +351,21 @@ private fun SettingsListItem(
     subtitle: String,
     onClick: () -> Unit,
     bgColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
-    fgColor: androidx.compose.ui.graphics.Color? = null
+    fgColor: androidx.compose.ui.graphics.Color? = null,
+    hapticsOnClick: Boolean = true
 ) {
+    val haptics = LocalHapticFeedback.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = {
+                if (hapticsOnClick) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+
+                onClick()
+            }),
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
             containerColor = bgColor
