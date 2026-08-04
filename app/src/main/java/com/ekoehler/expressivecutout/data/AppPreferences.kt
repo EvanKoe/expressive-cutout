@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 
 // Deliberately not "app_prefs" — ThemePreferences already owns that file, and a second delegate
 // over the same file throws "multiple DataStores active for the same file" on first read.
@@ -48,5 +50,19 @@ class AppPreferences(private val context: Context) {
     private companion object {
         val DISABLED_KEY = stringSetPreferencesKey("disabled_packages")
         val NORMAL_ONLY_KEY = stringSetPreferencesKey("normal_only_packages")
+    }
+
+    /**
+     * Exports the AppPreferences class in a JSON string
+     * { disabledPackages: string[], normalOnlyPackages: string[] }
+     */
+    suspend fun toJson(): String {
+        fun toJsonStr(value: List<Set<String>>): String {
+            return value.joinToString(separator = ",", prefix = "\"", postfix = "\"")
+        }
+
+        var resp = "{\"disabledPackages\":[" + toJsonStr(disabledPackages.toList()) + "],"
+        resp += "\"normalOnlyPackages\":[" + toJsonStr(normalOnlyPackages.toList()) + "]}"
+        return resp
     }
 }

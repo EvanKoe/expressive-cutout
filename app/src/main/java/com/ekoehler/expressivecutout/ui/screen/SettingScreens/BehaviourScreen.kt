@@ -164,6 +164,13 @@ internal fun BehaviourScreen(
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_vibrateOnTap_title),
+            description = stringResource(R.string.behaviour_vibrateOnTap_desc),
+            checked = behaviour.vibrateOnTap,
+            onCheckedChange = viewModel::setVibrateOnTap
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_swipe_dismiss),
             description = stringResource(R.string.behaviour_swipe_dismiss_desc),
             checked = behaviour.swipeToDismiss,

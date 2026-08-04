@@ -271,6 +271,11 @@ data class AppearanceSettings(
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
     }
+
+    /// TODO
+    suspend fun ToJson(): String {
+        return ""
+    }
 }
 
 /** Persists [AppearanceSettings], always emitting a clamped stroke width. */

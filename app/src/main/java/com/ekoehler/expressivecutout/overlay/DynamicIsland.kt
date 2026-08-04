@@ -118,6 +118,11 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import android.net.Uri
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
@@ -259,6 +264,7 @@ fun DynamicIsland(
     centerShowLabels: Boolean = true,
     centerFillContainers: Boolean = false,
     centerThemedIcons: Boolean = false,
+    vibrateOnTap: Boolean = true,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -494,6 +500,8 @@ fun DynamicIsland(
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
 
+    val haptic = LocalHapticFeedback.current
+
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
     Box(modifier = Modifier.fillMaxSize()) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
@@ -535,10 +543,16 @@ fun DynamicIsland(
                         // block would keep the stale `emptyPill = false` and a tap on the resting pill
                         // would fire the departed notification's content intent.
                         .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
-                            if (forcedExpanded == true) return@pointerInput
+                            if (forcedExpanded == true) {
+                                return@pointerInput
+                            }
+
                             detectTapGestures(
                                 onPress = {
-                                    if (replying) return@detectTapGestures
+                                    if (replying) {
+                                        return@detectTapGestures
+                                    }
+
                                     if (!isExpanded) {
                                         scope.launch {
                                             if (pressWidens) {
@@ -548,7 +562,9 @@ fun DynamicIsland(
                                             }
                                         }
                                     }
+
                                     tryAwaitRelease()
+
                                     if (!isExpanded) {
                                         scope.launch {
                                             if (pressWidens) {
@@ -560,6 +576,10 @@ fun DynamicIsland(
                                     }
                                 },
                                 onTap = {
+                                    if (vibrateOnTap) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+
                                     if (emptyPill) {
                                         // "Open center" expands the resting pill into the shortcut
                                         // grid (a second tap toggles it closed); every other "On
@@ -568,7 +588,7 @@ fun DynamicIsland(
                                             if (forcedExpanded == null) {
                                                 tapExpanded = !tapExpanded
                                                 if (tapExpanded) {
-                                                    scope.launch { motion.pop(boopScale, peak = 1.02f) }
+                                                    scope.launch { motion.pop(boopScale, peak = 1.03f) }
                                                 }
                                             }
                                         } else {

@@ -96,11 +96,13 @@ data class BehaviourSettings(
     val centerShowLabels: Boolean = CENTER_SHOW_LABELS,
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
     val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
+    val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
         const val DEFAULT_HIDE_IN_LANDSCAPE = false
+        const val DEFAULT_VIBRATE_ON_TAP = true
         val DEFAULT_HORIZONTAL_CUTOUT_MODE = HorizontalCutoutMode.CENTER
         // Baseline for the island's primary expand/collapse transition; the reveal, background fade
         // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
@@ -197,6 +199,7 @@ class BehaviourPreferences(private val context: Context) {
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
+            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP
         )
     }
 
@@ -344,6 +347,11 @@ class BehaviourPreferences(private val context: Context) {
         it[CENTER_THEMED_ICONS] = enabled
     }
 
+    /** Sets whether the cutout vibrates on tap */
+    suspend fun setVibrateOnTap(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[VIBRATE_ON_TAP] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -375,5 +383,6 @@ class BehaviourPreferences(private val context: Context) {
         val CENTER_SHOW_LABELS = booleanPreferencesKey("center_show_labels")
         val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
         val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
+        val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
     }
 }

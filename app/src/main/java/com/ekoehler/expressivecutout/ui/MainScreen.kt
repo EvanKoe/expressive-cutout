@@ -105,6 +105,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     // Drives the predictive-back "peek" animation: 0f = at rest, 1f = fully committed.
     val backProgress = remember { Animatable(0f) }
     var backEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
     PredictiveBackHandler(enabled = inSubScreen) { progress ->
         try {
             progress.collect { event ->

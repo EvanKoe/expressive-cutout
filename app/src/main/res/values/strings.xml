@@ -268,6 +268,8 @@
     <string name="behaviour_title">Behaviour</string>
     <string name="animation_title">Animations</string>
     <string name="settings_animation_subtitle">Tune how fast the cutout animates</string>
+    <string name="behaviour_vibrateOnTap_title">Haptic feedback</string>
+    <string name="behaviour_vibrateOnTap_desc">Vibrates lightly when tapping on the cutout</string>
     <string name="animation_style">Animation style</string>
     <string name="animation_style_expressive">Expressive</string>
     <string name="animation_style_ease">Ease in-out</string>
@@ -399,6 +401,10 @@
     <string name="profile_theme">Theme</string>
     <string name="profile_version">Version</string>
     <string name="profile_version_subtitle">See what\'s new in this build</string>
+    <string name="profile_export_title">Import/Export settings</string>
+    <string name="profile_export_description">Are you switching device? Export your config as JSON so you do not lose all your configuration!</string>
+    <string name="profile_export_export">Export</string>
+    <string name="profile_export_import">Import</string>
     <string name="version_beta">Beta</string>
     <string name="changelog_title">What\'s new</string>
     <string name="changelog_subtitle">Newest first. The app is in beta — versions below 0.1.0 were development builds and were never published.</string>

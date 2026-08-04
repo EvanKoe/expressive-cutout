@@ -34,7 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,6 +56,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
@@ -145,8 +148,9 @@ private fun ProfileList(
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
 
+        ExportSettingsCard()
+
         GitHubCard(onClick = { openUrl(githubProjectUrl) })
-        BuyMeACoffeeCard(onClick = { openUrl(coffeeUrl) })
 
         DevCard(
             onOpenGitHub = { openUrl(githubProfileUrl) },
@@ -459,45 +463,56 @@ private fun GitHubCard(onClick: () -> Unit) {
     }
 }
 
-/** A clickable card that opens the developer's Buy Me a Coffee page in the browser. */
+/** Export and import settings in a card */
 @Composable
-private fun BuyMeACoffeeCard(onClick: () -> Unit) {
+private fun ExportSettingsCard() {
+    fun exportSettings(): Int {
+        return 0
+    }
+
+    fun importSettings(): Int {
+        return 1
+    }
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Coffee,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
+            Text(text = stringResource(R.string.profile_export_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.profile_export_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.profile_coffee_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.profile_coffee_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { exportSettings() }
+                ) {
+                    Icon(imageVector = Icons.Rounded.Upload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.profile_export_export))
+                }
+
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { importSettings() }
+                ) {
+                    Icon(imageVector = Icons.Rounded.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.profile_export_import))
+                }
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+
     }
 }

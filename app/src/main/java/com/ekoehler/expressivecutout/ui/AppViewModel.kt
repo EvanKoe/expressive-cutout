@@ -414,6 +414,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCutoutEnabled(enabled)
     }
 
+    fun setVibrateOnTap(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setVibrateOnTap(enabled)
+    }
+
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }

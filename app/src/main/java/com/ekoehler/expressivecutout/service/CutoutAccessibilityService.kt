@@ -62,6 +62,7 @@ class CutoutAccessibilityService : AccessibilityService() {
         "type, talk, or share",
         "ask gemini",
         "gemini advanced",
+        "share screen with live"
     )
 
     private fun isDisclaimer(text: String): Boolean {
