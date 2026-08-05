@@ -522,26 +522,15 @@ fun DynamicIsland(
                         .width(revealWidth)
                         .height(revealHeight)
                         .graphicsLayer {
-                            // Widen by PressExpandDp on each side while pressed (EXPAND), expressed as a
-                            // scale relative to the pill's own measured width so the window never resizes.
-                            // Only one of the two is ever off its resting value, so combining them is safe
-                            // and leaves the expanded pop (which drives boopScale past 1) untouched.
                             val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
                             val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
                             scaleX = boopScale.value * widen
                             scaleY = boopScale.value
-                            // Follow the finger during a dismiss swipe, fading as it slides away.
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
-                            // Fade the dot in/out quickly over the first/last fifth of the reveal so
-                            // it never hard-pops on or off screen; combine with the swipe fade.
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
-                        // Keyed on [emptyPill] too: when a collapsed cutout is dismissed none of the
-                        // other keys change (shownEvent stays put for the exit), so without it this
-                        // block would keep the stale `emptyPill = false` and a tap on the resting pill
-                        // would fire the departed notification's content intent.
                         .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
                             if (forcedExpanded == true) {
                                 return@pointerInput
@@ -603,7 +592,7 @@ fun DynamicIsland(
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
-                                        if (shownEvent?.contentIntent != null) onActivate()
+                                        if (shownEvent.contentIntent != null) onActivate()
                                         return@detectTapGestures
                                     }
 
