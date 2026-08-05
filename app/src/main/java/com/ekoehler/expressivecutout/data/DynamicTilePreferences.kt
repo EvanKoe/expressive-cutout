@@ -19,7 +19,7 @@ private val Context.dynamicTileDataStore: DataStore<Preferences> by preferencesD
  * so tiles show by default and only explicit opt-outs are stored — mirroring [EventPreferences]
  * but kept separate because tiles are a distinct concept from system events.
  */
-class DynamicTilePreferences(private val context: Context) : JsonExportable {
+class DynamicTilePreferences(private val context: Context) : JsonSerializable {
 
     val enabled: Flow<Map<DynamicTile, Boolean>> = context.dynamicTileDataStore.data.map { prefs ->
         DynamicTile.entries.associateWith { tile -> prefs[tile.key] ?: true }
@@ -39,6 +39,19 @@ class DynamicTilePreferences(private val context: Context) : JsonExportable {
         return JSONObject().apply {
             put("enabled", JSONObject().apply { e.forEach { (tile, on) -> put(tile.name, on) } })
         }.toString()
+    }
+
+    /**
+     * Applies { enabled: { TILE_NAME: bool, ... } } exported by [toJson]. Every known tile is set
+     * from the document, defaulting an absent entry to enabled (the store's own default), in one edit.
+     */
+    override suspend fun fromJson(json: String) {
+        val enabledObj = JSONObject(json).optJSONObject("enabled") ?: return
+        context.dynamicTileDataStore.edit { prefs ->
+            DynamicTile.entries.forEach { tile ->
+                prefs[tile.key] = enabledObj.optBoolean(tile.name, true)
+            }
+        }
     }
 
     private val DynamicTile.key: Preferences.Key<Boolean>

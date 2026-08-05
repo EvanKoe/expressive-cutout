@@ -49,7 +49,7 @@ data class PhoneTileSettings(
 }
 
 /** Persists the phone tile's display options (contact photo, duration, action buttons). */
-class PhoneTilePreferences(private val context: Context) : JsonExportable {
+class PhoneTilePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<PhoneTileSettings> = context.phoneTileDataStore.data.map { prefs ->
         PhoneTileSettings(
@@ -77,6 +77,28 @@ class PhoneTilePreferences(private val context: Context) : JsonExportable {
             put("hangUpColor", s.hangUpColor.serialize())
             put("otherButtonColor", s.otherButtonColor.serialize())
         }.toString()
+    }
+
+    /** Applies the [PhoneTileSettings] object exported by [toJson]; absent fields are left as-is. */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.phoneTileDataStore.edit {
+            if (obj.has("showPhoto")) it[SHOW_PHOTO] = obj.getBoolean("showPhoto")
+            if (obj.has("showDuration")) it[SHOW_DURATION] = obj.getBoolean("showDuration")
+            if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
+            if (obj.has("expandedIncomingLayout")) it[EXPANDED_INCOMING] = obj.getBoolean("expandedIncomingLayout")
+            if (obj.has("iconContainerColor")) {
+                val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
+            }
+            if (obj.has("hangUpColor") && !obj.isNull("hangUpColor")) {
+                CutoutColor.deserialize(obj.optString("hangUpColor"))?.let { c -> it[HANG_UP_COLOR] = c.serialize() }
+            }
+            if (obj.has("otherButtonColor") && !obj.isNull("otherButtonColor")) {
+                CutoutColor.deserialize(obj.optString("otherButtonColor"))?.let { c -> it[OTHER_BUTTON_COLOR] = c.serialize() }
+            }
+        }
     }
 
     suspend fun setShowPhoto(enabled: Boolean) = context.phoneTileDataStore.edit {

@@ -28,7 +28,7 @@ private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataSt
  * Both store only the opt-outs (absent means the default), so newly installed apps behave normally
  * and the sets stay small, mirroring [DynamicTilePreferences].
  */
-class AppPreferences(private val context: Context) : JsonExportable {
+class AppPreferences(private val context: Context) : JsonSerializable {
 
     val disabledPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
         prefs[DISABLED_KEY].orEmpty()
@@ -66,5 +66,22 @@ class AppPreferences(private val context: Context) : JsonExportable {
             put("disabledPackages", JSONArray(disabled))
             put("normalOnlyPackages", JSONArray(normalOnly))
         }.toString()
+    }
+
+    /**
+     * Applies { disabledPackages: [...], normalOnlyPackages: [...] } exported by [toJson] as a full
+     * replacement of both opt-out sets. A missing array clears that set, matching the snapshot.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.perAppDataStore.edit {
+            it[DISABLED_KEY] = obj.optJSONArray("disabledPackages").toStringSet()
+            it[NORMAL_ONLY_KEY] = obj.optJSONArray("normalOnlyPackages").toStringSet()
+        }
+    }
+
+    private fun JSONArray?.toStringSet(): Set<String> {
+        if (this == null) return emptySet()
+        return (0 until length()).mapNotNull { optString(it).takeIf { s -> s.isNotEmpty() } }.toSet()
     }
 }

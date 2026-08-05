@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -276,7 +277,7 @@ data class AppearanceSettings(
 }
 
 /** Persists [AppearanceSettings], always emitting a clamped stroke width. */
-class AppearancePreferences(private val context: Context) : JsonExportable {
+class AppearancePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<AppearanceSettings> = context.appearanceDataStore.data.map { prefs ->
         AppearanceSettings(
@@ -328,6 +329,60 @@ class AppearancePreferences(private val context: Context) : JsonExportable {
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
         }.toString()
+    }
+
+    /**
+     * Applies the [AppearanceSettings] object exported by [toJson]; absent fields are left as-is.
+     * Colours and fills are re-parsed (and re-serialised) so a malformed value is skipped rather
+     * than written back verbatim, and a null nullable-colour clears its override.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.appearanceDataStore.edit {
+            if (obj.has("shadowEnabled")) it[SHADOW_ENABLED] = obj.getBoolean("shadowEnabled")
+            if (obj.has("strokeEnabled")) it[STROKE_ENABLED] = obj.getBoolean("strokeEnabled")
+            if (obj.has("strokeWidthDp")) it[STROKE_WIDTH] = obj.getInt("strokeWidthDp")
+                .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP)
+            if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
+                CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
+            }
+            if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
+                CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
+            }
+            if (obj.has("backgroundExpanded") && !obj.isNull("backgroundExpanded")) {
+                CutoutFill.deserialize(obj.optString("backgroundExpanded"))?.let { f -> it[BACKGROUND_EXPANDED] = f.serialize() }
+            }
+            it.applyNullableColor(obj, "sendButtonColor", SEND_BUTTON_COLOR)
+            it.applyNullableColor(obj, "cancelButtonColor", CANCEL_BUTTON_COLOR)
+            it.applyNullableColor(obj, "actionButtonColor", ACTION_BUTTON_COLOR)
+            if (obj.has("actionButtonStyle")) {
+                ActionButtonStyle.deserialize(obj.optString("actionButtonStyle"))?.let { s -> it[ACTION_BUTTON_STYLE] = s.name }
+            }
+            if (obj.has("actionButtonHeightDp")) it[ACTION_BUTTON_HEIGHT] = obj.getInt("actionButtonHeightDp")
+                .coerceIn(AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP, AppearanceSettings.MAX_ACTION_BUTTON_HEIGHT_DP)
+            if (obj.has("actionButtonAlignment")) {
+                ActionButtonAlignment.deserialize(obj.optString("actionButtonAlignment"))?.let { a -> it[ACTION_BUTTON_ALIGNMENT] = a.name }
+            }
+            if (obj.has("replyInputStyle")) {
+                ReplyInputStyle.deserialize(obj.optString("replyInputStyle"))?.let { s -> it[REPLY_INPUT_STYLE] = s.name }
+            }
+            if (obj.has("cancelButtonOnLeft")) it[CANCEL_ON_LEFT] = obj.getBoolean("cancelButtonOnLeft")
+            if (obj.has("sentAlignment")) {
+                SentAlignment.deserialize(obj.optString("sentAlignment"))?.let { a -> it[SENT_ALIGNMENT] = a.name }
+            }
+        }
+    }
+
+    /** Sets [key] from a nullable-colour field: a JSON null (or missing colour) clears the override. */
+    private fun MutablePreferences.applyNullableColor(
+        obj: JSONObject,
+        field: String,
+        key: Preferences.Key<String>,
+    ) {
+        if (!obj.has(field)) return
+        val raw = if (obj.isNull(field)) null else obj.optString(field)
+        val color = CutoutColor.deserialize(raw)
+        if (color == null) remove(key) else this[key] = color.serialize()
     }
 
     suspend fun setShadowEnabled(enabled: Boolean) = context.appearanceDataStore.edit {

@@ -34,7 +34,7 @@ data class AssistantTileSettings(
 }
 
 /** Persists the assistant tile's options (answer display, max cutout height, container colour). */
-class AssistantTilePreferences(private val context: Context) : JsonExportable {
+class AssistantTilePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<AssistantTileSettings> = context.assistantTileDataStore.data.map { prefs ->
         AssistantTileSettings(
@@ -54,6 +54,21 @@ class AssistantTilePreferences(private val context: Context) : JsonExportable {
             put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
             put("useAnimatedIcon", s.useAnimatedIcon)
         }.toString()
+    }
+
+    /** Applies the [AssistantTileSettings] object exported by [toJson]; absent fields are left as-is. */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.assistantTileDataStore.edit {
+            if (obj.has("displayAnswerInCutout")) it[DISPLAY_ANSWER_IN_CUTOUT] = obj.getBoolean("displayAnswerInCutout")
+            if (obj.has("maxCutoutHeightPercent")) it[MAX_CUTOUT_HEIGHT_PERCENT] = obj.getInt("maxCutoutHeightPercent").coerceIn(10, 80)
+            if (obj.has("useAnimatedIcon")) it[USE_ANIMATED_ICON] = obj.getBoolean("useAnimatedIcon")
+            if (obj.has("iconContainerColor")) {
+                val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
+            }
+        }
     }
 
     suspend fun setDisplayAnswerInCutout(enabled: Boolean) = context.assistantTileDataStore.edit {

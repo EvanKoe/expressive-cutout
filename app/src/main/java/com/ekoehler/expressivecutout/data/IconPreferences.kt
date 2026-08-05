@@ -19,7 +19,7 @@ private val Context.iconDataStore: DataStore<Preferences> by preferencesDataStor
  * Persists the user's per-event icon overrides as tagged [IconSource] strings. An absent
  * entry means "use the built-in default icon" for that event type.
  */
-class IconPreferences(private val context: Context) : JsonExportable {
+class IconPreferences(private val context: Context) : JsonSerializable {
 
     /** Emits the current map of overridden event types to their chosen icon source. */
     val customIcons: Flow<Map<SystemEventType, IconSource>> =
@@ -44,6 +44,31 @@ class IconPreferences(private val context: Context) : JsonExportable {
         return JSONObject().apply {
             put("customIcons", JSONArray(i.map { serializePair(it) }))
         }.toString()
+    }
+
+    /**
+     * Applies the { customIcons: [...] } array exported by [toJson] as a full replacement: every
+     * event type listed with a valid source is overridden, and every event type not listed is reset
+     * to its built-in default, so the imported set matches the document exactly. Applied in one edit.
+     */
+    override suspend fun fromJson(json: String) {
+        val arr = JSONObject(json).optJSONArray("customIcons") ?: return
+        val decoded = buildMap {
+            for (i in 0 until arr.length()) {
+                val entry = arr.optJSONObject(i) ?: continue
+                val type = runCatching { SystemEventType.valueOf(entry.optString("systemEventType")) }
+                    .getOrNull() ?: continue
+                val source = IconSource.decode(entry.optString("iconSource")) ?: continue
+                put(type, source)
+            }
+        }
+        context.iconDataStore.edit { prefs ->
+            SystemEventType.entries.forEach { type ->
+                val source = decoded[type]
+                if (source != null) prefs[type.preferenceKey] = source.encode()
+                else prefs.remove(type.preferenceKey)
+            }
+        }
     }
 
     suspend fun setIcon(type: SystemEventType, source: IconSource) {

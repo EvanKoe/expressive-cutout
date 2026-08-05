@@ -5,6 +5,8 @@ import android.widget.Toast
 import android.widget.Toast.*
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -53,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.ui.components.BackNavBar
@@ -112,9 +115,12 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     val backProgress = remember { Animatable(0f) }
     var backEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
-    // Read string resource during composition to use it in onSettingsExported
+    // Read string resources during composition to use them in the export/import Toast callbacks.
     val exportFailedMsg: String = stringResource(R.string.export_failed)
     val exportSavedMsg: String = stringResource(R.string.export_to_path)
+    val importSuccessMsg: String = stringResource(R.string.import_success)
+    val importInvalidMsg: String = stringResource(R.string.import_invalid)
+    val importFailedMsg: String = stringResource(R.string.import_failed)
 
     /**
      * When settings are exported, display a Toast as feedback
@@ -127,6 +133,22 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         )
         toast.show()
     }
+
+    /** When settings are imported, report the outcome as a Toast. */
+    fun onSettingsImported(result: JsonSettings.ImportResult) {
+        val message = when (result) {
+            JsonSettings.ImportResult.SUCCESS -> importSuccessMsg
+            JsonSettings.ImportResult.NOT_A_SETTINGS_FILE -> importInvalidMsg
+            JsonSettings.ImportResult.ERROR -> importFailedMsg
+        }
+        makeText(context, message, LENGTH_SHORT).show()
+    }
+
+    // Opens the system file picker for a JSON document; the picked file is read and applied by the
+    // ViewModel. Filtering to application/json keeps unrelated files out of the picker.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { viewModel.importSettingsFromUI(it) { result -> onSettingsImported(result) } } }
 
     PredictiveBackHandler(enabled = inSubScreen) { progress ->
         try {
@@ -216,7 +238,8 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             route = profileRoute,
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
                             onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
-                            onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) }}
+                            onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) }},
+                            onImportSettings = { importLauncher.launch(arrayOf("application/json")) },
                         )
                     }
                 }

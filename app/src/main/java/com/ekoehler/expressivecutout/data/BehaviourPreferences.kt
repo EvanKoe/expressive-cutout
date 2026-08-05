@@ -140,7 +140,7 @@ data class BehaviourSettings(
 }
 
 /** Persists [BehaviourSettings], always emitting a clamped collapse delay. */
-class BehaviourPreferences(private val context: Context) : JsonExportable {
+class BehaviourPreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
         val rawMode = prefs[HORIZONTAL_CUTOUT_MODE]
@@ -241,6 +241,75 @@ class BehaviourPreferences(private val context: Context) : JsonExportable {
             put("centerThemedIcons", s.centerThemedIcons)
             put("vibrateOnTap", s.vibrateOnTap)
         }.toString()
+    }
+
+    /**
+     * Applies the [BehaviourSettings] object exported by [toJson]; absent fields are left as-is.
+     * Enums are validated (an unknown name is skipped), ranges are clamped, and the nullable icon /
+     * colour / package fields clear their key on a JSON null. The [HIDE_IN_LANDSCAPE] key is written
+     * alongside [HORIZONTAL_CUTOUT_MODE] to keep the pair the read path derives from consistent.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.behaviourDataStore.edit {
+            if (obj.has("cutoutEnabled")) it[CUTOUT_ENABLED] = obj.getBoolean("cutoutEnabled")
+            if (obj.has("hideOnLockscreen")) it[HIDE_ON_LOCKSCREEN] = obj.getBoolean("hideOnLockscreen")
+            if (obj.has("hideInLandscape")) it[HIDE_IN_LANDSCAPE] = obj.getBoolean("hideInLandscape")
+            parseEnum<HorizontalCutoutMode>(obj, "horizontalCutoutMode")?.let { mode ->
+                it[HORIZONTAL_CUTOUT_MODE] = mode.name
+                it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN) || (it[HIDE_IN_LANDSCAPE] ?: false)
+            }
+            parseEnum<AnimationStyle>(obj, "animationStyle")?.let { s -> it[ANIMATION_STYLE] = s.name }
+            parseEnum<AnimationSpeed>(obj, "animationSpeed")?.let { s -> it[ANIMATION_SPEED] = s.name }
+            parseEnum<AnimationBounce>(obj, "animationBounce")?.let { b -> it[ANIMATION_BOUNCE] = b.name }
+            parseEnum<ActionButtonAnimation>(obj, "actionButtonAnimation")?.let { a -> it[ACTION_BUTTON_ANIMATION] = a.name }
+            if (obj.has("animationDurationMs")) it[ANIMATION_DURATION_MS] = obj.getInt("animationDurationMs")
+                .coerceIn(BehaviourSettings.MIN_ANIMATION_DURATION_MS, BehaviourSettings.MAX_ANIMATION_DURATION_MS)
+            if (obj.has("normalDurationSeconds")) it[NORMAL_SECONDS] = obj.getInt("normalDurationSeconds")
+                .coerceIn(BehaviourSettings.MIN_NORMAL_SECONDS, BehaviourSettings.MAX_NORMAL_SECONDS)
+            if (obj.has("expandedAutoCollapse")) it[AUTO_COLLAPSE] = obj.getBoolean("expandedAutoCollapse")
+            if (obj.has("expandedCollapseSeconds")) it[COLLAPSE_SECONDS] = obj.getInt("expandedCollapseSeconds")
+                .coerceIn(BehaviourSettings.MIN_COLLAPSE_SECONDS, BehaviourSettings.MAX_COLLAPSE_SECONDS)
+            if (obj.has("expandedDisappearOnShrink")) it[DISAPPEAR_ON_SHRINK] = obj.getBoolean("expandedDisappearOnShrink")
+            if (obj.has("notificationsAutoExpand")) it[NOTIF_AUTO_EXPAND] = obj.getBoolean("notificationsAutoExpand")
+            if (obj.has("showActionButtons")) it[SHOW_ACTION_BUTTONS] = obj.getBoolean("showActionButtons")
+            if (obj.has("toastOnAction")) it[TOAST_ON_ACTION] = obj.getBoolean("toastOnAction")
+            if (obj.has("shrinkOnSwipeUp")) it[SHRINK_ON_SWIPE_UP] = obj.getBoolean("shrinkOnSwipeUp")
+            if (obj.has("swipeToDismiss")) it[SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
+            parseEnum<SwipeDismissDirection>(obj, "swipeDismissDirection")?.let { d -> it[SWIPE_DISMISS_DIRECTION] = d.name }
+            parseEnum<SwipeDismissTarget>(obj, "swipeDismissTarget")?.let { t -> it[SWIPE_DISMISS_TARGET] = t.name }
+            if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
+            if (obj.has("showsWhenEmptyShowIcon")) it[SHOWS_WHEN_EMPTY_SHOW_ICON] = obj.getBoolean("showsWhenEmptyShowIcon")
+            if (obj.has("showsWhenEmptyIcon")) {
+                val raw = if (obj.isNull("showsWhenEmptyIcon")) null else obj.optString("showsWhenEmptyIcon")
+                val icon = raw?.let { s -> IconSource.decode(s) }
+                if (icon == null) it.remove(SHOWS_WHEN_EMPTY_ICON) else it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
+            }
+            if (obj.has("showsWhenEmptyIconColor")) {
+                val raw = if (obj.isNull("showsWhenEmptyIconColor")) null else obj.optString("showsWhenEmptyIconColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR) else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
+            }
+            parseEnum<EmptyClickAction>(obj, "showsWhenEmptyClickAction")?.let { a -> it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = a.name }
+            if (obj.has("showsWhenEmptyClickPackage")) {
+                val pkg = if (obj.isNull("showsWhenEmptyClickPackage")) null
+                else obj.optString("showsWhenEmptyClickPackage").takeIf { s -> s.isNotEmpty() }
+                if (pkg == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE) else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = pkg
+            }
+            if (obj.has("centerShortcuts") && !obj.isNull("centerShortcuts")) {
+                it[CENTER_SHORTCUTS] = obj.getString("centerShortcuts")
+            }
+            if (obj.has("centerShowLabels")) it[CENTER_SHOW_LABELS] = obj.getBoolean("centerShowLabels")
+            if (obj.has("centerFillContainers")) it[CENTER_FILL_CONTAINERS] = obj.getBoolean("centerFillContainers")
+            if (obj.has("centerThemedIcons")) it[CENTER_THEMED_ICONS] = obj.getBoolean("centerThemedIcons")
+            if (obj.has("vibrateOnTap")) it[VIBRATE_ON_TAP] = obj.getBoolean("vibrateOnTap")
+        }
+    }
+
+    /** Reads [field] as the name of enum [T]; returns null if absent, JSON-null, or an unknown name. */
+    private inline fun <reified T : Enum<T>> parseEnum(obj: JSONObject, field: String): T? {
+        if (!obj.has(field) || obj.isNull(field)) return null
+        return runCatching { enumValueOf<T>(obj.optString(field)) }.getOrNull()
     }
 
     suspend fun setCutoutEnabled(enabled: Boolean) = context.behaviourDataStore.edit {

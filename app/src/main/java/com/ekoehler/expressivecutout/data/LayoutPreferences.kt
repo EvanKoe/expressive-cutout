@@ -18,7 +18,7 @@ private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataSt
  * Persists the collapsed and expanded island geometry independently, always emitting values
  * clamped to valid ranges.
  */
-class LayoutPreferences(private val context: Context) : JsonExportable {
+class LayoutPreferences(private val context: Context) : JsonSerializable {
 
     val layout: Flow<IslandLayout> = context.layoutDataStore.data.map { prefs ->
         IslandLayout(
@@ -38,6 +38,30 @@ class LayoutPreferences(private val context: Context) : JsonExportable {
             put("expanded", l.expanded.toJsonObject())
         }.toString()
     }
+
+    /**
+     * Applies { collapsed: {...}, expanded: {...} } exported by [toJson]. Either state is optional;
+     * a state whose object is missing a field is skipped whole (rather than half-applied), and
+     * [IslandDimensions.of] clamps whatever does come through.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        obj.optJSONObject("collapsed")?.toDimensionsOrNull()?.let { setCollapsed(it) }
+        obj.optJSONObject("expanded")?.toDimensionsOrNull()?.let { setExpanded(it) }
+    }
+
+    private fun JSONObject.toDimensionsOrNull(): IslandDimensions? = runCatching {
+        IslandDimensions.of(
+            widthPercent = getInt("widthPercent"),
+            heightDp = getInt("heightDp"),
+            offsetXDp = getInt("offsetXDp"),
+            offsetYDp = getInt("offsetYDp"),
+            cornerTopLeftDp = getInt("cornerTopLeftDp"),
+            cornerTopRightDp = getInt("cornerTopRightDp"),
+            cornerBottomLeftDp = getInt("cornerBottomLeftDp"),
+            cornerBottomRightDp = getInt("cornerBottomRightDp"),
+        )
+    }.getOrNull()
 
     private fun IslandDimensions.toJsonObject(): JSONObject = JSONObject().apply {
         put("widthPercent", widthPercent)

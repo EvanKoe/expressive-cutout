@@ -15,7 +15,7 @@ import org.json.JSONObject
 private val Context.appDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_prefs")
 
 /** Persists the selected [AppTheme], defaulting to [AppTheme.SYSTEM]. */
-class ThemePreferences(private val context: Context) : JsonExportable {
+class ThemePreferences(private val context: Context) : JsonSerializable {
     val theme: Flow<AppTheme> = context.appDataStore.data.map { prefs ->
         prefs[THEME]?.let { runCatching { AppTheme.valueOf(it) }.getOrNull() } ?: AppTheme.SYSTEM
     }
@@ -43,5 +43,12 @@ class ThemePreferences(private val context: Context) : JsonExportable {
         return JSONObject().apply {
             put("theme", t.name)
         }.toString()
+    }
+
+    /** Applies { theme: string } exported by [toJson]; an unknown name is ignored. */
+    override suspend fun fromJson(json: String) {
+        val name = JSONObject(json).optString("theme").takeIf { it.isNotEmpty() } ?: return
+        val theme = runCatching { AppTheme.valueOf(name) }.getOrNull() ?: return
+        setTheme(theme)
     }
 }

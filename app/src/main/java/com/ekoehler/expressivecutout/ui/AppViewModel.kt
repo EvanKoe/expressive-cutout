@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.ui
 
 import android.app.Application
 import android.content.ContentValues
+import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
@@ -36,7 +37,8 @@ import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
-import com.ekoehler.expressivecutout.data.JsonExportable
+import com.ekoehler.expressivecutout.data.JsonSerializable
+import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
@@ -57,7 +59,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
@@ -228,33 +229,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     /**
-     * Exports every settings store as one JSON document: each store's own [toJson] output is nested
-     * under a labelled key. Listing the stores once as (label -> exporter) pairs keeps this in lockstep
-     * with the stores — adding a new store is one extra line here.
+     * Every settings store keyed by its section label, in the order they're written to and read
+     * from the export document. This single list is the source of truth for both export and import —
+     * adding a new store is one extra line here (and its own [JsonSerializable] implementation).
      */
-    suspend fun getSettingsAsJsonString(): String {
-        val root = JSONObject()
-        val sections: Map<String, JsonExportable> = mapOf(
-            "theme" to themePreferences,
-            "layout" to layoutPreferences,
-            "icons" to preferences,
-            "behaviour" to behaviourPreferences,
-            "appearance" to appearancePreferences,
-            "events" to eventPreferences,
-            "dynamicTiles" to dynamicTilePreferences,
-            "musicTile" to musicTilePreferences,
-            "phoneTile" to phoneTilePreferences,
-            "timerTile" to timerTilePreferences,
-            "assistantTile" to assistantTilePreferences,
-            "apps" to appPreferences,
-        )
+    private val jsonSections: Map<String, JsonSerializable> = mapOf(
+        JsonSettings.THEME to themePreferences,
+        JsonSettings.LAYOUT to layoutPreferences,
+        JsonSettings.ICONS to preferences,
+        JsonSettings.BEHAVIOUR to behaviourPreferences,
+        JsonSettings.APPEARANCE to appearancePreferences,
+        JsonSettings.EVENTS to eventPreferences,
+        JsonSettings.DYNAMIC_TILES to dynamicTilePreferences,
+        JsonSettings.MUSIC_TILE to musicTilePreferences,
+        JsonSettings.PHONE_TILE to phoneTilePreferences,
+        JsonSettings.TIMER_TILE to timerTilePreferences,
+        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
+        JsonSettings.APPS to appPreferences,
+    )
 
-        for ((label, store) in sections) {
-            root.put(label, JSONObject(store.toJson()))
-        }
-
-        return root.toString()
-    }
+    /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
+    suspend fun getSettingsAsJsonString(): String = JsonSettings.export(jsonSections)
 
     /**
      * This method uses exportSettingsToJson() but is not suspend and
@@ -291,6 +286,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             onReady(ok, if (ok) Environment.DIRECTORY_DOWNLOADS else null)
+        }
+    }
+
+    /**
+     * Reads the JSON file at [uri] (picked via the system file selector), validates that it's an
+     * Expressive Cutout settings export, and applies it across the stores. Not suspend so it can be
+     * called straight from the UI; the file read and apply run off the main thread.
+     * @param onDone reports the [JsonSettings.ImportResult] so the caller can show feedback.
+     */
+    fun importSettingsFromUI(uri: Uri, onDone: (JsonSettings.ImportResult) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val json = getApplication<Application>().contentResolver
+                        .openInputStream(uri)
+                        ?.use { it.readBytes().toString(Charsets.UTF_8) }
+                        ?: return@withContext JsonSettings.ImportResult.ERROR
+                    JsonSettings.import(json, jsonSections)
+                } catch (e: Exception) {
+                    Log.w("Error", "starting import ${e.message}")
+                    JsonSettings.ImportResult.ERROR
+                }
+            }
+            onDone(result)
         }
     }
 

@@ -82,6 +82,7 @@ fun ProfileTab(
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
     onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
 ) {
     // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
     AnimatedContent(
@@ -99,7 +100,8 @@ fun ProfileTab(
                 contentPadding = contentPadding,
                 onOpenChangelog = onOpenChangelog,
                 onOpenPermissionDetails = onOpenPermissionDetails,
-                onExportSettings = onExportSettings
+                onExportSettings = onExportSettings,
+                onImportSettings = onImportSettings,
             )
             ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
             ProfileRoute.PermissionDetails -> PermissionDetailsScreen(contentPadding)
@@ -114,6 +116,7 @@ private fun ProfileList(
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
     onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -162,7 +165,7 @@ private fun ProfileList(
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
 
-        ExportSettingsCard(onExportSettings)
+        ExportSettingsCard(onExportSettings, onImportSettings)
 
         GitHubCard(onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -484,11 +487,8 @@ private fun GitHubCard(onClick: () -> Unit) {
 @Composable
 private fun ExportSettingsCard(
     onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
 ) {
-    fun importSettings(): Int {
-        return 1
-    }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -520,7 +520,7 @@ private fun ExportSettingsCard(
 
                 Button(
                     modifier = Modifier.weight(1f),
-                    onClick = { importSettings() }
+                    onClick = onImportSettings
                 ) {
                     Icon(imageVector = Icons.Rounded.Download, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
