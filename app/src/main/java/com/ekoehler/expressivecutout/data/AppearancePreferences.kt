@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 import kotlin.math.roundToInt
 
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
@@ -271,15 +273,10 @@ data class AppearanceSettings(
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
     }
-
-    /// TODO
-    suspend fun ToJson(): String {
-        return ""
-    }
 }
 
 /** Persists [AppearanceSettings], always emitting a clamped stroke width. */
-class AppearancePreferences(private val context: Context) {
+class AppearancePreferences(private val context: Context) : JsonExportable {
 
     val settings: Flow<AppearanceSettings> = context.appearanceDataStore.data.map { prefs ->
         AppearanceSettings(
@@ -309,6 +306,28 @@ class AppearancePreferences(private val context: Context) {
             sentAlignment = SentAlignment.deserialize(prefs[SENT_ALIGNMENT])
                 ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
         )
+    }
+
+    /** Exports the current, fully-resolved [AppearanceSettings] (defaults and clamping applied) as a JSON string. */
+    override suspend fun toJson(): String {
+        val s = settings.first()
+        return JSONObject().apply {
+            put("shadowEnabled", s.shadowEnabled)
+            put("strokeEnabled", s.strokeEnabled)
+            put("strokeWidthDp", s.strokeWidthDp)
+            put("strokeColor", s.strokeColor.serialize())
+            put("backgroundNormal", s.backgroundNormal.serialize())
+            put("backgroundExpanded", s.backgroundExpanded.serialize())
+            put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
+            put("cancelButtonColor", s.cancelButtonColor?.serialize() ?: JSONObject.NULL)
+            put("actionButtonStyle", s.actionButtonStyle.name)
+            put("actionButtonColor", s.actionButtonColor?.serialize() ?: JSONObject.NULL)
+            put("actionButtonHeightDp", s.actionButtonHeightDp)
+            put("actionButtonAlignment", s.actionButtonAlignment.name)
+            put("replyInputStyle", s.replyInputStyle.name)
+            put("cancelButtonOnLeft", s.cancelButtonOnLeft)
+            put("sentAlignment", s.sentAlignment.name)
+        }.toString()
     }
 
     suspend fun setShadowEnabled(enabled: Boolean) = context.appearanceDataStore.edit {

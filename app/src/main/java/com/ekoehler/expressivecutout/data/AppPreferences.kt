@@ -7,9 +7,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.forEach
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
+import org.json.JSONArray
+import org.json.JSONObject
 
 // Deliberately not "app_prefs" — ThemePreferences already owns that file, and a second delegate
 // over the same file throws "multiple DataStores active for the same file" on first read.
@@ -27,7 +28,7 @@ private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataSt
  * Both store only the opt-outs (absent means the default), so newly installed apps behave normally
  * and the sets stay small, mirroring [DynamicTilePreferences].
  */
-class AppPreferences(private val context: Context) {
+class AppPreferences(private val context: Context) : JsonExportable {
 
     val disabledPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
         prefs[DISABLED_KEY].orEmpty()
@@ -56,13 +57,14 @@ class AppPreferences(private val context: Context) {
      * Exports the AppPreferences class in a JSON string
      * { disabledPackages: string[], normalOnlyPackages: string[] }
      */
-    suspend fun toJson(): String {
-        fun toJsonStr(value: List<Set<String>>): String {
-            return value.joinToString(separator = ",", prefix = "\"", postfix = "\"")
-        }
-
-        var resp = "{\"disabledPackages\":[" + toJsonStr(disabledPackages.toList()) + "],"
-        resp += "\"normalOnlyPackages\":[" + toJsonStr(normalOnlyPackages.toList()) + "]}"
-        return resp
+    override suspend fun toJson(): String {
+        // .first() reads the current snapshot and cancels; .toList() would hang forever, since the
+        // DataStore flow never completes (see the export bug this replaced).
+        val disabled = disabledPackages.first()
+        val normalOnly = normalOnlyPackages.first()
+        return JSONObject().apply {
+            put("disabledPackages", JSONArray(disabled))
+            put("normalOnlyPackages", JSONArray(normalOnly))
+        }.toString()
     }
 }

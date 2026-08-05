@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataStore(name = "layout_prefs")
 
@@ -16,13 +18,36 @@ private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataSt
  * Persists the collapsed and expanded island geometry independently, always emitting values
  * clamped to valid ranges.
  */
-class LayoutPreferences(private val context: Context) {
+class LayoutPreferences(private val context: Context) : JsonExportable {
 
     val layout: Flow<IslandLayout> = context.layoutDataStore.data.map { prefs ->
         IslandLayout(
             collapsed = prefs.readDimensions(Keys.Collapsed, IslandLayout.DEFAULT_COLLAPSED),
             expanded = prefs.readDimensions(Keys.Expanded, IslandLayout.DEFAULT_EXPANDED),
         )
+    }
+
+    /**
+     * Exports the layout to a JSON string { collapsed: {...}, expanded: {...} }, each state a nested
+     * object of its geometry. [IslandDimensions] has no serializer of its own, so build it here.
+     */
+    override suspend fun toJson(): String {
+        val l = layout.first()
+        return JSONObject().apply {
+            put("collapsed", l.collapsed.toJsonObject())
+            put("expanded", l.expanded.toJsonObject())
+        }.toString()
+    }
+
+    private fun IslandDimensions.toJsonObject(): JSONObject = JSONObject().apply {
+        put("widthPercent", widthPercent)
+        put("heightDp", heightDp)
+        put("offsetXDp", offsetXDp)
+        put("offsetYDp", offsetYDp)
+        put("cornerTopLeftDp", cornerTopLeftDp)
+        put("cornerTopRightDp", cornerTopRightDp)
+        put("cornerBottomLeftDp", cornerBottomLeftDp)
+        put("cornerBottomRightDp", cornerBottomRightDp)
     }
 
     suspend fun setCollapsed(dimensions: IslandDimensions) = context.layoutDataStore.edit {

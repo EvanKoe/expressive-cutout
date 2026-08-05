@@ -81,6 +81,7 @@ fun ProfileTab(
     route: ProfileRoute,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onExportSettings: () -> Unit,
 ) {
     // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
     AnimatedContent(
@@ -98,6 +99,7 @@ fun ProfileTab(
                 contentPadding = contentPadding,
                 onOpenChangelog = onOpenChangelog,
                 onOpenPermissionDetails = onOpenPermissionDetails,
+                onExportSettings = onExportSettings
             )
             ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
             ProfileRoute.PermissionDetails -> PermissionDetailsScreen(contentPadding)
@@ -111,6 +113,7 @@ private fun ProfileList(
     contentPadding: PaddingValues,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onExportSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -159,7 +162,7 @@ private fun ProfileList(
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
 
-        ExportSettingsCard()
+        ExportSettingsCard(onExportSettings)
 
         GitHubCard(onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -479,11 +482,9 @@ private fun GitHubCard(onClick: () -> Unit) {
 
 /** Export and import settings in a card */
 @Composable
-private fun ExportSettingsCard() {
-    fun exportSettings(): Int {
-        return 0
-    }
-
+private fun ExportSettingsCard(
+    onExportSettings: () -> Unit,
+) {
     fun importSettings(): Int {
         return 1
     }
@@ -510,7 +511,7 @@ private fun ExportSettingsCard() {
             ) {
                 Button(
                     modifier = Modifier.weight(1f),
-                    onClick = { exportSettings() }
+                    onClick = onExportSettings
                 ) {
                     Icon(imageVector = Icons.Rounded.Upload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))

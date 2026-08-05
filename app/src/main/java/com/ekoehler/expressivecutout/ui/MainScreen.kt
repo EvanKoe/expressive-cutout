@@ -1,14 +1,14 @@
 package com.ekoehler.expressivecutout.ui
 
+import android.content.Context
+import android.widget.Toast
+import android.widget.Toast.*
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
@@ -37,6 +36,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCompositionContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +48,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,6 +65,7 @@ import com.ekoehler.expressivecutout.ui.screen.SettingsRoute
 import com.ekoehler.expressivecutout.ui.screen.SettingsTab
 import com.ekoehler.expressivecutout.ui.screen.parent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
 private enum class HomeTab(
@@ -84,15 +87,14 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var settingsRoute by rememberSaveable { mutableStateOf(SettingsRoute.List) }
     var profileRoute by rememberSaveable { mutableStateOf(ProfileRoute.List) }
-    // Which tile's settings are open (saved by name so it survives config change / process death).
     var selectedTileName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedTile = selectedTileName?.let { name -> DynamicTile.entries.firstOrNull { it.name == name } }
-    // Likewise for the event whose detail (icon + duration) screen is open.
     var selectedEventName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedEvent = selectedEventName?.let { name -> SystemEventType.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
     val current = tabs[selectedIndex]
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     // On a detail screen the bottom bar becomes a back pill instead of the tab bar.
     val inSubScreen = (current == HomeTab.Settings && settingsRoute != SettingsRoute.List) ||
@@ -109,6 +111,22 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     // Drives the predictive-back "peek" animation: 0f = at rest, 1f = fully committed.
     val backProgress = remember { Animatable(0f) }
     var backEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
+    // Read string resource during composition to use it in onSettingsExported
+    val exportFailedMsg: String = stringResource(R.string.export_failed)
+    val exportSavedMsg: String = stringResource(R.string.export_to_path)
+
+    /**
+     * When settings are exported, display a Toast as feedback
+     */
+    fun onSettingsExported(success: Boolean, path: String?) {
+        val toast = makeText(
+            context,
+            if (success) "$exportSavedMsg $path" else exportFailedMsg,
+            LENGTH_SHORT
+        )
+        toast.show()
+    }
 
     PredictiveBackHandler(enabled = inSubScreen) { progress ->
         try {
@@ -198,6 +216,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             route = profileRoute,
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
                             onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
+                            onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) }}
                         )
                     }
                 }

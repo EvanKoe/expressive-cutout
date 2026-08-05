@@ -11,7 +11,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ekoehler.expressivecutout.core.SystemEventType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.eventDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs")
 
@@ -19,7 +21,7 @@ private val Context.eventDataStore: DataStore<Preferences> by preferencesDataSto
  * Persists whether each system event is allowed to appear on the island. Absent means enabled,
  * so events show by default and only explicit opt-outs are stored.
  */
-class EventPreferences(private val context: Context) {
+class EventPreferences(private val context: Context) : JsonExportable {
 
     val enabled: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
         SystemEventType.entries.associateWith { type -> prefs[type.key] ?: true }
@@ -91,6 +93,27 @@ class EventPreferences(private val context: Context) {
         SystemEventType.entries.mapNotNull { type ->
             CutoutColor.deserialize(prefs[type.colorKey])?.let { color -> type to color }
         }.toMap()
+    }
+
+    /**
+     * Exports every per-event setting as JSON. The four [SystemEventType]-keyed maps become nested
+     * objects whose keys are the event-type names (a JSONObject key must be a String, so the enum
+     * key is converted with [Enum.name]); per-event colours are their [CutoutColor.serialize] strings.
+     */
+    override suspend fun toJson(): String {
+        fun <V> Map<SystemEventType, V>.toJsonObject(transform: (V) -> Any): JSONObject =
+            JSONObject().apply { forEach { (type, value) -> put(type.name, transform(value)) } }
+
+        return JSONObject().apply {
+            put("enabled", enabled.first().toJsonObject { it })
+            put("dynamicColor", dynamicColor.first())
+            put("dynamicColorRole", dynamicColorRole.first().name)
+            put("dynamicColorOpacity", dynamicColorOpacity.first().toDouble())
+            put("durations", durations.first().toJsonObject { it })
+            put("animatedIcons", animatedIcons.first().toJsonObject { it })
+            put("animatedIconLoops", animatedIconLoops.first().toJsonObject { it })
+            put("colors", colors.first().toJsonObject { it.serialize() })
+        }.toString()
     }
 
     suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {

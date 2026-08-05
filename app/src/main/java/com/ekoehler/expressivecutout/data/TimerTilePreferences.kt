@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.timerTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_tile_prefs")
 
@@ -35,7 +37,7 @@ data class TimerTileSettings(
 }
 
 /** Persists the timer tile's display options (action buttons and their colours). */
-class TimerTilePreferences(private val context: Context) {
+class TimerTilePreferences(private val context: Context) : JsonExportable {
 
     val settings: Flow<TimerTileSettings> = context.timerTileDataStore.data.map { prefs ->
         TimerTileSettings(
@@ -46,6 +48,17 @@ class TimerTilePreferences(private val context: Context) {
             addButtonColor = CutoutColor.deserialize(prefs[ADD_BUTTON_COLOR])
                 ?: TimerTileSettings.DEFAULT_ADD_BUTTON_COLOR,
         )
+    }
+
+    /** Exports the current [TimerTileSettings] as a JSON string. */
+    override suspend fun toJson(): String {
+        val s = settings.first()
+        return JSONObject().apply {
+            put("showActions", s.showActions)
+            put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
+            put("resetColor", s.resetColor.serialize())
+            put("addButtonColor", s.addButtonColor.serialize())
+        }.toString()
     }
 
     suspend fun setShowActions(enabled: Boolean) = context.timerTileDataStore.edit {

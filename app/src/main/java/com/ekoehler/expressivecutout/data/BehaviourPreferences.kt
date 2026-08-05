@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
 
@@ -138,7 +140,7 @@ data class BehaviourSettings(
 }
 
 /** Persists [BehaviourSettings], always emitting a clamped collapse delay. */
-class BehaviourPreferences(private val context: Context) {
+class BehaviourPreferences(private val context: Context) : JsonExportable {
 
     val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
         val rawMode = prefs[HORIZONTAL_CUTOUT_MODE]
@@ -201,6 +203,44 @@ class BehaviourPreferences(private val context: Context) {
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
             vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP
         )
+    }
+
+    /** Exports the current, fully-resolved [BehaviourSettings] (defaults and clamping applied) as a JSON string. */
+    override suspend fun toJson(): String {
+        val s = settings.first()
+        return JSONObject().apply {
+            put("cutoutEnabled", s.cutoutEnabled)
+            put("hideOnLockscreen", s.hideOnLockscreen)
+            put("hideInLandscape", s.hideInLandscape)
+            put("horizontalCutoutMode", s.horizontalCutoutMode.name)
+            put("animationStyle", s.animationStyle.name)
+            put("animationSpeed", s.animationSpeed.name)
+            put("animationBounce", s.animationBounce.name)
+            put("actionButtonAnimation", s.actionButtonAnimation.name)
+            put("animationDurationMs", s.animationDurationMs)
+            put("normalDurationSeconds", s.normalDurationSeconds)
+            put("expandedAutoCollapse", s.expandedAutoCollapse)
+            put("expandedCollapseSeconds", s.expandedCollapseSeconds)
+            put("expandedDisappearOnShrink", s.expandedDisappearOnShrink)
+            put("notificationsAutoExpand", s.notificationsAutoExpand)
+            put("showActionButtons", s.showActionButtons)
+            put("toastOnAction", s.toastOnAction)
+            put("shrinkOnSwipeUp", s.shrinkOnSwipeUp)
+            put("swipeToDismiss", s.swipeToDismiss)
+            put("swipeDismissDirection", s.swipeDismissDirection.name)
+            put("swipeDismissTarget", s.swipeDismissTarget.name)
+            put("showsWhenEmpty", s.showsWhenEmpty)
+            put("showsWhenEmptyShowIcon", s.showsWhenEmptyShowIcon)
+            put("showsWhenEmptyIcon", s.showsWhenEmptyIcon?.encode() ?: JSONObject.NULL)
+            put("showsWhenEmptyIconColor", s.showsWhenEmptyIconColor?.serialize() ?: JSONObject.NULL)
+            put("showsWhenEmptyClickAction", s.showsWhenEmptyClickAction.name)
+            put("showsWhenEmptyClickPackage", s.showsWhenEmptyClickPackage ?: JSONObject.NULL)
+            put("centerShortcuts", CenterShortcut.encodeList(s.centerShortcuts))
+            put("centerShowLabels", s.centerShowLabels)
+            put("centerFillContainers", s.centerFillContainers)
+            put("centerThemedIcons", s.centerThemedIcons)
+            put("vibrateOnTap", s.vibrateOnTap)
+        }.toString()
     }
 
     suspend fun setCutoutEnabled(enabled: Boolean) = context.behaviourDataStore.edit {

@@ -1,6 +1,12 @@
 package com.ekoehler.expressivecutout.ui
 
 import android.app.Application
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Path
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -30,6 +36,7 @@ import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.JsonExportable
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
@@ -44,10 +51,17 @@ import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
+import java.io.FileWriter
+import java.io.IOException
+import kotlin.io.encoding.Base64
 
 /**
  * Holds UI-facing state for the icon customisation screen and mediates writes to
@@ -55,7 +69,6 @@ import kotlinx.coroutines.launch
  * and survives configuration changes.
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-
     private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
@@ -213,6 +226,73 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = AppearanceSettings(),
         )
+
+    /**
+     * Exports every settings store as one JSON document: each store's own [toJson] output is nested
+     * under a labelled key. Listing the stores once as (label -> exporter) pairs keeps this in lockstep
+     * with the stores — adding a new store is one extra line here.
+     */
+    suspend fun getSettingsAsJsonString(): String {
+        val root = JSONObject()
+        val sections: Map<String, JsonExportable> = mapOf(
+            "theme" to themePreferences,
+            "layout" to layoutPreferences,
+            "icons" to preferences,
+            "behaviour" to behaviourPreferences,
+            "appearance" to appearancePreferences,
+            "events" to eventPreferences,
+            "dynamicTiles" to dynamicTilePreferences,
+            "musicTile" to musicTilePreferences,
+            "phoneTile" to phoneTilePreferences,
+            "timerTile" to timerTilePreferences,
+            "assistantTile" to assistantTilePreferences,
+            "apps" to appPreferences,
+        )
+
+        for ((label, store) in sections) {
+            root.put(label, JSONObject(store.toJson()))
+        }
+
+        return root.toString()
+    }
+
+    /**
+     * This method uses exportSettingsToJson() but is not suspend and
+     * can be called from the UI.
+     * @param onReady - a callback that returns a SUCCESS (boolean) and a PATH (string)
+     */
+    fun exportSettingsFromUI(onReady: (success: Boolean, path: String?) -> Unit) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val json = getSettingsAsJsonString()
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, "expressive-cutout-settings.json")
+                        put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    }
+
+                    val resolver = getApplication<Application>().contentResolver
+                    val collection =
+                        MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    val uri =
+                        resolver.insert(collection, values) ?: throw IOException("Failed to insert")
+
+                    resolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    values.clear()
+                    values.put(MediaStore.Downloads.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                    true
+                } catch (e: Exception) {
+                    Log.w("Error", "starting export ${e.message}")
+                    false
+                }
+            }
+
+            onReady(ok, if (ok) Environment.DIRECTORY_DOWNLOADS else null)
+        }
+    }
 
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
         preferences.setIcon(type, IconSource.Image(uri))

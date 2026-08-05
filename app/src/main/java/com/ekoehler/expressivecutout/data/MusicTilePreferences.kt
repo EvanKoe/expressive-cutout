@@ -10,7 +10,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs")
 
@@ -98,7 +100,7 @@ data class MusicTileSettings(
 }
 
 /** Persists the music tile's display options (album art, expanded controls) and button styling. */
-class MusicTilePreferences(private val context: Context) {
+class MusicTilePreferences(private val context: Context) : JsonExportable {
 
     val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
         MusicTileSettings(
@@ -125,6 +127,29 @@ class MusicTilePreferences(private val context: Context) {
                 filled = prefs[PLAY_PAUSE_FILLED] ?: MusicButtonStyle.DEFAULT_FILLED,
             ),
         )
+    }
+
+    /** Exports the current [MusicTileSettings] (including both button styles) as a JSON string. */
+    override suspend fun toJson(): String {
+        fun MusicButtonStyle.toJsonObject(): JSONObject = JSONObject().apply {
+            put("color", color?.serialize() ?: JSONObject.NULL)
+            put("opacity", opacity.toDouble())
+            put("cornerPercent", cornerPercent)
+            put("filled", filled)
+        }
+
+        val s = settings.first()
+        return JSONObject().apply {
+            put("showAlbumArt", s.showAlbumArt)
+            put("rotateAlbumArt", s.rotateAlbumArt)
+            put("albumArtStroke", s.albumArtStroke)
+            put("albumArtStrokeColor", s.albumArtStrokeColor?.serialize() ?: JSONObject.NULL)
+            put("expandOnPlay", s.expandOnPlay)
+            put("visibleInPlayerApp", s.visibleInPlayerApp)
+            put("showControls", s.showControls)
+            put("skipButton", s.skipButton.toJsonObject())
+            put("playPauseButton", s.playPauseButton.toJsonObject())
+        }.toString()
     }
 
     suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
