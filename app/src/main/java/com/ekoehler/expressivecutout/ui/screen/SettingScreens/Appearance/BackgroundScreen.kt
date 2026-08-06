@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +53,7 @@ import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.overlay.resolveBrush
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlin.math.roundToInt
 
@@ -270,41 +273,81 @@ private fun ColorSpecPicker(
     val opacity = spec.opacity
     val fixedRgb = (spec as? ColorSpec.Fixed)?.argb?.and(0xFFFFFFL)
     val customRgb = fixedRgb?.takeIf { rgb -> PresetArgbs.none { it and 0xFFFFFFL == rgb } }
+    // Derived from the fill itself (OLED black == a fully-black fixed colour), not held as separate
+    // local state: the normal and expanded tabs share this composable slot and only swap the [spec]
+    // passed in, so a remembered flag would leak the toggle across both. Deriving keeps them
+    // independent — each tab reflects its own fill.
+    val isOledBlack = fixedRgb == 0x000000L
 
     fun pickFixed(argb: Long) = onChange(ColorSpec.Fixed(argb).withOpacity(opacity))
     fun pickDynamic(role: DynamicRole) = onChange(ColorSpec.Dynamic(role, opacity))
 
+    fun toggleOledBlack(enabled: Boolean) {
+        if (enabled) pickFixed(0xFF000000) else pickDynamic(DynamicRole.PRIMARY)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SwatchRow {
-            // Material You dynamic roles (follow the wallpaper on Android 12+). Shown at full
-            // opacity so the swatch stays readable regardless of the chosen transparency.
-            DynamicSwatch(DynamicRole.PRIMARY, R.string.cd_color_dynamic_primary, spec, ::pickDynamic)
-            DynamicSwatch(DynamicRole.SECONDARY, R.string.cd_color_dynamic_secondary, spec, ::pickDynamic)
-            DynamicSwatch(DynamicRole.TERTIARY, R.string.cd_color_dynamic_tertiary, spec, ::pickDynamic)
-            // Custom wheel pick.
-            CustomColorSwatch(
-                selectedColor = customRgb?.let { Color(0xFF000000L or it) },
-                onClick = { showPicker = true },
-            )
-            // Neutrals then accents, matched on RGB so opacity changes don't drop the selection.
-            (NeutralColors.map { it.first } + AccentColors).forEach { argb ->
-                ColorSwatch(
-                    color = Color(argb),
-                    selected = spec is ColorSpec.Fixed && spec.argb and 0xFFFFFFL == argb and 0xFFFFFFL,
-                    onClick = { pickFixed(argb) },
+        SettingsToggleCard(
+            shape = RoundedCornerShape(size = 24.dp),
+            title = stringResource(R.string.bgColor_oled_title),
+            description = stringResource(R.string.bgColor_oled_desc),
+            checked = isOledBlack,
+            onCheckedChange = ::toggleOledBlack
+        )
+
+        AnimatedVisibility(visible = !isOledBlack) {
+            Column(
+                modifier = Modifier.padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                SwatchRow {
+                    // Material you coolors
+                    DynamicSwatch(
+                        DynamicRole.PRIMARY,
+                        R.string.cd_color_dynamic_primary,
+                        spec,
+                        ::pickDynamic
+                    )
+                    DynamicSwatch(
+                        DynamicRole.SECONDARY,
+                        R.string.cd_color_dynamic_secondary,
+                        spec,
+                        ::pickDynamic
+                    )
+                    DynamicSwatch(
+                        DynamicRole.TERTIARY,
+                        R.string.cd_color_dynamic_tertiary,
+                        spec,
+                        ::pickDynamic
+                    )
+
+                    // Custom wheel pick.
+                    CustomColorSwatch(
+                        selectedColor = customRgb?.let { Color(0xFF000000L or it) },
+                        onClick = { showPicker = true },
+                    )
+
+                    // Neutrals then accents, matched on RGB so opacity changes don't drop the selection.
+                    (NeutralColors.map { it.first } + AccentColors).forEach { argb ->
+                        ColorSwatch(
+                            color = Color(argb),
+                            selected = spec is ColorSpec.Fixed && spec.argb and 0xFFFFFFL == argb and 0xFFFFFFL,
+                            onClick = { pickFixed(argb) },
+                        )
+                    }
+                }
+
+                AdjustableSlider(
+                    label = stringResource(R.string.opacity),
+                    valueText = "${(opacity * 100).roundToInt()}%",
+                    value = opacity,
+                    valueRange = 0f..1f,
+                    step = 0.05f,
+                    onValueChange = { onChange(spec.withOpacity(it)) },
+                    onCommit = {},
                 )
             }
         }
-
-        AdjustableSlider(
-            label = stringResource(R.string.opacity),
-            valueText = "${(opacity * 100).roundToInt()}%",
-            value = opacity,
-            valueRange = 0f..1f,
-            step = 0.05f,
-            onValueChange = { onChange(spec.withOpacity(it)) },
-            onCommit = {},
-        )
     }
 
     if (showPicker) {
