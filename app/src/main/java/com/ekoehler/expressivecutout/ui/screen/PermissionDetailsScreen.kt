@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -76,6 +77,16 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
             "Dismiss the real notification when you swipe the island away",
             "Detect an ongoing or incoming call, and the system countdown behind a timer notification",
         ),
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.Vibration,
+        title = "Vibration permission",
+        manifestName = "VIBRATE",
+        summary = "Used to produce vibrations and haptic feedback through the app and the cutout",
+        uses = listOf(
+            "Vibrate when going through the app",
+            "Providing haptic feedback when clicking on the cutout"
+        )
     ),
     PermissionDoc(
         icon = Icons.Rounded.Layers,

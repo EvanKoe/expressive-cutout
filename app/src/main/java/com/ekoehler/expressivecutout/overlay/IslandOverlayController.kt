@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.Surface
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
@@ -26,14 +27,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
@@ -48,6 +54,9 @@ import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CenterShortcut
+import com.ekoehler.expressivecutout.data.EmptyClickAction
+import com.ekoehler.expressivecutout.data.GlobalAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -431,6 +440,18 @@ class IslandOverlayController(private val context: Context) {
                         swipeToDismiss = behaviour.swipeToDismiss,
                         swipeDismissDirection = behaviour.swipeDismissDirection,
                         swipeDismissTarget = behaviour.swipeDismissTarget,
+                        showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
+                        emptyIcon = behaviour.showsWhenEmptyIcon.takeIf { behaviour.showsWhenEmptyShowIcon },
+                        emptyIconColor = behaviour.showsWhenEmptyIconColor,
+                        emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
+                        centerShortcuts = behaviour.centerShortcuts,
+                        centerShowLabels = behaviour.centerShowLabels,
+                        centerFillContainers = behaviour.centerFillContainers,
+                        centerThemedIcons = behaviour.centerThemedIcons,
+                        actionButtonAnimation = behaviour.actionButtonAnimation,
+                        vibrateOnTap = behaviour.vibrateOnTap,
+                        onEmptyClick = ::onEmptyClick,
+                        onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
                         onAction = ::onAction,
@@ -722,9 +743,16 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    /** Only intercept touches while the island is actually on screen. */
+    /**
+     * Only intercept touches while the island is actually on screen — plus while the resting empty
+     * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
+     * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
+     * unaffected; the pill's own footprint does stop passing touches through.
+     */
     private fun observeVisibility() = scope.launch {
-        currentEvent.collect { setTouchable(it != null) }
+        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
+            setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+        }
     }
 
     /**
@@ -956,6 +984,10 @@ class IslandOverlayController(private val context: Context) {
             return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
         }
         return when {
+            // The empty pill's expanded "center" (no event) claims room for its shortcut row.
+            expanded && event == null &&
+                behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
+                CENTER_SHORTCUTS_EXTRA_DP
             expanded -> expandedActionsBonusDp()
             isTwoRowCall() -> callIncomingExtraDp()
             else -> 0
@@ -1150,6 +1182,15 @@ class IslandOverlayController(private val context: Context) {
             (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
              behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
         val targetExpanded = if (isNoExpandLandscape) false else isExpanded
+        // The resting empty pill's "center" has no event to dismiss — just keep the window and
+        // touchable region sized to whatever it's showing (collapsed pill vs. expanded grid).
+        if (currentEvent.value == null) {
+            expanded = targetExpanded
+            // Sync the flashlight state when the center opens so a torch shortcut shows lit/unlit.
+            if (targetExpanded) CenterShortcutExecutor.syncTorchState(context)
+            syncWindowSize()
+            return
+        }
         val wasExpanded = expanded
         expanded = targetExpanded
         syncWindowSize()
@@ -1175,6 +1216,39 @@ class IslandOverlayController(private val context: Context) {
      * running and there'd otherwise be no way to bring the tile back. It stays until the call ends
      * or the user swipes it away.
      */
+    /**
+     * A tap on the resting (empty) pill. Its behaviour is the user's "On click" choice: [OPEN_APP]
+     * launches the chosen app; [NONE] (and, for now, the reserved [OPEN_CENTER]) do nothing beyond
+     * the press animation the pill already plays.
+     */
+    private fun onEmptyClick() {
+        val behaviour = behaviourState.value
+        if (behaviour.showsWhenEmptyClickAction != EmptyClickAction.OPEN_APP) return
+        val packageName = behaviour.showsWhenEmptyClickPackage ?: return
+        val launch = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        } ?: return
+        runCatching { context.startActivity(launch) }
+    }
+
+    /**
+     * Run a shortcut tapped in the expanded center. The composable has already begun collapsing the
+     * center as it calls this; for actions that capture or cover the screen (screenshot, power menu)
+     * we give that collapse a beat to finish so the overlay isn't in the shot / behind the dialog.
+     */
+    private fun onCenterShortcut(shortcut: CenterShortcut) {
+        val settleFirst = shortcut is CenterShortcut.Global &&
+            (shortcut.action == GlobalAction.SCREENSHOT || shortcut.action == GlobalAction.POWER_DIALOG)
+        if (settleFirst) {
+            scope.launch {
+                delay(CENTER_ACTION_SETTLE_MS)
+                CenterShortcutExecutor.execute(shortcut, context)
+            }
+        } else {
+            CenterShortcutExecutor.execute(shortcut, context)
+        }
+    }
+
     private fun onActivate() {
         val intent = currentEvent.value?.contentIntent
         if (isPinnedLiveTile()) {
@@ -1389,15 +1463,15 @@ class IslandOverlayController(private val context: Context) {
     private fun isRotation270(): Boolean {
         @Suppress("DEPRECATION")
         val display = windowManager.defaultDisplay
-        return display?.rotation == android.view.Surface.ROTATION_270
+        return display?.rotation == Surface.ROTATION_270
     }
 
     private fun getLandscapeCameraGravity(): Int {
         @Suppress("DEPRECATION")
         val display = windowManager.defaultDisplay
         return when (display?.rotation) {
-            android.view.Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
-            android.view.Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
+            Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+            Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
             else -> Gravity.LEFT or Gravity.CENTER_VERTICAL
         }
     }
@@ -1410,8 +1484,8 @@ class IslandOverlayController(private val context: Context) {
             windowManager.defaultDisplay
         }
         return when (display?.rotation) {
-            android.view.Surface.ROTATION_90 -> 90f
-            android.view.Surface.ROTATION_270 -> -90f
+            Surface.ROTATION_90 -> 90f
+            Surface.ROTATION_270 -> -90f
             else -> 0f
         }
     }
@@ -1456,5 +1530,9 @@ class IslandOverlayController(private val context: Context) {
         // Beat between a dismissed interruption fading out and the music pill easing back in, so the
         // hand-off doesn't feel like an instant, janky swap.
         const val MUSIC_RETURN_DELAY_MS = 350L
+
+        // Let the center's collapse begin before a screen-capturing / screen-covering shortcut fires,
+        // so the overlay isn't caught in the screenshot or left behind the power dialog.
+        const val CENTER_ACTION_SETTLE_MS = 260L
     }
 }

@@ -7,7 +7,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 // Deliberately not "app_prefs" — ThemePreferences already owns that file, and a second delegate
 // over the same file throws "multiple DataStores active for the same file" on first read.
@@ -25,7 +28,7 @@ private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataSt
  * Both store only the opt-outs (absent means the default), so newly installed apps behave normally
  * and the sets stay small, mirroring [DynamicTilePreferences].
  */
-class AppPreferences(private val context: Context) {
+class AppPreferences(private val context: Context) : JsonSerializable {
 
     val disabledPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
         prefs[DISABLED_KEY].orEmpty()
@@ -48,5 +51,37 @@ class AppPreferences(private val context: Context) {
     private companion object {
         val DISABLED_KEY = stringSetPreferencesKey("disabled_packages")
         val NORMAL_ONLY_KEY = stringSetPreferencesKey("normal_only_packages")
+    }
+
+    /**
+     * Exports the AppPreferences class in a JSON string
+     * { disabledPackages: string[], normalOnlyPackages: string[] }
+     */
+    override suspend fun toJson(): String {
+        // .first() reads the current snapshot and cancels; .toList() would hang forever, since the
+        // DataStore flow never completes (see the export bug this replaced).
+        val disabled = disabledPackages.first()
+        val normalOnly = normalOnlyPackages.first()
+        return JSONObject().apply {
+            put("disabledPackages", JSONArray(disabled))
+            put("normalOnlyPackages", JSONArray(normalOnly))
+        }.toString()
+    }
+
+    /**
+     * Applies { disabledPackages: [...], normalOnlyPackages: [...] } exported by [toJson] as a full
+     * replacement of both opt-out sets. A missing array clears that set, matching the snapshot.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.perAppDataStore.edit {
+            it[DISABLED_KEY] = obj.optJSONArray("disabledPackages").toStringSet()
+            it[NORMAL_ONLY_KEY] = obj.optJSONArray("normalOnlyPackages").toStringSet()
+        }
+    }
+
+    private fun JSONArray?.toStringSet(): Set<String> {
+        if (this == null) return emptySet()
+        return (0 until length()).mapNotNull { optString(it).takeIf { s -> s.isNotEmpty() } }.toSet()
     }
 }

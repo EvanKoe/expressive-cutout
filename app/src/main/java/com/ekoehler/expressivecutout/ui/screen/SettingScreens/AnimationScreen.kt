@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -147,6 +148,19 @@ internal fun AnimationScreen(
                 }
             }
         }
+
+        // The press reaction of the action / reply buttons is independent of the primary motion
+        // style above, so it lives in its own group.
+        AnimationSegmentedRow(
+            shape = groupedShape(isFirst = true, isLast = true),
+            label = stringResource(R.string.animation_button),
+            options = listOf(
+                stringResource(R.string.animation_button_scale),
+                stringResource(R.string.animation_button_expand),
+            ),
+            selectedIndex = behaviour.actionButtonAnimation.ordinal,
+            onSelect = { viewModel.setActionButtonAnimation(ActionButtonAnimation.entries[it]) },
+        )
     }
 }
 

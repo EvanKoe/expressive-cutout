@@ -32,11 +32,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlin.math.roundToInt
@@ -53,6 +57,7 @@ private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape
 internal fun BehaviourScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
@@ -61,6 +66,8 @@ internal fun BehaviourScreen(
     var seconds by remember(behaviour.expandedCollapseSeconds) {
         mutableStateOf(behaviour.expandedCollapseSeconds.toFloat())
     }
+
+    val haptics = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -161,7 +168,14 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setShrinkOnSwipeUp,
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = !behaviour.swipeToDismiss),
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_vibrateOnTap_title),
+            description = stringResource(R.string.behaviour_vibrateOnTap_desc),
+            checked = behaviour.vibrateOnTap,
+            onCheckedChange = viewModel::setVibrateOnTap
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_swipe_dismiss),
             description = stringResource(R.string.behaviour_swipe_dismiss_desc),
             checked = behaviour.swipeToDismiss,
@@ -181,7 +195,7 @@ internal fun BehaviourScreen(
                     onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
                 )
                 BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = true),
+                    shape = groupedShape(isFirst = false, isLast = false),
                     label = stringResource(R.string.behaviour_swipe_target),
                     options = listOf(
                         stringResource(R.string.swipe_target_expanded),
@@ -193,6 +207,17 @@ internal fun BehaviourScreen(
                 )
             }
         }
+        SettingsToggleNavCard(
+            shape = groupedShape(isFirst = false, isLast = true),
+            title = stringResource(R.string.behaviour_empty_pill),
+            description = stringResource(R.string.behaviour_empty_pill_desc),
+            checked = behaviour.showsWhenEmpty,
+            onCheckedChange = viewModel::setShowsWhenEmpty,
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenShowsWhenEmpty()
+            }
+        )
     }
 }
 

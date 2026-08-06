@@ -11,7 +11,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ekoehler.expressivecutout.core.SystemEventType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.eventDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs")
 
@@ -19,7 +21,7 @@ private val Context.eventDataStore: DataStore<Preferences> by preferencesDataSto
  * Persists whether each system event is allowed to appear on the island. Absent means enabled,
  * so events show by default and only explicit opt-outs are stored.
  */
-class EventPreferences(private val context: Context) {
+class EventPreferences(private val context: Context) : JsonSerializable {
 
     val enabled: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
         SystemEventType.entries.associateWith { type -> prefs[type.key] ?: true }
@@ -91,6 +93,71 @@ class EventPreferences(private val context: Context) {
         SystemEventType.entries.mapNotNull { type ->
             CutoutColor.deserialize(prefs[type.colorKey])?.let { color -> type to color }
         }.toMap()
+    }
+
+    /**
+     * Exports every per-event setting as JSON. The four [SystemEventType]-keyed maps become nested
+     * objects whose keys are the event-type names (a JSONObject key must be a String, so the enum
+     * key is converted with [Enum.name]); per-event colours are their [CutoutColor.serialize] strings.
+     */
+    override suspend fun toJson(): String {
+        fun <V> Map<SystemEventType, V>.toJsonObject(transform: (V) -> Any): JSONObject =
+            JSONObject().apply { forEach { (type, value) -> put(type.name, transform(value)) } }
+
+        return JSONObject().apply {
+            put("enabled", enabled.first().toJsonObject { it })
+            put("dynamicColor", dynamicColor.first())
+            put("dynamicColorRole", dynamicColorRole.first().name)
+            put("dynamicColorOpacity", dynamicColorOpacity.first().toDouble())
+            put("durations", durations.first().toJsonObject { it })
+            put("animatedIcons", animatedIcons.first().toJsonObject { it })
+            put("animatedIconLoops", animatedIconLoops.first().toJsonObject { it })
+            put("colors", colors.first().toJsonObject { it.serialize() })
+        }.toString()
+    }
+
+    /**
+     * Applies every per-event setting exported by [toJson]. The [enabled] map is dense (one entry
+     * per event, defaulting an absent name to enabled); the sparse override maps (durations, animated
+     * icons, loops, colours) are applied as a full replacement — an event present in the map gets its
+     * override, an event absent has any existing override cleared — so the imported state matches the
+     * document exactly. Done in one edit.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        val enabled = obj.optJSONObject("enabled")
+        val durations = obj.optJSONObject("durations")
+        val animated = obj.optJSONObject("animatedIcons")
+        val loops = obj.optJSONObject("animatedIconLoops")
+        val colors = obj.optJSONObject("colors")
+
+        context.eventDataStore.edit { prefs ->
+            SystemEventType.entries.forEach { type ->
+                val name = type.name
+                enabled?.let { prefs[type.key] = it.optBoolean(name, true) }
+                durations?.let {
+                    if (it.has(name)) prefs[type.durationKey] = it.getInt(name) else prefs.remove(type.durationKey)
+                }
+                animated?.let {
+                    if (it.has(name)) prefs[type.animatedKey] = it.getBoolean(name) else prefs.remove(type.animatedKey)
+                }
+                loops?.let {
+                    if (it.has(name)) prefs[type.loopKey] = it.getBoolean(name) else prefs.remove(type.loopKey)
+                }
+                colors?.let {
+                    val color = if (it.has(name) && !it.isNull(name)) CutoutColor.deserialize(it.optString(name)) else null
+                    if (color == null) prefs.remove(type.colorKey) else prefs[type.colorKey] = color.serialize()
+                }
+            }
+            if (obj.has("dynamicColor")) prefs[DYNAMIC_COLOR_KEY] = obj.getBoolean("dynamicColor")
+            if (obj.has("dynamicColorRole") && !obj.isNull("dynamicColorRole")) {
+                runCatching { DynamicRole.valueOf(obj.optString("dynamicColorRole")) }.getOrNull()
+                    ?.let { prefs[DYNAMIC_COLOR_ROLE_KEY] = it.name }
+            }
+            if (obj.has("dynamicColorOpacity")) {
+                prefs[DYNAMIC_COLOR_OPACITY_KEY] = obj.getDouble("dynamicColorOpacity").toFloat().coerceIn(0f, 1f)
+            }
+        }
     }
 
     suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {

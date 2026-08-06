@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.overlay
 
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.os.Build
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -61,7 +63,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +81,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.rememberScrollState
@@ -88,7 +94,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -109,6 +117,14 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import android.net.Uri
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.MediaArtBus
 import com.ekoehler.expressivecutout.core.NowPlaying
@@ -116,14 +132,18 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
+import com.ekoehler.expressivecutout.core.TorchStateBus
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
+import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
@@ -178,6 +198,18 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+ * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
+ * visible island fits its measured content exactly (see the height-bonus logic in [DynamicIsland]);
+ * the controller reserves this for the host window and touchable region so they never clip the
+ * tallest (labels-on) layout — the window being a touch taller than the content is invisible.
+ */
+internal const val CENTER_SHORTCUTS_EXTRA_DP = 135
+
+// Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
+// content, used when fitting the island height to its measured shortcut row.
+private const val CENTER_TOP_GAP_DP = 8
+
+/**
  * Maps the configured chip placement onto the [Row] arrangement that positions the chip row.
  * [ActionButtonAlignment.FULL] stretches the chips with weight rather than positioning them, so it
  * falls back to leading here (the arrangement is irrelevant once the chips fill the whole width).
@@ -214,6 +246,7 @@ fun DynamicIsland(
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
     animationBounce: AnimationBounce,
+    actionButtonAnimation: ActionButtonAnimation,
     animationDurationMs: Int,
     autoCollapse: Boolean,
     autoCollapseMs: Long,
@@ -223,6 +256,17 @@ fun DynamicIsland(
     swipeToDismiss: Boolean,
     swipeDismissDirection: SwipeDismissDirection,
     swipeDismissTarget: SwipeDismissTarget,
+    showsWhenEmpty: Boolean,
+    emptyIcon: IconSource? = null,
+    emptyIconColor: CutoutColor? = null,
+    emptyOpensCenter: Boolean = false,
+    centerShortcuts: List<CenterShortcut> = emptyList(),
+    centerShowLabels: Boolean = true,
+    centerFillContainers: Boolean = false,
+    centerThemedIcons: Boolean = false,
+    vibrateOnTap: Boolean = true,
+    onEmptyClick: () -> Unit = {},
+    onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
     onAction: (IslandAction) -> Unit,
@@ -234,10 +278,15 @@ fun DynamicIsland(
     if (event != null) {
         lastEvent = event
     }
+
     val shownEvent = lastEvent
+    val emptyPill = event == null && showsWhenEmpty
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
     var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    // Bumped on every center shortcut press so the auto-collapse timer restarts on interaction —
+    // the open center only shrinks after the inactivity delay, not a fixed time after it opened.
+    var centerInteraction by remember { mutableStateOf(0) }
     // The reply action currently being typed for, if any. Reset when the event changes.
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
@@ -249,8 +298,22 @@ fun DynamicIsland(
     val isCall = shownEvent?.call != null
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
     val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
-    val isExpanded = if (isNormalOnly || forcedExpanded == false) false else (forcedExpanded ?: tapExpanded)
+    // The resting empty pill has no event, but with "Open center" a tap expands it into a shortcut
+    // grid. That reuses [tapExpanded] so it inherits auto-collapse; every other empty pill (and the
+    // normal-only tiles) stays collapsed.
+    val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
+    val isExpanded = when {
+        forcedExpanded == false -> false
+        emptyPill -> centerExpanded
+        isNormalOnly -> false
+        else -> forcedExpanded ?: tapExpanded
+    }
     val boopScale = remember { Animatable(1f) }
+    // The cutout body's tap feedback follows the same setting as its buttons: [ActionButtonAnimation.SCALE]
+    // squishes the whole pill via [boopScale], [ActionButtonAnimation.EXPAND] widens it instead — this runs
+    // 0 (resting) → 1 (pressed) and only ever leaves 0 for that flavour, so the two never fight.
+    val pressExpand = remember { Animatable(0f) }
+    val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -272,12 +335,14 @@ fun DynamicIsland(
 
     // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
-    LaunchedEffect(isExpanded, event != null) {
-        if (event != null) onExpandedChange(isExpanded)
+    LaunchedEffect(isExpanded, event != null, emptyPill, emptyOpensCenter) {
+        // Fire for real events, and for the empty pill's center so the controller grows the host
+        // window and touchable region to cover the expanded shortcut grid.
+        if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
     }
     // User-expanded (not the pinned preview) optionally collapses after the delay — never while
     // a reply is being typed or its "sent" confirmation is still showing.
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent) {
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
         if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
             delay(autoCollapseMs)
             tapExpanded = false
@@ -312,21 +377,40 @@ fun DynamicIsland(
             CALL_MIN_WIDTH_PERCENT
         }
     }
+
+    // The two-row incoming layout starts from the expanded cutout and grows by its button row.
     val dims = when {
-        // The two-row incoming layout starts from the expanded cutout and grows by its button row.
+        emptyPill && !isExpanded -> collapsed
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         isExpanded -> expanded
         else -> collapsed
     }
+
     // The assistant streams its answer as a rapid series of fresh events, each with a new id (the
     // resolver stamps one per emission). Keying this on the id would reset it to 0 on every token, so
     // the fit-to-content height would keep collapsing to its 110dp floor and springing back — the
     // bounce. Key it on the tile kind instead so the measured height persists across the whole stream
     // and only resets when a different (non-assistant) event takes over.
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
+    // The empty pill's center fits its own content: the shortcut row measures itself so the cutout is
+    // exactly as tall as it needs to be (shorter with labels off), instead of a fixed reservation.
+    var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
+
     val heightBonus = when {
+        emptyPill && isExpanded -> {
+            // Fit the cutout to the measured shortcut content (camera clearance + content), so it's
+            // exactly as tall as needed — shorter with labels off. Falls back to the reserve until
+            // the first measurement lands. dims is the expanded layout, so this resolves the island
+            // height to (collapsed clearance + gap + content) regardless of the expanded height.
+            if (centerContentHeightDp > 0) {
+                collapsed.heightDp + CENTER_TOP_GAP_DP + centerContentHeightDp - dims.heightDp
+            } else {
+                CENTER_SHORTCUTS_EXTRA_DP
+            }
+        }
+        emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
             val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
@@ -335,21 +419,38 @@ fun DynamicIsland(
         }
         isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
             expandedActionsExtraDp(appearance.actionButtonHeightDp)
-        // The incoming two-row layout grows past the expanded height so its Take / Hang up row has its
-        // own space below a caller row that clears the camera hole (calls never enter the expanded state).
         callTwoRow -> callIncomingExtraDp()
         else -> 0
     }
+
     // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
     // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
     // runs 0 (dot) → 1 (full pill); it eases in on show and back out on hide.
-    val present = event != null
+    val present = event != null || showsWhenEmpty
     val reveal = remember { Animatable(0f) }
+
     LaunchedEffect(present) {
         reveal.animateTo(
             targetValue = if (present) 1f else 0f,
             animationSpec = motion.float(baseMs = if (present) 320 else 200),
         )
+    }
+    // A dismiss swipe leaves the pill translated and faded (the alpha is derived from that offset), and
+    // [dismissOffsetX] is keyed on the sticky [shownEvent] so it survives the event clearing. With
+    // "shows when empty" the surface then never goes away, so the resting pill would sit off-centre at
+    // reduced opacity. Finish the exit instead: hide it, recentre, and grow back from the dot as usual.
+    // `present` is true either side of this hand-off, so the reveal above never competes for `reveal`.
+    LaunchedEffect(emptyPill) {
+        if (emptyPill) {
+            // A fresh resting pill always starts with its center closed — never inherit a prior
+            // notification's expanded state (after opening its app, swiping it away, etc.).
+            tapExpanded = false
+            if (dismissOffsetX.value != 0f) {
+                reveal.snapTo(0f)
+                dismissOffsetX.snapTo(0f)
+                reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
+            }
+        }
     }
     // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
     // next state instead of animating: a cutout dismissed while expanded resets to its normal height
@@ -399,6 +500,9 @@ fun DynamicIsland(
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
 
+    val haptic = LocalHapticFeedback.current
+
+    CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
     Box(modifier = Modifier.fillMaxSize()) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
@@ -418,46 +522,84 @@ fun DynamicIsland(
                         .width(revealWidth)
                         .height(revealHeight)
                         .graphicsLayer {
-                            scaleX = boopScale.value
+                            val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
+                            val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
+                            scaleX = boopScale.value * widen
                             scaleY = boopScale.value
-                            // Follow the finger during a dismiss swipe, fading as it slides away.
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
-                            // Fade the dot in/out quickly over the first/last fifth of the reveal so
-                            // it never hard-pops on or off screen; combine with the swipe fade.
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
-                        .pointerInput(forcedExpanded, isExpanded, replying, shownEvent?.id) {
-                            if (forcedExpanded == true) return@pointerInput
+                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
+                            if (forcedExpanded == true) {
+                                return@pointerInput
+                            }
+
                             detectTapGestures(
                                 onPress = {
-                                    if (replying) return@detectTapGestures
+                                    if (replying) {
+                                        return@detectTapGestures
+                                    }
+
                                     if (!isExpanded) {
                                         scope.launch {
-                                            boopScale.animateTo(0.96f, motion.boop())
+                                            if (pressWidens) {
+                                                pressExpand.animateTo(1f, motion.boop())
+                                            } else {
+                                                // Empty cutout scale tap animation
+                                                boopScale.animateTo(0.96f, motion.boop())
+                                            }
                                         }
                                     }
+
                                     tryAwaitRelease()
+
                                     if (!isExpanded) {
                                         scope.launch {
-                                            boopScale.animateTo(1f, motion.boop())
+                                            if (pressWidens) {
+                                                pressExpand.animateTo(0f, motion.boop())
+                                            } else {
+                                                boopScale.animateTo(1f, motion.boop())
+                                            }
                                         }
                                     }
                                 },
                                 onTap = {
+                                    if (vibrateOnTap) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+
+                                    if (emptyPill) {
+                                        // "Open center" expands the resting pill into the shortcut
+                                        // grid (a second tap toggles it closed); every other "On
+                                        // click" action (e.g. open an app) runs via onEmptyClick.
+                                        if (emptyOpensCenter) {
+                                            if (forcedExpanded == null) {
+                                                tapExpanded = !tapExpanded
+                                                if (tapExpanded) {
+                                                    scope.launch { motion.pop(boopScale, peak = 1.03f) }
+                                                }
+                                            }
+                                        } else {
+                                            onEmptyClick()
+                                        }
+                                        return@detectTapGestures
+                                    }
+
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
+
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
-                                        if (shownEvent?.contentIntent != null) onActivate()
+                                        if (shownEvent.contentIntent != null) onActivate()
                                         return@detectTapGestures
                                     }
-                                    // Once expanded — or while the island is pinned to the normal cutout
-                                    // in landscape (forcedExpanded == false) — tapping a notification opens
-                                    // its app; anything else just toggles expand/collapse.
+
+                                    // Tap to open the app
                                     if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
+                                        tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
                                         tapExpanded = !tapExpanded
@@ -471,8 +613,10 @@ fun DynamicIsland(
                             )
                         }
                         // Swipe up on the expanded island to shrink it back to the normal cutout.
-                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, shownEvent?.id) {
-                            if (forcedExpanded != null || !shrinkOnSwipeUp) return@pointerInput
+                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, emptyPill, shownEvent?.id) {
+                            // The resting empty cutout has no expanded state to shrink back from, so
+                            // don't install the detector at all — it would only swallow vertical drags.
+                            if (forcedExpanded != null || !shrinkOnSwipeUp || emptyPill) return@pointerInput
                             val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
                             var dragTotal = 0f
                             detectVerticalDragGestures(
@@ -489,13 +633,15 @@ fun DynamicIsland(
                         }
                         // Swipe sideways to dismiss the cutout (and, for a notification, clear it from
                         // the system). Only the direction(s) and cutout state(s) the user allows let go.
-                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, shownEvent?.id) {
+                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, emptyPill, shownEvent?.id) {
                             val targetAllows = when (swipeDismissTarget) {
                                 SwipeDismissTarget.BOTH -> true
                                 SwipeDismissTarget.EXPANDED -> isExpanded
                                 SwipeDismissTarget.NORMAL -> !isExpanded
                             }
-                            if (forcedExpanded != null || !swipeToDismiss || replying || !targetAllows) return@pointerInput
+                            // The resting empty cutout is meant to stay: a swipe must neither slide it
+                            // away nor clear the departed notification it still remembers.
+                            if (forcedExpanded != null || !swipeToDismiss || replying || emptyPill || !targetAllows) return@pointerInput
                             val allowLeft = swipeDismissDirection != SwipeDismissDirection.RIGHT
                             val allowRight = swipeDismissDirection != SwipeDismissDirection.LEFT
                             val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
@@ -533,46 +679,76 @@ fun DynamicIsland(
                     progress = expandProgress,
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
-                        shownEvent?.let { e ->
-                            if (e.call != null) {
-                                // The phone tile: one bigger normal cutout — caller on the left,
-                                // hang-up on the right — with no separate expanded layout.
-                                CallNormalContent(event = e, onAction = onAction)
-                            } else if (showExpanded) {
-                                ExpandedContent(
-                                    event = e,
-                                    showActions = showActions,
-                                    appearance = appearance,
-                                    replyingTo = replyingTo,
-                                    replySent = confirmingSent,
-                                    onAction = onAction,
-                                    onStartReply = { replyingTo = it },
-                                    onCancelReply = { replyingTo = null },
-                                    onSendReply = { text ->
-                                        // Swap the field for the "Sent" confirmation, then dispatch
-                                        // the reply once it has been seen. Launched from the (un-keyed)
-                                        // composition scope so a notification arriving mid-hold can't
-                                        // cancel the send.
-                                        replyingTo?.let { action ->
-                                            sentReply = action to text
-                                            scope.launch {
-                                                delay(REPLY_SENT_FEEDBACK_MS)
-                                                onReply(action, text)
-                                            }
-                                        }
-                                        replyingTo = null
+                        if (emptyPill) {
+                            if (showExpanded) {
+                                CenterContent(
+                                    shortcuts = centerShortcuts,
+                                    showLabels = centerShowLabels,
+                                    fillContainers = centerFillContainers,
+                                    themedIcons = centerThemedIcons,
+                                    onContentHeight = { centerContentHeightDp = it },
+                                    onShortcut = { shortcut ->
+                                        // Any press counts as activity, restarting the auto-collapse
+                                        // timer so the center stays up while it's being used.
+                                        centerInteraction++
+                                        // In-place toggles (torch) keep the center open; everything
+                                        // else closes it as we act, so it isn't left over the screen
+                                        // (and out of a screenshot the shortcut may trigger).
+                                        if (!shortcut.keepsCenterOpen) tapExpanded = false
+                                        onCenterShortcut(shortcut)
                                     },
-                                    onDismiss = onDismiss,
-                                    onHeightMeasured = { assistantContentHeightDp = it },
                                 )
-                            } else {
-                                CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                            } else if (emptyIcon != null) {
+                                EmptyPillContent(
+                                    icon = emptyIcon,
+                                    containerColor = emptyIconColor,
+                                    heightDp = collapsed.heightDp,
+                                    isStickToCamera = isStickToCamera,
+                                )
+                            }
+                        } else {
+                            shownEvent?.let { e ->
+                                if (e.call != null) {
+                                    // The phone tile: one bigger normal cutout — caller on the left,
+                                    // hang-up on the right — with no separate expanded layout.
+                                    CallNormalContent(event = e, onAction = onAction)
+                                } else if (showExpanded) {
+                                    ExpandedContent(
+                                        event = e,
+                                        showActions = showActions,
+                                        appearance = appearance,
+                                        replyingTo = replyingTo,
+                                        replySent = confirmingSent,
+                                        onAction = onAction,
+                                        onStartReply = { replyingTo = it },
+                                        onCancelReply = { replyingTo = null },
+                                        onSendReply = { text ->
+                                            // Swap the field for the "Sent" confirmation, then dispatch
+                                            // the reply once it has been seen. Launched from the (un-keyed)
+                                            // composition scope so a notification arriving mid-hold can't
+                                            // cancel the send.
+                                            replyingTo?.let { action ->
+                                                sentReply = action to text
+                                                scope.launch {
+                                                    delay(REPLY_SENT_FEEDBACK_MS)
+                                                    onReply(action, text)
+                                                }
+                                            }
+                                            replyingTo = null
+                                        },
+                                        onDismiss = onDismiss,
+                                        onHeightMeasured = { assistantContentHeightDp = it },
+                                    )
+                                } else {
+                                    CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
     }
 }
 
@@ -767,6 +943,287 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
 }
 
 /**
+ * The resting (event-less) pill's optional glyph, centred on the collapsed cutout. A user-chosen
+ * [containerColor] draws a filled disc with contrasting ink behind the glyph; without one, the glyph
+ * sits directly on the pill in its content colour. The glyph is a picked image or a Material icon.
+ */
+@Composable
+private fun EmptyPillContent(
+    icon: IconSource,
+    containerColor: CutoutColor?,
+    heightDp: Int,
+    isStickToCamera: Boolean = false,
+) {
+    val context = LocalContext.current
+    val badgeSize = (heightDp * 0.72f).dp
+    val iconSize = (heightDp * 0.46f).dp
+
+    val disc = containerColor?.resolve()
+    val glyphColor = when {
+        disc != null -> if (disc.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        else -> LocalContentColor.current
+    }
+
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
+        value = when (icon) {
+            is IconSource.Image -> withContext(Dispatchers.IO) {
+                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
+            }
+            is IconSource.Material -> null
+        }
+    }
+    val materialIcon = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Sit on the leading edge like the normal cutout's icon (clear of the camera), or centred at
+        // the bottom when the pill is stuck beside the camera — mirroring CollapsedContent.
+        val placement = Modifier
+            .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
+            .padding(
+                start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
+                bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+            )
+        Box(
+            modifier = placement
+                .size(badgeSize)
+                .clip(CircleShape)
+                .then(if (disc != null) Modifier.background(disc) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            val loaded = bitmap
+            when {
+                loaded != null -> androidx.compose.foundation.Image(
+                    bitmap = loaded,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
+                )
+
+                materialIcon != null -> Icon(
+                    imageVector = materialIcon,
+                    contentDescription = null,
+                    tint = glyphColor,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
+        }
+    }
+}
+
+// The height of each shortcut button in the expanded center (its diameter too, in disc mode).
+private val CenterDiscDp = 64.dp
+
+/**
+ * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
+ * a titled row of round shortcut buttons, scrolling horizontally when they overflow. Sits in the
+ * lower part of the cutout (clear of the camera), mirroring [ExpandedContent]'s placement.
+ */
+@Composable
+private fun CenterContent(
+    shortcuts: List<CenterShortcut>,
+    showLabels: Boolean,
+    fillContainers: Boolean,
+    themedIcons: Boolean,
+    onContentHeight: (Int) -> Unit,
+    onShortcut: (CenterShortcut) -> Unit,
+) {
+    val density = LocalDensity.current.density
+    // Only togglable shortcuts have a lit state; the torch reads live from the bus.
+    val torchOn by TorchStateBus.on.collectAsStateWithLifecycle()
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                // Report the content's natural height so the cutout can fit itself to it.
+                .onGloballyPositioned { onContentHeight((it.size.height / density).toInt()) },
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.center_shortcuts_title),
+                color = LocalContentColor.current,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (shortcuts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.center_shortcuts_empty),
+                    color = LocalContentColor.current.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                )
+            } else {
+                // Every shortcut shares the width equally (flex: 1), so the row always fills the
+                // cutout with evenly-spread buttons. Under the EXPAND press animation a pressed button
+                // borrows width from its siblings (they spring thinner) instead of overflowing in
+                // place — the same give-and-take as the action chips (see [ActionChipRow]).
+                val redistribute = LocalActionButtonAnimation.current == ActionButtonAnimation.EXPAND &&
+                    shortcuts.size > 1
+                val interactions = remember(shortcuts.size) {
+                    List(shortcuts.size) { MutableInteractionSource() }
+                }
+                val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
+                val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    shortcuts.forEachIndexed { i, shortcut ->
+                        val target = when {
+                            !redistribute || pressedIndex < 0 -> 1f
+                            i == pressedIndex -> 1f + FULL_EXPAND_DELTA
+                            else -> 1f - FULL_EXPAND_DELTA / (shortcuts.size - 1)
+                        }
+                        val weight by animateFloatAsState(
+                            targetValue = target,
+                            animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
+                            label = "centerWeight",
+                        )
+                        CenterShortcutButton(
+                            shortcut = shortcut,
+                            showLabel = showLabels,
+                            fillContainer = fillContainers,
+                            themedIcon = themedIcons,
+                            active = shortcut is CenterShortcut.Torch && torchOn,
+                            onClick = { onShortcut(shortcut) },
+                            interaction = interactions[i],
+                            // When redistributing, the width give-and-take IS the press animation, so
+                            // the button must not also widen itself in place.
+                            animatePress = !redistribute,
+                            modifier = Modifier.weight(weight),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A single center shortcut: its container (a fixed disc, or a slot-filling pill when [fillContainer])
+ * holding the glyph or the real launcher icon, with a small label beneath. A togglable shortcut that
+ * is [active] lights up in the theme's primary / on-primary. Shares the island's [pressScale].
+ */
+@Composable
+private fun CenterShortcutButton(
+    shortcut: CenterShortcut,
+    showLabel: Boolean,
+    fillContainer: Boolean,
+    themedIcon: Boolean,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    interaction: MutableInteractionSource = remember { MutableInteractionSource() },
+    animatePress: Boolean = true,
+) {
+    val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
+    val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
+    val shapeModifier = if (fillContainer) {
+        Modifier.fillMaxWidth().height(CenterDiscDp)
+    } else {
+        Modifier.size(CenterDiscDp)
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier,
+    ) {
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            shape = CircleShape,
+            color = containerColor,
+            contentColor = glyphColor,
+            modifier = shapeModifier.then(if (animatePress) Modifier.pressScale(interaction) else Modifier),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                val appIcon = (shortcut as? CenterShortcut.LaunchApp)?.let { rememberAppIcon(it.packageName, themedIcon) }
+                when {
+                    // A themed (monochrome) app icon: tint its glyph to match the built-in shortcuts.
+                    // Its safe-zone padding means it reads well filling the whole button.
+                    appIcon?.themed == true -> Icon(
+                        bitmap = appIcon.bitmap,
+                        contentDescription = null,
+                        tint = glyphColor,
+                        modifier = Modifier.size(CenterDiscDp),
+                    )
+
+                    appIcon != null -> androidx.compose.foundation.Image(
+                        bitmap = appIcon.bitmap,
+                        contentDescription = null,
+                        modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
+                    )
+
+                    else -> Icon(
+                        imageVector = CenterShortcutCatalog.iconFor(shortcut),
+                        contentDescription = null,
+                        tint = glyphColor,
+                        modifier = Modifier.size(CenterDiscDp * 0.46f),
+                    )
+                }
+            }
+        }
+        if (showLabel) {
+            Text(
+                text = centerShortcutLabel(shortcut),
+                color = LocalContentColor.current.copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** The label for a shortcut: its fixed string resource, or the app's display name for a launcher. */
+@Composable
+private fun centerShortcutLabel(shortcut: CenterShortcut): String {
+    CenterShortcutCatalog.labelResFor(shortcut)?.let { return stringResource(it) }
+    val pkg = (shortcut as? CenterShortcut.LaunchApp)?.packageName ?: return ""
+    val context = LocalContext.current
+    val label by produceState(initialValue = pkg, pkg) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            }.getOrDefault(pkg)
+        }
+    }
+    return label
+}
+
+/** An app's loaded icon, and whether it's the themed (monochrome, tint-me) glyph vs the full-colour icon. */
+private class LoadedAppIcon(val bitmap: ImageBitmap, val themed: Boolean)
+
+/**
+ * Loads an app's launcher icon off the main thread, or null if the package is gone. When [themed] is
+ * on and the app ships an adaptive icon with a monochrome layer (API 33+), that layer is returned to
+ * be tinted like the built-in shortcut glyphs; otherwise the full-colour icon is used.
+ */
+@Composable
+private fun rememberAppIcon(packageName: String, themed: Boolean): LoadedAppIcon? {
+    val context = LocalContext.current
+    val icon by produceState<LoadedAppIcon?>(initialValue = null, packageName, themed) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val drawable = context.packageManager.getApplicationIcon(packageName)
+                val monochrome = if (themed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    (drawable as? AdaptiveIconDrawable)?.monochrome
+                } else {
+                    null
+                }
+                if (monochrome != null) {
+                    LoadedAppIcon(monochrome.toBitmap().asImageBitmap(), themed = true)
+                } else {
+                    LoadedAppIcon(drawable.toBitmap().asImageBitmap(), themed = false)
+                }
+            }.getOrNull()
+        }
+    }
+    return icon
+}
+
+/**
  * The remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
  * timer is present. Reads [RunningTimerBus]: a running timer ticks down against
  * [SystemClock.elapsedRealtime] (re-derived a few times a second so the collapsed pill and expanded
@@ -887,27 +1344,16 @@ private fun ExpandedContent(
                 showActions && event.actions.isNotEmpty() -> {
                     // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
-                    // Full-length: each chip takes an equal weighted share of the whole width; the
-                    // other alignments size chips to content and position the row as a group.
-                    val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        event.actions.take(3).forEach { action ->
-                            ActionChip(
-                                action = action,
-                                style = appearance.actionButtonStyle,
-                                fill = chipFill,
-                                heightDp = appearance.actionButtonHeightDp,
-                                onClick = {
-                                    if (action.reply != null) onStartReply(action) else onAction(action)
-                                },
-                                modifier = if (full) Modifier.weight(1f) else Modifier,
-                            )
-                        }
-                    }
+                    ActionChipRow(
+                        actions = event.actions.take(3),
+                        style = appearance.actionButtonStyle,
+                        fill = chipFill,
+                        heightDp = appearance.actionButtonHeightDp,
+                        alignment = appearance.actionButtonAlignment,
+                        onChip = { action ->
+                            if (action.reply != null) onStartReply(action) else onAction(action)
+                        },
+                    )
                 }
             }
         }
@@ -926,8 +1372,9 @@ private fun ActionChip(
     heightDp: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    interaction: MutableInteractionSource = remember { MutableInteractionSource() },
+    animatePress: Boolean = true,
 ) {
-    val interaction = remember { MutableInteractionSource() }
     val shape = when (style) {
         ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
         else -> CircleShape
@@ -958,7 +1405,7 @@ private fun ActionChip(
         border = border,
         modifier = modifier
             .height(heightDp.dp)
-            .pressScale(interaction),
+            .then(if (animatePress) Modifier.pressScale(interaction) else Modifier),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -974,24 +1421,118 @@ private fun ActionChip(
 }
 
 /**
- * The expressive "squish" on press: a springy scale-down that settles back with a little
- * bounce when released. Shared by the action chips and the reply buttons so every tap on the
- * island feels the same.
+ * The button press reaction, chosen in settings and provided by [DynamicIsland] so every
+ * [pressScale] call site (action chips, reply buttons, call buttons) picks it up without threading
+ * the setting through each one. Defaults to [ActionButtonAnimation.SCALE].
+ */
+private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
+
+// How far the EXPAND press animation widens a button, on each side.
+private val PressExpandDp = 7.dp
+
+// In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
+// the EXPAND animation: it grows by this share while the others give up the same total between them,
+// so the row always fills exactly its own width.
+private const val FULL_EXPAND_DELTA = 0.15f
+
+/**
+ * The expanded action chips row. In [ActionButtonAlignment.FULL] the chips share the width equally;
+ * every other alignment sizes them to content and positions the row as a group. When the button
+ * animation is [ActionButtonAnimation.EXPAND] *and* the row is full with more than one chip, a
+ * pressed chip borrows width from its siblings ([FULL_EXPAND_DELTA]) — its weight springs up while
+ * theirs spring down by the same total — an expressive give-and-take that keeps the row at 100%.
+ * In every other case each chip animates itself in place via [ActionChip]'s own [pressScale].
+ */
+@Composable
+private fun ActionChipRow(
+    actions: List<IslandAction>,
+    style: ActionButtonStyle,
+    fill: Color,
+    heightDp: Int,
+    alignment: ActionButtonAlignment,
+    onChip: (IslandAction) -> Unit,
+) {
+    val full = alignment == ActionButtonAlignment.FULL
+    val redistribute = full && actions.size > 1 &&
+        LocalActionButtonAnimation.current == ActionButtonAnimation.EXPAND
+    val interactions = remember(actions.size) { List(actions.size) { MutableInteractionSource() } }
+    // Which chip is currently held (first press wins) — drives the width give-and-take. Collected for
+    // every chip on each composition so the number of composable calls stays constant.
+    val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
+    val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, alignment.toHorizontal()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        actions.forEachIndexed { i, action ->
+            val chipModifier = when {
+                redistribute -> {
+                    val target = when {
+                        pressedIndex < 0 -> 1f
+                        i == pressedIndex -> 1f + FULL_EXPAND_DELTA
+                        else -> 1f - FULL_EXPAND_DELTA / (actions.size - 1)
+                    }
+                    val weight by animateFloatAsState(
+                        targetValue = target,
+                        animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
+                        label = "chipWeight",
+                    )
+                    Modifier.weight(weight)
+                }
+                full -> Modifier.weight(1f)
+                else -> Modifier
+            }
+            ActionChip(
+                action = action,
+                style = style,
+                fill = fill,
+                heightDp = heightDp,
+                onClick = { onChip(action) },
+                modifier = chipModifier,
+                interaction = interactions[i],
+                // When redistributing, the give-and-take of widths IS the press animation, so the
+                // chip must not also expand itself in place.
+                animatePress = !redistribute,
+            )
+        }
+    }
+}
+
+/**
+ * The press reaction shared by the action chips and the reply buttons, so every tap on the island
+ * feels the same. Two flavours, selected via [LocalActionButtonAnimation]:
+ * [ActionButtonAnimation.SCALE] is the expressive "squish" — a springy scale-down that settles back
+ * with a little bounce on release; [ActionButtonAnimation.EXPAND] instead briefly widens the button
+ * by [PressExpandDp] on each side. Both animate on the same spring and via [graphicsLayer], so the
+ * surrounding layout never reflows.
  */
 @Composable
 private fun Modifier.pressScale(
     interaction: MutableInteractionSource,
     pressedScale: Float = 0.88f,
 ): Modifier {
+    val animation = LocalActionButtonAnimation.current
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
+    val progress by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
         label = "pressScale",
     )
     return this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        when (animation) {
+            ActionButtonAnimation.SCALE -> {
+                val scale = 1f + (pressedScale - 1f) * progress
+                scaleX = scale
+                scaleY = scale
+            }
+            ActionButtonAnimation.EXPAND -> {
+                // Grow the width by PressExpandDp on each side, expressed as a scale relative to the
+                // button's own measured width so layout stays put.
+                val extraPx = PressExpandDp.toPx() * 2f * progress
+                if (size.width > 0f) scaleX = (size.width + extraPx) / size.width
+            }
+        }
     }
 }
 

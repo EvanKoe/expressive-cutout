@@ -34,7 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -48,13 +50,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
@@ -75,6 +81,8 @@ fun ProfileTab(
     route: ProfileRoute,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
 ) {
     // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
     AnimatedContent(
@@ -92,6 +100,8 @@ fun ProfileTab(
                 contentPadding = contentPadding,
                 onOpenChangelog = onOpenChangelog,
                 onOpenPermissionDetails = onOpenPermissionDetails,
+                onExportSettings = onExportSettings,
+                onImportSettings = onImportSettings,
             )
             ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
             ProfileRoute.PermissionDetails -> PermissionDetailsScreen(contentPadding)
@@ -105,6 +115,8 @@ private fun ProfileList(
     contentPadding: PaddingValues,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -120,6 +132,8 @@ private fun ProfileList(
         )
     }
 
+    val haptics = LocalHapticFeedback.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -133,20 +147,30 @@ private fun ProfileList(
 
         ThemeCard(
             selected = theme,
-            onSelect = viewModel::setTheme,
+            onSelect = viewModel::setTheme
         )
 
-        VersionCard(versionName = versionName, onClick = onOpenChangelog)
+        VersionCard(versionName = versionName, onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenChangelog()
+        })
 
-        PermissionDetailsCard(onClick = onOpenPermissionDetails)
+        PermissionDetailsCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenPermissionDetails()
+        })
 
         val githubProjectUrl = stringResource(R.string.profile_github_project_url)
         val githubProfileUrl = stringResource(R.string.profile_github_url)
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
 
-        GitHubCard(onClick = { openUrl(githubProjectUrl) })
-        BuyMeACoffeeCard(onClick = { openUrl(coffeeUrl) })
+        ExportSettingsCard(onExportSettings, onImportSettings)
+
+        GitHubCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            openUrl(githubProjectUrl)
+        })
 
         DevCard(
             onOpenGitHub = { openUrl(githubProfileUrl) },
@@ -459,45 +483,51 @@ private fun GitHubCard(onClick: () -> Unit) {
     }
 }
 
-/** A clickable card that opens the developer's Buy Me a Coffee page in the browser. */
+/** Export and import settings in a card */
 @Composable
-private fun BuyMeACoffeeCard(onClick: () -> Unit) {
+private fun ExportSettingsCard(
+    onExportSettings: () -> Unit,
+    onImportSettings: () -> Unit,
+) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Coffee,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
+            Text(text = stringResource(R.string.profile_export_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.profile_export_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.profile_coffee_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.profile_coffee_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = onExportSettings
+                ) {
+                    Icon(imageVector = Icons.Rounded.Upload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.profile_export_export))
+                }
+
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = onImportSettings
+                ) {
+                    Icon(imageVector = Icons.Rounded.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.profile_export_import))
+                }
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+
     }
 }

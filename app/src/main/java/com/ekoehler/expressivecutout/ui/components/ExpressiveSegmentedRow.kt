@@ -44,6 +44,8 @@ fun ExpressiveSegmentedRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    // Indices that read as greyed-out and can't be selected — e.g. an option that's coming soon.
+    disabledIndices: Set<Int> = emptySet(),
 ) {
     val count = options.size.coerceAtLeast(1)
 
@@ -76,11 +78,12 @@ fun ExpressiveSegmentedRow(
             Row(modifier = Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, label ->
                     val selected = index == selectedIndex
+                    val disabled = index in disabledIndices
                     val contentColor by animateColorAsState(
-                        targetValue = if (selected) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        targetValue = when {
+                            disabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            selected -> MaterialTheme.colorScheme.onPrimary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         animationSpec = spring(stiffness = Spring.StiffnessMedium),
                         label = "segmentContent",
@@ -91,6 +94,7 @@ fun ExpressiveSegmentedRow(
                             .height(SegmentHeight)
                             .selectable(
                                 selected = selected,
+                                enabled = !disabled,
                                 onClick = { onSelect(index) },
                                 role = Role.RadioButton,
                                 interactionSource = remember { MutableInteractionSource() },

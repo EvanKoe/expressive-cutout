@@ -1,12 +1,20 @@
 package com.ekoehler.expressivecutout.ui
 
 import android.app.Application
+import android.content.ContentValues
+import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Path
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
+import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -19,14 +27,18 @@ import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
+import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.JsonSerializable
+import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
@@ -41,10 +53,16 @@ import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileWriter
+import java.io.IOException
+import kotlin.io.encoding.Base64
 
 /**
  * Holds UI-facing state for the icon customisation screen and mediates writes to
@@ -52,7 +70,6 @@ import kotlinx.coroutines.launch
  * and survives configuration changes.
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-
     private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
@@ -210,6 +227,91 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = AppearanceSettings(),
         )
+
+    /**
+     * Every settings store keyed by its section label, in the order they're written to and read
+     * from the export document. This single list is the source of truth for both export and import —
+     * adding a new store is one extra line here (and its own [JsonSerializable] implementation).
+     */
+    private val jsonSections: Map<String, JsonSerializable> = mapOf(
+        JsonSettings.THEME to themePreferences,
+        JsonSettings.LAYOUT to layoutPreferences,
+        JsonSettings.ICONS to preferences,
+        JsonSettings.BEHAVIOUR to behaviourPreferences,
+        JsonSettings.APPEARANCE to appearancePreferences,
+        JsonSettings.EVENTS to eventPreferences,
+        JsonSettings.DYNAMIC_TILES to dynamicTilePreferences,
+        JsonSettings.MUSIC_TILE to musicTilePreferences,
+        JsonSettings.PHONE_TILE to phoneTilePreferences,
+        JsonSettings.TIMER_TILE to timerTilePreferences,
+        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
+        JsonSettings.APPS to appPreferences,
+    )
+
+    /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
+    suspend fun getSettingsAsJsonString(): String = JsonSettings.export(jsonSections)
+
+    /**
+     * This method uses exportSettingsToJson() but is not suspend and
+     * can be called from the UI.
+     * @param onReady - a callback that returns a SUCCESS (boolean) and a PATH (string)
+     */
+    fun exportSettingsFromUI(onReady: (success: Boolean, path: String?) -> Unit) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val json = getSettingsAsJsonString()
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, "expressive-cutout-settings.json")
+                        put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    }
+
+                    val resolver = getApplication<Application>().contentResolver
+                    val collection =
+                        MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    val uri =
+                        resolver.insert(collection, values) ?: throw IOException("Failed to insert")
+
+                    resolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    values.clear()
+                    values.put(MediaStore.Downloads.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                    true
+                } catch (e: Exception) {
+                    Log.w("Error", "starting export ${e.message}")
+                    false
+                }
+            }
+
+            onReady(ok, if (ok) Environment.DIRECTORY_DOWNLOADS else null)
+        }
+    }
+
+    /**
+     * Reads the JSON file at [uri] (picked via the system file selector), validates that it's an
+     * Expressive Cutout settings export, and applies it across the stores. Not suspend so it can be
+     * called straight from the UI; the file read and apply run off the main thread.
+     * @param onDone reports the [JsonSettings.ImportResult] so the caller can show feedback.
+     */
+    fun importSettingsFromUI(uri: Uri, onDone: (JsonSettings.ImportResult) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val json = getApplication<Application>().contentResolver
+                        .openInputStream(uri)
+                        ?.use { it.readBytes().toString(Charsets.UTF_8) }
+                        ?: return@withContext JsonSettings.ImportResult.ERROR
+                    JsonSettings.import(json, jsonSections)
+                } catch (e: Exception) {
+                    Log.w("Error", "starting import ${e.message}")
+                    JsonSettings.ImportResult.ERROR
+                }
+            }
+            onDone(result)
+        }
+    }
 
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
         preferences.setIcon(type, IconSource.Image(uri))
@@ -411,6 +513,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCutoutEnabled(enabled)
     }
 
+    fun setVibrateOnTap(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setVibrateOnTap(enabled)
+    }
+
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }
@@ -433,6 +539,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAnimationBounce(bounce: AnimationBounce) = viewModelScope.launch {
         behaviourPreferences.setAnimationBounce(bounce)
+    }
+
+    fun setActionButtonAnimation(animation: ActionButtonAnimation) = viewModelScope.launch {
+        behaviourPreferences.setActionButtonAnimation(animation)
     }
 
     fun setAnimationDurationMs(ms: Int) = viewModelScope.launch {
@@ -473,6 +583,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSwipeToDismiss(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setSwipeToDismiss(enabled)
+    }
+
+    fun setShowsWhenEmpty(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmpty(enabled)
+    }
+
+    fun setShowsWhenEmptyShowIcon(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
+    }
+
+    fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Image(uri))
+    }
+
+    fun setShowsWhenEmptyMaterialIcon(iconName: String) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Material(iconName))
+    }
+
+    fun resetShowsWhenEmptyIcon() = viewModelScope.launch {
+        behaviourPreferences.clearShowsWhenEmptyIcon()
+    }
+
+    fun setShowsWhenEmptyIconColor(color: CutoutColor?) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyIconColor(color)
+    }
+
+    fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyClickAction(action)
+    }
+
+    fun setShowsWhenEmptyClickPackage(packageName: String?) = viewModelScope.launch {
+        behaviourPreferences.setShowsWhenEmptyClickPackage(packageName)
+    }
+
+    fun setCenterShortcuts(shortcuts: List<CenterShortcut>) = viewModelScope.launch {
+        behaviourPreferences.setCenterShortcuts(shortcuts)
+    }
+
+    fun setCenterShowLabels(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterShowLabels(enabled)
+    }
+
+    fun setCenterFillContainers(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterFillContainers(enabled)
+    }
+
+    fun setCenterThemedIcons(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setCenterThemedIcons(enabled)
     }
 
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {

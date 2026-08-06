@@ -33,6 +33,7 @@ class CutoutAccessibilityService : AccessibilityService() {
         overlay = IslandOverlayController(this).also { it.start() }
         systemEvents = SystemEventMonitor(this).also { it.start() }
         mediaPlayback = MediaPlaybackMonitor(this).also { it.start() }
+        instance = this
         _bound.value = true
     }
 
@@ -61,6 +62,7 @@ class CutoutAccessibilityService : AccessibilityService() {
         "type, talk, or share",
         "ask gemini",
         "gemini advanced",
+        "share screen with live"
     )
 
     private fun isDisclaimer(text: String): Boolean {
@@ -160,6 +162,7 @@ class CutoutAccessibilityService : AccessibilityService() {
 
     private fun teardown() {
         _bound.value = false
+        instance = null
         mediaPlayback?.stop()
         mediaPlayback = null
         systemEvents?.stop()
@@ -169,6 +172,21 @@ class CutoutAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        /**
+         * The live service instance while bound, used by [performGlobal] to fire system-wide actions
+         * for the expanded "center" shortcuts. Held statically (the service has no android:process, so
+         * it's this same process) and cleared in [teardown] so it never outlives the binding.
+         */
+        private var instance: CutoutAccessibilityService? = null
+
+        /**
+         * Perform a system-wide [AccessibilityService] global action (e.g. lock screen, screenshot,
+         * quick settings) if the service is bound. Best-effort: returns false when nothing is bound
+         * or the action is rejected, so callers can fall back or ignore it.
+         */
+        fun performGlobal(action: Int): Boolean =
+            runCatching { instance?.performGlobalAction(action) }.getOrNull() ?: false
+
         private val _bound = MutableStateFlow(false)
 
         /**
