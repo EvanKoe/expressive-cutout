@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.timerTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_tile_prefs")
 
@@ -35,7 +37,7 @@ data class TimerTileSettings(
 }
 
 /** Persists the timer tile's display options (action buttons and their colours). */
-class TimerTilePreferences(private val context: Context) {
+class TimerTilePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<TimerTileSettings> = context.timerTileDataStore.data.map { prefs ->
         TimerTileSettings(
@@ -46,6 +48,36 @@ class TimerTilePreferences(private val context: Context) {
             addButtonColor = CutoutColor.deserialize(prefs[ADD_BUTTON_COLOR])
                 ?: TimerTileSettings.DEFAULT_ADD_BUTTON_COLOR,
         )
+    }
+
+    /** Exports the current [TimerTileSettings] as a JSON string. */
+    override suspend fun toJson(): String {
+        val s = settings.first()
+        return JSONObject().apply {
+            put("showActions", s.showActions)
+            put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
+            put("resetColor", s.resetColor.serialize())
+            put("addButtonColor", s.addButtonColor.serialize())
+        }.toString()
+    }
+
+    /** Applies the [TimerTileSettings] object exported by [toJson]; absent fields are left as-is. */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.timerTileDataStore.edit {
+            if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
+            if (obj.has("iconContainerColor")) {
+                val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
+            }
+            if (obj.has("resetColor") && !obj.isNull("resetColor")) {
+                CutoutColor.deserialize(obj.optString("resetColor"))?.let { c -> it[RESET_COLOR] = c.serialize() }
+            }
+            if (obj.has("addButtonColor") && !obj.isNull("addButtonColor")) {
+                CutoutColor.deserialize(obj.optString("addButtonColor"))?.let { c -> it[ADD_BUTTON_COLOR] = c.serialize() }
+            }
+        }
     }
 
     suspend fun setShowActions(enabled: Boolean) = context.timerTileDataStore.edit {

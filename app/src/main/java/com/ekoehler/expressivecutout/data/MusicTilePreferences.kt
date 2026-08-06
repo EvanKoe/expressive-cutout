@@ -10,7 +10,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs")
 
@@ -73,6 +75,14 @@ data class MusicButtonStyle(
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
+    /** Draw a ring around the album cover, separated from it by a small gap. */
+    val albumArtStroke: Boolean = DEFAULT_ALBUM_ART_STROKE,
+    /** Colour of that ring; null keeps the tile's own pink accent. */
+    val albumArtStrokeColor: CutoutColor? = null,
+    /** Automatically expand the cutout when playback starts, rather than only opening the normal cutout. */
+    val expandOnPlay: Boolean = DEFAULT_EXPAND_ON_PLAY,
+    /** Keep the music cutout visible even while the app playing the music is in the foreground. */
+    val visibleInPlayerApp: Boolean = DEFAULT_VISIBLE_IN_PLAYER_APP,
     val showControls: Boolean = DEFAULT_SHOW_CONTROLS,
     /** Shared style of the previous / next (skip) buttons. */
     val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
@@ -82,17 +92,25 @@ data class MusicTileSettings(
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
         const val DEFAULT_ROTATE_ALBUM_ART = false
+        const val DEFAULT_ALBUM_ART_STROKE = false
+        const val DEFAULT_EXPAND_ON_PLAY = true
+        const val DEFAULT_VISIBLE_IN_PLAYER_APP = true
         const val DEFAULT_SHOW_CONTROLS = true
     }
 }
 
 /** Persists the music tile's display options (album art, expanded controls) and button styling. */
-class MusicTilePreferences(private val context: Context) {
+class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
+            albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
+            albumArtStrokeColor = CutoutColor.deserialize(prefs[ALBUM_ART_STROKE_COLOR]),
+            expandOnPlay = prefs[EXPAND_ON_PLAY] ?: MusicTileSettings.DEFAULT_EXPAND_ON_PLAY,
+            visibleInPlayerApp = prefs[VISIBLE_IN_PLAYER_APP]
+                ?: MusicTileSettings.DEFAULT_VISIBLE_IN_PLAYER_APP,
             showControls = prefs[SHOW_CONTROLS] ?: MusicTileSettings.DEFAULT_SHOW_CONTROLS,
             skipButton = MusicButtonStyle(
                 color = CutoutColor.deserialize(prefs[SKIP_COLOR]),
@@ -111,12 +129,100 @@ class MusicTilePreferences(private val context: Context) {
         )
     }
 
+    /** Exports the current [MusicTileSettings] (including both button styles) as a JSON string. */
+    override suspend fun toJson(): String {
+        fun MusicButtonStyle.toJsonObject(): JSONObject = JSONObject().apply {
+            put("color", color?.serialize() ?: JSONObject.NULL)
+            put("opacity", opacity.toDouble())
+            put("cornerPercent", cornerPercent)
+            put("filled", filled)
+        }
+
+        val s = settings.first()
+        return JSONObject().apply {
+            put("showAlbumArt", s.showAlbumArt)
+            put("rotateAlbumArt", s.rotateAlbumArt)
+            put("albumArtStroke", s.albumArtStroke)
+            put("albumArtStrokeColor", s.albumArtStrokeColor?.serialize() ?: JSONObject.NULL)
+            put("expandOnPlay", s.expandOnPlay)
+            put("visibleInPlayerApp", s.visibleInPlayerApp)
+            put("showControls", s.showControls)
+            put("skipButton", s.skipButton.toJsonObject())
+            put("playPauseButton", s.playPauseButton.toJsonObject())
+        }.toString()
+    }
+
+    /**
+     * Applies the [MusicTileSettings] object exported by [toJson], including both nested button
+     * styles (skip / play-pause). Absent fields are left as-is; a null colour clears its override.
+     */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.musicTileDataStore.edit { prefs ->
+            if (obj.has("showAlbumArt")) prefs[SHOW_ALBUM_ART] = obj.getBoolean("showAlbumArt")
+            if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
+            if (obj.has("albumArtStroke")) prefs[ALBUM_ART_STROKE] = obj.getBoolean("albumArtStroke")
+            if (obj.has("albumArtStrokeColor")) {
+                val raw = if (obj.isNull("albumArtStrokeColor")) null else obj.optString("albumArtStrokeColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) prefs.remove(ALBUM_ART_STROKE_COLOR) else prefs[ALBUM_ART_STROKE_COLOR] = color.serialize()
+            }
+            if (obj.has("expandOnPlay")) prefs[EXPAND_ON_PLAY] = obj.getBoolean("expandOnPlay")
+            if (obj.has("visibleInPlayerApp")) prefs[VISIBLE_IN_PLAYER_APP] = obj.getBoolean("visibleInPlayerApp")
+            if (obj.has("showControls")) prefs[SHOW_CONTROLS] = obj.getBoolean("showControls")
+
+            obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
+            obj.optJSONObject("playPauseButton")
+                ?.applyButton(prefs, PLAY_PAUSE_COLOR, PLAY_PAUSE_OPACITY, PLAY_PAUSE_CORNER, PLAY_PAUSE_FILLED)
+        }
+    }
+
+    /** Writes one [MusicButtonStyle] object into the given transport button's keys. */
+    private fun JSONObject.applyButton(
+        prefs: androidx.datastore.preferences.core.MutablePreferences,
+        colorKey: androidx.datastore.preferences.core.Preferences.Key<String>,
+        opacityKey: androidx.datastore.preferences.core.Preferences.Key<Float>,
+        cornerKey: androidx.datastore.preferences.core.Preferences.Key<Int>,
+        filledKey: androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+    ) {
+        if (has("color")) {
+            val raw = if (isNull("color")) null else optString("color")
+            val color = CutoutColor.deserialize(raw)
+            if (color == null) prefs.remove(colorKey) else prefs[colorKey] = color.serialize()
+        }
+        if (has("opacity")) prefs[opacityKey] = optDouble("opacity").toFloat().coerceIn(0f, 1f)
+        if (has("cornerPercent")) prefs[cornerKey] = getInt("cornerPercent")
+            .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT)
+        if (has("filled")) prefs[filledKey] = getBoolean("filled")
+    }
+
     suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[SHOW_ALBUM_ART] = enabled
     }
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[ROTATE_ALBUM_ART] = enabled
+    }
+
+    suspend fun setAlbumArtStroke(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[ALBUM_ART_STROKE] = enabled
+    }
+
+    /** A null [color] clears the override, restoring the ring's tile-accent default. */
+    suspend fun setAlbumArtStrokeColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+        if (color == null) {
+            it.remove(ALBUM_ART_STROKE_COLOR)
+        } else {
+            it[ALBUM_ART_STROKE_COLOR] = color.serialize()
+        }
+    }
+
+    suspend fun setExpandOnPlay(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[EXPAND_ON_PLAY] = enabled
+    }
+
+    suspend fun setVisibleInPlayerApp(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[VISIBLE_IN_PLAYER_APP] = enabled
     }
 
     suspend fun setShowControls(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -186,6 +292,10 @@ class MusicTilePreferences(private val context: Context) {
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
+        val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
+        val ALBUM_ART_STROKE_COLOR = stringPreferencesKey("album_art_stroke_color")
+        val EXPAND_ON_PLAY = booleanPreferencesKey("expand_on_play")
+        val VISIBLE_IN_PLAYER_APP = booleanPreferencesKey("visible_in_player_app")
         val SHOW_CONTROLS = booleanPreferencesKey("show_controls")
         val SKIP_COLOR = stringPreferencesKey("skip_button_color")
         val SKIP_OPACITY = floatPreferencesKey("skip_button_opacity")

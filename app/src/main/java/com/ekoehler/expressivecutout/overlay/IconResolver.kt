@@ -11,6 +11,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
@@ -70,6 +71,7 @@ class IconResolver(private val context: Context) {
         musicSettings: MusicTileSettings,
         phoneSettings: PhoneTileSettings,
         timerSettings: TimerTileSettings,
+        assistantSettings: AssistantTileSettings = AssistantTileSettings(),
         dynamicEventColor: Boolean = false,
         dynamicEventColorRole: DynamicRole = DynamicRole.PRIMARY,
         dynamicEventColorOpacity: Float = 1f,
@@ -96,6 +98,7 @@ class IconResolver(private val context: Context) {
         is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
         is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
         is CutoutSignal.Timer -> resolveTimer(signal, timerSettings)
+        is CutoutSignal.Assistant -> resolveAssistant(signal, assistantSettings)
     }
 
     private fun resolveNotification(
@@ -169,6 +172,8 @@ class IconResolver(private val context: Context) {
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
                 rotateAlbumArt = settings.rotateAlbumArt,
+                albumArtStroke = settings.albumArtStroke,
+                albumArtStrokeColor = settings.albumArtStrokeColor,
                 showControls = settings.showControls,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,
@@ -238,6 +243,46 @@ class IconResolver(private val context: Context) {
                 showActions = settings.showActions,
                 resetColor = settings.resetColor,
                 addButtonColor = settings.addButtonColor,
+            ),
+        )
+    }
+
+    private fun resolveAssistant(signal: CutoutSignal.Assistant, settings: AssistantTileSettings): IslandEvent {
+        val defaultLabel = context.getString(DynamicTile.ASSISTANT.labelRes)
+        val rawTitle = signal.title?.takeIf { it.isNotBlank() }
+        val rawText = signal.text?.takeIf { it.isNotBlank() }
+
+        val label = defaultLabel
+        val answerText = when {
+            rawText != null && !rawText.equals(defaultLabel, ignoreCase = true) -> rawText
+            rawTitle != null && !rawTitle.equals(defaultLabel, ignoreCase = true) -> rawTitle
+            else -> null
+        }
+
+        val icon: IslandIcon = if (settings.useAnimatedIcon) {
+            IslandIcon.Lottie(
+                resId = R.raw.assistant_sparkles,
+                iterations = LottieConstants.IterateForever,
+                scale = 1.6f,
+                tint = true,
+            )
+        } else {
+            IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon)
+        }
+
+        return IslandEvent(
+            id = idGenerator.incrementAndGet(),
+            icon = icon,
+            label = label,
+            detail = answerText,
+            accent = Color(DynamicTile.ASSISTANT.accent),
+            iconContainerColor = settings.iconContainerColor,
+            contentIntent = signal.contentIntent,
+            initiallyExpanded = settings.displayAnswerInCutout,
+            assistant = AssistantTileOptions(
+                displayAnswerInCutout = settings.displayAnswerInCutout,
+                maxCutoutHeightPercent = settings.maxCutoutHeightPercent,
+                answerText = answerText,
             ),
         )
     }

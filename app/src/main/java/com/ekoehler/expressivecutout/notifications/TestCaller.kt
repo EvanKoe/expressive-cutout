@@ -63,6 +63,7 @@ object TestCaller {
                 photo = null,
                 startTimeMs = System.currentTimeMillis(),
                 ongoing = true,
+                packageName = context.packageName,
             ),
         )
         IslandEventBus.emit(
@@ -90,6 +91,7 @@ object TestCaller {
                 photo = null,
                 startTimeMs = null,
                 ongoing = false,
+                packageName = context.packageName,
             ),
         )
         IslandEventBus.emit(
@@ -114,9 +116,28 @@ object TestCaller {
     }
 
     /** Answer the fake incoming call: flip it to a connected call ticking from now, like a real dialer. */
-    fun answer() {
+    fun answer(context: Context) {
         val current = OnCallBus.state.value ?: return
-        OnCallBus.update(current.copy(startTimeMs = System.currentTimeMillis(), ongoing = true))
+        OnCallBus.update(
+            current.copy(
+                startTimeMs = System.currentTimeMillis(),
+                ongoing = true,
+                packageName = context.packageName,
+            ),
+        )
+        IslandEventBus.emit(
+            CutoutSignal.Call(
+                packageName = context.packageName,
+                callerLabel = current.callerLabel,
+                actions = listOf(
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_call_hang_up),
+                        intent = broadcast(context, REQUEST_END, TestCallReceiver.ACTION_END),
+                    ),
+                ),
+                ongoing = true,
+            ),
+        )
     }
 
     /** Clear the fake call so the tile dismisses, exactly as a real dialer's notification removal would. */

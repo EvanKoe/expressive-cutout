@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -78,16 +79,29 @@ private val PermissionDocs: List<PermissionDoc> = listOf(
         ),
     ),
     PermissionDoc(
+        icon = Icons.Rounded.Vibration,
+        title = "Vibration permission",
+        manifestName = "VIBRATE",
+        summary = "Used to produce vibrations and haptic feedback through the app and the cutout",
+        uses = listOf(
+            "Vibrate when going through the app",
+            "Providing haptic feedback when clicking on the cutout"
+        )
+    ),
+    PermissionDoc(
         icon = Icons.Rounded.Layers,
         title = "Accessibility service",
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
         summary = "Android only lets an accessibility service draw a window that survives above " +
             "other apps and the lockscreen. That window is the island — the service is used as a " +
-            "drawing surface, and requests no screen-content events.",
+            "drawing surface. It reads no screen content: the one event it listens for tells it " +
+            "only the name of the app in front, never anything shown on screen.",
         uses = listOf(
             "Draw the island over the camera cutout, above whatever app is in the foreground",
             "Keep it there across app switches, and tear it down while the device is locked if you asked for that",
             "Receive your taps and swipes on the island itself",
+            "Read the name of the app in the foreground — its package name only, no screen content — " +
+                "so the music tile can hide itself while the app playing the music is open",
         ),
     ),
     PermissionDoc(

@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.phoneTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "phone_tile_prefs")
 
@@ -47,7 +49,7 @@ data class PhoneTileSettings(
 }
 
 /** Persists the phone tile's display options (contact photo, duration, action buttons). */
-class PhoneTilePreferences(private val context: Context) {
+class PhoneTilePreferences(private val context: Context) : JsonSerializable {
 
     val settings: Flow<PhoneTileSettings> = context.phoneTileDataStore.data.map { prefs ->
         PhoneTileSettings(
@@ -61,6 +63,42 @@ class PhoneTilePreferences(private val context: Context) {
             otherButtonColor = CutoutColor.deserialize(prefs[OTHER_BUTTON_COLOR])
                 ?: PhoneTileSettings.DEFAULT_OTHER_BUTTON_COLOR,
         )
+    }
+
+    /** Exports the current [PhoneTileSettings] as a JSON string. */
+    override suspend fun toJson(): String {
+        val s = settings.first()
+        return JSONObject().apply {
+            put("showPhoto", s.showPhoto)
+            put("showDuration", s.showDuration)
+            put("showActions", s.showActions)
+            put("expandedIncomingLayout", s.expandedIncomingLayout)
+            put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
+            put("hangUpColor", s.hangUpColor.serialize())
+            put("otherButtonColor", s.otherButtonColor.serialize())
+        }.toString()
+    }
+
+    /** Applies the [PhoneTileSettings] object exported by [toJson]; absent fields are left as-is. */
+    override suspend fun fromJson(json: String) {
+        val obj = JSONObject(json)
+        context.phoneTileDataStore.edit {
+            if (obj.has("showPhoto")) it[SHOW_PHOTO] = obj.getBoolean("showPhoto")
+            if (obj.has("showDuration")) it[SHOW_DURATION] = obj.getBoolean("showDuration")
+            if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
+            if (obj.has("expandedIncomingLayout")) it[EXPANDED_INCOMING] = obj.getBoolean("expandedIncomingLayout")
+            if (obj.has("iconContainerColor")) {
+                val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
+            }
+            if (obj.has("hangUpColor") && !obj.isNull("hangUpColor")) {
+                CutoutColor.deserialize(obj.optString("hangUpColor"))?.let { c -> it[HANG_UP_COLOR] = c.serialize() }
+            }
+            if (obj.has("otherButtonColor") && !obj.isNull("otherButtonColor")) {
+                CutoutColor.deserialize(obj.optString("otherButtonColor"))?.let { c -> it[OTHER_BUTTON_COLOR] = c.serialize() }
+            }
+        }
     }
 
     suspend fun setShowPhoto(enabled: Boolean) = context.phoneTileDataStore.edit {

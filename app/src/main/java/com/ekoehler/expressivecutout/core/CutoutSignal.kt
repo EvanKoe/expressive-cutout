@@ -116,6 +116,15 @@ sealed interface CutoutSignal {
         val contentIntent: PendingIntent? = null,
         val actions: List<Notification.Action> = emptyList(),
     ) : CutoutSignal
+
+    /** Voice assistant activity or response (surfaced from voice assistant media session / app). */
+    data class Assistant(
+        val packageName: String,
+        val title: String? = null,
+        val text: String? = null,
+        val contentIntent: PendingIntent? = null,
+        val active: Boolean = true,
+    ) : CutoutSignal
 }
 
 /**

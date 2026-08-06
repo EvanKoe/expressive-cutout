@@ -51,9 +51,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
+import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
@@ -170,6 +172,15 @@ internal fun ButtonScreen(
             onCheckedChange = viewModel::setShowActionButtons,
         )
 
+        // Whether tapping an action button confirms with a toast.
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.action_buttons_toast_title),
+            description = stringResource(R.string.action_buttons_toast_desc),
+            checked = behaviour.toastOnAction,
+            onCheckedChange = viewModel::setToastOnAction,
+        )
+
         // --- Chip style ---
         OptionGroupCard(title = stringResource(R.string.action_buttons_style_title)) {
             ButtonStyleOption(
@@ -232,6 +243,38 @@ internal fun ButtonScreen(
             }
         }
 
+        // --- Chip alignment ---
+        OptionGroupCard(title = stringResource(R.string.action_buttons_alignment_title)) {
+            AlignmentOption(
+                title = stringResource(R.string.action_buttons_align_left_title),
+                description = stringResource(R.string.action_buttons_align_left_desc),
+                alignment = ActionButtonAlignment.LEFT,
+                selected = appearance.actionButtonAlignment,
+                onSelect = viewModel::setActionButtonAlignment,
+            )
+            AlignmentOption(
+                title = stringResource(R.string.action_buttons_align_center_title),
+                description = stringResource(R.string.action_buttons_align_center_desc),
+                alignment = ActionButtonAlignment.CENTER,
+                selected = appearance.actionButtonAlignment,
+                onSelect = viewModel::setActionButtonAlignment,
+            )
+            AlignmentOption(
+                title = stringResource(R.string.action_buttons_align_right_title),
+                description = stringResource(R.string.action_buttons_align_right_desc),
+                alignment = ActionButtonAlignment.RIGHT,
+                selected = appearance.actionButtonAlignment,
+                onSelect = viewModel::setActionButtonAlignment,
+            )
+            AlignmentOption(
+                title = stringResource(R.string.action_buttons_align_full_title),
+                description = stringResource(R.string.action_buttons_align_full_desc),
+                alignment = ActionButtonAlignment.FULL,
+                selected = appearance.actionButtonAlignment,
+                onSelect = viewModel::setActionButtonAlignment,
+            )
+        }
+
         // --- Reply field style ---
         OptionGroupCard(title = stringResource(R.string.action_buttons_input_style_title)) {
             ReplyInputPreview(
@@ -278,6 +321,31 @@ internal fun ButtonScreen(
             checked = appearance.cancelButtonOnLeft,
             onCheckedChange = viewModel::setCancelButtonOnLeft,
         )
+
+        // --- "Sent" confirmation placement ---
+        OptionGroupCard(title = stringResource(R.string.action_buttons_sent_alignment_title)) {
+            SentAlignmentOption(
+                title = stringResource(R.string.action_buttons_align_left_title),
+                description = stringResource(R.string.action_buttons_sent_left_desc),
+                alignment = SentAlignment.LEFT,
+                selected = appearance.sentAlignment,
+                onSelect = viewModel::setSentAlignment,
+            )
+            SentAlignmentOption(
+                title = stringResource(R.string.action_buttons_align_center_title),
+                description = stringResource(R.string.action_buttons_sent_center_desc),
+                alignment = SentAlignment.CENTER,
+                selected = appearance.sentAlignment,
+                onSelect = viewModel::setSentAlignment,
+            )
+            SentAlignmentOption(
+                title = stringResource(R.string.action_buttons_align_right_title),
+                description = stringResource(R.string.action_buttons_sent_right_desc),
+                alignment = SentAlignment.RIGHT,
+                selected = appearance.sentAlignment,
+                onSelect = viewModel::setSentAlignment,
+            )
+        }
 
         // --- Send / cancel reply-button colours ---
         // Their colours default to the notification's accent (send) and a neutral tint (cancel);
@@ -333,6 +401,34 @@ private fun ButtonStyleOption(
     description = description,
     selected = style == selected,
     onClick = { onSelect(style) },
+)
+
+@Composable
+private fun AlignmentOption(
+    title: String,
+    description: String,
+    alignment: ActionButtonAlignment,
+    selected: ActionButtonAlignment,
+    onSelect: (ActionButtonAlignment) -> Unit,
+) = OptionRow(
+    title = title,
+    description = description,
+    selected = alignment == selected,
+    onClick = { onSelect(alignment) },
+)
+
+@Composable
+private fun SentAlignmentOption(
+    title: String,
+    description: String,
+    alignment: SentAlignment,
+    selected: SentAlignment,
+    onSelect: (SentAlignment) -> Unit,
+) = OptionRow(
+    title = title,
+    description = description,
+    selected = alignment == selected,
+    onClick = { onSelect(alignment) },
 )
 
 @Composable

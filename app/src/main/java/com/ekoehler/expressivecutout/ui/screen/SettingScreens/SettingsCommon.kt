@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Card
@@ -69,32 +71,102 @@ internal fun AdjustableSlider(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(
-                onClick = {
-                    onValueChange((value - step).coerceIn(valueRange))
-                    onCommit()
-                },
+        SliderRow(
+            value = value,
+            valueRange = valueRange,
+            step = step,
+            onValueChange = onValueChange,
+            onCommit = onCommit,
+        )
+    }
+}
+
+/** The slider itself flanked by the -/+ step buttons, without any label. */
+@Composable
+private fun SliderRow(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    onValueChange: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        FilledTonalIconButton(
+            onClick = {
+                onValueChange((value - step).coerceIn(valueRange))
+                onCommit()
+            },
+        ) {
+            Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onCommit,
+            valueRange = valueRange,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 6.dp),
+        )
+        FilledTonalIconButton(
+            onClick = {
+                onValueChange((value + step).coerceIn(valueRange))
+                onCommit()
+            },
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.cd_increase))
+        }
+    }
+}
+
+/**
+ * A surface card laid out like [SettingsToggleCard] — title, short description, and a trailing
+ * value in place of the switch — with the slider underneath.
+ */
+@Composable
+internal fun SettingsSliderCard(
+    shape: Shape,
+    title: String,
+    description: String,
+    valueText: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    onValueChange: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = valueText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-            Slider(
+            SliderRow(
                 value = value,
-                onValueChange = onValueChange,
-                onValueChangeFinished = onCommit,
                 valueRange = valueRange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 6.dp),
+                step = step,
+                onValueChange = onValueChange,
+                onCommit = onCommit,
             )
-            FilledTonalIconButton(
-                onClick = {
-                    onValueChange((value + step).coerceIn(valueRange))
-                    onCommit()
-                },
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.cd_increase))
-            }
         }
     }
 }
@@ -127,6 +199,67 @@ internal fun SettingsToggleCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+/**
+ * Like [SettingsToggleCard] but the title/description area is clickable — tapping it runs [onClick]
+ * (typically to open a detail screen), while the trailing [Switch] still toggles independently.
+ * A chevron marks the row as navigable and a thin divider separates it from the switch, matching the
+ * events / dynamic-tiles list rows.
+ */
+@Composable
+internal fun SettingsToggleNavCard(
+    shape: Shape,
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+                .padding(start = 16.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            // Thin divider between the (tappable) row and the switch, matching the events list.
+            Box(
+                modifier = Modifier
+                    .height(28.dp)
+                    .width(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
             Spacer(Modifier.width(12.dp))
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         }

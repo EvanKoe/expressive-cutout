@@ -12,8 +12,8 @@ android {
         applicationId = "com.ekoehler.expressivecutout"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-beta"
+        versionCode = 3
+        versionName = "0.1.3-beta"
     }
 
     buildTypes {

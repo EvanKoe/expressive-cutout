@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -44,9 +45,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -55,6 +59,11 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 import java.nio.file.WatchEvent
+
+// TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
+// are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
+// false in anything shipped.
+private const val FORCE_STALLED_CARDS_FOR_TESTING = false
 
 /**
  * "Settings" destination. A lightweight list that navigates to focused sub-screens — so the
@@ -75,7 +84,9 @@ fun SettingsTab(
     onOpenEvent: (SystemEventType) -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenTile: (DynamicTile) -> Unit,
+    onOpenApps: () -> Unit,
     onOpenBehaviour: () -> Unit,
+    onOpenShowsWhenEmpty: () -> Unit,
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
@@ -104,6 +115,7 @@ fun SettingsTab(
                     onOpenSizePosition = onOpenSizePosition,
                     onOpenEventIcons = onOpenEventIcons,
                     onOpenDynamicTiles = onOpenDynamicTiles,
+                    onOpenApps = onOpenApps,
                     onOpenBehaviour = onOpenBehaviour,
                     onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
@@ -115,9 +127,11 @@ fun SettingsTab(
             SettingsRoute.EventDetail ->
                 selectedEvent?.let { EventDetailScreen(it, viewModel, contentPadding) }
             SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding, onOpenTile)
+            SettingsRoute.Apps -> AppsScreen(viewModel, contentPadding)
             SettingsRoute.DynamicTileDetail ->
                 selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
-            SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding)
+            SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding, onOpenShowsWhenEmpty)
+            SettingsRoute.ShowsWhenEmpty -> ShowsWhenEmptyScreen(viewModel, contentPadding)
             SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
             SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
@@ -128,7 +142,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Behaviour, Animation, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -139,6 +153,7 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.EventDetail -> SettingsRoute.EventIcons
+        SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
         else -> SettingsRoute.List
     }
 
@@ -147,7 +162,7 @@ val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
         SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.EventDetail -> 2
+        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty -> 2
         else -> 1
     }
 
@@ -159,6 +174,7 @@ private fun SettingsList(
     onOpenSizePosition: () -> Unit,
     onOpenEventIcons: () -> Unit,
     onOpenDynamicTiles: () -> Unit,
+    onOpenApps: () -> Unit,
     onOpenBehaviour: () -> Unit,
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
@@ -166,6 +182,14 @@ private fun SettingsList(
     val context = LocalContext.current
     // Re-reads on resume so returning from the system Accessibility settings updates immediately.
     val accessibilityAvailable = rememberAccessibilityGranted()
+    // Granted is not the same as running: Android keeps the grant across an app update but often
+    // leaves the service unbound, so the island is dead while the grant still reads green.
+    val accessibilityRunning = rememberAccessibilityRunning()
+    // The same stale-binding trap hits the notification listener, which feeds every dynamic tile
+    // (music, phone, timer). MainActivity asks for a rebind on resume, but surface a card too in
+    // case that best-effort request doesn't take on this OEM.
+    val notificationsGranted = rememberNotificationAccessGranted()
+    val notificationsRunning = rememberNotificationListenerRunning()
 
     Column(
         modifier = Modifier
@@ -186,6 +210,39 @@ private fun SettingsList(
                 onClick = { Permissions.openAccessibilitySettings(context) },
                 bgColor = MaterialTheme.colorScheme.primaryContainer,
                 fgColor = MaterialTheme.colorScheme.onPrimaryContainer
+
+            )
+        }
+
+        // Granted but not bound — the grant survived an update, the service did not. Distinct from
+        // the card above: the fix is toggling the existing grant off and on, not granting it.
+        AnimatedVisibility(
+            visible = FORCE_STALLED_CARDS_FOR_TESTING || (accessibilityAvailable && !accessibilityRunning),
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.ErrorOutline,
+                subtitle = stringResource(R.string.settings_access_stalled),
+                title = stringResource(R.string.settings_access_stalled_title),
+                onClick = { Permissions.openAccessibilitySettings(context) },
+                bgColor = MaterialTheme.colorScheme.errorContainer,
+                fgColor = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+
+        // Notification access granted but the listener isn't bound — dynamic tiles are starved
+        // even though the grant reads green. Same off-and-on fix as the accessibility card above.
+        AnimatedVisibility(
+            visible = FORCE_STALLED_CARDS_FOR_TESTING || (notificationsGranted && !notificationsRunning),
+            modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))
+        ) {
+            SettingsListItem(
+                icon = Icons.Rounded.ErrorOutline,
+                subtitle = stringResource(R.string.settings_notif_stalled),
+                title = stringResource(R.string.settings_notif_stalled_title),
+                onClick = { Permissions.openNotificationAccessSettings(context) },
+                bgColor = MaterialTheme.colorScheme.errorContainer,
+                fgColor = MaterialTheme.colorScheme.onErrorContainer
             )
         }
 
@@ -243,6 +300,12 @@ private fun SettingsList(
                 subtitle = stringResource(R.string.settings_dynamic_tiles_subtitle),
                 onClick = onOpenDynamicTiles,
             )
+            SettingsListItem(
+                icon = Icons.Rounded.Apps,
+                title = stringResource(R.string.apps_title),
+                subtitle = stringResource(R.string.settings_apps_subtitle),
+                onClick = onOpenApps,
+            )
         }
     }
 }
@@ -288,12 +351,21 @@ private fun SettingsListItem(
     subtitle: String,
     onClick: () -> Unit,
     bgColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
-    fgColor: androidx.compose.ui.graphics.Color? = null
+    fgColor: androidx.compose.ui.graphics.Color? = null,
+    hapticsOnClick: Boolean = true
 ) {
+    val haptics = LocalHapticFeedback.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = {
+                if (hapticsOnClick) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+
+                onClick()
+            }),
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
             containerColor = bgColor

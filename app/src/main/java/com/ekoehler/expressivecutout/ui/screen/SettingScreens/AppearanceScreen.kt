@@ -64,13 +64,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -80,21 +84,8 @@ import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.DefaultPresetColors
 import kotlin.math.roundToInt
-
-/**
- * The predefined swatches [ColorPickerCard] shows by default: black, white, dark/light grey, then
- * blue, red and green. Any screen can override the set by passing its own list to [ColorPickerCard].
- */
-val DefaultPresetColors: List<Long> = listOf(
-    0xFF0A0A0A, // black
-    0xFFFFFFFF, // white
-    0xFF444444, // dark grey
-    0xFFBBBBBB, // light grey
-    0xFF3B82F6, // blue
-    0xFFEF4444, // red
-    0xFF22C55E, // green
-)
 
 /** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
 private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
@@ -106,25 +97,9 @@ internal fun AppearanceScreen(
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-    val layout by viewModel.layout.collectAsStateWithLifecycle()
-    val systemInDark = isSystemInDarkTheme()
-    var previewDark by remember { mutableStateOf(systemInDark) }
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
-
-    val previewLabel = stringResource(R.string.preview_label)
-    val previewDetail = stringResource(R.string.preview_detail)
-    val previewEvent = remember(previewLabel, previewDetail) {
-        IslandEvent(
-            id = 0L,
-            icon = IslandIcon.Vector(Icons.Rounded.Notifications),
-            label = previewLabel,
-            detail = previewDetail,
-            accent = Color(0xFF60A5FA),
-        )
-    }
-    val cutout = rememberTopCutout()
-    val expanded = layout.expanded
 
     Column(
         modifier = Modifier
@@ -133,40 +108,6 @@ internal fun AppearanceScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.appearance_preview),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalIconButton(onClick = { previewDark = !previewDark }) {
-                Icon(
-                    imageVector = if (previewDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                    contentDescription = stringResource(R.string.cd_toggle_preview_theme),
-                )
-            }
-        }
-
-        IslandPreviewPanel(
-            background = if (previewDark) Color(0xFF0B0B0C) else Color(0xFFEDEFF3),
-            cutout = cutout,
-            widthPercent = expanded.widthPercent,
-            heightDp = expanded.heightDp,
-            cornerTopLeftDp = expanded.cornerTopLeftDp,
-            cornerTopRightDp = expanded.cornerTopRightDp,
-            cornerBottomLeftDp = expanded.cornerBottomLeftDp,
-            cornerBottomRightDp = expanded.cornerBottomRightDp,
-            offsetXDp = expanded.offsetXDp,
-            offsetYDp = expanded.offsetYDp,
-            expanded = true,
-            event = previewEvent,
-            appearance = appearance,
-        )
-
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.appearance_shadow_title),
@@ -211,11 +152,17 @@ internal fun AppearanceScreen(
 
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
-        BackgroundCard(onClick = onOpenBackground)
+        BackgroundCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenBackground()
+        })
 
         // Opens the dedicated screen for the expanded cutout's action chips and reply field
         // (including the send/cancel reply-button colours).
-        ActionButtonsCard(onClick = onOpenActionButtons)
+        ActionButtonsCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenActionButtons()
+        })
     }
 }
 
@@ -324,17 +271,16 @@ internal fun ColorPickerCard(
     defaultColor: Color? = null,
     presetColors: List<Long> = DefaultPresetColors,
     dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
+    roundedCorners: Dp = 24.dp
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    // A Solid colour that isn't one of the presets is the user's own custom pick.
     val customArgb = (selected as? CutoutColor.Solid)?.argb
         ?.takeIf { argb -> presetColors.none { it == argb } }
-    // Seed the picker with whatever colour is active right now.
     val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(roundedCorners),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
@@ -399,7 +345,7 @@ internal fun ColorPickerCard(
 
 /** The Material You scheme role's human-readable label, for a swatch's content description. */
 @Composable
-private fun DynamicRole.dynamicDescription(): String = stringResource(
+fun DynamicRole.dynamicDescription(): String = stringResource(
     when (this) {
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary

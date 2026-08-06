@@ -25,10 +25,22 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import kotlin.math.roundToInt
@@ -45,6 +57,7 @@ private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape
 internal fun BehaviourScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
@@ -53,6 +66,8 @@ internal fun BehaviourScreen(
     var seconds by remember(behaviour.expandedCollapseSeconds) {
         mutableStateOf(behaviour.expandedCollapseSeconds.toFloat())
     }
+
+    val haptics = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -68,6 +83,32 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_hide_lockscreen_desc),
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
+        )
+        BehaviourRadioGroupCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_horizontal_cutout),
+            options = listOf(
+                RadioOption(
+                    title = stringResource(R.string.horizontal_cutout_hidden),
+                    description = stringResource(R.string.horizontal_cutout_hidden_desc),
+                ),
+                RadioOption(
+                    title = stringResource(R.string.horizontal_cutout_normal_only),
+                    description = stringResource(R.string.horizontal_cutout_normal_only_desc),
+                ),
+                RadioOption(
+                    title = stringResource(R.string.horizontal_cutout_stick_to_camera),
+                    description = stringResource(R.string.horizontal_cutout_stick_to_camera_desc),
+                ),
+                RadioOption(
+                    title = stringResource(R.string.horizontal_cutout_center),
+                    description = stringResource(R.string.horizontal_cutout_center_desc),
+                ),
+            ),
+            selectedIndex = behaviour.horizontalCutoutMode.ordinal,
+            onSelect = { index ->
+                viewModel.setHorizontalCutoutMode(HorizontalCutoutMode.entries[index])
+            },
         )
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
@@ -127,7 +168,14 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setShrinkOnSwipeUp,
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = !behaviour.swipeToDismiss),
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_vibrateOnTap_title),
+            description = stringResource(R.string.behaviour_vibrateOnTap_desc),
+            checked = behaviour.vibrateOnTap,
+            onCheckedChange = viewModel::setVibrateOnTap
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_swipe_dismiss),
             description = stringResource(R.string.behaviour_swipe_dismiss_desc),
             checked = behaviour.swipeToDismiss,
@@ -147,7 +195,7 @@ internal fun BehaviourScreen(
                     onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
                 )
                 BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = true),
+                    shape = groupedShape(isFirst = false, isLast = false),
                     label = stringResource(R.string.behaviour_swipe_target),
                     options = listOf(
                         stringResource(R.string.swipe_target_expanded),
@@ -159,6 +207,17 @@ internal fun BehaviourScreen(
                 )
             }
         }
+        SettingsToggleNavCard(
+            shape = groupedShape(isFirst = false, isLast = true),
+            title = stringResource(R.string.behaviour_empty_pill),
+            description = stringResource(R.string.behaviour_empty_pill_desc),
+            checked = behaviour.showsWhenEmpty,
+            onCheckedChange = viewModel::setShowsWhenEmpty,
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenShowsWhenEmpty()
+            }
+        )
     }
 }
 
@@ -219,3 +278,57 @@ private fun BehaviourSliderRow(
         }
     }
 }
+
+private data class RadioOption(
+    val title: String,
+    val description: String,
+)
+
+@Composable
+private fun BehaviourRadioGroupCard(
+    shape: Shape,
+    title: String,
+    options: List<RadioOption>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                options.forEachIndexed { index, option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelect(index) }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = option.title, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = option.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        RadioButton(
+                            selected = (index == selectedIndex),
+                            onClick = { onSelect(index) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
