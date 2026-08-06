@@ -547,6 +547,7 @@ fun DynamicIsland(
                                             if (pressWidens) {
                                                 pressExpand.animateTo(1f, motion.boop())
                                             } else {
+                                                // Empty cutout scale tap animation
                                                 boopScale.animateTo(0.96f, motion.boop())
                                             }
                                         }
@@ -596,13 +597,8 @@ fun DynamicIsland(
                                         return@detectTapGestures
                                     }
 
-                                    // Once expanded — or while the island is pinned to the normal cutout
-                                    // in landscape (forcedExpanded == false) — tapping a notification opens
-                                    // its app; anything else just toggles expand/collapse.
+                                    // Tap to open the app
                                     if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
-                                        // Opening the app dismisses the event; collapse now so the
-                                        // resting empty pill doesn't inherit this expanded state and
-                                        // pop straight into the shortcut center — it shrinks instead.
                                         tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
@@ -1432,7 +1428,7 @@ private fun ActionChip(
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
 // How far the EXPAND press animation widens a button, on each side.
-private val PressExpandDp = 3.dp
+private val PressExpandDp = 7.dp
 
 // In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
 // the EXPAND animation: it grows by this share while the others give up the same total between them,
