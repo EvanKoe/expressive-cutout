@@ -88,6 +88,8 @@ data class MusicTileSettings(
     val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Style of the central play / pause button. */
     val playPauseButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Show a playback progress bar under the transport controls. */
+    val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
@@ -96,6 +98,7 @@ data class MusicTileSettings(
         const val DEFAULT_EXPAND_ON_PLAY = true
         const val DEFAULT_VISIBLE_IN_PLAYER_APP = true
         const val DEFAULT_SHOW_CONTROLS = true
+        const val DEFAULT_SHOW_PROGRESS = false
     }
 }
 
@@ -126,6 +129,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
                     .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT),
                 filled = prefs[PLAY_PAUSE_FILLED] ?: MusicButtonStyle.DEFAULT_FILLED,
             ),
+            showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,
         )
     }
 
@@ -147,6 +151,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("expandOnPlay", s.expandOnPlay)
             put("visibleInPlayerApp", s.visibleInPlayerApp)
             put("showControls", s.showControls)
+            put("showProgress", s.showProgress)
             put("skipButton", s.skipButton.toJsonObject())
             put("playPauseButton", s.playPauseButton.toJsonObject())
         }.toString()
@@ -170,6 +175,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("expandOnPlay")) prefs[EXPAND_ON_PLAY] = obj.getBoolean("expandOnPlay")
             if (obj.has("visibleInPlayerApp")) prefs[VISIBLE_IN_PLAYER_APP] = obj.getBoolean("visibleInPlayerApp")
             if (obj.has("showControls")) prefs[SHOW_CONTROLS] = obj.getBoolean("showControls")
+            if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")
 
             obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
             obj.optJSONObject("playPauseButton")
@@ -258,6 +264,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[PLAY_PAUSE_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
+    suspend fun setShowProgress(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[SHOW_PROGRESS] = enabled
+    }
+
     suspend fun setPlayPauseCornerPercent(percent: Int) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_CORNER] = percent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,
@@ -305,5 +315,6 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PLAY_PAUSE_OPACITY = floatPreferencesKey("play_pause_button_opacity")
         val PLAY_PAUSE_CORNER = intPreferencesKey("play_pause_button_corner_percent")
         val PLAY_PAUSE_FILLED = booleanPreferencesKey("play_pause_button_filled")
+        val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")
     }
 }

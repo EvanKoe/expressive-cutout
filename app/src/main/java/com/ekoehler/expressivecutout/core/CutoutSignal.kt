@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.service.ProgressData
 
 /**
  * A raw, source-agnostic trigger emitted onto the [IslandEventBus]. Producers (the
@@ -45,6 +46,7 @@ sealed interface CutoutSignal {
          * a valid notification, and the fallback when [largeIcon] is null.
          */
         val smallIcon: Icon? = null,
+        val progressData: ProgressData? = null
     ) : CutoutSignal {
 
         /**

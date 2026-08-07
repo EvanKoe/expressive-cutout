@@ -416,8 +416,6 @@ class IslandOverlayController(private val context: Context) {
                     behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
                 val rot270 = isRotation270()
 
-                // Theme the overlay so the "Dynamic color for all events" badge picks up the app's
-                // real primary / on-primary (Material You or the brand fallback), not the M3 baseline.
                 ExpressiveCutoutTheme {
                     DynamicIsland(
                         event = event,
@@ -1122,6 +1120,16 @@ class IslandOverlayController(private val context: Context) {
             }
 
             if (!behaviourState.value.cutoutEnabled) return@collect
+
+            val existing = currentEvent.value
+            if (signal is CutoutSignal.Notification && signal.key != null &&
+                existing != null && existing.notificationKey == signal.key
+            ) {
+                currentEvent.value = resolvedEvent.copy(id = existing.id)
+                syncWindowSize()
+                scheduleDismiss()
+                return@collect
+            }
 
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type

@@ -19,6 +19,7 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.sign
 
 /**
  * The Lottie animation to use for events that read better as motion than a static glyph, or null for
@@ -130,6 +131,7 @@ class IconResolver(private val context: Context) {
             themeColorOpacity = dynamicEventColorOpacity,
             contentIntent = signal.contentIntent,
             notificationKey = signal.key,
+            progressData = signal.progressData,
             actions = signal.actions.map { action ->
                 IslandAction(
                     label = action.title,
@@ -175,6 +177,7 @@ class IconResolver(private val context: Context) {
                 albumArtStroke = settings.albumArtStroke,
                 albumArtStrokeColor = settings.albumArtStrokeColor,
                 showControls = settings.showControls,
+                showProgress = settings.showProgress,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,
             ),

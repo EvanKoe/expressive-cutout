@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.service.ProgressData
 
 /**
  * A fully resolved, ready-to-render icon. Reducing every possible source (a Material
@@ -122,6 +123,11 @@ data class IslandEvent(
      * in the cutout, capped at [maxCutoutHeightPercent] of screen height. Null otherwise.
      */
     val assistant: AssistantTileOptions? = null,
+    /**
+     * Contains the progress of this notification if it is a progress one.
+     * Is null otherwise
+     */
+    val progressData: ProgressData? = null
 )
 
 /** Which parts of the assistant tile to render (display text, max height). */
@@ -163,6 +169,8 @@ data class MediaTileOptions(
     /** Colour of that ring; null falls back to the tile's accent. */
     val albumArtStrokeColor: CutoutColor? = null,
     val showControls: Boolean,
+    /** Show the playback progress bar under the controls. */
+    val showProgress: Boolean = false,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Look of the central play / pause button. */

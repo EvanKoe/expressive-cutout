@@ -45,7 +45,7 @@ import com.ekoehler.expressivecutout.R
 /**
  * One permission, explained: what it is, and the specific things the app does with it. The copy
  * lives here rather than in strings.xml so a permission is described next to the manifest entry it
- * documents, the same way [Releases] keeps its bullets in code.
+ * documents.
  */
 private data class PermissionDoc(
     val icon: ImageVector,
