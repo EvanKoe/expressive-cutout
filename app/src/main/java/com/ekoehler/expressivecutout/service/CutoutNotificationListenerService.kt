@@ -21,6 +21,17 @@ import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
+
+/**
+ * This is a progress data class to store progress notification extra data
+ */
+data class ProgressData(
+    val max: Int = 0,
+    val current: Int = 0,
+    val isIndeterminate: Boolean = false,
+    val title: String? = null
+)
+
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
  * title and text (shown when the island is expanded) and filters out noise (its own posts,
@@ -62,24 +73,51 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         super.onDestroy()
     }
 
+    /**
+     * Checks if the notification is a progress one
+     */
+    fun isProgressNotification(sbn: StatusBarNotification): Boolean {
+        return sbn.notification.extras.containsKey(Notification.EXTRA_PROGRESS)
+    }
+
+    /**
+     * Returns progress data from a notification (or null if no progress)
+     */
+    fun getProgressDataOrNull(sbn: StatusBarNotification): ProgressData? {
+        if (!sbn.notification.extras.containsKey(Notification.EXTRA_PROGRESS)) {
+            return null
+        }
+
+        val extras = sbn.notification.extras
+        val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+        val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
+        val isIndeterminate = extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
+        val title = extras.getString(Notification.EXTRA_TITLE)
+
+        return ProgressData(
+            max = max,
+            current = current,
+            isIndeterminate = isIndeterminate,
+            title = title
+        )
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val notification = sbn ?: return
-        // Ongoing-call notifications drive the phone tile, not the normal notification pill (and
-        // would be dropped by shouldSurface below as ongoing anyway), so handle them first.
+
+        // Phone call
         if (CallNotificationParser.isCall(notification)) {
             handleCall(notification)
             return
         }
-        // A count-down notification drives the timer tile, not the normal pill (and is ongoing, so it
-        // would be dropped by shouldSurface below anyway), so handle it before the generic path.
+
+        // Timer
         if (TimerNotificationParser.isTimer(notification)) {
             handleTimer(notification)
             return
         }
-        // A player's MediaStyle notification carries the album cover as its large icon. Lift it
-        // before shouldSurface() drops the notification for being ongoing — it is the only cover we
-        // can get for a player that publishes its art as a remote URI rather than a bitmap. This
-        // deliberately does not return: whether the notification also becomes a pill is unchanged.
+
+        // Music
         notification.publishMediaArt()
 
         if (!notification.shouldSurface()) return
@@ -87,6 +125,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val extras = notification.notification.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+        val progress = getProgressDataOrNull(sbn)
 
         IslandEventBus.emit(
             CutoutSignal.Notification(
@@ -96,26 +135,25 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 key = notification.key,
                 contentIntent = notification.notification.contentIntent,
                 actions = notification.notification.surfaceableActions(),
-                // The posting app's own icons for this notification. Preferred over its launcher
-                // icon downstream, so the island badge shows what the shade shows.
                 largeIcon = notification.notification.getLargeIcon(),
                 smallIcon = notification.notification.smallIcon,
+                progressData = progress
             ),
         )
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // The dialer clears its notification when the call ends — drop the phone tile's live state.
+        // Clears call cutout when call ends
         if (sbn?.key != null && sbn.key == currentCallKey) {
             currentCallKey = null
             OnCallBus.update(null)
         }
-        // The clock clears its notification when the timer is reset or finishes — drop the tile.
+        // Clears time cutout when timer finishes or reset
         if (sbn?.key != null && sbn.key == currentTimerKey) {
             currentTimerKey = null
             RunningTimerBus.update(null)
         }
-        // The player cleared its media notification — the cover it carried is no longer current.
+        // Clears music cutout when music is paused/stopped
         if (sbn?.key != null && sbn.key == currentMediaArtKey) {
             currentMediaArtKey = null
             MediaArtBus.update(null)
@@ -131,6 +169,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     private fun handleCall(sbn: StatusBarNotification) {
         val call = CallNotificationParser.parse(sbn, this)
         val prevOngoing = OnCallBus.state.value?.ongoing
+
         OnCallBus.update(
             OnCall(
                 callerLabel = call.callerLabel,
@@ -141,6 +180,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 packageName = sbn.packageName,
             ),
         )
+
         if (sbn.key != currentCallKey || prevOngoing != call.ongoing) {
             currentCallKey = sbn.key
             IslandEventBus.emit(
@@ -262,7 +302,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          */
         fun requestRebind(context: Context) {
             val component = ComponentName(context, CutoutNotificationListenerService::class.java)
-            runCatching { NotificationListenerService.requestRebind(component) }
+            runCatching { requestRebind(component) }
                 .onFailure { Log.w(TAG, "Failed to request listener rebind", it) }
         }
 
@@ -274,23 +314,6 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             val service = instance ?: return
             runCatching { service.cancelNotification(key) }
                 .onFailure { Log.w(TAG, "Failed to cancel notification $key", it) }
-        }
-
-        /**
-         * Look up active notifications posted by [packageName] and return a pair of (title, text/bigText).
-         */
-        fun getNotificationTextForPackage(packageName: String): Pair<String?, String?>? {
-            val service = instance ?: return null
-            val notifications = runCatching { service.activeNotifications }.getOrNull() ?: return null
-            val sbn = notifications.firstOrNull { it.packageName.equals(packageName, ignoreCase = true) } ?: return null
-            val extras = sbn.notification?.extras ?: return null
-            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-                ?: extras.getCharSequence("android.title")?.toString()
-            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
-                ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-                ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
-                ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()
-            return Pair(title, bigText)
         }
     }
 }

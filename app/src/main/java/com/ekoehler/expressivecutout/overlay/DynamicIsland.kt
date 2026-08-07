@@ -121,6 +121,9 @@ import android.net.Uri
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.Dispatchers
@@ -152,6 +155,7 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -387,23 +391,12 @@ fun DynamicIsland(
         else -> collapsed
     }
 
-    // The assistant streams its answer as a rapid series of fresh events, each with a new id (the
-    // resolver stamps one per emission). Keying this on the id would reset it to 0 on every token, so
-    // the fit-to-content height would keep collapsing to its 110dp floor and springing back — the
-    // bounce. Key it on the tile kind instead so the measured height persists across the whole stream
-    // and only resets when a different (non-assistant) event takes over.
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
-    // The empty pill's center fits its own content: the shortcut row measures itself so the cutout is
-    // exactly as tall as it needs to be (shorter with labels off), instead of a fixed reservation.
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     val heightBonus = when {
         emptyPill && isExpanded -> {
-            // Fit the cutout to the measured shortcut content (camera clearance + content), so it's
-            // exactly as tall as needed — shorter with labels off. Falls back to the reserve until
-            // the first measurement lands. dims is the expanded layout, so this resolves the island
-            // height to (collapsed clearance + gap + content) regardless of the expanded height.
             if (centerContentHeightDp > 0) {
                 collapsed.heightDp + CENTER_TOP_GAP_DP + centerContentHeightDp - dims.heightDp
             } else {
@@ -423,9 +416,6 @@ fun DynamicIsland(
         else -> 0
     }
 
-    // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
-    // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
-    // runs 0 (dot) → 1 (full pill); it eases in on show and back out on hide.
     val present = event != null || showsWhenEmpty
     val reveal = remember { Animatable(0f) }
 
@@ -481,16 +471,12 @@ fun DynamicIsland(
     val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
     val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
     val bottomRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
-    // Drives the background cross-fade between the normal and expanded fills, in step with the size.
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
         label = "islandBackgroundFade",
     )
 
-    // The dot's diameter is the cutout's own (collapsed) height — the camera-sized nub it grows from —
-    // so the normal cutout keeps that height throughout and only its width expands. Corners stay fully
-    // round while it's a dot and ease to the configured shape as it opens out.
     val dotDp = collapsed.heightDp.dp
     val revealWidth = lerpDp(dotDp, width, reveal.value)
     val revealHeight = lerpDp(dotDp, height, reveal.value)
@@ -508,14 +494,12 @@ fun DynamicIsland(
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
-        // Position the island in the full-size (non-clipping) window; then animate visibility.
         Box(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
                 .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
         ) {
-            // Keep rendering through the exit (until `reveal` reaches 0) so the shrink-back animates.
             if (present || reveal.value > 0f) {
                 IslandSurface(
                     modifier = Modifier
@@ -709,8 +693,6 @@ fun DynamicIsland(
                         } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
-                                    // The phone tile: one bigger normal cutout — caller on the left,
-                                    // hang-up on the right — with no separate expanded layout.
                                     CallNormalContent(event = e, onAction = onAction)
                                 } else if (showExpanded) {
                                     ExpandedContent(
@@ -719,14 +701,11 @@ fun DynamicIsland(
                                         appearance = appearance,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
+                                        progressData = e.progressData,
                                         onAction = onAction,
                                         onStartReply = { replyingTo = it },
                                         onCancelReply = { replyingTo = null },
                                         onSendReply = { text ->
-                                            // Swap the field for the "Sent" confirmation, then dispatch
-                                            // the reply once it has been seen. Launched from the (un-keyed)
-                                            // composition scope so a notification arriving mid-hold can't
-                                            // cancel the send.
                                             replyingTo?.let { action ->
                                                 sentReply = action to text
                                                 scope.launch {
@@ -811,21 +790,19 @@ private fun IslandSurface(
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush()
     val expandedBrush = appearance.backgroundExpanded.resolveBrush()
-    // Keep text/icons legible: dark ink on a light fill, otherwise the near-white default. The
-    // reference colour tracks the fade so ink flips at the right moment when the states differ.
     val repColor = lerp(
         appearance.backgroundNormal.representativeColor(),
         appearance.backgroundExpanded.representativeColor(),
         progress,
     )
+
     val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
     val border = if (appearance.strokeEnabled) {
         BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
     } else {
         null
     }
-    // The Surface itself is transparent (so a gradient fill is possible); the fill is drawn by the
-    // opaque child below, which also keeps the layer opaque so the elevation shadow still renders.
+
     Surface(
         modifier = modifier,
         shape = shape,
@@ -936,6 +913,35 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * 0.24f).dp),
+                )
+            }
+        }
+        event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
+            val indicatorModifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = (heightDp * 0.24f).dp)
+                .size((heightDp * 0.5f).dp)
+            val strokeWidth = (heightDp * 0.06f).dp
+            if (progress.isIndeterminate) {
+                CircularProgressIndicator(
+                    modifier = indicatorModifier,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                    strokeWidth = strokeWidth,
+                )
+            } else {
+                val fraction = if (progress.max <= 0) 0f
+                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+                val animatedFraction by animateFloatAsState(
+                    targetValue = fraction,
+                    label = "collapsedProgress",
+                )
+                CircularProgressIndicator(
+                    progress = { animatedFraction },
+                    modifier = indicatorModifier,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                    strokeWidth = strokeWidth,
                 )
             }
         }
@@ -1257,6 +1263,7 @@ private fun ExpandedContent(
     appearance: AppearanceSettings,
     replyingTo: IslandAction?,
     replySent: Boolean,
+    progressData: ProgressData? = null,
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
@@ -1316,18 +1323,45 @@ private fun ExpandedContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+
+                    var lastProgressData by remember { mutableStateOf(progressData) }
+                    if (progressData != null) lastProgressData = progressData
+                    AnimatedVisibility(visible = progressData != null) {
+                        lastProgressData?.let { p ->
+                            if (p.isIndeterminate) {
+                                LinearProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            } else {
+                                val fraction = if (p.max <= 0) 0f
+                                    else (p.current.toFloat() / p.max).coerceIn(0f, 1f)
+                                val animatedFraction by animateFloatAsState(
+                                    targetValue = fraction,
+                                    label = "notificationProgress",
+                                )
+                                LinearProgressIndicator(
+                                    progress = { animatedFraction },
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            }
+                        }
+                    }
                 }
             }
+
             // Fall back to the notification's own accent / a neutral tint when unset.
             val sendColor = appearance.sendButtonColor?.resolve() ?: event.accent
             when {
-                // Just sent: a brief confirmation replaces the field before the island dismisses.
                 replySent -> ReplySentRow(
                     tint = sendColor,
                     heightDp = appearance.actionButtonHeightDp,
                     alignment = appearance.sentAlignment,
                 )
-                // Typing a reply: the input field replaces the chips until sent or cancelled.
+
                 replyingTo != null -> ReplyRow(
                     hint = replyingTo.reply?.hint,
                     accent = event.accent,
@@ -1339,10 +1373,8 @@ private fun ExpandedContent(
                     onSend = onSendReply,
                     onCancel = onCancelReply,
                 )
-                // Action chips (at most three fit comfortably); a reply chip opens the input,
-                // any other chip fires its action.
+
                 showActions && event.actions.isNotEmpty() -> {
-                    // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
                     ActionChipRow(
                         actions = event.actions.take(3),

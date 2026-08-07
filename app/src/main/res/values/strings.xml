@@ -54,8 +54,11 @@
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
+    <string name="action_send_test_progress">Send a test progress notification</string>
     <string name="test_notification_title">Test notification</string>
     <string name="test_notification_text">Expand the island and try the buttons below.</string>
+    <string name="test_progress_notification_title">Downloading file</string>
+    <string name="test_progress_notification_text">Watch the island track the progress.</string>
     <string name="test_notification_action_reply">Reply</string>
     <string name="test_notification_action_mark_read">Mark as read</string>
     <string name="test_notification_reply_hint">Message</string>

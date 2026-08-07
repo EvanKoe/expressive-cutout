@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallReceived
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -69,18 +70,24 @@ fun PermissionsTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
     val status = rememberPermissionStatus()
 
-    // Android 13+ gates posting behind a runtime permission; grant then post.
+    // Android 13+ gates posting behind a runtime permission; grant then run the pending post.
+    var pendingPost by remember { mutableStateOf<(() -> Unit)?>(null) }
     val postPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) TestNotifier.send(context) }
+    ) { granted -> if (granted) pendingPost?.invoke() }
 
-    fun onTestNotification() {
+    fun postWithPermission(send: () -> Unit) {
         if (TestNotifier.canPost(context)) {
-            TestNotifier.send(context)
+            send()
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pendingPost = send
             postPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
+
+    fun onTestNotification() = postWithPermission { TestNotifier.send(context) }
+
+    fun onTestProgressNotification() = postWithPermission { TestNotifier.sendProgress(context) }
 
     Column(
         modifier = Modifier
@@ -136,6 +143,13 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 icon = Icons.Rounded.NotificationsActive,
                 title = stringResource(R.string.action_send_test),
                 onClick = ::onTestNotification,
+            )
+
+            // Send a test progress notification
+            TestCard(
+                icon = Icons.Rounded.Downloading,
+                title = stringResource(R.string.action_send_test_progress),
+                onClick = ::onTestProgressNotification,
             )
 
             // Test a running call

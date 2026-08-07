@@ -1123,6 +1123,16 @@ class IslandOverlayController(private val context: Context) {
 
             if (!behaviourState.value.cutoutEnabled) return@collect
 
+            val existing = currentEvent.value
+            if (signal is CutoutSignal.Notification && signal.key != null &&
+                existing != null && existing.notificationKey == signal.key
+            ) {
+                currentEvent.value = resolvedEvent.copy(id = existing.id)
+                syncWindowSize()
+                scheduleDismiss()
+                return@collect
+            }
+
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = if (isNoExpandLandscape) false else null
