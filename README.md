@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" alt="Expressive Cutout icon" width="128" height="128">
+<img width="1280" height="640" alt="Frame 25" src="https://github.com/user-attachments/assets/d801de28-eac6-4ffd-8474-55d9a8af4dc3" />
+
 
 # Expressive Cutout
 
@@ -57,6 +58,8 @@ Requires Android 10 (API 29) or newer. On first launch the app walks you through
 things it needs: notification access (to mirror notifications), the accessibility service
 (to draw the overlay — no screen content is read), and optionally an exemption from battery
 optimisation so the island stays reliable in the background.
+
+Join our [Discord server](https://discord.gg/uG5XWj2N5v) for feedback, feature requests, bug report and share with the Expressive by Evan community!
 
 ---
 

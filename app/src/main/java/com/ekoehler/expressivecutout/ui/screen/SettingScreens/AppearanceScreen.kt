@@ -84,21 +84,8 @@ import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.DefaultPresetColors
 import kotlin.math.roundToInt
-
-/**
- * The predefined swatches [ColorPickerCard] shows by default: black, white, dark/light grey, then
- * blue, red and green. Any screen can override the set by passing its own list to [ColorPickerCard].
- */
-val DefaultPresetColors: List<Long> = listOf(
-    0xFF0A0A0A, // black
-    0xFFFFFFFF, // white
-    0xFF444444, // dark grey
-    0xFFBBBBBB, // light grey
-    0xFF3B82F6, // blue
-    0xFFEF4444, // red
-    0xFF22C55E, // green
-)
 
 /** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
 private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
@@ -112,24 +99,7 @@ internal fun AppearanceScreen(
 ) {
     val haptics = LocalHapticFeedback.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-    val layout by viewModel.layout.collectAsStateWithLifecycle()
-    val systemInDark = isSystemInDarkTheme()
-    var previewDark by remember { mutableStateOf(systemInDark) }
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
-
-    val previewLabel = stringResource(R.string.preview_label)
-    val previewDetail = stringResource(R.string.preview_detail)
-    val previewEvent = remember(previewLabel, previewDetail) {
-        IslandEvent(
-            id = 0L,
-            icon = IslandIcon.Vector(Icons.Rounded.Notifications),
-            label = previewLabel,
-            detail = previewDetail,
-            accent = Color(0xFF60A5FA),
-        )
-    }
-    val cutout = rememberTopCutout()
-    val expanded = layout.expanded
 
     Column(
         modifier = Modifier
@@ -304,10 +274,8 @@ internal fun ColorPickerCard(
     roundedCorners: Dp = 24.dp
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    // A Solid colour that isn't one of the presets is the user's own custom pick.
     val customArgb = (selected as? CutoutColor.Solid)?.argb
         ?.takeIf { argb -> presetColors.none { it == argb } }
-    // Seed the picker with whatever colour is active right now.
     val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
 
     Card(
@@ -377,7 +345,7 @@ internal fun ColorPickerCard(
 
 /** The Material You scheme role's human-readable label, for a swatch's content description. */
 @Composable
-private fun DynamicRole.dynamicDescription(): String = stringResource(
+fun DynamicRole.dynamicDescription(): String = stringResource(
     when (this) {
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary

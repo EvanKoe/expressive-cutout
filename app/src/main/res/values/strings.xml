@@ -442,4 +442,6 @@
     <string name="import_success">Settings imported</string>
     <string name="import_invalid">Not a valid Expressive Cutout settings file</string>
     <string name="import_failed">Import failed</string>
+    <string name="bgColor_oled_title">Use OLED black</string>
+    <string name="bgColor_oled_desc">Use pure black for lower consuption on OLED screens</string>
 </resources>
