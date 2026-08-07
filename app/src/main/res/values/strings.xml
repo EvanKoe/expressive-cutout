@@ -411,8 +411,7 @@
     <string name="version_beta">Beta</string>
     <string name="changelog_title">What\'s new</string>
     <string name="changelog_subtitle">Newest first. The app is in beta — versions below 0.1.0 were development builds and were never published.</string>
-    <string name="changelog_major">Major features</string>
-    <string name="changelog_minor">Minor features</string>
+    <string name="changelog_features">Features</string>
     <string name="changelog_fixes">Bug fixes</string>
     <string name="profile_permissions_title">Permission details</string>
     <string name="profile_permissions_subtitle">What each permission is for, and what it is not</string>

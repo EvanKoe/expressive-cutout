@@ -1,0 +1,152 @@
+[
+  {
+    "version": "0.1.2",
+    "description": "Per-app configuration and the assistant tile",
+    "features": [
+      "Per-app configuration: choose which apps the island reacts to, and restrict an app to the normal cutout only",
+      "Assistant dynamic tile"
+    ],
+    "bugfixes": [
+      "Music dynamic tile",
+      "Call dynamic tile"
+    ]
+  },
+  {
+    "version": "0.1.1",
+    "description": "Maintenance release",
+    "features": [
+      "Automated release builds through GitHub Actions"
+    ],
+    "bugfixes": [
+      "Dynamic tiles",
+      "Crash when the cutout corner radius was set to 0 dp",
+      "Horizontal notification panel"
+    ]
+  },
+  {
+    "version": "0.1.0",
+    "description": "First public beta — incoming calls and expressive animations",
+    "features": [
+      "Incoming-call tile with the caller's name, their number, and decline / answer buttons, opening the in-call view on tap",
+      "Animations screen: choose an expressive spring or ease-in-out style and tune speed and bounce against a live example",
+      "Every screen drops its title bar for a fading top edge, so the content starts higher and scrolls away under the status bar",
+      "Opt-in two-row incoming-call layout, with the number ellipsized under the name so it clears the camera",
+      "The expanded incoming layout now matches the expanded cutout size and uses a single bottom-aligned label",
+      "Incoming tile pinned to 80% of the screen width, with its own test-call button",
+      "Call cutout width adapts to the length of the caller's name",
+      "The in-app test call simulates a real incoming call",
+      "\"Buy me a coffee\" card in Profile"
+    ],
+    "bugfixes": []
+  },
+  {
+    "version": "0.0.8",
+    "description": "Per-event customisation",
+    "features": [
+      "Material icon selector for events, replacing the app-icon picker, with a search filter over the full icon library",
+      "Per-event duration settings",
+      "Animated-icon and loop toggles for each event",
+      "Per-event colour override with a reset",
+      "The charging event now animates"
+    ],
+    "bugfixes": []
+  },
+  {
+    "version": "0.0.7",
+    "description": "Timer tile",
+    "features": [
+      "Timer dynamic tile that mirrors the system countdown",
+      "Behaviour: slider to scale the island animation duration between 0 and 1000 ms",
+      "Appearance: stroke options animate in and out",
+      "Icon container colour for the phone and timer tiles, previewed in the tile list"
+    ],
+    "bugfixes": [
+      "Detect Android 16+ live-update timers, so Google Clock countdowns are picked up",
+      "Show the clock app's real button labels instead of substituted text",
+      "Pause flips to Resume live while the timer is paused",
+      "The timer pill dismisses immediately when the timer is reset",
+      "The settings list refreshes the accessibility grant on resume"
+    ]
+  },
+  {
+    "version": "0.0.6",
+    "description": "Phone tile and lockscreen behaviour",
+    "features": [
+      "Phone dynamic tile: live call with contact photo, call duration, and call actions",
+      "Hide on lockscreen — the overlay tears itself down while the device is locked",
+      "Predictive back gesture with a matching navigation animation",
+      "Unlock animation",
+      "Separate hang-up and secondary button colours on the phone tile",
+      "Event icons renamed to Events, with a dynamic primary-colour toggle for every event",
+      "Events can pick a Material You colour role and an opacity",
+      "Appearance and disappearance animation for the normal cutout",
+      "Overlay access card in the main settings list, and a reordered permissions screen",
+      "QUERY_ALL_PACKAGES replaced with a scoped queries declaration for launcher apps"
+    ],
+    "bugfixes": []
+  },
+  {
+    "version": "0.0.5",
+    "description": "Dynamic tiles and music playback",
+    "features": [
+      "Dynamic tiles, starting with a now-playing music tile: album art, playback controls, and per-tile settings screens",
+      "Album art spins while playback runs and freezes when paused",
+      "The music cutout stays pinned up for as long as playback is live",
+      "Customisable music tile buttons: colour, opacity, rounded corners, and shape presets",
+      "Swipe to dismiss, with its own settings",
+      "One shared colour picker with dynamic roles, hex entry, and overridable presets"
+    ],
+    "bugfixes": [
+      "Dynamic tiles split away from system events into their own model, prefs, and screen",
+      "The music tile no longer reappears after its notification is dismissed",
+      "More material play / pause button"
+    ]
+  },
+  {
+    "version": "0.0.4",
+    "description": "Backgrounds and swipe gestures",
+    "features": [
+      "Dedicated background screen: separate normal and expanded fills, gradients, and opacity",
+      "Shrink the expanded cutout by swiping up, toggleable in Behaviour",
+      "Segmented reply field — cancel, input, and send as one connected bar",
+      "Card in Profile that opens the GitHub repository"
+    ],
+    "bugfixes": [
+      "Touches around the cutout reach the notification shade without resizing the window"
+    ]
+  },
+  {
+    "version": "0.0.3",
+    "description": "Notifications and inline replies",
+    "features": [
+      "Notification actions and inline reply, plus the Wi-Fi network name on connect",
+      "Style options for the action buttons and the reply field",
+      "Customisable send / cancel reply button colours",
+      "Test notification with action buttons, inline reply, and a 15-second auto-dismiss"
+    ],
+    "bugfixes": [
+      "The preview reflects the action-button toggle, and swatch selection rings are no longer clipped",
+      "Back from Action buttons returns to Appearance, then to Settings",
+      "Removed the feature that required the background location permission"
+    ]
+  },
+  {
+    "version": "0.0.2",
+    "description": "Size, position and behaviour",
+    "features": [
+      "Size and position controls for the island, alongside the first behaviour options",
+      "Global switch to turn the cutout off entirely"
+    ],
+    "bugfixes": [
+      "Smoother animation, and a window-resize delay that stops the island from jumping"
+    ]
+  },
+  {
+    "version": "0.0.1",
+    "description": "First build",
+    "features": [
+      "Expressive Cutout: a dynamic island overlay for punch-hole displays"
+    ],
+    "bugfixes": []
+  }
+]
