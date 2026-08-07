@@ -14,13 +14,13 @@ top of your screen — all styled with Material Expressive shapes, springs and M
 colours, and all customisable down to the corner radius.
 
 It runs entirely on your device. The app has no internet permission at all, so nothing can
-be uploaded: no accounts, no analytics, no tracking, and it never asks Android which apps
-you have installed.
+be uploaded: no accounts, no analytics, no tracking.
 
 [![Download the latest release](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
 [![Stars](https://img.shields.io/github/stars/EvanKoe/expressive-cutout?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/stargazers)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/SNfcuuJeYF)
 
 </div>
 
@@ -42,7 +42,8 @@ you have installed.
 | | | |
 |-|-|-|
 |<img width="864" height="1939" alt="Screenshot_20260729-153011" src="https://github.com/user-attachments/assets/9f7e4724-bd91-4486-8f0e-9500906024d2" />|<img width="1080" height="2424" alt="Screenshot_20260729-153006" src="https://github.com/user-attachments/assets/e803d2a2-8e9b-41e0-8688-54affaefa355" />|<img width="864" height="1939" alt="Screenshot_20260729-153043" src="https://github.com/user-attachments/assets/84f40ce3-7ef0-41b4-9d89-3790008de5bc" />|
-|<img width="1080" height="2424" alt="Screenshot_20260729-152844" src="https://github.com/user-attachments/assets/a905ca3b-ba28-41ff-a072-07752b79686a" />|<img width="1080" height="2424" alt="Screenshot_20260729-152838" src="https://github.com/user-attachments/assets/7f11c6b2-a736-4529-8718-268e6dba3852" />|<img width="1080" height="2424" alt="Screenshot_20260729-152826" src="https://github.com/user-attachments/assets/73a72048-8338-4c10-aeea-e4a1243b724a" />|
+| <img width="1080" height="2424" alt="Screenshot_20260807-111655" src="https://github.com/user-attachments/assets/7c4b132c-54ec-471b-a4c3-bf7ddc7d8846" /> | <img width="1080" height="2424" alt="Screenshot_20260807-111746" src="https://github.com/user-attachments/assets/1d59ac95-0dfb-4b4b-9b8c-2814eb436da1" /> | <img width="1080" height="2424" alt="Screenshot_20260807-112035" src="https://github.com/user-attachments/assets/33542dec-9d6b-456a-bc14-c779c1d07a00" /> |
+ | <img width="1080" height="2424" alt="Screenshot_20260807-112215" src="https://github.com/user-attachments/assets/e33224c9-fe29-4fa2-b580-e0e8a10c7237" /> |
 
 ---
 
@@ -56,10 +57,10 @@ you have installed.
 
 Requires Android 10 (API 29) or newer. On first launch the app walks you through the three
 things it needs: notification access (to mirror notifications), the accessibility service
-(to draw the overlay — no screen content is read), and optionally an exemption from battery
+(to draw the overlay), and optionally an exemption from battery
 optimisation so the island stays reliable in the background.
 
-Join our [Discord server](https://discord.gg/uG5XWj2N5v) for feedback, feature requests, bug report and share with the Expressive by Evan community!
+Join our [Discord server](https://discord.gg/SNfcuuJeYF) for feedback, feature requests, bug report and share with the Expressive by Evan community!
 
 ---
 
@@ -103,7 +104,7 @@ Even if this project started as a personal app, a lot of existing projects gave 
 
 And my very special thanks to [Sameerasw's Essential app for Android](https://github.com/sameerasw/essentials) which has an AWESOME Material You Expressive implementation. He is doing a great job and all his apps feel very polished. 
 
-Also, I would like to thank anyone who has or plans to contribute to the project, may it be by reporting bugs or making PRs.
+I would like to thank everyone that takes part to the project on Discord, Github and Reddit by submitting bugs, requesting features and creating issues.
 
 ---
 
