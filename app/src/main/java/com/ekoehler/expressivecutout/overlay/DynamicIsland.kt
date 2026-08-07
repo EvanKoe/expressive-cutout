@@ -68,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,12 +122,16 @@ import android.net.Uri
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCall
@@ -152,6 +157,7 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -184,6 +190,11 @@ private const val ALBUM_SPIN_MS = 8000
 // the same on the collapsed pill and in the (larger) expanded layout.
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
+
+// How often the music progress bar re-reads its own clock. The media session pushes nothing between
+// real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
+// even a half-second step sub-pixel.
+private const val PROGRESS_TICK_MS = 500L
 
 // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
 // animation is expressed relative to this, so the user's single "animation duration" knob scales
@@ -284,23 +295,14 @@ fun DynamicIsland(
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
     var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
-    // Bumped on every center shortcut press so the auto-collapse timer restarts on interaction —
-    // the open center only shrinks after the inactivity delay, not a fixed time after it opened.
     var centerInteraction by remember { mutableStateOf(0) }
-    // The reply action currently being typed for, if any. Reset when the event changes.
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
-    // Non-null immediately after the user hits send: the island shows a brief "Sent" confirmation,
-    // then this action/text pair is dispatched (which dismisses the island).
     var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
     val confirmingSent = sentReply != null
-    // The phone tile has no expanded state (and assistant when display answer is false): shown as normal cutout, so tapping never expands it.
     val isCall = shownEvent?.call != null
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
     val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
-    // The resting empty pill has no event, but with "Open center" a tap expands it into a shortcut
-    // grid. That reuses [tapExpanded] so it inherits auto-collapse; every other empty pill (and the
-    // normal-only tiles) stays collapsed.
     val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
     val isExpanded = when {
         forcedExpanded == false -> false
@@ -308,40 +310,25 @@ fun DynamicIsland(
         isNormalOnly -> false
         else -> forcedExpanded ?: tapExpanded
     }
+
     val boopScale = remember { Animatable(1f) }
-    // The cutout body's tap feedback follows the same setting as its buttons: [ActionButtonAnimation.SCALE]
-    // squishes the whole pill via [boopScale], [ActionButtonAnimation.EXPAND] widens it instead — this runs
-    // 0 (resting) → 1 (pressed) and only ever leaves 0 for that flavour, so the two never fight.
     val pressExpand = remember { Animatable(0f) }
     val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
-    // Horizontal drag offset for swipe-to-dismiss; reset for each new event so a fresh pill starts centred.
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    // One user-tunable knob scales every tween-based island animation — the expand/collapse, the
-    // pop-in/out reveal, the background fade, the content crossfade and the tap "boop" — in
-    // proportion to its tuned baseline, so the whole motion speeds up or slows down together.
-    // At 0ms everything snaps instantly; at the default (BASE_TRANSITION_MS) the feel is unchanged.
     val animScale = animationDurationMs / BASE_TRANSITION_MS.toFloat()
     fun scaled(baseMs: Int) = (baseMs * animScale).roundToInt()
 
-    // The island's primary motion (reveal, size / position / corners, background fade) follows the
-    // configured style: expressive spatial springs (speed picked by the user, durations ignored) or
-    // a standard ease-in-out tween scaled by the animation-duration slider. IslandMotion is shared
-    // with the settings example pills, so the preview there shows exactly this motion.
     val motion = remember(animationStyle, animationSpeed, animationBounce, animationDurationMs) {
         IslandMotion(animationStyle, animationSpeed, animationBounce, animationDurationMs)
     }
 
-    // Tell the controller to make the window focusable (for the keyboard) and pause dismissal.
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
     LaunchedEffect(isExpanded, event != null, emptyPill, emptyOpensCenter) {
-        // Fire for real events, and for the empty pill's center so the controller grows the host
-        // window and touchable region to cover the expanded shortcut grid.
         if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
     }
-    // User-expanded (not the pinned preview) optionally collapses after the delay — never while
-    // a reply is being typed or its "sent" confirmation is still showing.
+
     LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
         if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
             delay(autoCollapseMs)
@@ -349,15 +336,10 @@ fun DynamicIsland(
         }
     }
 
-    // Only pad the height when the expanded island will actually render a bottom row of controls —
-    // notification action chips, the music tile's playback buttons, or the phone tile's call actions.
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
-    // An incoming call in its two-row layout puts the buttons on their own row (none trailing); a
-    // one-line incoming shows two trailing buttons (decline + answer); a connected call shows one
-    // (hang up). Read live from the call bus so the pill re-sizes when the call is answered.
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
     val callIncoming = isCall && liveCall?.ongoing == false
     val callTwoRow = callIncoming && shownEvent?.call?.incomingExpandedLayout == true && hasCallActions
@@ -367,8 +349,7 @@ fun DynamicIsland(
         callIncoming -> 2
         else -> 1
     }
-    // The call cutout widens to fit a long caller name (up to its max); measured once per name/state.
-    // Any incoming call is pinned to the full width; the two-row layout also uses the taller shape.
+
     val density = LocalDensity.current.density
     val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
         if (isCall) {
@@ -378,7 +359,6 @@ fun DynamicIsland(
         }
     }
 
-    // The two-row incoming layout starts from the expanded cutout and grows by its button row.
     val dims = when {
         emptyPill && !isExpanded -> collapsed
         callTwoRow -> expanded
@@ -387,23 +367,12 @@ fun DynamicIsland(
         else -> collapsed
     }
 
-    // The assistant streams its answer as a rapid series of fresh events, each with a new id (the
-    // resolver stamps one per emission). Keying this on the id would reset it to 0 on every token, so
-    // the fit-to-content height would keep collapsing to its 110dp floor and springing back — the
-    // bounce. Key it on the tile kind instead so the measured height persists across the whole stream
-    // and only resets when a different (non-assistant) event takes over.
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
-    // The empty pill's center fits its own content: the shortcut row measures itself so the cutout is
-    // exactly as tall as it needs to be (shorter with labels off), instead of a fixed reservation.
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
     val heightBonus = when {
         emptyPill && isExpanded -> {
-            // Fit the cutout to the measured shortcut content (camera clearance + content), so it's
-            // exactly as tall as needed — shorter with labels off. Falls back to the reserve until
-            // the first measurement lands. dims is the expanded layout, so this resolves the island
-            // height to (collapsed clearance + gap + content) regardless of the expanded height.
             if (centerContentHeightDp > 0) {
                 collapsed.heightDp + CENTER_TOP_GAP_DP + centerContentHeightDp - dims.heightDp
             } else {
@@ -423,9 +392,6 @@ fun DynamicIsland(
         else -> 0
     }
 
-    // Appear / disappear reveal: the cutout emerges as a small, camera-sized dot and stretches out
-    // horizontally to its full width, then shrinks back into the dot when it's dismissed. `reveal`
-    // runs 0 (dot) → 1 (full pill); it eases in on show and back out on hide.
     val present = event != null || showsWhenEmpty
     val reveal = remember { Animatable(0f) }
 
@@ -435,15 +401,9 @@ fun DynamicIsland(
             animationSpec = motion.float(baseMs = if (present) 320 else 200),
         )
     }
-    // A dismiss swipe leaves the pill translated and faded (the alpha is derived from that offset), and
-    // [dismissOffsetX] is keyed on the sticky [shownEvent] so it survives the event clearing. With
-    // "shows when empty" the surface then never goes away, so the resting pill would sit off-centre at
-    // reduced opacity. Finish the exit instead: hide it, recentre, and grow back from the dot as usual.
-    // `present` is true either side of this hand-off, so the reveal above never competes for `reveal`.
+
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
-            // A fresh resting pill always starts with its center closed — never inherit a prior
-            // notification's expanded state (after opening its app, swiping it away, etc.).
             tapExpanded = false
             if (dismissOffsetX.value != 0f) {
                 reveal.snapTo(0f)
@@ -452,28 +412,25 @@ fun DynamicIsland(
             }
         }
     }
-    // While the pill is fully hidden (reveal at 0) the size / position / corners snap straight to the
-    // next state instead of animating: a cutout dismissed while expanded resets to its normal height
-    // off-screen, so the next appearance grows from the dot at the right height with no catch-up lag.
+
     val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
-    // While the assistant streams its answer the target height creeps up token by token; the bouncy
-    // spatial spring would re-overshoot on every nudge and make the cutout bob (see `dpSmooth`). Grow
-    // that height with a critically damped spring instead, but keep the springy `spec` for the normal
-    // expand/collapse (and while the pill is hidden, where the size snaps straight to the next state).
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val heightSpec: AnimationSpec<Dp> = when {
         reveal.value == 0f -> snap()
         isAssistantAnswer -> motion.dpSmooth()
         else -> spec
     }
+
     val width by animateDpAsState(
         if (isStickToCamera) collapsed.heightDp.dp else (displayWidthDp * dims.widthPercent / 100f).dp,
         spec, label = "islandWidth"
     )
+
     val height by animateDpAsState(
         if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp else (dims.heightDp + heightBonus).dp,
         heightSpec, label = "islandHeight"
     )
+
     val cornerRadius = (collapsed.heightDp / 2f).dp
     val offsetX by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetXDp.dp, spec, label = "islandOffsetX")
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
@@ -481,16 +438,12 @@ fun DynamicIsland(
     val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
     val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
     val bottomRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
-    // Drives the background cross-fade between the normal and expanded fills, in step with the size.
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
         label = "islandBackgroundFade",
     )
 
-    // The dot's diameter is the cutout's own (collapsed) height — the camera-sized nub it grows from —
-    // so the normal cutout keeps that height throughout and only its width expands. Corners stay fully
-    // round while it's a dot and ease to the configured shape as it opens out.
     val dotDp = collapsed.heightDp.dp
     val revealWidth = lerpDp(dotDp, width, reveal.value)
     val revealHeight = lerpDp(dotDp, height, reveal.value)
@@ -508,14 +461,12 @@ fun DynamicIsland(
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
-        // Position the island in the full-size (non-clipping) window; then animate visibility.
         Box(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
                 .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
         ) {
-            // Keep rendering through the exit (until `reveal` reaches 0) so the shrink-back animates.
             if (present || reveal.value > 0f) {
                 IslandSurface(
                     modifier = Modifier
@@ -709,8 +660,6 @@ fun DynamicIsland(
                         } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
-                                    // The phone tile: one bigger normal cutout — caller on the left,
-                                    // hang-up on the right — with no separate expanded layout.
                                     CallNormalContent(event = e, onAction = onAction)
                                 } else if (showExpanded) {
                                     ExpandedContent(
@@ -719,14 +668,11 @@ fun DynamicIsland(
                                         appearance = appearance,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
+                                        progressData = e.progressData,
                                         onAction = onAction,
                                         onStartReply = { replyingTo = it },
                                         onCancelReply = { replyingTo = null },
                                         onSendReply = { text ->
-                                            // Swap the field for the "Sent" confirmation, then dispatch
-                                            // the reply once it has been seen. Launched from the (un-keyed)
-                                            // composition scope so a notification arriving mid-hold can't
-                                            // cancel the send.
                                             replyingTo?.let { action ->
                                                 sentReply = action to text
                                                 scope.launch {
@@ -811,21 +757,19 @@ private fun IslandSurface(
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush()
     val expandedBrush = appearance.backgroundExpanded.resolveBrush()
-    // Keep text/icons legible: dark ink on a light fill, otherwise the near-white default. The
-    // reference colour tracks the fade so ink flips at the right moment when the states differ.
     val repColor = lerp(
         appearance.backgroundNormal.representativeColor(),
         appearance.backgroundExpanded.representativeColor(),
         progress,
     )
+
     val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
     val border = if (appearance.strokeEnabled) {
         BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
     } else {
         null
     }
-    // The Surface itself is transparent (so a gradient fill is possible); the fill is drawn by the
-    // opaque child below, which also keeps the layer opaque so the elevation shadow still renders.
+
     Surface(
         modifier = modifier,
         shape = shape,
@@ -939,6 +883,35 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                 )
             }
         }
+        event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
+            val indicatorModifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = (heightDp * 0.24f).dp)
+                .size((heightDp * 0.5f).dp)
+            val strokeWidth = (heightDp * 0.06f).dp
+            if (progress.isIndeterminate) {
+                CircularProgressIndicator(
+                    modifier = indicatorModifier,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                    strokeWidth = strokeWidth,
+                )
+            } else {
+                val fraction = if (progress.max <= 0) 0f
+                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+                val animatedFraction by animateFloatAsState(
+                    targetValue = fraction,
+                    label = "collapsedProgress",
+                )
+                CircularProgressIndicator(
+                    progress = { animatedFraction },
+                    modifier = indicatorModifier,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                    strokeWidth = strokeWidth,
+                )
+            }
+        }
     }
 }
 
@@ -1028,8 +1001,8 @@ private fun CenterContent(
     onShortcut: (CenterShortcut) -> Unit,
 ) {
     val density = LocalDensity.current.density
-    // Only togglable shortcuts have a lit state; the torch reads live from the bus.
     val torchOn by TorchStateBus.on.collectAsStateWithLifecycle()
+
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
@@ -1257,6 +1230,7 @@ private fun ExpandedContent(
     appearance: AppearanceSettings,
     replyingTo: IslandAction?,
     replySent: Boolean,
+    progressData: ProgressData? = null,
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
@@ -1316,18 +1290,45 @@ private fun ExpandedContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+
+                    var lastProgressData by remember { mutableStateOf(progressData) }
+                    if (progressData != null) lastProgressData = progressData
+                    AnimatedVisibility(visible = progressData != null) {
+                        lastProgressData?.let { p ->
+                            if (p.isIndeterminate) {
+                                LinearProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            } else {
+                                val fraction = if (p.max <= 0) 0f
+                                    else (p.current.toFloat() / p.max).coerceIn(0f, 1f)
+                                val animatedFraction by animateFloatAsState(
+                                    targetValue = fraction,
+                                    label = "notificationProgress",
+                                )
+                                LinearProgressIndicator(
+                                    progress = { animatedFraction },
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            }
+                        }
+                    }
                 }
             }
+
             // Fall back to the notification's own accent / a neutral tint when unset.
             val sendColor = appearance.sendButtonColor?.resolve() ?: event.accent
             when {
-                // Just sent: a brief confirmation replaces the field before the island dismisses.
                 replySent -> ReplySentRow(
                     tint = sendColor,
                     heightDp = appearance.actionButtonHeightDp,
                     alignment = appearance.sentAlignment,
                 )
-                // Typing a reply: the input field replaces the chips until sent or cancelled.
+
                 replyingTo != null -> ReplyRow(
                     hint = replyingTo.reply?.hint,
                     accent = event.accent,
@@ -1339,10 +1340,8 @@ private fun ExpandedContent(
                     onSend = onSendReply,
                     onCancel = onCancelReply,
                 )
-                // Action chips (at most three fit comfortably); a reply chip opens the input,
-                // any other chip fires its action.
+
                 showActions && event.actions.isNotEmpty() -> {
-                    // Chip fill follows the configured colour, or the notification's accent when unset.
                     val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
                     ActionChipRow(
                         actions = event.actions.take(3),
@@ -1912,6 +1911,11 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                     }
                 }
             }
+
+            event.media?.takeIf { it.showProgress }?.let {
+                MediaProgressBar(progress = nowPlaying?.progress)
+            }
+
             event.media?.takeIf { it.showControls }?.let { media ->
                 MediaControls(
                     isPlaying = nowPlaying?.isPlaying == true,
@@ -1927,6 +1931,48 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
             }
         }
     }
+}
+
+/**
+ * The music tile's playback bar. [MediaProgress] is an anchor rather than a live position — the
+ * media session only republishes on a real change, never on a tick — so this drives its own clock
+ * while playback runs and extrapolates from that anchor. A session that publishes no track length
+ * (a live stream) gets the indeterminate bar instead, matching the notification tile's.
+ */
+@Composable
+private fun MediaProgressBar(progress: MediaProgress?) {
+    val color = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.primaryContainer
+
+    if (progress?.durationMs == null) {
+        LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth(),
+            color = color,
+            trackColor = trackColor,
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        )
+        return
+    }
+
+    // Re-anchored on every new snapshot, so a seek or a track change lands immediately rather than
+    // being animated across from the stale position.
+    var fraction by remember(progress) {
+        mutableFloatStateOf(progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f)
+    }
+    LaunchedEffect(progress) {
+        while (progress.speed > 0f) {
+            delay(PROGRESS_TICK_MS)
+            fraction = progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f
+        }
+    }
+
+    LinearProgressIndicator(
+        progress = { fraction },
+        modifier = Modifier.fillMaxWidth(),
+        color = color,
+        trackColor = trackColor,
+        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+    )
 }
 
 /**

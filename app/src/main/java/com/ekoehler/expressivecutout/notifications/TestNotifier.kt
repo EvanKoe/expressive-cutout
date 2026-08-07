@@ -17,6 +17,13 @@ import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.service.ProgressData
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.app.RemoteInput as PlatformRemoteInput
 
 /**
@@ -28,9 +35,18 @@ object TestNotifier {
 
     private const val CHANNEL_ID = "test"
     const val NOTIFICATION_ID = 4711
+    const val PROGRESS_NOTIFICATION_ID = 4712
 
     /** The notification auto-dismisses after this long so the test never lingers. */
     private const val TIMEOUT_MS = 15_000L
+
+    private const val PROGRESS_MAX = 100
+    private const val PROGRESS_STEP = 5
+    private const val PROGRESS_SWEEP_MS = 5_000L
+    private const val PROGRESS_KEY = "test-progress"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var progressJob: Job? = null
 
     /** True once a notification can actually be posted (Android 13+ gates this at runtime). */
     fun canPost(context: Context): Boolean =
@@ -105,6 +121,62 @@ object TestNotifier {
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )
+    }
+
+    /**
+     * Posts a real progress notification and mirrors it onto the island, sweeping the bar from 0 to
+     * [PROGRESS_MAX] over [PROGRESS_SWEEP_MS] so the progress pipeline (extras -> [ProgressData] ->
+     * the cutout) can be watched filling up without waiting on a real download. Each step re-posts
+     * the system notification and re-emits the island signal under a stable [PROGRESS_KEY], which the
+     * overlay updates in place — the same channel a real app re-posting its download uses. Re-tapping
+     * cancels any sweep already running.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendProgress(context: Context) {
+        ensureChannel(context)
+        val appContext = context.applicationContext
+        val title = appContext.getString(R.string.test_progress_notification_title)
+        val text = appContext.getString(R.string.test_progress_notification_text)
+
+        progressJob?.cancel()
+        progressJob = scope.launch {
+            var current = 0
+            while (true) {
+                val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_stat_island)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setOnlyAlertOnce(true)
+                    .setProgress(PROGRESS_MAX, current, false)
+                    .setTimeoutAfter(TIMEOUT_MS)
+                    .build()
+
+                if (canPost(appContext)) {
+                    NotificationManagerCompat.from(appContext).notify(PROGRESS_NOTIFICATION_ID, notification)
+                }
+
+                IslandEventBus.emit(
+                    CutoutSignal.Notification(
+                        packageName = appContext.packageName,
+                        title = title,
+                        text = text,
+                        key = PROGRESS_KEY,
+                        smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
+                        progressData = ProgressData(
+                            max = PROGRESS_MAX,
+                            current = current,
+                            isIndeterminate = false,
+                            title = title,
+                        ),
+                    ),
+                )
+
+                if (current >= PROGRESS_MAX) break
+                delay(PROGRESS_SWEEP_MS * PROGRESS_STEP / PROGRESS_MAX)
+                current = (current + PROGRESS_STEP).coerceAtMost(PROGRESS_MAX)
+            }
+        }
     }
 
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */

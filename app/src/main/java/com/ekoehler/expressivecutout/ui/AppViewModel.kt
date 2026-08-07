@@ -700,4 +700,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setSentAlignment(alignment: SentAlignment) = viewModelScope.launch {
         appearancePreferences.setSentAlignment(alignment)
     }
+
+    fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setShowProgress(enabled)
+    }
 }

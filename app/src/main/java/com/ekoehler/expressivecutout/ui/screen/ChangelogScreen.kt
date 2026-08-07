@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -27,202 +27,65 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
+import org.json.JSONArray
+
+/** The asset holding the release history, edited by hand when a release is cut. */
+private const val ChangelogAsset = "changelog.json"
 
 /**
- * One entry in the release history. The bullet text is kept here rather than in strings.xml so a
- * release can be described in one place when it is cut; only the section headers are localised.
+ * One entry in the release history. The bullet text lives in [ChangelogAsset] rather than in
+ * strings.xml so a release can be described in one place when it is cut; only the section headers
+ * are localised.
  */
 internal data class Release(
     val version: String,
-    val headline: String,
-    val major: List<String> = emptyList(),
-    val minor: List<String> = emptyList(),
-    val fixes: List<String> = emptyList(),
+    val description: String,
+    val features: List<String> = emptyList(),
+    val bugfixes: List<String> = emptyList(),
 )
 
 /**
- * The release history, newest first — the first entry is the current build. 0.1.0 is the first
- * beta; everything numbered below it was a development build that was never published.
+ * Reads the release history from [ChangelogAsset], newest first — the first entry is taken as the
+ * current build. A missing or malformed asset yields an empty history rather than a crash, so a
+ * typo while filling the file in only costs the changelog its content.
  */
-internal val Releases: List<Release> = listOf(
-    Release(
-        version = "0.1.2",
-        headline = "Per-app configuration and the assistant tile",
-        major = listOf(
-            "Per-app configuration: choose which apps the island reacts to, and restrict an app to the normal cutout only",
-            "Assistant dynamic tile",
-        ),
-        fixes = listOf(
-            "Music dynamic tile",
-            "Call dynamic tile",
-        ),
-    ),
-    Release(
-        version = "0.1.1",
-        headline = "Maintenance release",
-        minor = listOf(
-            "Automated release builds through GitHub Actions",
-        ),
-        fixes = listOf(
-            "Dynamic tiles",
-            "Crash when the cutout corner radius was set to 0 dp",
-            "Horizontal notification panel",
-        ),
-    ),
-    Release(
-        version = "0.1.0",
-        headline = "First public beta — incoming calls and expressive animations",
-        major = listOf(
-            "Incoming-call tile with the caller's name, their number, and decline / answer buttons, opening the in-call view on tap",
-            "Animations screen: choose an expressive spring or ease-in-out style and tune speed and bounce against a live example",
-        ),
-        minor = listOf(
-            "Every screen drops its title bar for a fading top edge, so the content starts higher and scrolls away under the status bar",
-            "Opt-in two-row incoming-call layout, with the number ellipsized under the name so it clears the camera",
-            "The expanded incoming layout now matches the expanded cutout size and uses a single bottom-aligned label",
-            "Incoming tile pinned to 80% of the screen width, with its own test-call button",
-            "Call cutout width adapts to the length of the caller's name",
-            "The in-app test call simulates a real incoming call",
-            "\"Buy me a coffee\" card in Profile",
-        ),
-    ),
-    Release(
-        version = "0.0.8",
-        headline = "Per-event customisation",
-        major = listOf(
-            "Material icon selector for events, replacing the app-icon picker, with a search filter over the full icon library",
-        ),
-        minor = listOf(
-            "Per-event duration settings",
-            "Animated-icon and loop toggles for each event",
-            "Per-event colour override with a reset",
-            "The charging event now animates",
-        ),
-    ),
-    Release(
-        version = "0.0.7",
-        headline = "Timer tile",
-        major = listOf(
-            "Timer dynamic tile that mirrors the system countdown",
-        ),
-        minor = listOf(
-            "Behaviour: slider to scale the island animation duration between 0 and 1000 ms",
-            "Appearance: stroke options animate in and out",
-            "Icon container colour for the phone and timer tiles, previewed in the tile list",
-        ),
-        fixes = listOf(
-            "Detect Android 16+ live-update timers, so Google Clock countdowns are picked up",
-            "Show the clock app's real button labels instead of substituted text",
-            "Pause flips to Resume live while the timer is paused",
-            "The timer pill dismisses immediately when the timer is reset",
-            "The settings list refreshes the accessibility grant on resume",
-        ),
-    ),
-    Release(
-        version = "0.0.6",
-        headline = "Phone tile and lockscreen behaviour",
-        major = listOf(
-            "Phone dynamic tile: live call with contact photo, call duration, and call actions",
-            "Hide on lockscreen — the overlay tears itself down while the device is locked",
-        ),
-        minor = listOf(
-            "Predictive back gesture with a matching navigation animation",
-            "Unlock animation",
-            "Separate hang-up and secondary button colours on the phone tile",
-            "Event icons renamed to Events, with a dynamic primary-colour toggle for every event",
-            "Events can pick a Material You colour role and an opacity",
-            "Appearance and disappearance animation for the normal cutout",
-            "Overlay access card in the main settings list, and a reordered permissions screen",
-            "QUERY_ALL_PACKAGES replaced with a scoped queries declaration for launcher apps",
-        ),
-    ),
-    Release(
-        version = "0.0.5",
-        headline = "Dynamic tiles and music playback",
-        major = listOf(
-            "Dynamic tiles, starting with a now-playing music tile: album art, playback controls, and per-tile settings screens",
-        ),
-        minor = listOf(
-            "Album art spins while playback runs and freezes when paused",
-            "The music cutout stays pinned up for as long as playback is live",
-            "Customisable music tile buttons: colour, opacity, rounded corners, and shape presets",
-            "Swipe to dismiss, with its own settings",
-            "One shared colour picker with dynamic roles, hex entry, and overridable presets",
-        ),
-        fixes = listOf(
-            "Dynamic tiles split away from system events into their own model, prefs, and screen",
-            "The music tile no longer reappears after its notification is dismissed",
-            "More material play / pause button",
-        ),
-    ),
-    Release(
-        version = "0.0.4",
-        headline = "Backgrounds and swipe gestures",
-        major = listOf(
-            "Dedicated background screen: separate normal and expanded fills, gradients, and opacity",
-        ),
-        minor = listOf(
-            "Shrink the expanded cutout by swiping up, toggleable in Behaviour",
-            "Segmented reply field — cancel, input, and send as one connected bar",
-            "Card in Profile that opens the GitHub repository",
-        ),
-        fixes = listOf(
-            "Touches around the cutout reach the notification shade without resizing the window",
-        ),
-    ),
-    Release(
-        version = "0.0.3",
-        headline = "Notifications and inline replies",
-        major = listOf(
-            "Notification actions and inline reply, plus the Wi-Fi network name on connect",
-        ),
-        minor = listOf(
-            "Style options for the action buttons and the reply field",
-            "Customisable send / cancel reply button colours",
-            "Test notification with action buttons, inline reply, and a 15-second auto-dismiss",
-        ),
-        fixes = listOf(
-            "The preview reflects the action-button toggle, and swatch selection rings are no longer clipped",
-            "Back from Action buttons returns to Appearance, then to Settings",
-            "Removed the feature that required the background location permission",
-        ),
-    ),
-    Release(
-        version = "0.0.2",
-        headline = "Size, position and behaviour",
-        major = listOf(
-            "Size and position controls for the island, alongside the first behaviour options",
-        ),
-        minor = listOf(
-            "Global switch to turn the cutout off entirely",
-        ),
-        fixes = listOf(
-            "Smoother animation, and a window-resize delay that stops the island from jumping",
-        ),
-    ),
-    Release(
-        version = "0.0.1",
-        headline = "First build",
-        major = listOf(
-            "Expressive Cutout: a dynamic island overlay for punch-hole displays",
-        ),
-    ),
-)
+internal fun loadReleases(context: Context): List<Release> = runCatching {
+    val text = context.assets.open(ChangelogAsset).bufferedReader().use { it.readText() }
+    val entries = JSONArray(text)
+    List(entries.length()) { index ->
+        val entry = entries.getJSONObject(index)
+        Release(
+            version = entry.optString("version"),
+            description = entry.optString("description"),
+            features = entry.optJSONArray("features").toStringList(),
+            bugfixes = entry.optJSONArray("bugfixes").toStringList(),
+        )
+    }
+}.getOrDefault(emptyList())
+
+/** Flattens a bullet array into a list, treating an absent key as no bullets of that kind. */
+private fun JSONArray?.toStringList(): List<String> =
+    if (this == null) emptyList() else List(length()) { getString(it) }
 
 /**
- * "What's new": the full release history, newest first, with each release split into major
- * features, minor features and bug fixes. Reached from the version card in Profile.
+ * "What's new": the full release history, newest first, with each release split into features and
+ * bug fixes. Reached from the version card in Profile.
  */
 @Composable
 fun ChangelogScreen(contentPadding: PaddingValues) {
+    val context = LocalContext.current
+    val releases = remember { loadReleases(context) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -237,7 +100,7 @@ fun ChangelogScreen(contentPadding: PaddingValues) {
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        Releases.forEachIndexed { index, release ->
+        releases.forEachIndexed { index, release ->
             ReleaseCard(release = release, isCurrent = index == 0)
         }
     }
@@ -279,28 +142,22 @@ private fun ReleaseCard(release: Release, isCurrent: Boolean) {
                 }
             }
             Text(
-                text = release.headline,
+                text = release.description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             ReleaseGroup(
                 icon = Icons.Rounded.AutoAwesome,
-                label = stringResource(R.string.changelog_major),
+                label = stringResource(R.string.changelog_features),
                 accent = MaterialTheme.colorScheme.primary,
-                items = release.major,
-            )
-            ReleaseGroup(
-                icon = Icons.Rounded.Tune,
-                label = stringResource(R.string.changelog_minor),
-                accent = MaterialTheme.colorScheme.tertiary,
-                items = release.minor,
+                items = release.features,
             )
             ReleaseGroup(
                 icon = Icons.Rounded.BugReport,
                 label = stringResource(R.string.changelog_fixes),
                 accent = MaterialTheme.colorScheme.secondary,
-                items = release.fixes,
+                items = release.bugfixes,
             )
         }
     }

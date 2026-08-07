@@ -29,7 +29,40 @@ data class NowPlaying(
     val albumArt: ImageBitmap?,
     val isPlaying: Boolean,
     val transport: MediaTransport,
+    /** Where playback has got to, or null for a session that publishes no position. */
+    val progress: MediaProgress? = null,
 )
+
+/**
+ * Playback position as a self-advancing anchor rather than a live value. A media session only
+ * republishes its state when something *changes* — it does not tick — so [positionMs] is only true
+ * as of [anchorUptimeMs], and a reader extrapolates from there at [speed]. This is what lets the
+ * tile animate a moving bar without the monitor pushing an update several times a second.
+ */
+data class MediaProgress(
+    /** Position within the track as of [anchorUptimeMs]. */
+    val positionMs: Long,
+    /** Track length, or null when the session publishes none — a live stream, or a player that
+     *  simply omits it. The tile falls back to an indeterminate bar. */
+    val durationMs: Long?,
+    /** Rate the position advances at, 0 while paused. */
+    val speed: Float,
+    /** [android.os.SystemClock.elapsedRealtime] when [positionMs] was sampled. */
+    val anchorUptimeMs: Long,
+) {
+    /** The position right now, extrapolated from the anchor and clamped to the track length. */
+    fun positionAt(nowUptimeMs: Long): Long {
+        val elapsed = ((nowUptimeMs - anchorUptimeMs).coerceAtLeast(0L) * speed).toLong()
+        val position = positionMs + elapsed
+        return durationMs?.let { position.coerceIn(0L, it) } ?: position.coerceAtLeast(0L)
+    }
+
+    /** How far through the track, 0f..1f, or null while the length is unknown. */
+    fun fractionAt(nowUptimeMs: Long): Float? {
+        val total = durationMs?.takeIf { it > 0L } ?: return null
+        return (positionAt(nowUptimeMs).toFloat() / total).coerceIn(0f, 1f)
+    }
+}
 
 /** The transport actions the music tile exposes. Backed by the active media session's controls. */
 interface MediaTransport {
