@@ -7,6 +7,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.content.getSystemService
@@ -14,6 +15,7 @@ import androidx.core.net.toUri
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.MediaTransport
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
@@ -183,6 +185,7 @@ class MediaPlaybackMonitor(private val context: Context) {
                 albumArt = albumArt,
                 isPlaying = playing,
                 transport = ControllerTransport(primary),
+                progress = primary.progress(metadata, playing),
             ),
         )
 
@@ -207,6 +210,29 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     private val MediaController.isPlaying: Boolean
         get() = playbackState?.state == PlaybackState.STATE_PLAYING
+
+    /**
+     * The session's position anchor. [PlaybackState.getPosition] is a sample taken at
+     * [PlaybackState.getLastPositionUpdateTime], not a live figure — it is passed through as-is and
+     * the tile extrapolates. Players that publish no duration, or a negative one for a live stream,
+     * yield a null length and an indeterminate bar. A state carrying [PlaybackState.PLAYBACK_POSITION_UNKNOWN]
+     * gives no anchor at all.
+     */
+    private fun MediaController.progress(metadata: MediaMetadata?, playing: Boolean): MediaProgress? {
+        val state = playbackState ?: return null
+        if (state.position == PlaybackState.PLAYBACK_POSITION_UNKNOWN) return null
+
+        val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0L }
+        // A paused session keeps its position but must not creep; a player reporting a nonsense
+        // speed while playing is treated as ordinary 1x rather than freezing the bar.
+        val speed = if (playing) state.playbackSpeed.takeIf { it > 0f } ?: 1f else 0f
+        return MediaProgress(
+            positionMs = state.position.coerceAtLeast(0L),
+            durationMs = duration,
+            speed = speed,
+            anchorUptimeMs = state.lastPositionUpdateTime.takeIf { it > 0L } ?: SystemClock.elapsedRealtime(),
+        )
+    }
 
     /**
      * The cover the session itself carries: a bitmap if the player published one, else a URI we can

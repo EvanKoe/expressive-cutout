@@ -169,6 +169,8 @@ data class MediaTileOptions(
     /** Colour of that ring; null falls back to the tile's accent. */
     val albumArtStrokeColor: CutoutColor? = null,
     val showControls: Boolean,
+    /** Show the playback progress bar under the controls. */
+    val showProgress: Boolean = false,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Look of the central play / pause button. */

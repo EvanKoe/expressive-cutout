@@ -177,6 +177,7 @@ class IconResolver(private val context: Context) {
                 albumArtStroke = settings.albumArtStroke,
                 albumArtStrokeColor = settings.albumArtStrokeColor,
                 showControls = settings.showControls,
+                showProgress = settings.showProgress,
                 skipStyle = settings.skipButton,
                 playPauseStyle = settings.playPauseButton,
             ),

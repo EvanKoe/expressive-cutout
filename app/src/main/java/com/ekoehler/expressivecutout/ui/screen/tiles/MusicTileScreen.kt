@@ -181,6 +181,14 @@ internal fun MusicTileScreen(
                 onCornerCommit = viewModel::setMusicPlayPauseCornerPercent,
             )
         }
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(size = 24.dp),
+            title = stringResource(R.string.music_progress_title),
+            description = stringResource(R.string.music_progress_description),
+            checked = settings.showProgress,
+            onCheckedChange = viewModel::setMusicShowProgress,
+        )
     }
 }
 

@@ -444,4 +444,6 @@
     <string name="import_failed">Import failed</string>
     <string name="bgColor_oled_title">Use OLED black</string>
     <string name="bgColor_oled_desc">Use pure black for lower consuption on OLED screens</string>
+    <string name="music_progress_title">Show progress</string>
+    <string name="music_progress_description">Display a playback progress bar under the controls</string>
 </resources>
