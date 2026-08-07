@@ -446,4 +446,6 @@
     <string name="bgColor_oled_desc">Use pure black for lower consuption on OLED screens</string>
     <string name="music_progress_title">Show progress</string>
     <string name="music_progress_description">Display a playback progress bar under the controls</string>
+    <string name="behaviour_dismissNotifs_title">Automatically dismiss notifications</string>
+    <string name="behaviour_dismissNotifs_desc">Hide Android standard notification pop-ups</string>
 </resources>

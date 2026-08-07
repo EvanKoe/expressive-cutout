@@ -6,9 +6,17 @@ import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaArt
@@ -17,6 +25,8 @@ import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimer
 import com.ekoehler.expressivecutout.core.RunningTimerBus
+import com.ekoehler.expressivecutout.data.BehaviourPreferences
+import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
@@ -57,9 +67,20 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // Key of the assistant notification currently driving the assistant tile.
     private var currentAssistantKey: String? = null
 
+    private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
+
+    private val behaviourPreferences by lazy { BehaviourPreferences(this) }
+
+    private var behaviourJob: Job? = null
+
+    // Mirror of BehaviourSettings.dismissNotifications, cached because onNotificationPosted runs on
+    // the main thread and must not wait on a DataStore read. Main-thread only, like the key fields.
+    private var dismissNotifications = BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS
+
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
+        observeBehaviour()
     }
 
     override fun onListenerDisconnected() {
@@ -70,7 +91,23 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _bound.value = false
+        scope.cancel()
         super.onDestroy()
+    }
+
+    /**
+     * Keep [dismissNotifications] in step with the stored behaviour settings. The collection outlives
+     * a disconnect (the framework re-uses the same instance on rebind, and a cancelled scope could
+     * not be restarted), so it is only torn down in [onDestroy] and re-entry is a no-op.
+     */
+    private fun observeBehaviour() {
+        if (behaviourJob?.isActive == true) return
+        behaviourJob = scope.launch {
+            behaviourPreferences.settings
+                .map { it.dismissNotifications }
+                .distinctUntilChanged()
+                .collect { dismissNotifications = it }
+        }
     }
 
     /**
@@ -128,20 +165,23 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
-
-        IslandEventBus.emit(
-            CutoutSignal.Notification(
-                packageName = notification.packageName,
-                title = title,
-                text = text,
-                key = notification.key,
-                contentIntent = notification.notification.contentIntent,
-                actions = notification.notification.surfaceableActions(),
-                largeIcon = notification.notification.getLargeIcon(),
-                smallIcon = notification.notification.smallIcon,
-                progressData = progress
-            ),
+        val islandEvent = CutoutSignal.Notification(
+            packageName = notification.packageName,
+            title = title,
+            text = text,
+            key = notification.key,
+            contentIntent = notification.notification.contentIntent,
+            actions = notification.notification.surfaceableActions(),
+            largeIcon = notification.notification.getLargeIcon(),
+            smallIcon = notification.notification.smallIcon,
+            progressData = progress
         )
+
+        IslandEventBus.emit(islandEvent)
+
+        if (dismissNotifications) {
+            cancelNotification(notification.key)
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

@@ -99,6 +99,7 @@ data class BehaviourSettings(
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
     val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
     val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
+    val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -106,8 +107,6 @@ data class BehaviourSettings(
         const val DEFAULT_HIDE_IN_LANDSCAPE = false
         const val DEFAULT_VIBRATE_ON_TAP = true
         val DEFAULT_HORIZONTAL_CUTOUT_MODE = HorizontalCutoutMode.CENTER
-        // Baseline for the island's primary expand/collapse transition; the reveal, background fade
-        // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
         const val DEFAULT_ANIMATION_DURATION_MS = 220
         val DEFAULT_ANIMATION_STYLE = AnimationStyle.EXPRESSIVE
         val DEFAULT_ANIMATION_SPEED = AnimationSpeed.DEFAULT
@@ -136,6 +135,7 @@ data class BehaviourSettings(
         const val CENTER_SHOW_LABELS = true
         const val CENTER_FILL_CONTAINERS = false
         const val CENTER_THEMED_ICONS = false
+        const val DEFAULT_DISMISS_NOTIFICATIONS = false
     }
 }
 
@@ -201,7 +201,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
-            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP
+            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP,
+            dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS
         )
     }
 
@@ -355,6 +356,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    /** If enabled, dismiss notifications automatically */
+    suspend fun setDismissNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISMISS_NOTIFICATIONS] = enabled
+    }
+
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[NORMAL_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_NORMAL_SECONDS,
@@ -493,5 +499,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
         val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
         val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
+        val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
     }
 }
