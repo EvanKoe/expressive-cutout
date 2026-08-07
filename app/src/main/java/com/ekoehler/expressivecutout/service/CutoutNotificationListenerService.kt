@@ -77,26 +77,28 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * Checks if the notification is a progress one
      */
     fun isProgressNotification(sbn: StatusBarNotification): Boolean {
-        return sbn.notification.extras.containsKey(Notification.EXTRA_PROGRESS)
+        return getProgressDataOrNull(sbn) != null
     }
 
     /**
-     * Returns progress data from a notification (or null if no progress)
+     * Returns progress data from a notification (or null if no progress).
+     *
+     * The progress extras are written by [Notification.Builder] for every notification, whether or
+     * not setProgress() was ever called, so their presence proves nothing. Only a positive max
+     * (determinate) or the indeterminate flag marks a notification as actually carrying progress.
      */
     fun getProgressDataOrNull(sbn: StatusBarNotification): ProgressData? {
-        if (!sbn.notification.extras.containsKey(Notification.EXTRA_PROGRESS)) {
-            return null
-        }
-
-        val extras = sbn.notification.extras
+        val extras = sbn.notification?.extras ?: return null
         val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
         val isIndeterminate = extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
-        val title = extras.getString(Notification.EXTRA_TITLE)
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+
+        if (!isIndeterminate && max <= 0) return null
 
         return ProgressData(
             max = max,
-            current = current,
+            current = current.coerceIn(0, max.coerceAtLeast(0)),
             isIndeterminate = isIndeterminate,
             title = title
         )

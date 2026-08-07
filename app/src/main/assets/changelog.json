@@ -1,6 +1,20 @@
 [
   {
-    "version": "0.1.2",
+    "version": "0.1.3-beta",
+    "description": "Settings save, SWE and progress bar",
+    "features": [
+      "Settings export and import as JSON: allows saving and device transfer",
+      "SWE (Shows When Empty): the cutout can now stay on the screen even when no notification is displayed",
+      "SWE options: you can configure SWE to start shortcuts and apps on click (or not)",
+      "Added progress notifications to normal and expanded cutout",
+      "Added haptics to the app navigation and the SWE",
+      "Added OLED black for cutout",
+      "Animations for action buttons"
+    ],
+    "bugfixes": []
+  },
+  {
+    "version": "0.1.2-beta",
     "description": "Per-app configuration and the assistant tile",
     "features": [
       "Per-app configuration: choose which apps the island reacts to, and restrict an app to the normal cutout only",
@@ -12,7 +26,7 @@
     ]
   },
   {
-    "version": "0.1.1",
+    "version": "0.1.1-beta",
     "description": "Maintenance release",
     "features": [
       "Automated release builds through GitHub Actions"
@@ -24,7 +38,7 @@
     ]
   },
   {
-    "version": "0.1.0",
+    "version": "0.1.0-beta",
     "description": "First public beta — incoming calls and expressive animations",
     "features": [
       "Incoming-call tile with the caller's name, their number, and decline / answer buttons, opening the in-call view on tap",
@@ -40,7 +54,7 @@
     "bugfixes": []
   },
   {
-    "version": "0.0.8",
+    "version": "0.0.8-alpha",
     "description": "Per-event customisation",
     "features": [
       "Material icon selector for events, replacing the app-icon picker, with a search filter over the full icon library",
@@ -52,7 +66,7 @@
     "bugfixes": []
   },
   {
-    "version": "0.0.7",
+    "version": "0.0.7-alpha",
     "description": "Timer tile",
     "features": [
       "Timer dynamic tile that mirrors the system countdown",
@@ -69,7 +83,7 @@
     ]
   },
   {
-    "version": "0.0.6",
+    "version": "0.0.6-alpha",
     "description": "Phone tile and lockscreen behaviour",
     "features": [
       "Phone dynamic tile: live call with contact photo, call duration, and call actions",
@@ -86,7 +100,7 @@
     "bugfixes": []
   },
   {
-    "version": "0.0.5",
+    "version": "0.0.5-alpha",
     "description": "Dynamic tiles and music playback",
     "features": [
       "Dynamic tiles, starting with a now-playing music tile: album art, playback controls, and per-tile settings screens",
@@ -103,7 +117,7 @@
     ]
   },
   {
-    "version": "0.0.4",
+    "version": "0.0.4-alpha",
     "description": "Backgrounds and swipe gestures",
     "features": [
       "Dedicated background screen: separate normal and expanded fills, gradients, and opacity",
@@ -116,7 +130,7 @@
     ]
   },
   {
-    "version": "0.0.3",
+    "version": "0.0.3-alpha",
     "description": "Notifications and inline replies",
     "features": [
       "Notification actions and inline reply, plus the Wi-Fi network name on connect",
@@ -131,7 +145,7 @@
     ]
   },
   {
-    "version": "0.0.2",
+    "version": "0.0.2-alpha",
     "description": "Size, position and behaviour",
     "features": [
       "Size and position controls for the island, alongside the first behaviour options",
@@ -142,7 +156,7 @@
     ]
   },
   {
-    "version": "0.0.1",
+    "version": "0.0.1-alpha",
     "description": "First build",
     "features": [
       "Expressive Cutout: a dynamic island overlay for punch-hole displays"
