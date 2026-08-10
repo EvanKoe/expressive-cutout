@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
@@ -86,6 +85,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // the main thread and must not wait on a DataStore read. Main-thread only, like the key fields.
     private var dismissNotifications = BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS
 
+    // Mirror of BehaviourSettings.displayWhileDnd, cached alongside [dismissNotifications] and for
+    // the same reason. Main-thread only, like the key fields.
+    private var displayWhileDnd = BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND
+
     // How long a mirrored notification is kept out of the shade, derived from how long the island
     // actually shows it. Cached alongside [dismissNotifications] and for the same reason.
     private var snoozeDurationMs = SNOOZE_GRACE_MS
@@ -125,11 +128,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         if (behaviourJob?.isActive == true) return
         behaviourJob = scope.launch {
             behaviourPreferences.settings
-                .map { it.dismissNotifications to it.snoozeDurationMs() }
                 .distinctUntilChanged()
-                .collect { (dismiss, duration) ->
-                    dismissNotifications = dismiss
-                    snoozeDurationMs = duration
+                .collect { settings ->
+                    dismissNotifications = settings.dismissNotifications
+                    snoozeDurationMs = settings.snoozeDurationMs()
+                    displayWhileDnd = settings.displayWhileDnd
                 }
         }
     }
@@ -147,6 +150,27 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             0L
         }
         return expandedMs + normalDurationSeconds * 1000L + SNOOZE_GRACE_MS
+    }
+
+    /**
+     * Whether Do Not Disturb should keep this notification off the island. Reads the effective
+     * interruption filter rather than Settings.Global.zen_mode: that global only tracks the manual
+     * toggle, so a filter in force through a schedule, an automatic rule or a Mode leaves it at zero
+     * and the gate never closes. The filter is matched explicitly because
+     * [INTERRUPTION_FILTER_UNKNOWN] sorts *below* [INTERRUPTION_FILTER_ALL] — "not yet known" must
+     * not read as either "no DND" or "DND on".
+     *
+     * Calls and timers are deliberately handled before this check ever runs: they break through DND
+     * by design, and an island that hid an incoming call would be worse than no island at all.
+     */
+    private fun suppressedByDnd(): Boolean {
+        if (displayWhileDnd) return false
+        return when (currentInterruptionFilter) {
+            INTERRUPTION_FILTER_PRIORITY,
+            INTERRUPTION_FILTER_ALARMS,
+            INTERRUPTION_FILTER_NONE -> true
+            else -> false
+        }
     }
 
     /**
@@ -198,13 +222,6 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Checks if the notification is a progress one
-     */
-    fun isProgressNotification(sbn: StatusBarNotification): Boolean {
-        return getProgressDataOrNull(sbn) != null
-    }
-
-    /**
      * Returns progress data from a notification (or null if no progress).
      *
      * The progress extras are written by [Notification.Builder] for every notification, whether or
@@ -247,6 +264,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         notification.publishMediaArt()
 
         if (!notification.shouldSurface()) return
+
+        if (suppressedByDnd()) return
 
         // Our own snooze coming back: the island already had its turn with this one, so let it
         // settle into the shade without popping a second pill moments after the first.

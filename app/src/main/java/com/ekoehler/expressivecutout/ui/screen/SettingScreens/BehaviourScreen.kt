@@ -219,11 +219,18 @@ internal fun BehaviourScreen(
             }
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = true),
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_dismissNotifs_title),
             description = stringResource(R.string.behaviour_dismissNotifs_desc),
             checked = behaviour.dismissNotifications,
             onCheckedChange = viewModel::setDismissNotifications,
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = true),
+            title = stringResource(R.string.behaviour_displayWhileDnd_title),
+            description = stringResource(R.string.behaviour_displayWhileDnd_desc),
+            checked = behaviour.displayWhileDnd,
+            onCheckedChange = viewModel::setDisplayWhileDnd
         )
     }
 }

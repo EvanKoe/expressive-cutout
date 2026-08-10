@@ -99,7 +99,8 @@ data class BehaviourSettings(
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
     val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
     val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
-    val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS
+    val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS,
+    val displayWhileDnd: Boolean = DEFAULT_DISPLAY_WHILE_DND,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -136,6 +137,7 @@ data class BehaviourSettings(
         const val CENTER_FILL_CONTAINERS = false
         const val CENTER_THEMED_ICONS = false
         const val DEFAULT_DISMISS_NOTIFICATIONS = false
+        const val DEFAULT_DISPLAY_WHILE_DND = false
     }
 }
 
@@ -202,7 +204,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
             vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP,
-            dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS
+            /** If enabled, remove Android notification pop-ups */
+            dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS,
+            /** If enabled, notification cutout appears even when Do not disturb is enabled */
+            displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND
         )
     }
 
@@ -241,6 +246,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("centerFillContainers", s.centerFillContainers)
             put("centerThemedIcons", s.centerThemedIcons)
             put("vibrateOnTap", s.vibrateOnTap)
+            put("dismissNotifications", s.dismissNotifications)
+            put("displayWhileDnd", s.displayWhileDnd)
         }.toString()
     }
 
@@ -304,6 +311,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("centerFillContainers")) it[CENTER_FILL_CONTAINERS] = obj.getBoolean("centerFillContainers")
             if (obj.has("centerThemedIcons")) it[CENTER_THEMED_ICONS] = obj.getBoolean("centerThemedIcons")
             if (obj.has("vibrateOnTap")) it[VIBRATE_ON_TAP] = obj.getBoolean("vibrateOnTap")
+            if (obj.has("dismissNotifications")) it[DISMISS_NOTIFICATIONS] = obj.getBoolean("dismissNotifications")
+            if (obj.has("displayWhileDnd")) it[DISPLAY_WHILE_DND] = obj.getBoolean("displayWhileDnd")
         }
     }
 
@@ -467,6 +476,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[VIBRATE_ON_TAP] = enabled
     }
 
+    /** Set if notifications appear while Do not disturb is on */
+    suspend fun setDisplayWhileDnd(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISPLAY_WHILE_DND] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -500,5 +514,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
         val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
         val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
+        val DISPLAY_WHILE_DND = booleanPreferencesKey("display_while_dnd")
     }
 }
