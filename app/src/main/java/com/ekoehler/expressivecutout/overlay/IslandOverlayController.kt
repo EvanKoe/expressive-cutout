@@ -1257,13 +1257,19 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Tap on the pill: open what it points at. Reading the event before [dismissIsland] clears it,
+     * since settling the notification needs its key.
+     */
     private fun onActivate() {
-        val intent = currentEvent.value?.contentIntent
+        val event = currentEvent.value
+        val intent = event?.contentIntent
         if (isPinnedLiveTile()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
             return
         }
+        event?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         intent?.let(::sendPendingIntent)
     }
@@ -1288,6 +1294,7 @@ class IslandOverlayController(private val context: Context) {
             action.intent?.let(::sendPendingIntent)
             return
         }
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         action.intent?.let(::sendPendingIntent)
     }
@@ -1299,6 +1306,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
         val intent = action.intent ?: return
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }

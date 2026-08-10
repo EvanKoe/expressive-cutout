@@ -447,5 +447,5 @@
     <string name="music_progress_title">Show progress</string>
     <string name="music_progress_description">Display a playback progress bar under the controls</string>
     <string name="behaviour_dismissNotifs_title">Automatically dismiss notifications</string>
-    <string name="behaviour_dismissNotifs_desc">Hide Android standard notification pop-ups</string>
+    <string name="behaviour_dismissNotifs_desc">Keep notifications out of the shade while the island shows them. Ignore one and it comes back a minute later, so nothing is lost</string>
 </resources>

@@ -1,8 +1,11 @@
 package com.ekoehler.expressivecutout.service
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.content.ComponentName
 import android.content.Context
+import android.os.PowerManager
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -50,6 +53,12 @@ data class ProgressData(
  * It also lets the overlay dismiss the real notification (not just the pill): the connected
  * instance is published statically so [dismiss] can cancel a notification by key on the user's
  * swipe, mirroring a swipe-away in the shade.
+ *
+ * When the user asked for the shade to be cleared automatically, a mirrored notification is
+ * *snoozed* rather than cancelled — see [snooze]. Cancelling outright loses the notification for
+ * good if nobody happened to be looking at the island while the pill was up; snoozing keeps the
+ * shade quiet during that window and hands the notification back afterwards, so only an explicit
+ * interaction ([dismiss] or [settle]) really destroys it.
  */
 class CutoutNotificationListenerService : NotificationListenerService() {
 
@@ -77,6 +86,17 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // the main thread and must not wait on a DataStore read. Main-thread only, like the key fields.
     private var dismissNotifications = BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS
 
+    // How long a mirrored notification is kept out of the shade, derived from how long the island
+    // actually shows it. Cached alongside [dismissNotifications] and for the same reason.
+    private var snoozeDurationMs = SNOOZE_GRACE_MS
+
+    // Keys we snoozed ourselves mapped to the elapsed-realtime by which the framework's re-post is
+    // due, so that re-post can be told apart from a fresh notification and passed through to the
+    // shade untouched. Timestamped rather than a bare set because notification keys are recycled:
+    // an entry that outlived its window must not swallow the pill of a genuinely new notification
+    // reusing the key. Insertion-ordered and capped at [MAX_TRACKED_SNOOZES]. Main-thread only.
+    private val snoozedUntil = LinkedHashMap<String, Long>()
+
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
@@ -96,18 +116,85 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Keep [dismissNotifications] in step with the stored behaviour settings. The collection outlives
-     * a disconnect (the framework re-uses the same instance on rebind, and a cancelled scope could
-     * not be restarted), so it is only torn down in [onDestroy] and re-entry is a no-op.
+     * Keep [dismissNotifications] and [snoozeDurationMs] in step with the stored behaviour settings.
+     * The collection outlives a disconnect (the framework re-uses the same instance on rebind, and a
+     * cancelled scope could not be restarted), so it is only torn down in [onDestroy] and re-entry is
+     * a no-op.
      */
     private fun observeBehaviour() {
         if (behaviourJob?.isActive == true) return
         behaviourJob = scope.launch {
             behaviourPreferences.settings
-                .map { it.dismissNotifications }
+                .map { it.dismissNotifications to it.snoozeDurationMs() }
                 .distinctUntilChanged()
-                .collect { dismissNotifications = it }
+                .collect { (dismiss, duration) ->
+                    dismissNotifications = dismiss
+                    snoozeDurationMs = duration
+                }
         }
+    }
+
+    /**
+     * How long to hold a notification out of the shade: the island's own pill lifetime plus
+     * [SNOOZE_GRACE_MS], so the shade stays quiet for exactly as long as the pill is up and the
+     * notification lands moments after it fades rather than a minute later. An auto-expanded pill
+     * shows expanded first and only then counts down as a collapsed one, so both spans are counted.
+     */
+    private fun BehaviourSettings.snoozeDurationMs(): Long {
+        val expandedMs = if (notificationsAutoExpand && expandedAutoCollapse) {
+            expandedCollapseSeconds * 1000L
+        } else {
+            0L
+        }
+        return expandedMs + normalDurationSeconds * 1000L + SNOOZE_GRACE_MS
+    }
+
+    /**
+     * Whether the user could plausibly have been looking at the island when a notification landed.
+     * A dark or locked screen never showed the pill, so those notifications are left in the shade
+     * untouched rather than snoozed — there is nothing to have missed them *from*.
+     */
+    private fun isUserPresent(): Boolean {
+        val power = getSystemService(PowerManager::class.java) ?: return false
+        val keyguard = getSystemService(KeyguardManager::class.java) ?: return false
+        return power.isInteractive && !keyguard.isKeyguardLocked
+    }
+
+    /**
+     * Pull [key] out of the shade for [snoozeDurationMs] while the island mirrors it. The framework
+     * re-posts it afterwards, so an unnoticed notification comes back on its own; only an explicit
+     * interaction on the pill ([dismiss] or [settle]) cancels it for good. The key is remembered so
+     * that re-post can be recognised, and only on success — a refused snooze leaves the notification
+     * exactly where it is.
+     */
+    private fun snooze(key: String) {
+        val duration = snoozeDurationMs
+        runCatching { snoozeNotification(key, duration) }
+            .onSuccess { rememberSnooze(key, SystemClock.elapsedRealtime() + duration) }
+            .onFailure { Log.w(TAG, "Failed to snooze notification $key", it) }
+    }
+
+    /**
+     * Track [key] until [dueAt], dropping entries whose window has already passed so a recycled key
+     * can never be mistaken for a snooze that never came back.
+     */
+    private fun rememberSnooze(key: String, dueAt: Long) {
+        val now = SystemClock.elapsedRealtime()
+        snoozedUntil.entries.removeAll { it.value < now }
+        snoozedUntil[key] = dueAt
+        while (snoozedUntil.size > MAX_TRACKED_SNOOZES) {
+            snoozedUntil.remove(snoozedUntil.keys.first())
+        }
+    }
+
+    /**
+     * Whether this post is the framework handing back a notification we snoozed, rather than a new
+     * one. Consumes the entry either way: a key that turns up later than its window is a fresh
+     * notification that happens to reuse it, and deserves its pill.
+     */
+    private fun isSnoozeReturning(key: String): Boolean {
+        val dueAt = snoozedUntil.remove(key) ?: return false
+        return SystemClock.elapsedRealtime() <= dueAt + SNOOZE_GRACE_MS
     }
 
     /**
@@ -161,6 +248,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         if (!notification.shouldSurface()) return
 
+        // Our own snooze coming back: the island already had its turn with this one, so let it
+        // settle into the shade without popping a second pill moments after the first.
+        if (isSnoozeReturning(notification.key)) return
+
         val extras = notification.notification.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
@@ -179,8 +270,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         IslandEventBus.emit(islandEvent)
 
-        if (dismissNotifications) {
-            cancelNotification(notification.key)
+        if (dismissNotifications && isUserPresent()) {
+            snooze(notification.key)
         }
     }
 
@@ -317,6 +408,15 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val TAG = "CutoutNotifListener"
 
+        // Padding on top of the pill's own lifetime, covering the island's animations and giving the
+        // user a moment to reach a pill that has only just faded. Doubles as the slack allowed on a
+        // re-post arriving late.
+        private const val SNOOZE_GRACE_MS = 3_000L
+
+        // Upper bound on [snoozedUntil]. Far above the handful that can be in flight within one
+        // snooze window; purely a guard against runaway growth.
+        private const val MAX_TRACKED_SNOOZES = 64
+
         // The currently connected listener, or null when unbound. Only touched on the main thread
         // (the framework's listener callbacks and the overlay both run there).
         @Volatile
@@ -354,8 +454,22 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          */
         fun dismiss(key: String) {
             val service = instance ?: return
+            service.snoozedUntil.remove(key)
             runCatching { service.cancelNotification(key) }
                 .onFailure { Log.w(TAG, "Failed to cancel notification $key", it) }
+        }
+
+        /**
+         * The user acted on the pill mirroring [key] — tapped it, fired an action, sent a reply — so
+         * a notification we had merely snoozed has served its purpose and must not resurface. Only
+         * touches keys we snoozed ourselves: one the app still owns is the app's to clear, exactly as
+         * before the island got involved.
+         */
+        fun settle(key: String) {
+            val service = instance ?: return
+            if (service.snoozedUntil.remove(key) == null) return
+            runCatching { service.cancelNotification(key) }
+                .onFailure { Log.w(TAG, "Failed to cancel snoozed notification $key", it) }
         }
     }
 }
