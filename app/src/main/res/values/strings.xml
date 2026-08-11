@@ -55,8 +55,11 @@
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
     <string name="action_send_test_progress">Send a test progress notification</string>
+    <string name="action_send_test_plain">Send a test notification without buttons</string>
     <string name="test_notification_title">Test notification</string>
     <string name="test_notification_text">Expand the island and try the buttons below.</string>
+    <string name="test_plain_notification_title">Plain test notification</string>
+    <string name="test_plain_notification_text">No action buttons, so the island shows only the header. Check the title clears the camera.</string>
     <string name="test_progress_notification_title">Downloading file</string>
     <string name="test_progress_notification_text">Watch the island track the progress.</string>
     <string name="test_notification_action_reply">Reply</string>
