@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -85,6 +86,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     private val behaviourPreferences by lazy { BehaviourPreferences(this) }
 
+    private val alerter by lazy { NotificationAlerter(this) }
+
     private var behaviourJob: Job? = null
 
     // Mirror of BehaviourSettings.dismissNotifications, cached because onNotificationPosted runs on
@@ -108,6 +111,15 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // Keys the user killed on the pill, awaiting the re-post that lets us cancel them. Mirrors [held].
     private val pendingCancel = LinkedHashMap<String, Long>()
 
+    // How many fetch-backs are in flight with notification effects muted. The hint behind that mute
+    // is global and has no per-notification form, so it is raised once and dropped only when the last
+    // of them has landed. Main-thread only, like the maps above.
+    private var mutedReturns = 0
+
+    // Closes the mute window even if a fetch-back never lands, so a refused or lost re-post can't
+    // leave the device silent.
+    private var unmuteJob: Job? = null
+
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
@@ -122,6 +134,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _bound.value = false
+        // Drop the effects mute by hand before the job that would have done it dies with the scope:
+        // a fetch-back caught mid-flight by a teardown must not leave the device silent.
+        if (mutedReturns > 0) setEffectsMuted(false)
+        alerter.stop()
         scope.cancel()
         super.onDestroy()
     }
@@ -177,6 +193,25 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
+     * Ring and buzz for a notification the island is taking over, standing in for the alert the hold
+     * is about to cut short. Only ever for a notification we are actually holding — one left in the
+     * shade still has its own alert, and doubling it would be worse than the silence this fixes.
+     *
+     * Whether Do Not Disturb (or a priority rule, or the app's own quieting) would have let this one
+     * make a sound at all is the framework's verdict, taken off the ranking rather than guessed at
+     * again here. The ranking is read on this thread — it is only valid on it — and only the playback
+     * is handed off, since opening a ringtone touches the disk.
+     */
+    private fun alertFor(sbn: StatusBarNotification) {
+        val ranking = Ranking()
+        if (currentRanking?.getRanking(sbn.key, ranking) != true) return
+        if (!ranking.matchesInterruptionFilter()) return
+        val channel = ranking.channel
+        val importance = ranking.importance
+        scope.launch(Dispatchers.IO) { alerter.alert(channel, importance) }
+    }
+
+    /**
      * Pull [key] out of the shade while the island mirrors it, so a notification the user deals with
      * on the pill never reaches the panel at all. The hold lasts until the island says what became of
      * the pill ([releaseHeld] or [discard]); [MAX_HOLD_MS] is only a ceiling, so a notification we
@@ -201,6 +236,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private fun releaseHeld(key: String) {
         val ceiling = held.remove(key) ?: return
+        muteReturn()
         snooze(key, RETURN_DELAY_MS)
         returning.track(key, ceiling)
     }
@@ -224,8 +260,54 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             return
         }
         returning.remove(key)
+        muteReturn()
         snooze(key, RETURN_DELAY_MS)
         pendingCancel.track(key, ceiling)
+    }
+
+    /**
+     * Silence notification sound and vibration while a fetch-back is in flight. The framework treats
+     * the re-post of a snoozed notification as a brand-new post and alerts for it all over again —
+     * its repost alarm asks for no mute — so a notification the user has already been shown on the
+     * island would ring them a second time on its way to the panel, and one they threw away would
+     * ring on its way to being cancelled. A listener cannot ask for a single notification to arrive
+     * quietly, so the effects hint (the one lever it does have) is raised for the fraction of a
+     * second the fetch-back takes.
+     *
+     * That hint is global, so a notification from another app landing inside the window is silenced
+     * with it — the window is only [RETURN_DELAY_MS] wide and closes the moment the re-post lands, or
+     * on [unmuteJob] if it never does. Incoming calls are never affected: the framework exempts
+     * ringtones from this hint by design.
+     */
+    private fun muteReturn() {
+        mutedReturns++
+        if (mutedReturns == 1) setEffectsMuted(true)
+        unmuteJob?.cancel()
+        unmuteJob = scope.launch {
+            delay(RETURN_DELAY_MS + MUTE_GRACE_MS)
+            mutedReturns = 0
+            setEffectsMuted(false)
+        }
+    }
+
+    /**
+     * A fetch-back landed, so it no longer needs the shade kept quiet. Safe to unmute the moment we
+     * hear about the re-post: the framework decides whether to alert while still holding the lock our
+     * request has to take, so it can never slip in ahead of that decision.
+     */
+    private fun endMutedReturn() {
+        if (mutedReturns == 0) return
+        mutedReturns--
+        if (mutedReturns > 0) return
+        unmuteJob?.cancel()
+        unmuteJob = null
+        setEffectsMuted(false)
+    }
+
+    private fun setEffectsMuted(muted: Boolean) {
+        val hints = if (muted) HINT_HOST_DISABLE_NOTIFICATION_EFFECTS else 0
+        runCatching { requestListenerHints(hints) }
+            .onFailure { Log.w(TAG, "Failed to request listener hints", it) }
     }
 
     /** Snooze [key] for [durationMs], reporting whether the framework took it. */
@@ -309,12 +391,16 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // one is already spoken for.
         if (pendingCancel.consume(notification.key)) {
             cancel(notification.key)
+            endMutedReturn()
             return
         }
 
         // Likewise, but the pill merely ran out: the island already had its turn with this one, so
         // let it settle into the panel without popping a second pill.
-        if (returning.consume(notification.key)) return
+        if (returning.consume(notification.key)) {
+            endMutedReturn()
+            return
+        }
 
         if (!notification.shouldSurface()) return
 
@@ -342,6 +428,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // the download for the shade and hide the very bar the user wants to watch. Its completion
         // notice carries no progress, so that one auto-dismisses normally.
         if (dismissNotifications && progress == null && isUserPresent()) {
+            alertFor(notification)
             hold(notification.key)
         }
     }
@@ -494,6 +581,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // lands as the pill fades rather than noticeably after it, long enough to be a delay the
         // framework's alarm can actually honour.
         private const val RETURN_DELAY_MS = 500L
+
+        // How long past the expected re-post the effects mute is allowed to last before it is dropped
+        // regardless. Only ever reached when a fetch-back doesn't arrive at all — a landing re-post
+        // closes the window itself, well inside this.
+        private const val MUTE_GRACE_MS = 1_000L
 
         // Slack allowed on a re-post arriving later than its window says it should.
         private const val SNOOZE_GRACE_MS = 3_000L
