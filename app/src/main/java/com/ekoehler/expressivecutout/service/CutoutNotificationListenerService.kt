@@ -47,7 +47,8 @@ data class ProgressData(
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
  * title and text (shown when the island is expanded) and filters out noise (its own posts,
- * group summaries, and ongoing/system-managed notifications).
+ * group summaries, and ongoing/system-managed notifications — except when one carries a live
+ * progress bar, which the progress tile is there to show).
  *
  * It also lets the overlay dismiss the real notification (not just the pill): the connected
  * instance is published statically so [dismiss] can cancel a notification by key on the user's
@@ -289,7 +290,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         IslandEventBus.emit(islandEvent)
 
-        if (dismissNotifications && isUserPresent()) {
+        // Never snooze a transfer still running: it re-posts on every step, so snoozing would fight
+        // the download for the shade and hide the very bar the user wants to watch. Its completion
+        // notice carries no progress, so that one auto-dismisses normally.
+        if (dismissNotifications && progress == null && isUserPresent()) {
             snooze(notification.key)
         }
     }
@@ -419,9 +423,14 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     private fun StatusBarNotification.shouldSurface(): Boolean {
         if (packageName == this@CutoutNotificationListenerService.packageName) return false
         val flags = notification.flags
-        val isSummary = flags and Notification.FLAG_GROUP_SUMMARY != 0
+        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
+        // A transfer in flight (a Chrome download, an upload) is ongoing and unclearable by design,
+        // which the general filter below drops. A live progress bar is precisely what the progress
+        // tile exists to show, so carrying one overrides both tests — persistent foreground-service
+        // notices without a bar (a VPN, a sync service) stay filtered out as before.
+        if (getProgressDataOrNull(this) != null) return true
         val isOngoing = flags and Notification.FLAG_ONGOING_EVENT != 0
-        return isClearable && !isSummary && !isOngoing
+        return isClearable && !isOngoing
     }
 
     companion object {
