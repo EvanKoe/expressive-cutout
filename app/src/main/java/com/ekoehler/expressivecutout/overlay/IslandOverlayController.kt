@@ -157,6 +157,10 @@ class IslandOverlayController(private val context: Context) {
     // The system event currently on the pill, so its auto-dismiss uses that event's own duration
     // override (null while a notification or live tile is showing → the global normal duration).
     private var currentSystemEventType: SystemEventType? = null
+
+    // The notification key the pill last mirrored, so the listener can be told the moment that pill
+    // goes away and a notification it was holding back is due in the panel. See [observeMirroredKey].
+    private var mirroredKey: String? = null
     private var eventDynamicColor: Boolean = false
     private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
     private var eventDynamicColorOpacity: Float = 1f
@@ -256,9 +260,14 @@ class IslandOverlayController(private val context: Context) {
         observePreviewPin()
         observeSignals()
         observeVisibility()
+        observeMirroredKey()
     }
 
     fun stop() {
+        // The island is going away with a pill still up, so nothing is left to mirror the
+        // notification it was standing in for — hand it back to the panel before the collector that
+        // would normally notice dies with the scope.
+        mirroredKey?.let { CutoutNotificationListenerService.release(it) }
         dismissJob?.cancel()
         windowResizeJob?.cancel()
         runCatching { context.unregisterReceiver(lockReceiver) }
@@ -742,6 +751,26 @@ class IslandOverlayController(private val context: Context) {
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
             setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+        }
+    }
+
+    /**
+     * Hand a mirrored notification back to the panel as soon as its pill leaves the island, however
+     * it leaves: the auto-dismiss timer ran out, an expanded pill shrank away, another event took the
+     * island over, the overlay was torn down for the lockscreen. Watching the shown event rather than
+     * hooking each of those paths is what keeps the two in step — nothing can make the pill vanish
+     * without passing through here.
+     *
+     * The user-driven endings (a swipe, a tap, an action) reach the listener first and by their own
+     * route, having already told it to throw the notification away instead; this then finds nothing
+     * left to release.
+     */
+    private fun observeMirroredKey() = scope.launch {
+        currentEvent.collect { event ->
+            val key = event?.notificationKey
+            val previous = mirroredKey
+            if (previous != null && previous != key) CutoutNotificationListenerService.release(previous)
+            mirroredKey = key
         }
     }
 
