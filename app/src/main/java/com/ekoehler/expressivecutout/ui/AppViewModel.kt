@@ -662,6 +662,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Whether the user wants the system status bar's info icons (clock, battery, Wi-Fi, signal)
+     * hidden. Saved even while Shizuku is unreachable; `StatusBarIconController` applies it as soon
+     * as the bridge is back.
+     */
+    val hideSystemInfo: StateFlow<Boolean> =
+        statusBarPreferences.hideSystemInfo.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideSystemInfo(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideSystemInfo(hide)
+    }
+
+    /**
      * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
      * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
      * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.

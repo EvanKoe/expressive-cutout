@@ -27,6 +27,10 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[HIDE_NOTIFICATION_ICONS] ?: false
     }
 
+    val hideSystemInfo: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
+        prefs[HIDE_SYSTEM_INFO] ?: false
+    }
+
     val silenceAlerts: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
         prefs[SILENCE_ALERTS] ?: false
     }
@@ -35,37 +39,47 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[HIDE_NOTIFICATION_ICONS] = hide
     }
 
+    suspend fun setHideSystemInfo(hide: Boolean) = context.statusBarDataStore.edit { prefs ->
+        prefs[HIDE_SYSTEM_INFO] = hide
+    }
+
     suspend fun setSilenceAlerts(silence: Boolean) = context.statusBarDataStore.edit { prefs ->
         prefs[SILENCE_ALERTS] = silence
     }
 
     private companion object {
         val HIDE_NOTIFICATION_ICONS = booleanPreferencesKey("hide_notification_icons")
+        val HIDE_SYSTEM_INFO = booleanPreferencesKey("hide_system_info")
         val SILENCE_ALERTS = booleanPreferencesKey("silence_alerts")
     }
 
     /**
      * Exports the status-bar settings in a JSON string
-     * { hideNotificationIcons: boolean, silenceAlerts: boolean }
+     * { hideNotificationIcons: boolean, hideSystemInfo: boolean, silenceAlerts: boolean }
      */
     override suspend fun toJson(): String {
-        val hide = hideNotificationIcons.first()
+        val hideIcons = hideNotificationIcons.first()
+        val hideSystemInfo = hideSystemInfo.first()
         val silence = silenceAlerts.first()
         return JSONObject().apply {
-            put("hideNotificationIcons", hide)
+            put("hideNotificationIcons", hideIcons)
+            put("hideSystemInfo", hideSystemInfo)
             put("silenceAlerts", silence)
         }.toString()
     }
 
     /**
-     * Applies { hideNotificationIcons: boolean, silenceAlerts: boolean } exported by [toJson]. Each
-     * missing field leaves its setting untouched — importing a document from a build without this
-     * section shouldn't silently flip either flag.
+     * Applies { hideNotificationIcons: boolean, hideSystemInfo: boolean, silenceAlerts: boolean }
+     * exported by [toJson]. Each missing field leaves its setting untouched — importing a document
+     * from a build without this section shouldn't silently flip any flag.
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
         if (obj.has("hideNotificationIcons")) {
             setHideNotificationIcons(obj.optBoolean("hideNotificationIcons", false))
+        }
+        if (obj.has("hideSystemInfo")) {
+            setHideSystemInfo(obj.optBoolean("hideSystemInfo", false))
         }
         if (obj.has("silenceAlerts")) {
             setSilenceAlerts(obj.optBoolean("silenceAlerts", false))

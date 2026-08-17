@@ -1,9 +1,15 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,17 +17,31 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.NetworkCell
+import androidx.compose.material.icons.rounded.NetworkCheck
+import androidx.compose.material.icons.rounded.NetworkWifi
+import androidx.compose.material.icons.rounded.ShapeLine
+import androidx.compose.material.icons.rounded.Square
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
+import androidx.core.view.accessibility.AccessibilityViewCommand
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -31,6 +51,7 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import java.nio.file.WatchEvent
 
 /**
  * "Shizuku options" screen (reached from the settings list). Houses the tweaks that need shell
@@ -48,6 +69,7 @@ internal fun ShizukuScreen(
 ) {
     val context = LocalContext.current
     val hideIcons by viewModel.hideNotificationIcons.collectAsStateWithLifecycle()
+    val hideSystemInfo by viewModel.hideSystemInfo.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
 
@@ -71,6 +93,7 @@ internal fun ShizukuScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+
         AnimatedVisibility(
             visible = !ready,
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
@@ -83,6 +106,8 @@ internal fun ShizukuScreen(
                 },
             )
         }
+
+        StatusBarPreview(hideIcons = hideIcons, hideSystem = hideSystemInfo)
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
@@ -104,12 +129,88 @@ internal fun ShizukuScreen(
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.status_bar_hide_system_info_title),
+            description = stringResource(R.string.status_bar_hide_system_info_desc),
+            checked = ready && hideSystemInfo,
+            onCheckedChange = viewModel::setHideSystemInfo,
+            enabled = ready,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.status_bar_silence_alerts_title),
             description = stringResource(R.string.status_bar_silence_alerts_desc),
             checked = ready && silenceAlerts,
             onCheckedChange = viewModel::setSilenceSystemAlerts,
             enabled = ready,
         )
+    }
+}
+
+@Composable
+private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(shape = RoundedCornerShape(24.dp))
+            .background(color = MaterialTheme.colorScheme.surfaceVariant)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.statusbar_preview_time),
+            fontSize = MaterialTheme.typography.bodyLarge.fontSize,
+            fontWeight = FontWeight.Bold
+        )
+
+        AnimatedVisibility(visible = !hideIcons) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Square,
+                    modifier = Modifier.rotate(45f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "Notification icon"
+                )
+
+                Icon(
+                    imageVector = Icons.Rounded.Square,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "Notification icon"
+                )
+
+                Icon(
+                    imageVector = Icons.Rounded.Circle,
+                    modifier = Modifier.rotate(45f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "Notification icon"
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        AnimatedVisibility(visible = !hideSystem) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.NetworkWifi,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "System icon"
+                )
+
+                Icon(
+                    imageVector = Icons.Rounded.NetworkCell,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "System icon"
+                )
+
+                Icon(
+                    imageVector = Icons.Rounded.BatterySaver,
+                    modifier = Modifier.rotate(90f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = "System icon"
+                )
+            }
+        }
     }
 }
 
@@ -126,9 +227,7 @@ private fun ShizukuCard(status: ShizukuStatus, onClick: () -> Unit) {
         ShizukuStatus.NOT_RUNNING -> R.string.shizuku_not_running_desc
         else -> R.string.shizuku_permission_desc
     }
-    // The everyday stopped-on-reboot case and the one-tap permission grant are both recoverable, so
-    // they get the softer primary container that matches the accessibility card in the settings
-    // list; only a missing install is the harder stop worth the error colour.
+
     val recoverable = status == ShizukuStatus.NOT_RUNNING || status == ShizukuStatus.PERMISSION_REQUIRED
     SettingsListItem(
         icon = Icons.Rounded.ErrorOutline,
