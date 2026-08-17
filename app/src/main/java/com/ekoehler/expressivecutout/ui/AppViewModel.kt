@@ -6,8 +6,6 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Path
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -59,10 +57,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileWriter
 import java.io.IOException
-import kotlin.io.encoding.Base64
 
 /**
  * Holds UI-facing state for the icon customisation screen and mediates writes to
@@ -703,5 +698,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowProgress(enabled)
+    }
+
+    fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDismissNotifications(enabled)
+    }
+
+    fun setDisplayWhileDnd(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDisplayWhileDnd(enabled)
     }
 }

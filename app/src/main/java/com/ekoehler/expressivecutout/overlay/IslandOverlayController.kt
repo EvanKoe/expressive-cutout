@@ -24,16 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
-import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -88,7 +81,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.lang.reflect.Proxy
-import kotlin.math.abs
 
 /**
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
@@ -165,6 +157,10 @@ class IslandOverlayController(private val context: Context) {
     // The system event currently on the pill, so its auto-dismiss uses that event's own duration
     // override (null while a notification or live tile is showing → the global normal duration).
     private var currentSystemEventType: SystemEventType? = null
+
+    // The notification key the pill last mirrored, so the listener can be told the moment that pill
+    // goes away and a notification it was holding back is due in the panel. See [observeMirroredKey].
+    private var mirroredKey: String? = null
     private var eventDynamicColor: Boolean = false
     private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
     private var eventDynamicColorOpacity: Float = 1f
@@ -264,9 +260,14 @@ class IslandOverlayController(private val context: Context) {
         observePreviewPin()
         observeSignals()
         observeVisibility()
+        observeMirroredKey()
     }
 
     fun stop() {
+        // The island is going away with a pill still up, so nothing is left to mirror the
+        // notification it was standing in for — hand it back to the panel before the collector that
+        // would normally notice dies with the scope.
+        mirroredKey?.let { CutoutNotificationListenerService.release(it) }
         dismissJob?.cancel()
         windowResizeJob?.cancel()
         runCatching { context.unregisterReceiver(lockReceiver) }
@@ -750,6 +751,26 @@ class IslandOverlayController(private val context: Context) {
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
             setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+        }
+    }
+
+    /**
+     * Hand a mirrored notification back to the panel as soon as its pill leaves the island, however
+     * it leaves: the auto-dismiss timer ran out, an expanded pill shrank away, another event took the
+     * island over, the overlay was torn down for the lockscreen. Watching the shown event rather than
+     * hooking each of those paths is what keeps the two in step — nothing can make the pill vanish
+     * without passing through here.
+     *
+     * The user-driven endings (a swipe, a tap, an action) reach the listener first and by their own
+     * route, having already told it to throw the notification away instead; this then finds nothing
+     * left to release.
+     */
+    private fun observeMirroredKey() = scope.launch {
+        currentEvent.collect { event ->
+            val key = event?.notificationKey
+            val previous = mirroredKey
+            if (previous != null && previous != key) CutoutNotificationListenerService.release(previous)
+            mirroredKey = key
         }
     }
 
@@ -1257,13 +1278,19 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Tap on the pill: open what it points at. Reading the event before [dismissIsland] clears it,
+     * since settling the notification needs its key.
+     */
     private fun onActivate() {
-        val intent = currentEvent.value?.contentIntent
+        val event = currentEvent.value
+        val intent = event?.contentIntent
         if (isPinnedLiveTile()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
             return
         }
+        event?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         intent?.let(::sendPendingIntent)
     }
@@ -1288,6 +1315,7 @@ class IslandOverlayController(private val context: Context) {
             action.intent?.let(::sendPendingIntent)
             return
         }
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         action.intent?.let(::sendPendingIntent)
     }
@@ -1299,6 +1327,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
         val intent = action.intent ?: return
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }

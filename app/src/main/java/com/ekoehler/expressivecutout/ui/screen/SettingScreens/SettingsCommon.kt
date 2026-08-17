@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
 
@@ -283,6 +284,7 @@ internal fun IslandPreviewPanel(
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
     val cutoutOutline = Color.White.copy(alpha = 0.28f)
     // Grow the panel so the island (at its offset) always fits without clipping.
@@ -335,6 +337,7 @@ internal fun IslandPreviewPanel(
                 expanded = expanded,
                 appearance = appearance,
                 showActions = showActions,
+                collapsedHeightDp = collapsedHeightDp,
             )
         }
     }

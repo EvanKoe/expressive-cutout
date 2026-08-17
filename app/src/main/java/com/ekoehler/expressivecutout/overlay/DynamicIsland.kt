@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -152,6 +153,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -170,8 +172,14 @@ private val PillTextColorDark = Color(0xFF0A0A0A)
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
 private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
 
-// Vertical spacing added around the action row on top of the chip height itself.
-private const val ACTIONS_ROW_SPACING_DP = 14
+// The expanded notification's progress bar: its thickness, and the gap holding it off the text above.
+private const val PROGRESS_BAR_HEIGHT_DP = 8
+private const val PROGRESS_BAR_TOP_GAP_DP = 6
+
+// Vertical spacing added around the action row on top of the chip height itself. Must equal the
+// expanded column's own child spacing, or a notification with actions and one without end up with
+// their header rows at different heights.
+private const val ACTIONS_ROW_SPACING_DP = 12
 
 // How far the island must be dragged upward before a swipe-up collapses it.
 private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
@@ -666,6 +674,7 @@ fun DynamicIsland(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
+                                        collapsedHeightDp = collapsed.heightDp,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -711,6 +720,7 @@ fun IslandPreview(
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
     IslandSurface(
         modifier = Modifier.size(width, heightDp.dp),
@@ -729,6 +739,7 @@ fun IslandPreview(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
+                collapsedHeightDp = collapsedHeightDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
@@ -1228,6 +1239,7 @@ private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1240,12 +1252,21 @@ private fun ExpandedContent(
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
-        MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
+        MediaExpandedContent(
+            event = event,
+            buttonHeightDp = appearance.actionButtonHeightDp,
+            collapsedHeightDp = collapsedHeightDp,
+        )
         return
     }
     // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
-        TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
+        TimerExpandedContent(
+            event = event,
+            appearance = appearance,
+            collapsedHeightDp = collapsedHeightDp,
+            onAction = onAction,
+        )
         return
     }
     // The assistant tile: icon + text response with vertical scrolling.
@@ -1254,20 +1275,31 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
+            collapsedHeightDp = collapsedHeightDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
         return
     }
-    // Content sits in the lower part of the card, leaving the top clear of the camera hole.
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    // Content hugs the card's bottom edge, below a collapsed-pill-height band that keeps the camera
+    // hole clear. The band is a hard floor: a header tall enough to overrun the card (a two-line
+    // detail plus a progress bar) now spills past the bottom instead of riding up under the camera.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the action / reply row below claims its full height first and the header
+            // takes what is left: when the card is too short for both, the text ellipsises rather
+            // than the buttons shrinking.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -1281,9 +1313,13 @@ private fun ExpandedContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    // The only flexible child: the title above and the progress bar below are
+                    // measured at their full size first, so a card too short for all three cuts
+                    // the body text down (and ellipsises it) rather than shaving the bar.
                     event.detail?.let { detail ->
                         Text(
                             text = detail,
+                            modifier = Modifier.weight(1f, fill = false),
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
                             maxLines = 2,
@@ -1294,9 +1330,19 @@ private fun ExpandedContent(
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
                     AnimatedVisibility(visible = progressData != null) {
+                        // Material's default indicator is a 4dp hairline at a fixed 240dp width,
+                        // which reads as a stray line on the island. Span the text column and set
+                        // the thickness explicitly — the bar derives its stroke from this height.
+                        // requiredHeight, not height: the latter coerces into whatever the column
+                        // has left over, which is what let a tight card flatten the bar.
+                        val barModifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = PROGRESS_BAR_TOP_GAP_DP.dp)
+                            .requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp)
                         lastProgressData?.let { p ->
                             if (p.isIndeterminate) {
                                 LinearProgressIndicator(
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
@@ -1310,6 +1356,7 @@ private fun ExpandedContent(
                                 )
                                 LinearProgressIndicator(
                                     progress = { animatedFraction },
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
@@ -1864,19 +1911,25 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
+private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int, collapsedHeightDp: Int) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the transport controls keep their height and the track text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -2474,19 +2527,26 @@ private fun CallStatus(onCall: OnCall?) {
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -2542,6 +2602,7 @@ private fun AssistantExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -2557,7 +2618,7 @@ private fun AssistantExpandedContent(
             .fillMaxWidth()
             .heightIn(max = maxCutoutHeightDp)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(start = 18.dp, end = 18.dp, top = 14.dp + collapsedHeightDp.dp, bottom = 14.dp),
     ) {
         Column(
             modifier = Modifier
@@ -2567,10 +2628,13 @@ private fun AssistantExpandedContent(
                 // into its own fit-to-content target — the loop that made the cutout bob as the answer
                 // streamed in. The content column is laid out with unbounded height, so its reported
                 // height is the answer's true natural height, independent of the surrounding animation.
+                // The reported height must cover the band as well as the 14dp padding above and
+                // below, or the card fits itself to the answer alone and the band pushes the tail
+                // of it out of view.
                 .onGloballyPositioned { coordinates ->
                     val hDp = (coordinates.size.height / density).toInt()
                     if (hDp > 0) {
-                        onHeightMeasured?.invoke(hDp + 28)
+                        onHeightMeasured?.invoke(hDp + 28 + collapsedHeightDp)
                     }
                 },
         ) {

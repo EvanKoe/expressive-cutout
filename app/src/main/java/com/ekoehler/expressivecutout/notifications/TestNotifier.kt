@@ -36,6 +36,7 @@ object TestNotifier {
     private const val CHANNEL_ID = "test"
     const val NOTIFICATION_ID = 4711
     const val PROGRESS_NOTIFICATION_ID = 4712
+    const val PLAIN_NOTIFICATION_ID = 4713
 
     /** The notification auto-dismisses after this long so the test never lingers. */
     private const val TIMEOUT_MS = 15_000L
@@ -118,6 +119,43 @@ object TestNotifier {
                 ),
                 // The same glyph the posted notification carries, so the preview goes through the
                 // real "icon from the notification" path rather than the launcher-icon fallback.
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts a test notification carrying no actions at all, and mirrors it onto the island. The
+     * counterpart to [send]: the expanded cutout then renders only the header row, which is the
+     * layout where the title has the least room and can ride up under the camera hole. Its text is
+     * deliberately long enough to wrap onto a second line, the case that pushes the header highest.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendPlain(context: Context) {
+        ensureChannel(context)
+
+        val title = context.getString(R.string.test_plain_notification_title)
+        val text = context.getString(R.string.test_plain_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(PLAIN_NOTIFICATION_ID, notification)
+        }
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )
