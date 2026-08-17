@@ -216,14 +216,35 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * on the pill never reaches the panel at all. The hold lasts until the island says what became of
      * the pill ([releaseHeld] or [discard]); [MAX_HOLD_MS] is only a ceiling, so a notification we
      * never hear about again — the overlay was torn down, the listener died — still comes back on its
-     * own rather than being lost. Tracked only on success: a refused snooze leaves the notification
-     * exactly where it is.
+     * own rather than being lost. Tracked whenever the request reaches the framework, which is as much
+     * as [snooze] can tell us; [verifyHold] is what proves the hold was actually taken.
      */
     private fun hold(key: String) {
         if (!snooze(key, MAX_HOLD_MS)) return
         returning.remove(key)
         pendingCancel.remove(key)
         held.track(key, SystemClock.elapsedRealtime() + MAX_HOLD_MS)
+        verifyHold(key)
+    }
+
+    /**
+     * Report whether the framework actually took the hold on [key]. snoozeNotification() returns void
+     * and refuses silently, so the only proof is whether the notification has left the active list a
+     * moment later.
+     */
+    private fun verifyHold(key: String) {
+        if (!TRACE_HOLDS) return
+        scope.launch {
+            delay(HOLD_CHECK_DELAY_MS)
+            val active = runCatching { getActiveNotifications(arrayOf(key)) }
+                .onFailure { Log.w(TAG, "getActiveNotifications failed for $key", it) }
+                .getOrNull() ?: return@launch
+            if (active.isNotEmpty()) {
+                Log.w(TAG, "Snooze refused: $key still active after ${HOLD_CHECK_DELAY_MS}ms")
+            } else {
+                Log.i(TAG, "Snooze held: $key")
+            }
+        }
     }
 
     /**
@@ -275,16 +296,22 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * second the fetch-back takes.
      *
      * That hint is global, so a notification from another app landing inside the window is silenced
-     * with it — the window is only [RETURN_DELAY_MS] wide and closes the moment the re-post lands, or
-     * on [unmuteJob] if it never does. Incoming calls are never affected: the framework exempts
+     * with it — the window normally closes the moment the re-post lands, and only falls back to
+     * [unmuteJob] if it never does. Incoming calls are never affected: the framework exempts
      * ringtones from this hint by design.
+     *
+     * The fallback waits out the same grace [consume] allows, not a shorter one of its own: the
+     * framework's snooze alarm routinely runs late (measured around 850ms against a [RETURN_DELAY_MS]
+     * of 500), and a mute that expired before that grace did would leave a band where a re-post is
+     * still recognised as ours — so it raises no second pill — yet arrives loud, which is precisely
+     * the alert the hold exists to prevent.
      */
     private fun muteReturn() {
         mutedReturns++
         if (mutedReturns == 1) setEffectsMuted(true)
         unmuteJob?.cancel()
         unmuteJob = scope.launch {
-            delay(RETURN_DELAY_MS + MUTE_GRACE_MS)
+            delay(RETURN_DELAY_MS + SNOOZE_GRACE_MS)
             mutedReturns = 0
             setEffectsMuted(false)
         }
@@ -310,7 +337,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             .onFailure { Log.w(TAG, "Failed to request listener hints", it) }
     }
 
-    /** Snooze [key] for [durationMs], reporting whether the framework took it. */
+    /**
+     * Snooze [key] for [durationMs], reporting whether the request reached the framework. Not whether
+     * the framework acted on it: snoozeNotification() returns nothing and refuses silently, so only
+     * the notification's absence from the active list proves a hold was taken — see [verifyHold].
+     */
     private fun snooze(key: String, durationMs: Long): Boolean =
         runCatching { snoozeNotification(key, durationMs) }
             .onFailure { Log.w(TAG, "Failed to snooze notification $key", it) }
@@ -571,6 +602,16 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val TAG = "CutoutNotifListener"
 
+        // Flip to trace every hold to logcat under [TAG]. Off in normal builds: the check behind it
+        // costs a round trip to the framework per notification, and is only ever needed while
+        // investigating the hold itself.
+        private const val TRACE_HOLDS = false
+
+        // How long after a hold the notification is checked for having actually left the active list.
+        // Long enough for the framework to have processed the snooze, short enough to stay inside the
+        // pill's own lifetime. Only used when [TRACE_HOLDS] is on.
+        private const val HOLD_CHECK_DELAY_MS = 400L
+
         // Ceiling on a hold, for the case where the island never reports back — the overlay was torn
         // down, the accessibility service died — so a notification is never kept from the panel for
         // longer than this no matter what. Well past any pill the user could plausibly leave up,
@@ -582,12 +623,9 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // framework's alarm can actually honour.
         private const val RETURN_DELAY_MS = 500L
 
-        // How long past the expected re-post the effects mute is allowed to last before it is dropped
-        // regardless. Only ever reached when a fetch-back doesn't arrive at all — a landing re-post
-        // closes the window itself, well inside this.
-        private const val MUTE_GRACE_MS = 1_000L
-
-        // Slack allowed on a re-post arriving later than its window says it should.
+        // Slack allowed on a re-post arriving later than its window says it should. Also bounds how
+        // long the effects mute may last, so the two can never disagree about whether a late re-post
+        // is still ours — see [muteReturn].
         private const val SNOOZE_GRACE_MS = 3_000L
 
         // Upper bound on [held], [returning] and [pendingCancel]. Far above the handful that can be
