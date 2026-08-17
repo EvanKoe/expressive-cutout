@@ -99,8 +99,13 @@ class NotificationAlerter(private val context: Context) {
 
     /**
      * Buzz with the channel's own pattern where it has one. Most channels don't — they take the
-     * phone's default vibration, which isn't ours to read — so those get a crisp double tap, which is
-     * what a notification feels like on modern hardware.
+     * phone's default vibration, which isn't ours to read — so those get [DEFAULT_PATTERN], the same
+     * two firm pulses the platform buzzes for a notification.
+     *
+     * Deliberately a waveform rather than one of the predefined effects: those are haptic-feedback
+     * primitives, sized for a UI touch and pinned to the light amplitude that goes with one, so a
+     * notification built from them feels like a button press instead of something worth looking at.
+     * A waveform is the only form that carries amplitudes, which is what makes it land as a real buzz.
      */
     private fun buzz(channel: NotificationChannel?) {
         val vibrator = vibrator?.takeIf { it.hasVibrator() } ?: return
@@ -108,7 +113,7 @@ class NotificationAlerter(private val context: Context) {
         val effect = if (pattern != null && pattern.isNotEmpty()) {
             VibrationEffect.createWaveform(pattern, NO_REPEAT)
         } else {
-            VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+            VibrationEffect.createWaveform(DEFAULT_PATTERN, DEFAULT_AMPLITUDES, NO_REPEAT)
         }
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -128,6 +133,15 @@ class NotificationAlerter(private val context: Context) {
 
         // Play the waveform once through rather than looping it.
         const val NO_REPEAT = -1
+
+        // What a notification buzzes like when its channel names no pattern of its own: wait none,
+        // pulse, pause, pulse. Mirrors the platform's own default notification vibration.
+        val DEFAULT_PATTERN = longArrayOf(0, 250, 250, 250)
+
+        // Full strength for each pulse in [DEFAULT_PATTERN], zero for the gaps. Amplitudes are given
+        // explicitly rather than left to DEFAULT_AMPLITUDE so the buzz is as strong as the hardware
+        // allows, which is the whole point of standing in for an alert the user would otherwise miss.
+        val DEFAULT_AMPLITUDES = intArrayOf(0, 255, 0, 255)
 
         // What the framework would have used for a notification, so the ring lands on the
         // notification volume and ducks against media the same way.
