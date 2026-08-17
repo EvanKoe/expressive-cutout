@@ -91,6 +91,7 @@ fun SettingsTab(
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenStatusBar: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     // Deeper routes slide in from the right; stepping back slides in from the left, so the
@@ -133,16 +134,18 @@ fun SettingsTab(
             SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding, onOpenShowsWhenEmpty)
             SettingsRoute.ShowsWhenEmpty -> ShowsWhenEmptyScreen(viewModel, contentPadding)
             SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
-            SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
+            SettingsRoute.Appearance ->
+                AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons, onOpenStatusBar)
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
+            SettingsRoute.StatusBar -> StatusBarScreen(viewModel, contentPadding)
         }
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, StatusBar }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -150,7 +153,8 @@ enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicT
  */
 val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
-        SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
+        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.StatusBar ->
+            SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
@@ -162,7 +166,7 @@ val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
         SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty -> 2
+        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty, SettingsRoute.StatusBar -> 2
         else -> 1
     }
 
@@ -345,7 +349,7 @@ private fun CutoutEnableCard(
 }
 
 @Composable
-private fun SettingsListItem(
+internal fun SettingsListItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,

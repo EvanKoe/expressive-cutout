@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SmartButton
+import androidx.compose.material.icons.rounded.WebAsset
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -94,6 +95,7 @@ internal fun AppearanceScreen(
     contentPadding: PaddingValues,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenStatusBar: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -161,6 +163,55 @@ internal fun AppearanceScreen(
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onOpenActionButtons()
         })
+
+        // Opens the dedicated screen for the system status bar (Shizuku-gated).
+        StatusBarCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenStatusBar()
+        })
+    }
+}
+
+/** A clickable card that navigates to the dedicated status-bar screen. */
+@Composable
+private fun StatusBarCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WebAsset,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.status_bar_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_status_bar_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

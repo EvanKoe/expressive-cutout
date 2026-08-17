@@ -57,5 +57,9 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.lottie.compose)
 
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation(libs.hiddenapibypass)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

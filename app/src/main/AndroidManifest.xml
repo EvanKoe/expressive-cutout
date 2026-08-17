@@ -7,14 +7,19 @@
     <!-- Needed only for the in-app "send test notification" button (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Lets the app talk to Shizuku, which performs the privileged status-bar calls on our
+         behalf. Optional at runtime: everything except the Status bar screen works without it. -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <!-- Makes launchable apps visible to the package manager on Android 11+, so the Apps screen
-         can list them for the per-app allow/mute switches. -->
+         can list them for the per-app allow/mute switches. The explicit Shizuku entry is what
+         lets us tell "not installed" apart from "installed but not running". -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="moe.shizuku.privileged.api" />
     </queries>
 
     <application
@@ -37,6 +42,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Shizuku's own initialisation hook: it binds this provider to hand our process the
+             privileged binder. Required by the Shizuku API, not something we call ourselves. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY. -->
         <service

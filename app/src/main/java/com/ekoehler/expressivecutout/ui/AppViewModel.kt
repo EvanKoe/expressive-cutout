@@ -46,6 +46,7 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -79,6 +80,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
     private val recentColorPreferences = RecentColorPreferences(application)
+    private val statusBarPreferences = StatusBarPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -244,6 +246,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
+        JsonSettings.STATUS_BAR to statusBarPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
@@ -641,6 +644,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setShadowEnabled(enabled)
+    }
+
+    /**
+     * Whether the user wants the system status bar's notification icons hidden. Saved even while
+     * Shizuku is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideNotificationIcons: StateFlow<Boolean> =
+        statusBarPreferences.hideNotificationIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideNotificationIcons(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideNotificationIcons(hide)
     }
 
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {

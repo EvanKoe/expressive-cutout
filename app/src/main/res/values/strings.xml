@@ -200,6 +200,21 @@
     <string name="cd_color_tertiary">Tertiary colour</string>
     <string name="cd_color_error">Error colour</string>
 
+    <!-- Status bar screen -->
+    <string name="status_bar_title">Status bar</string>
+    <string name="settings_status_bar_subtitle">Hide the system icons the island already replaces</string>
+    <string name="status_bar_hide_icons_title">Hide notification icons</string>
+    <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
+    <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>
+    <string name="shizuku_not_installed_title">Shizuku required</string>
+    <string name="shizuku_not_installed_desc">Changing the status bar needs shell access. Tap to install Shizuku.</string>
+    <string name="shizuku_not_running_title">Shizuku isn\'t running</string>
+    <string name="shizuku_not_running_desc">Start it from the Shizuku app, then come back. It stops on every reboot.</string>
+    <string name="shizuku_permission_title">Grant Shizuku access</string>
+    <string name="shizuku_permission_desc">Tap to let Expressive Cutout use Shizuku.</string>
+    <string name="perm_shizuku_title">Shizuku</string>
+    <string name="perm_shizuku_desc">Optional. Only needed to hide the status bar notification icons.</string>
+
     <!-- Background screen -->
     <string name="settings_background_subtitle">Separate colours or gradients for the normal and expanded cutout</string>
     <string name="label_solid">Solid</string>

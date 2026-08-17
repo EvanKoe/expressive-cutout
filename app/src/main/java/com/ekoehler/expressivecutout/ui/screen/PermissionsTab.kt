@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.PhoneCallback
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,10 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.notifications.TestCaller
 import com.ekoehler.expressivecutout.notifications.TestNotifier
 import com.ekoehler.expressivecutout.permissions.Permissions
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
 
 /**
  * "Permissions" destination: surfaces the notification, overlay (accessibility) and
@@ -70,6 +74,18 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 fun PermissionsTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
     val status = rememberPermissionStatus()
+    val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
+
+    // Shizuku can be started while we're backgrounded, and returning here is the natural moment to
+    // notice, so re-read on resume alongside the grants rememberPermissionStatus already refreshes.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) ShizukuState.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Android 13+ gates posting behind a runtime permission; grant then run the pending post.
     var pendingPost by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -127,6 +143,19 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 description = stringResource(R.string.perm_battery_desc),
                 granted = status.batteryIgnored,
                 onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
+            )
+            // Optional, so it's deliberately outside status.allEssentialGranted — a missing Shizuku
+            // must never stop the "All set" card from showing. Shizuku dies on every reboot, and
+            // this is where people already come to check why something stopped working.
+            PermissionCard(
+                icon = Icons.Rounded.Terminal,
+                title = stringResource(R.string.perm_shizuku_title),
+                description = stringResource(R.string.perm_shizuku_desc),
+                granted = shizuku == ShizukuStatus.READY,
+                onClick = {
+                    if (shizuku == ShizukuStatus.PERMISSION_REQUIRED) ShizukuState.requestPermission()
+                    else Permissions.openShizuku(context)
+                },
             )
         }
 

@@ -56,7 +56,22 @@ object Permissions {
         }
     }
 
+    /**
+     * Opens the Shizuku app so the user can start it, or its store listing when it isn't installed.
+     * Shizuku has to be restarted by hand after every reboot, so this is a link the Status bar
+     * screen surfaces often rather than a one-time grant.
+     */
+    fun openShizuku(context: Context) {
+        val launch = context.packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)
+        if (launch != null && context.startActivitySafely(launch)) return
+        context.startActivitySafely(Intent(Intent.ACTION_VIEW, Uri.parse(SHIZUKU_STORE_URL)))
+    }
+
     private fun Context.startActivitySafely(intent: Intent): Boolean = runCatching {
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.isSuccess
+
+    private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+    private const val SHIZUKU_STORE_URL =
+        "https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"
 }
