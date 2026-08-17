@@ -33,21 +33,22 @@ import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
 
 /**
- * "Status bar" screen (reached from Appearance). Hides the system status bar's notification icons
- * so the island isn't reporting the same notification twice.
+ * "Shizuku options" screen (reached from the settings list). Houses the tweaks that need shell
+ * privileges we can't hold ourselves: hiding the system status bar's notification icons so the
+ * island isn't reporting the same notification twice, and silencing the system's own alerts.
  *
- * The change needs shell privileges we can't hold, so everything here is gated on Shizuku being
- * reachable — surfaced as a dynamic-coloured card at the top, matching how the settings list flags a
- * missing accessibility grant. Shizuku stops on every reboot, so that card is a normal sight rather
- * than a one-time setup step.
+ * Everything here is gated on Shizuku being reachable — surfaced as a dynamic-coloured card at the
+ * top, matching how the settings list flags a missing accessibility grant. Shizuku stops on every
+ * reboot, so that card is a normal sight rather than a one-time setup step.
  */
 @Composable
-internal fun StatusBarScreen(
+internal fun ShizukuScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
 ) {
     val context = LocalContext.current
     val hideIcons by viewModel.hideNotificationIcons.collectAsStateWithLifecycle()
+    val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
 
     // Returning from the Shizuku app is the one moment the state reliably changes without a binder
@@ -100,6 +101,15 @@ internal fun StatusBarScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.status_bar_silence_alerts_title),
+            description = stringResource(R.string.status_bar_silence_alerts_desc),
+            checked = ready && silenceAlerts,
+            onCheckedChange = viewModel::setSilenceSystemAlerts,
+            enabled = ready,
+        )
     }
 }
 
@@ -116,9 +126,10 @@ private fun ShizukuCard(status: ShizukuStatus, onClick: () -> Unit) {
         ShizukuStatus.NOT_RUNNING -> R.string.shizuku_not_running_desc
         else -> R.string.shizuku_permission_desc
     }
-    // Installed-but-stopped is the recoverable everyday case (it dies on reboot), so it gets the
-    // softer primary container; a missing install or refused grant is the harder stop.
-    val recoverable = status == ShizukuStatus.NOT_RUNNING
+    // The everyday stopped-on-reboot case and the one-tap permission grant are both recoverable, so
+    // they get the softer primary container that matches the accessibility card in the settings
+    // list; only a missing install is the harder stop worth the error colour.
+    val recoverable = status == ShizukuStatus.NOT_RUNNING || status == ShizukuStatus.PERMISSION_REQUIRED
     SettingsListItem(
         icon = Icons.Rounded.ErrorOutline,
         title = stringResource(title),

@@ -661,6 +661,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         statusBarPreferences.setHideNotificationIcons(hide)
     }
 
+    /**
+     * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
+     * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
+     * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val silenceSystemAlerts: StateFlow<Boolean> =
+        statusBarPreferences.silenceAlerts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setSilenceSystemAlerts(silence: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setSilenceAlerts(silence)
+    }
+
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setStrokeEnabled(enabled)
     }

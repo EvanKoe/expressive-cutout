@@ -27,33 +27,48 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[HIDE_NOTIFICATION_ICONS] ?: false
     }
 
+    val silenceAlerts: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
+        prefs[SILENCE_ALERTS] ?: false
+    }
+
     suspend fun setHideNotificationIcons(hide: Boolean) = context.statusBarDataStore.edit { prefs ->
         prefs[HIDE_NOTIFICATION_ICONS] = hide
     }
 
+    suspend fun setSilenceAlerts(silence: Boolean) = context.statusBarDataStore.edit { prefs ->
+        prefs[SILENCE_ALERTS] = silence
+    }
+
     private companion object {
         val HIDE_NOTIFICATION_ICONS = booleanPreferencesKey("hide_notification_icons")
+        val SILENCE_ALERTS = booleanPreferencesKey("silence_alerts")
     }
 
     /**
      * Exports the status-bar settings in a JSON string
-     * { hideNotificationIcons: boolean }
+     * { hideNotificationIcons: boolean, silenceAlerts: boolean }
      */
     override suspend fun toJson(): String {
         val hide = hideNotificationIcons.first()
+        val silence = silenceAlerts.first()
         return JSONObject().apply {
             put("hideNotificationIcons", hide)
+            put("silenceAlerts", silence)
         }.toString()
     }
 
     /**
-     * Applies { hideNotificationIcons: boolean } exported by [toJson]. A missing field leaves the
-     * setting untouched — importing a document from a build without this section shouldn't silently
-     * turn the icons back on.
+     * Applies { hideNotificationIcons: boolean, silenceAlerts: boolean } exported by [toJson]. Each
+     * missing field leaves its setting untouched — importing a document from a build without this
+     * section shouldn't silently flip either flag.
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        if (!obj.has("hideNotificationIcons")) return
-        setHideNotificationIcons(obj.optBoolean("hideNotificationIcons", false))
+        if (obj.has("hideNotificationIcons")) {
+            setHideNotificationIcons(obj.optBoolean("hideNotificationIcons", false))
+        }
+        if (obj.has("silenceAlerts")) {
+            setSilenceAlerts(obj.optBoolean("silenceAlerts", false))
+        }
     }
 }

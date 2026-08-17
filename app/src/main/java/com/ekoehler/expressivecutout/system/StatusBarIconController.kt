@@ -13,9 +13,10 @@ import rikka.shizuku.SystemServiceHelper
 
 private const val TAG = "StatusBarIcons"
 
-/** Hidden `StatusBarManager` disable flags. Only the two we use are named here. */
+/** Hidden `StatusBarManager` disable flags. Only the ones we use are named here. */
 private const val DISABLE_NONE = 0x00000000
 private const val DISABLE_NOTIFICATION_ICONS = 0x00020000
+private const val DISABLE_NOTIFICATION_ALERTS = 0x00040000
 
 /**
  * Hides the system status bar's notification icons through Shizuku, so the island is the only thing
@@ -51,31 +52,36 @@ object StatusBarIconController {
         scope.launch {
             combine(
                 preferences.hideNotificationIcons,
+                preferences.silenceAlerts,
                 ShizukuState.status,
-            ) { hide, status -> hide to status }
-                .collect { (hide, status) ->
+            ) { hideIcons, silenceAlerts, status -> Triple(hideIcons, silenceAlerts, status) }
+                .collect { (hideIcons, silenceAlerts, status) ->
                     if (status != ShizukuStatus.READY) {
                         // A dead Shizuku also invalidates the cached proxy; drop it so the next
                         // successful call rebuilds one over the fresh binder.
                         service = null
                         return@collect
                     }
-                    apply(hide, packageName)
+                    apply(hideIcons, silenceAlerts, packageName)
                 }
         }
     }
 
     /**
-     * Applies or clears the notification-icon flag. Returns false when the call didn't go through,
-     * which on a [ShizukuStatus.READY] bridge means the OS rejected or moved the hidden API.
+     * Applies or clears the status-bar disable flags in one call — the flags are a single bitmask
+     * held against [token], so both wishes must be pushed together or the second would clear the
+     * first. Returns false when the call didn't go through, which on a [ShizukuStatus.READY] bridge
+     * means the OS rejected or moved the hidden API.
      */
-    fun apply(hide: Boolean, packageName: String): Boolean = runCatching {
-        val flags = if (hide) DISABLE_NOTIFICATION_ICONS else DISABLE_NONE
+    fun apply(hideIcons: Boolean, silenceAlerts: Boolean, packageName: String): Boolean = runCatching {
+        var flags = DISABLE_NONE
+        if (hideIcons) flags = flags or DISABLE_NOTIFICATION_ICONS
+        if (silenceAlerts) flags = flags or DISABLE_NOTIFICATION_ALERTS
         val statusBar = service ?: buildService().also { service = it }
         statusBar.disable(flags, packageName)
         true
     }.getOrElse { error ->
-        Log.w(TAG, "Could not ${if (hide) "hide" else "restore"} notification icons", error)
+        Log.w(TAG, "Could not apply status-bar flags (icons=$hideIcons, alerts=$silenceAlerts)", error)
         service = null
         false
     }

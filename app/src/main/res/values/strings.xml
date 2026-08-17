@@ -200,12 +200,14 @@
     <string name="cd_color_tertiary">Tertiary colour</string>
     <string name="cd_color_error">Error colour</string>
 
-    <!-- Status bar screen -->
-    <string name="status_bar_title">Status bar</string>
-    <string name="settings_status_bar_subtitle">Hide the system icons the island already replaces</string>
+    <!-- Shizuku options screen -->
+    <string name="shizuku_options_title">Shizuku options</string>
+    <string name="settings_shizuku_subtitle">Hide status bar icons and silence system alerts</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>
+    <string name="status_bar_silence_alerts_title">Silence system alerts</string>
+    <string name="status_bar_silence_alerts_desc">Same idea as “Automatically dismiss notifications,” but more reliable: the system itself mutes sounds, vibration and heads-up pop-ups, so only the island alerts you.</string>
     <string name="shizuku_not_installed_title">Shizuku required</string>
     <string name="shizuku_not_installed_desc">Changing the status bar needs shell access. Tap to install Shizuku.</string>
     <string name="shizuku_not_running_title">Shizuku isn\'t running</string>
