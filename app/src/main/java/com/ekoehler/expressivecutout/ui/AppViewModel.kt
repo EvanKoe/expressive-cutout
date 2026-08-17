@@ -45,6 +45,7 @@ import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -77,6 +78,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val timerTilePreferences = TimerTilePreferences(application)
     private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
+    private val recentColorPreferences = RecentColorPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -241,6 +243,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.TIMER_TILE to timerTilePreferences,
         JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
+        JsonSettings.RECENT_COLORS to recentColorPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */

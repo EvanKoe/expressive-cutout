@@ -84,11 +84,9 @@ import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.DefaultPresetColors
 import kotlin.math.roundToInt
-
-/** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
-private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 @Composable
 internal fun AppearanceScreen(
@@ -249,97 +247,6 @@ private fun ActionButtonsCard(onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-/**
- * The single, shared colour-selection card used by every screen that edits a [CutoutColor]. It
- * offers, in order: an optional "default" swatch (a null selection, for settings whose default
- * follows another colour, e.g. the reply buttons), several Material You dynamic-role swatches, a
- * custom pick (opens [ColorPickerDialog] with a hex field), and a row of predefined swatches.
- *
- * The predefined colours default to [DefaultPresetColors] (black, white, dark/light grey, blue,
- * red, green) but any screen can pass its own [presetColors]; likewise the dynamic roles shown can
- * be overridden via [dynamicRoles].
- */
-@Composable
-internal fun ColorPickerCard(
-    label: String,
-    selected: CutoutColor?,
-    onSelect: (CutoutColor?) -> Unit,
-    defaultLabel: String? = null,
-    defaultColor: Color? = null,
-    presetColors: List<Long> = DefaultPresetColors,
-    dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
-    roundedCorners: Dp = 24.dp
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val customArgb = (selected as? CutoutColor.Solid)?.argb
-        ?.takeIf { argb -> presetColors.none { it == argb } }
-    val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(roundedCorners),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.titleMedium)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Optional "use the default" swatch (null selection), then the Material You dynamic
-                // roles, then the custom picker, then the predefined swatches.
-                if (defaultLabel != null) {
-                    ColorSwatch(
-                        color = defaultColor ?: MaterialTheme.colorScheme.primary,
-                        selected = selected == null,
-                        badge = Icons.Rounded.RestartAlt,
-                        badgeDescription = defaultLabel,
-                        onClick = { onSelect(null) },
-                    )
-                }
-                dynamicRoles.forEach { role ->
-                    ColorSwatch(
-                        color = CutoutColor.Dynamic(role).resolve(),
-                        selected = (selected as? CutoutColor.Dynamic)?.role == role,
-                        badge = Icons.Rounded.AutoAwesome,
-                        badgeDescription = role.dynamicDescription(),
-                        onClick = { onSelect(CutoutColor.Dynamic(role)) },
-                    )
-                }
-                CustomColorSwatch(
-                    selectedColor = customArgb?.let { Color(it) },
-                    onClick = { showPicker = true },
-                )
-                presetColors.forEach { argb ->
-                    ColorSwatch(
-                        color = Color(argb),
-                        selected = selected == CutoutColor.Solid(argb),
-                        onClick = { onSelect(CutoutColor.Solid(argb)) },
-                    )
-                }
-            }
-        }
-    }
-
-    if (showPicker) {
-        ColorPickerDialog(
-            initial = currentColor,
-            onConfirm = { picked ->
-                showPicker = false
-                onSelect(CutoutColor.Solid(picked.toArgb().toLong() and 0xFFFFFFFFL))
-            },
-            onDismiss = { showPicker = false },
-        )
     }
 }
 

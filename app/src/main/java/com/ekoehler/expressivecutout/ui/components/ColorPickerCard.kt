@@ -20,15 +20,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
 import com.ekoehler.expressivecutout.overlay.resolve
+import kotlinx.coroutines.launch
 import com.ekoehler.expressivecutout.ui.screen.ColorPickerDialog
 import com.ekoehler.expressivecutout.ui.screen.ColorSwatch
 import com.ekoehler.expressivecutout.ui.screen.CustomColorSwatch
@@ -70,6 +75,14 @@ fun ColorPickerCard (
     // Seed the picker with whatever colour is active right now.
     val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val recentColorPreferences = remember(context) { RecentColorPreferences(context) }
+    val storedRecents by recentColorPreferences.recentColors
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    // A recent pick that this screen also lists as a preset would otherwise show up twice.
+    val recentColors = storedRecents.filterNot { argb -> presetColors.any { it == argb } }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(roundedCorners),
@@ -92,7 +105,8 @@ fun ColorPickerCard (
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // Optional "use the default" swatch (null selection), then the Material You dynamic
-                // roles, then the custom picker, then the predefined swatches.
+                // roles, then the custom picker, then the user's recent picks, then the predefined
+                // swatches.
                 if (defaultLabel != null) {
                     ColorSwatch(
                         color = defaultColor ?: MaterialTheme.colorScheme.primary,
@@ -115,6 +129,13 @@ fun ColorPickerCard (
                     selectedColor = customArgb?.let { Color(it) },
                     onClick = { showPicker = true },
                 )
+                recentColors.forEach { argb ->
+                    ColorSwatch(
+                        color = Color(argb),
+                        selected = selected == CutoutColor.Solid(argb),
+                        onClick = { onSelect(CutoutColor.Solid(argb)) },
+                    )
+                }
                 presetColors.forEach { argb ->
                     ColorSwatch(
                         color = Color(argb),
@@ -131,7 +152,9 @@ fun ColorPickerCard (
             initial = currentColor,
             onConfirm = { picked ->
                 showPicker = false
-                onSelect(CutoutColor.Solid(picked.toArgb().toLong() and 0xFFFFFFFFL))
+                val argb = picked.toArgb().toLong() and 0xFFFFFFFFL
+                onSelect(CutoutColor.Solid(argb))
+                scope.launch { recentColorPreferences.record(argb) }
             },
             onDismiss = { showPicker = false },
         )
