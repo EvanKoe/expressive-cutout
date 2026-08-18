@@ -143,6 +143,11 @@ class IslandOverlayController(private val context: Context) {
     private var currentRotation: Int = currentDisplayRotation()
     private val rotationState = MutableStateFlow(currentRotation)
 
+    // Set while a rotation cross-fade is applying the new geometry with the island hidden, so the
+    // pill snaps to its new shape/placement instead of sliding there — the movement stays invisible
+    // and only the fade is seen.
+    private val rotationSnapState = MutableStateFlow(false)
+
     private val displayHeightPx: Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             windowManager.maximumWindowMetrics.bounds.height()
@@ -397,6 +402,38 @@ class IslandOverlayController(private val context: Context) {
     fun onOrientationChanged(orientation: Int) {
         val rotation = currentDisplayRotation()
         if (orientation == currentOrientation && rotation == currentRotation) return
+        val view = composeView
+        // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
+        if (view == null || overlayHidden) {
+            applyRotation(orientation, rotation)
+            return
+        }
+        // Cross-fade across the rotation: fade the island out at its old placement, snap to the new
+        // geometry while it is invisible (so it never slides from the top band to the side edge),
+        // then fade it back in.
+        view.animate().cancel()
+        view.animate()
+            .alpha(0f)
+            .setDuration(ROTATION_FADE_MS)
+            .withEndAction {
+                rotationSnapState.value = true
+                applyRotation(orientation, rotation)
+                val revealed = composeView
+                if (revealed == null || overlayHidden) {
+                    rotationSnapState.value = false
+                    return@withEndAction
+                }
+                revealed.animate()
+                    .alpha(1f)
+                    .setDuration(ROTATION_FADE_MS)
+                    .withEndAction { rotationSnapState.value = false }
+                    .start()
+            }
+            .start()
+    }
+
+    /** Adopt a new orientation/rotation: resize to the live width and re-place the window. */
+    private fun applyRotation(orientation: Int, rotation: Int) {
         currentOrientation = orientation
         currentRotation = rotation
         orientationState.value = orientation
@@ -405,7 +442,14 @@ class IslandOverlayController(private val context: Context) {
         displayWidthDp.value = (displayWidthPx / density).toInt()
         applyLockVisibility()
         if (overlayHidden) return
-        syncWindowSize()
+        // Resize straight to the final geometry in one step (not the usual grow-then-shrink), while the
+        // island is still invisible mid cross-fade. The delayed shrink would otherwise fire after the
+        // fade-in and visibly slide the pill back to its place.
+        windowResizeJob?.cancel()
+        resizeWindow(
+            windowWidthPx(layoutState.value),
+            windowHeightPx(layoutState.value, expanded),
+        )
     }
 
     private fun addOverlay() {
@@ -422,6 +466,7 @@ class IslandOverlayController(private val context: Context) {
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
+                val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
                 val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
                      behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
@@ -439,6 +484,7 @@ class IslandOverlayController(private val context: Context) {
                         forcedExpanded = effectiveForced,
                         isStickToCamera = isStickToCamera,
                         isRotation270 = rot270,
+                        snapGeometry = snapGeometry,
                         offsetYDp = layout.collapsed.offsetYDp,
                         animationStyle = behaviour.animationStyle,
                         animationSpeed = behaviour.animationSpeed,
@@ -1610,6 +1656,9 @@ class IslandOverlayController(private val context: Context) {
     private companion object {
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
+
+        /** Half-length of the rotation cross-fade: island fades out, snaps, then fades back in. */
+        const val ROTATION_FADE_MS = 150L
 
         // Slack around the pill's touchable rectangle so its rounded edges, shadow and tap "boop"
         // scale stay tappable — kept small so the shade-pull area beside the pill stays free.
