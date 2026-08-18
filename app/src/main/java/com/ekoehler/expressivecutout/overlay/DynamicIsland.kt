@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -261,6 +263,7 @@ fun DynamicIsland(
     forcedExpanded: Boolean?,
     isStickToCamera: Boolean = false,
     isRotation270: Boolean = false,
+    snapGeometry: Boolean = false,
     offsetYDp: Int = 6,
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
@@ -421,10 +424,10 @@ fun DynamicIsland(
         }
     }
 
-    val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
+    val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val heightSpec: AnimationSpec<Dp> = when {
-        reveal.value == 0f -> snap()
+        reveal.value == 0f || snapGeometry -> snap()
         isAssistantAnswer -> motion.dpSmooth()
         else -> spec
     }
@@ -2719,6 +2722,12 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
  * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
  * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
  * non-null [strokeColor] rings the cover, set apart from it by a small gap.
+ *
+ * [size] is the cover's ceiling rather than a promise. The expanded layout gives this a height budget
+ * that shrinks as the track text and transport controls take their share, and because a `size()` is
+ * still coerced into the parent's maximum, a tight budget used to squash the (width-unconstrained)
+ * cover into an ellipse. Capping both axes and pinning the ratio instead keeps a spinning cover
+ * perfectly round, scaling down as one piece when there isn't room for the full [size].
  */
 @Composable
 private fun AlbumArt(
@@ -2751,7 +2760,12 @@ private fun AlbumArt(
     val gap = if (strokeColor != null) size * ALBUM_STROKE_GAP_FRACTION else 0.dp
     val coverSize = size - (strokeWidth + gap) * 2
 
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .sizeIn(maxWidth = size, maxHeight = size)
+            .aspectRatio(1f),
+        contentAlignment = Alignment.Center,
+    ) {
         if (strokeColor != null) {
             Box(
                 modifier = Modifier
@@ -2766,7 +2780,8 @@ private fun AlbumArt(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(coverSize)
+                .fillMaxSize()
+                .padding(strokeWidth + gap)
                 .rotate(if (rotate) angle.value else 0f)
                 .clip(albumArtShape(rotate, coverSize)),
         )
