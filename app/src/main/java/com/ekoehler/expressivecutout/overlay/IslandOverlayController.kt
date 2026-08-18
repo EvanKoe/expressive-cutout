@@ -1084,7 +1084,10 @@ class IslandOverlayController(private val context: Context) {
         return incoming && call.incomingExpandedLayout && call.showActions && event.actions.isNotEmpty()
     }
 
-    /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
+    /**
+     * The extra height the expanded island claims for its bottom rows, mirroring the composable: the
+     * control row, plus the music progress bar when that's shown as a third row of its own.
+     */
     private fun expandedActionsBonusDp(): Int {
         val event = currentEvent.value
         val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
@@ -1092,11 +1095,14 @@ class IslandOverlayController(private val context: Context) {
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
         val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
-        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
-            expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
-        } else {
-            0
-        }
+        val controlsExtra =
+            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
+                expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
+            } else {
+                0
+            }
+        val progressExtra = if (event?.media?.showProgress == true) expandedMediaProgressExtraDp() else 0
+        return controlsExtra + progressExtra
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */

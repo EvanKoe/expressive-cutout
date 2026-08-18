@@ -218,6 +218,17 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
  */
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
+// Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
+private const val MEDIA_PROGRESS_HEIGHT_DP = 4
+
+/**
+ * Extra height added to the expanded music tile when it shows the progress bar: the bar itself plus
+ * the spacing above it. Reserved separately from [expandedActionsExtraDp] because the bar is a third
+ * row in the same column — without its own allowance the track text is squeezed out of its slot and
+ * the bar, drawn after it, paints over the artist line.
+ */
+internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
+
 /**
  * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
  * visible island fits its measured content exactly (see the height-bonus logic in [DynamicIsland]);
@@ -349,6 +360,7 @@ fun DynamicIsland(
 
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
+    val hasMediaProgress = shownEvent?.media?.showProgress == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
@@ -397,8 +409,15 @@ fun DynamicIsland(
             val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
-        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
-            expandedActionsExtraDp(appearance.actionButtonHeightDp)
+        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions ||
+            hasMediaProgress) -> {
+            val controlsExtra = if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
+                expandedActionsExtraDp(appearance.actionButtonHeightDp)
+            } else {
+                0
+            }
+            controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
+        }
         callTwoRow -> callIncomingExtraDp()
         else -> 0
     }
