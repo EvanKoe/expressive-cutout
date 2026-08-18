@@ -18,6 +18,7 @@ private const val DISABLE_NONE = 0x00000000
 private const val DISABLE_NOTIFICATION_ICONS = 0x00020000
 private const val DISABLE_NOTIFICATION_ALERTS = 0x00040000
 private const val DISABLE_SYSTEM_INFO = 0x00100000
+private const val DISABLE_CLOCK = 0x00800000
 
 /**
  * Hides the system status bar's notification icons through Shizuku, so the island is the only thing
@@ -54,10 +55,11 @@ object StatusBarIconController {
             combine(
                 preferences.hideNotificationIcons,
                 preferences.hideSystemInfo,
+                preferences.hideClock,
                 preferences.silenceAlerts,
                 ShizukuState.status,
-            ) { hideIcons, hideSystemInfo, silenceAlerts, status ->
-                Wish(hideIcons, hideSystemInfo, silenceAlerts, status)
+            ) { hideIcons, hideSystemInfo, hideClock, silenceAlerts, status ->
+                Wish(hideIcons, hideSystemInfo, hideClock, silenceAlerts, status)
             }
                 .collect { wish ->
                     if (wish.status != ShizukuStatus.READY) {
@@ -66,7 +68,7 @@ object StatusBarIconController {
                         service = null
                         return@collect
                     }
-                    apply(wish.hideIcons, wish.hideSystemInfo, wish.silenceAlerts, packageName)
+                    apply(wish.hideIcons, wish.hideSystemInfo, wish.hideClock, wish.silenceAlerts, packageName)
                 }
         }
     }
@@ -80,12 +82,14 @@ object StatusBarIconController {
     fun apply(
         hideIcons: Boolean,
         hideSystemInfo: Boolean,
+        hideClock: Boolean,
         silenceAlerts: Boolean,
         packageName: String,
     ): Boolean = runCatching {
         var flags = DISABLE_NONE
         if (hideIcons) flags = flags or DISABLE_NOTIFICATION_ICONS
         if (hideSystemInfo) flags = flags or DISABLE_SYSTEM_INFO
+        if (hideClock) flags = flags or DISABLE_CLOCK
         if (silenceAlerts) flags = flags or DISABLE_NOTIFICATION_ALERTS
         val statusBar = service ?: buildService().also { service = it }
         statusBar.disable(flags, packageName)
@@ -94,7 +98,7 @@ object StatusBarIconController {
         Log.w(
             TAG,
             "Could not apply status-bar flags " +
-                "(icons=$hideIcons, systemInfo=$hideSystemInfo, alerts=$silenceAlerts)",
+                "(icons=$hideIcons, systemInfo=$hideSystemInfo, clock=$hideClock, alerts=$silenceAlerts)",
             error,
         )
         service = null
@@ -105,6 +109,7 @@ object StatusBarIconController {
     private data class Wish(
         val hideIcons: Boolean,
         val hideSystemInfo: Boolean,
+        val hideClock: Boolean,
         val silenceAlerts: Boolean,
         val status: ShizukuStatus,
     )

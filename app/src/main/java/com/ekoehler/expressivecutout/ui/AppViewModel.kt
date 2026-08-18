@@ -678,6 +678,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Whether the user wants the system status bar's clock hidden. Saved even while Shizuku is
+     * unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideClock: StateFlow<Boolean> =
+        statusBarPreferences.hideClock.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideClock(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideClock(hide)
+    }
+
+    /**
      * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
      * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
      * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.

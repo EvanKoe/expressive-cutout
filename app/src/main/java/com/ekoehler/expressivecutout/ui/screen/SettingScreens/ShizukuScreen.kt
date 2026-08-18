@@ -70,6 +70,7 @@ internal fun ShizukuScreen(
     val context = LocalContext.current
     val hideIcons by viewModel.hideNotificationIcons.collectAsStateWithLifecycle()
     val hideSystemInfo by viewModel.hideSystemInfo.collectAsStateWithLifecycle()
+    val hideClock by viewModel.hideClock.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
 
@@ -107,7 +108,7 @@ internal fun ShizukuScreen(
             )
         }
 
-        StatusBarPreview(hideIcons = hideIcons, hideSystem = hideSystemInfo)
+        StatusBarPreview(hideIcons = hideIcons, hideSystem = hideSystemInfo, hideClock = hideClock)
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
@@ -138,6 +139,15 @@ internal fun ShizukuScreen(
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.status_bar_hide_clock_title),
+            description = stringResource(R.string.status_bar_hide_clock_desc),
+            checked = ready && hideClock,
+            onCheckedChange = viewModel::setHideClock,
+            enabled = ready,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.status_bar_silence_alerts_title),
             description = stringResource(R.string.status_bar_silence_alerts_desc),
             checked = ready && silenceAlerts,
@@ -148,7 +158,7 @@ internal fun ShizukuScreen(
 }
 
 @Composable
-private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean) {
+private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clip(shape = RoundedCornerShape(24.dp))
@@ -157,11 +167,13 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = stringResource(R.string.statusbar_preview_time),
-            fontSize = MaterialTheme.typography.bodyLarge.fontSize,
-            fontWeight = FontWeight.Bold
-        )
+        AnimatedVisibility(visible = !hideClock) {
+            Text(
+                text = stringResource(R.string.statusbar_preview_time),
+                fontSize = MaterialTheme.typography.bodyLarge.fontSize,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
         AnimatedVisibility(visible = !hideIcons) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

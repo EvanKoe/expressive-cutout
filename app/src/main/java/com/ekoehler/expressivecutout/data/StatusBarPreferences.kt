@@ -31,6 +31,10 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[HIDE_SYSTEM_INFO] ?: false
     }
 
+    val hideClock: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
+        prefs[HIDE_CLOCK] ?: false
+    }
+
     val silenceAlerts: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
         prefs[SILENCE_ALERTS] ?: false
     }
@@ -43,6 +47,10 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[HIDE_SYSTEM_INFO] = hide
     }
 
+    suspend fun setHideClock(hide: Boolean) = context.statusBarDataStore.edit { prefs ->
+        prefs[HIDE_CLOCK] = hide
+    }
+
     suspend fun setSilenceAlerts(silence: Boolean) = context.statusBarDataStore.edit { prefs ->
         prefs[SILENCE_ALERTS] = silence
     }
@@ -50,28 +58,33 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
     private companion object {
         val HIDE_NOTIFICATION_ICONS = booleanPreferencesKey("hide_notification_icons")
         val HIDE_SYSTEM_INFO = booleanPreferencesKey("hide_system_info")
+        val HIDE_CLOCK = booleanPreferencesKey("hide_clock")
         val SILENCE_ALERTS = booleanPreferencesKey("silence_alerts")
     }
 
     /**
      * Exports the status-bar settings in a JSON string
-     * { hideNotificationIcons: boolean, hideSystemInfo: boolean, silenceAlerts: boolean }
+     * { hideNotificationIcons: boolean, hideSystemInfo: boolean, hideClock: boolean,
+     *   silenceAlerts: boolean }
      */
     override suspend fun toJson(): String {
         val hideIcons = hideNotificationIcons.first()
         val hideSystemInfo = hideSystemInfo.first()
+        val hideClock = hideClock.first()
         val silence = silenceAlerts.first()
         return JSONObject().apply {
             put("hideNotificationIcons", hideIcons)
             put("hideSystemInfo", hideSystemInfo)
+            put("hideClock", hideClock)
             put("silenceAlerts", silence)
         }.toString()
     }
 
     /**
-     * Applies { hideNotificationIcons: boolean, hideSystemInfo: boolean, silenceAlerts: boolean }
-     * exported by [toJson]. Each missing field leaves its setting untouched — importing a document
-     * from a build without this section shouldn't silently flip any flag.
+     * Applies { hideNotificationIcons: boolean, hideSystemInfo: boolean, hideClock: boolean,
+     * silenceAlerts: boolean } exported by [toJson]. Each missing field leaves its setting
+     * untouched — importing a document from a build without this section shouldn't silently flip
+     * any flag.
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
@@ -80,6 +93,9 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         }
         if (obj.has("hideSystemInfo")) {
             setHideSystemInfo(obj.optBoolean("hideSystemInfo", false))
+        }
+        if (obj.has("hideClock")) {
+            setHideClock(obj.optBoolean("hideClock", false))
         }
         if (obj.has("silenceAlerts")) {
             setSilenceAlerts(obj.optBoolean("silenceAlerts", false))
