@@ -486,12 +486,13 @@ fun DynamicIsland(
 
     val haptic = LocalHapticFeedback.current
 
-    var lastPresent by remember { mutableStateOf(present) }
-    LaunchedEffect(present) {
-        if (hapticsOnPop && present != lastPresent) {
+    val hasEvent = event != null
+    var lastHasEvent by remember { mutableStateOf(hasEvent) }
+    LaunchedEffect(hasEvent) {
+        if (hapticsOnPop && hasEvent != lastHasEvent) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
-        lastPresent = present
+        lastHasEvent = hasEvent
     }
 
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
