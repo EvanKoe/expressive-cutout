@@ -518,6 +518,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setVibrateOnTap(enabled)
     }
 
+    fun setHapticsOnPop(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHapticsOnPop(enabled)
+    }
+
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }

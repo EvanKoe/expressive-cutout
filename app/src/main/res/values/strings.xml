@@ -297,6 +297,8 @@
     <string name="settings_animation_subtitle">Tune how fast the cutout animates</string>
     <string name="behaviour_vibrateOnTap_title">Haptic feedback</string>
     <string name="behaviour_vibrateOnTap_desc">Vibrates lightly when tapping on the cutout</string>
+    <string name="behaviour_hapticsOnPop_title">Haptics on pop</string>
+    <string name="behaviour_hapticsOnPop_desc">Vibrates lightly when the cutout appears and disappears</string>
     <string name="animation_style">Animation style</string>
     <string name="animation_style_expressive">Expressive</string>
     <string name="animation_style_ease">Ease in-out</string>

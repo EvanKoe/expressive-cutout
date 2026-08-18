@@ -298,6 +298,7 @@ fun DynamicIsland(
     centerFillContainers: Boolean = false,
     centerThemedIcons: Boolean = false,
     vibrateOnTap: Boolean = true,
+    hapticsOnPop: Boolean = false,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -484,6 +485,14 @@ fun DynamicIsland(
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
 
     val haptic = LocalHapticFeedback.current
+
+    var lastPresent by remember { mutableStateOf(present) }
+    LaunchedEffect(present) {
+        if (hapticsOnPop && present != lastPresent) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastPresent = present
+    }
 
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
     Box(modifier = Modifier.fillMaxSize()) {

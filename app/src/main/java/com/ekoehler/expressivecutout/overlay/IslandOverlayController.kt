@@ -508,6 +508,7 @@ class IslandOverlayController(private val context: Context) {
                         centerThemedIcons = behaviour.centerThemedIcons,
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
+                        hapticsOnPop = behaviour.hapticsOnPop,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
