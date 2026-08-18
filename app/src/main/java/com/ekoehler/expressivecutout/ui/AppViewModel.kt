@@ -775,4 +775,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDisplayWhileDnd(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setDisplayWhileDnd(enabled)
     }
+
+    fun setAlertOnNotification(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setAlertOnNotification(enabled)
+    }
 }

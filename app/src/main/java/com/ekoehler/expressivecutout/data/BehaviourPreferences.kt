@@ -101,6 +101,7 @@ data class BehaviourSettings(
     val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
     val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS,
     val displayWhileDnd: Boolean = DEFAULT_DISPLAY_WHILE_DND,
+    val alertOnNotification: Boolean = DEFAULT_ALERT_ON_NOTIFICATION,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -138,6 +139,7 @@ data class BehaviourSettings(
         const val CENTER_THEMED_ICONS = false
         const val DEFAULT_DISMISS_NOTIFICATIONS = false
         const val DEFAULT_DISPLAY_WHILE_DND = false
+        const val DEFAULT_ALERT_ON_NOTIFICATION = false
     }
 }
 
@@ -207,7 +209,9 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             /** If enabled, remove Android notification pop-ups */
             dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS,
             /** If enabled, notification cutout appears even when Do not disturb is enabled */
-            displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND
+            displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND,
+            /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+            alertOnNotification = prefs[ALERT_ON_NOTIFICATION] ?: BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION
         )
     }
 
@@ -248,6 +252,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("vibrateOnTap", s.vibrateOnTap)
             put("dismissNotifications", s.dismissNotifications)
             put("displayWhileDnd", s.displayWhileDnd)
+            put("alertOnNotification", s.alertOnNotification)
         }.toString()
     }
 
@@ -313,6 +318,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("vibrateOnTap")) it[VIBRATE_ON_TAP] = obj.getBoolean("vibrateOnTap")
             if (obj.has("dismissNotifications")) it[DISMISS_NOTIFICATIONS] = obj.getBoolean("dismissNotifications")
             if (obj.has("displayWhileDnd")) it[DISPLAY_WHILE_DND] = obj.getBoolean("displayWhileDnd")
+            if (obj.has("alertOnNotification")) it[ALERT_ON_NOTIFICATION] = obj.getBoolean("alertOnNotification")
         }
     }
 
@@ -481,6 +487,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[DISPLAY_WHILE_DND] = enabled
     }
 
+    /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+    suspend fun setAlertOnNotification(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[ALERT_ON_NOTIFICATION] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -515,5 +526,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
         val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
         val DISPLAY_WHILE_DND = booleanPreferencesKey("display_while_dnd")
+        val ALERT_ON_NOTIFICATION = booleanPreferencesKey("alert_on_notification")
     }
 }

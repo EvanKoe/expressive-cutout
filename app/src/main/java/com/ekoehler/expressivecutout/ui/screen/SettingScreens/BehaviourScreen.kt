@@ -226,6 +226,13 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setDismissNotifications,
         )
         SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_alertOnNotif_title),
+            description = stringResource(R.string.behaviour_alertOnNotif_desc),
+            checked = behaviour.alertOnNotification,
+            onCheckedChange = viewModel::setAlertOnNotification,
+        )
+        SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = true),
             title = stringResource(R.string.behaviour_displayWhileDnd_title),
             description = stringResource(R.string.behaviour_displayWhileDnd_desc),

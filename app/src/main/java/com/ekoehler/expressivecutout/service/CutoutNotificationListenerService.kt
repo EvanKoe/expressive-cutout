@@ -98,6 +98,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // the same reason. Main-thread only, like the key fields.
     private var displayWhileDnd = BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND
 
+    // Mirror of BehaviourSettings.alertOnNotification, cached alongside [dismissNotifications] and for
+    // the same reason. Main-thread only, like the key fields.
+    private var alertOnNotification = BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION
+
     // Keys currently held out of the shade because the island is showing them, mapped to the
     // elapsed-realtime at which the hold expires on its own. Timestamped rather than a bare set
     // because notification keys are recycled: an entry that outlived its window must not swallow the
@@ -168,6 +172,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 .collect { settings ->
                     dismissNotifications = settings.dismissNotifications
                     displayWhileDnd = settings.displayWhileDnd
+                    alertOnNotification = settings.alertOnNotification
                 }
         }
     }
@@ -205,9 +210,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Ring and buzz for a notification the island is taking over, standing in for the alert the hold
-     * is about to cut short. Only ever for a notification we are actually holding — one left in the
-     * shade still has its own alert, and doubling it would be worse than the silence this fixes.
+     * Ring and buzz for a notification surfacing on the island, driven by the standalone
+     * "Vibrate/rings on notification" setting rather than by the hold. The user turns this on when the
+     * island is their notification alert — because they silenced the system's own (Shizuku "Silence
+     * system alerts") or disabled heads-up — so it fires whether or not the notification is being held
+     * back. With it off, nothing here alerts, and a notification keeps whatever alert the framework
+     * already gave it.
      *
      * Whether Do Not Disturb (or a priority rule, or the app's own quieting) would have let this one
      * make a sound at all is the framework's verdict, taken off the ranking rather than guessed at
@@ -519,11 +527,17 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         IslandEventBus.emit(islandEvent)
         rememberShown(notification.key, fingerprint)
 
+        // Ring/buzz for the surfacing notification when the user made the island their alert. Skips
+        // progress notifications: they re-post on every step and would buzz the whole way through a
+        // download. Independent of the hold below — the two settings no longer share a lever.
+        if (alertOnNotification && progress == null) {
+            alertFor(notification)
+        }
+
         // Never hold a transfer still running: it re-posts on every step, so holding it would fight
         // the download for the shade and hide the very bar the user wants to watch. Its completion
         // notice carries no progress, so that one auto-dismisses normally.
         if (dismissNotifications && progress == null && isUserPresent()) {
-            alertFor(notification)
             hold(notification.key)
         }
     }

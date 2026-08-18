@@ -474,5 +474,7 @@
     <string name="behaviour_dismissNotifs_desc">Keep notifications out of the shade while the island shows them. Ignore one and it comes back a minute later, so nothing is lost</string>
     <string name="behaviour_displayWhileDnd_title">Display while Do not disturb</string>
     <string name="behaviour_displayWhileDnd_desc">Display notifications even when do not disturb is enabled</string>
+    <string name="behaviour_alertOnNotif_title">Vibrate/rings on notification</string>
+    <string name="behaviour_alertOnNotif_desc">Vibrates or rings when a notification arrives, based on the device ringing mode. This is useful if you disabled Android heads-up notifications</string>
     <string name="statusbar_preview_time">2:34</string>
 </resources>
