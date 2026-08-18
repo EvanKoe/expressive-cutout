@@ -98,6 +98,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     // the same reason. Main-thread only, like the key fields.
     private var displayWhileDnd = BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND
 
+    // Mirror of BehaviourSettings.alertOnNotification, cached alongside [dismissNotifications] and for
+    // the same reason. Main-thread only, like the key fields.
+    private var alertOnNotification = BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION
+
     // Keys currently held out of the shade because the island is showing them, mapped to the
     // elapsed-realtime at which the hold expires on its own. Timestamped rather than a bare set
     // because notification keys are recycled: an entry that outlived its window must not swallow the
@@ -110,6 +114,18 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     // Keys the user killed on the pill, awaiting the re-post that lets us cancel them. Mirrors [held].
     private val pendingCancel = LinkedHashMap<String, Long>()
+
+    // Content fingerprints of notifications the island has finished with (swiped, acted on, or timed
+    // out), mapped to the elapsed-realtime the suppression expires. A re-post carrying the same
+    // fingerprint inside its window is the same notification coming back and is dropped rather than
+    // re-popped; one with new content is a genuinely new notification and gets its pill, even on a
+    // recycled key. Fingerprinted rather than keyed precisely because keys are recycled — a bare key
+    // set would swallow the next notification to reuse it. Main-thread only, like the maps above.
+    private val suppressed = LinkedHashMap<String, Long>()
+
+    // Fingerprint each live key was last emitted under, so the key handed back on release/dismiss/
+    // settle can be resolved to the content that should now be suppressed. Main-thread only.
+    private val shownFingerprint = LinkedHashMap<String, String>()
 
     // How many fetch-backs are in flight with notification effects muted. The hint behind that mute
     // is global and has no per-notification form, so it is raised once and dropped only when the last
@@ -156,6 +172,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 .collect { settings ->
                     dismissNotifications = settings.dismissNotifications
                     displayWhileDnd = settings.displayWhileDnd
+                    alertOnNotification = settings.alertOnNotification
                 }
         }
     }
@@ -193,9 +210,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Ring and buzz for a notification the island is taking over, standing in for the alert the hold
-     * is about to cut short. Only ever for a notification we are actually holding — one left in the
-     * shade still has its own alert, and doubling it would be worse than the silence this fixes.
+     * Ring and buzz for a notification surfacing on the island, driven by the standalone
+     * "Vibrate/rings on notification" setting rather than by the hold. The user turns this on when the
+     * island is their notification alert — because they silenced the system's own (Shizuku "Silence
+     * system alerts") or disabled heads-up — so it fires whether or not the notification is being held
+     * back. With it off, nothing here alerts, and a notification keeps whatever alert the framework
+     * already gave it.
      *
      * Whether Do Not Disturb (or a priority rule, or the app's own quieting) would have let this one
      * make a sound at all is the framework's verdict, taken off the ranking rather than guessed at
@@ -375,6 +395,49 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
+     * Content identity of a notification, stable across the re-posts that reuse its key. Built from
+     * the visible text rather than the key so a genuinely new notification landing on a recycled key
+     * is told apart from the same one coming back.
+     */
+    private fun fingerprint(packageName: String, title: String?, text: String?): String =
+        "$packageName ${title.orEmpty()} ${text.orEmpty()}"
+
+    /**
+     * Whether [fingerprint] is still under suppression, pruning it in passing once its window has run
+     * out so a later notification carrying the same text is not held back long after the loop it was
+     * meant to break.
+     */
+    private fun LinkedHashMap<String, Long>.isSuppressed(fingerprint: String): Boolean {
+        val until = this[fingerprint] ?: return false
+        if (SystemClock.elapsedRealtime() > until) {
+            remove(fingerprint)
+            return false
+        }
+        return true
+    }
+
+    /** Remember the fingerprint [key] was emitted under, capped like [track] against runaway growth. */
+    private fun rememberShown(key: String, fingerprint: String) {
+        shownFingerprint[key] = fingerprint
+        while (shownFingerprint.size > MAX_TRACKED_KEYS) shownFingerprint.remove(shownFingerprint.keys.first())
+    }
+
+    /**
+     * Mark the content the island has just finished with, so re-posts of it are dropped for
+     * [SUPPRESS_MS] rather than popping the pill again and flip-flopping with whatever replaced it.
+     * Resolves the content from the key it was shown under, so it is a no-op for a key never shown as
+     * an ordinary notification (a live tile, or one already settled). Prunes expired entries and caps
+     * growth like [track].
+     */
+    private fun markSuppressed(key: String) {
+        val fingerprint = shownFingerprint.remove(key) ?: return
+        val now = SystemClock.elapsedRealtime()
+        suppressed.entries.removeAll { it.value < now }
+        suppressed[fingerprint] = now + SUPPRESS_MS
+        while (suppressed.size > MAX_TRACKED_KEYS) suppressed.remove(suppressed.keys.first())
+    }
+
+    /**
      * Returns progress data from a notification (or null if no progress).
      *
      * The progress extras are written by [Notification.Builder] for every notification, whether or
@@ -441,6 +504,14 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
+
+        // A notification the island already finished with, coming back on the same content: drop it
+        // rather than re-popping to fight whatever replaced it. Progress notifications are exempt —
+        // their text changes every step, so they never match a fingerprint, and a stalled one at a
+        // fixed percent must not read as a re-pop and vanish.
+        val fingerprint = fingerprint(notification.packageName, title, text)
+        if (progress == null && suppressed.isSuppressed(fingerprint)) return
+
         val islandEvent = CutoutSignal.Notification(
             packageName = notification.packageName,
             title = title,
@@ -454,12 +525,19 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         )
 
         IslandEventBus.emit(islandEvent)
+        rememberShown(notification.key, fingerprint)
+
+        // Ring/buzz for the surfacing notification when the user made the island their alert. Skips
+        // progress notifications: they re-post on every step and would buzz the whole way through a
+        // download. Independent of the hold below — the two settings no longer share a lever.
+        if (alertOnNotification && progress == null) {
+            alertFor(notification)
+        }
 
         // Never hold a transfer still running: it re-posts on every step, so holding it would fight
         // the download for the shade and hide the very bar the user wants to watch. Its completion
         // notice carries no progress, so that one auto-dismisses normally.
         if (dismissNotifications && progress == null && isUserPresent()) {
-            alertFor(notification)
             hold(notification.key)
         }
     }
@@ -632,6 +710,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // in flight at once; purely a guard against runaway growth.
         private const val MAX_TRACKED_KEYS = 64
 
+        // How long a notification's content stays suppressed after the island finishes with it, so a
+        // re-post of the same notification doesn't pop again and flip-flop with what replaced it. Long
+        // enough to outlast the burst of re-posts that drives the loop, short enough that a genuinely
+        // fresh notification reusing the same text isn't held back noticeably.
+        private const val SUPPRESS_MS = 8_000L
+
         // The currently connected listener, or null when unbound. Only touched on the main thread
         // (the framework's listener callbacks and the overlay both run there).
         @Volatile
@@ -671,7 +755,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          * the listener isn't connected (nothing we can do without it).
          */
         fun dismiss(key: String) {
-            instance?.discard(key, onlyIfHeld = false)
+            instance?.run { markSuppressed(key); discard(key, onlyIfHeld = false) }
         }
 
         /**
@@ -681,7 +765,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          * before the island got involved.
          */
         fun settle(key: String) {
-            instance?.discard(key, onlyIfHeld = true)
+            instance?.run { markSuppressed(key); discard(key, onlyIfHeld = true) }
         }
 
         /**
@@ -690,7 +774,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          * panel now, landing as the pill fades. A no-op for a notification we never held.
          */
         fun release(key: String) {
-            instance?.releaseHeld(key)
+            instance?.run { markSuppressed(key); releaseHeld(key) }
         }
     }
 }

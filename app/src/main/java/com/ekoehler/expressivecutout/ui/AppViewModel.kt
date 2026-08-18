@@ -45,6 +45,8 @@ import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -77,6 +79,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val timerTilePreferences = TimerTilePreferences(application)
     private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
+    private val recentColorPreferences = RecentColorPreferences(application)
+    private val statusBarPreferences = StatusBarPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -241,6 +245,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.TIMER_TILE to timerTilePreferences,
         JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
+        JsonSettings.RECENT_COLORS to recentColorPreferences,
+        JsonSettings.STATUS_BAR to statusBarPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
@@ -512,6 +518,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setVibrateOnTap(enabled)
     }
 
+    fun setHapticsOnPop(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHapticsOnPop(enabled)
+    }
+
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }
@@ -640,6 +650,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setShadowEnabled(enabled)
     }
 
+    /**
+     * Whether the user wants the system status bar's notification icons hidden. Saved even while
+     * Shizuku is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideNotificationIcons: StateFlow<Boolean> =
+        statusBarPreferences.hideNotificationIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideNotificationIcons(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideNotificationIcons(hide)
+    }
+
+    /**
+     * Whether the user wants the system status bar's info icons (clock, battery, Wi-Fi, signal)
+     * hidden. Saved even while Shizuku is unreachable; `StatusBarIconController` applies it as soon
+     * as the bridge is back.
+     */
+    val hideSystemInfo: StateFlow<Boolean> =
+        statusBarPreferences.hideSystemInfo.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideSystemInfo(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideSystemInfo(hide)
+    }
+
+    /**
+     * Whether the user wants the system status bar's clock hidden. Saved even while Shizuku is
+     * unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideClock: StateFlow<Boolean> =
+        statusBarPreferences.hideClock.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideClock(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideClock(hide)
+    }
+
+    /**
+     * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
+     * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
+     * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val silenceSystemAlerts: StateFlow<Boolean> =
+        statusBarPreferences.silenceAlerts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setSilenceSystemAlerts(silence: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setSilenceAlerts(silence)
+    }
+
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setStrokeEnabled(enabled)
     }
@@ -706,5 +778,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setDisplayWhileDnd(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setDisplayWhileDnd(enabled)
+    }
+
+    fun setAlertOnNotification(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setAlertOnNotification(enabled)
     }
 }

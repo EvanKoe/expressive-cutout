@@ -174,6 +174,15 @@ internal fun BehaviourScreen(
             checked = behaviour.vibrateOnTap,
             onCheckedChange = viewModel::setVibrateOnTap
         )
+        AnimatedVisibility(visible = !behaviour.showsWhenEmpty) {
+            SettingsToggleCard(
+                shape = groupedShape(isFirst = false, isLast = false),
+                title = stringResource(R.string.behaviour_hapticsOnPop_title),
+                description = stringResource(R.string.behaviour_hapticsOnPop_desc),
+                checked = behaviour.hapticsOnPop,
+                onCheckedChange = viewModel::setHapticsOnPop,
+            )
+        }
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_swipe_dismiss),
@@ -224,6 +233,13 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_dismissNotifs_desc),
             checked = behaviour.dismissNotifications,
             onCheckedChange = viewModel::setDismissNotifications,
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_alertOnNotif_title),
+            description = stringResource(R.string.behaviour_alertOnNotif_desc),
+            checked = behaviour.alertOnNotification,
+            onCheckedChange = viewModel::setAlertOnNotification,
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = true),

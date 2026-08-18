@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +50,7 @@ import com.ekoehler.expressivecutout.data.ColorSpec
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.GradientDirection
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -55,6 +58,7 @@ import com.ekoehler.expressivecutout.overlay.resolveBrush
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** Accent used by the preview event, matching the sibling settings screens. */
@@ -273,6 +277,17 @@ private fun ColorSpecPicker(
     val opacity = spec.opacity
     val fixedRgb = (spec as? ColorSpec.Fixed)?.argb?.and(0xFFFFFFL)
     val customRgb = fixedRgb?.takeIf { rgb -> PresetArgbs.none { it and 0xFFFFFFL == rgb } }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val recentColorPreferences = remember(context) { RecentColorPreferences(context) }
+    val storedRecents by recentColorPreferences.recentColors
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    // Compared on RGB only, like the presets below: opacity lives on the spec, not the swatch, so a
+    // recent pick and a preset of the same hue are the same swatch here.
+    val recentRgbs = storedRecents
+        .map { it and 0xFFFFFFL }
+        .filterNot { rgb -> PresetArgbs.any { it and 0xFFFFFFL == rgb } }
     // Derived from the fill itself (OLED black == a fully-black fixed colour), not held as separate
     // local state: the normal and expanded tabs share this composable slot and only swap the [spec]
     // passed in, so a remembered flag would leak the toggle across both. Deriving keeps them
@@ -327,6 +342,15 @@ private fun ColorSpecPicker(
                         onClick = { showPicker = true },
                     )
 
+                    // The user's own recent picks, newest first.
+                    recentRgbs.forEach { rgb ->
+                        ColorSwatch(
+                            color = Color(0xFF000000L or rgb),
+                            selected = fixedRgb == rgb,
+                            onClick = { pickFixed(0xFF000000L or rgb) },
+                        )
+                    }
+
                     // Neutrals then accents, matched on RGB so opacity changes don't drop the selection.
                     (NeutralColors.map { it.first } + AccentColors).forEach { argb ->
                         ColorSwatch(
@@ -355,7 +379,9 @@ private fun ColorSpecPicker(
             initial = customRgb?.let { Color(0xFF000000L or it) } ?: Color.White,
             onConfirm = { picked ->
                 showPicker = false
-                pickFixed(picked.toArgb().toLong() and 0xFFFFFFFFL)
+                val argb = picked.toArgb().toLong() and 0xFFFFFFFFL
+                pickFixed(argb)
+                scope.launch { recentColorPreferences.record(argb) }
             },
             onDismiss = { showPicker = false },
         )

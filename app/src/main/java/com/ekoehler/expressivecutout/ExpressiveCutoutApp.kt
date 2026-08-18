@@ -1,9 +1,28 @@
 package com.ekoehler.expressivecutout
 
 import android.app.Application
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.StatusBarIconController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 /**
- * Application entry point. No global state is required today; the class exists so the
- * manifest has a stable [android:name] hook for future initialisation.
+ * Application entry point. Owns the process-lifetime pieces of the Shizuku bridge: the hidden-API
+ * exemption, the binder listeners behind [ShizukuState], and the coroutine scope that re-applies the
+ * status-bar flags whenever Shizuku reconnects.
  */
-class ExpressiveCutoutApp : Application()
+class ExpressiveCutoutApp : Application() {
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    override fun onCreate() {
+        super.onCreate()
+        // IStatusBarService is a non-SDK interface, so plain reflection on it is blocked for apps
+        // targeting a recent SDK. This lifts the restriction for our process only.
+        HiddenApiBypass.addHiddenApiExemptions("")
+        ShizukuState.start(this)
+        StatusBarIconController.start(this, appScope)
+    }
+}

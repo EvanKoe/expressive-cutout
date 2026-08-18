@@ -43,7 +43,7 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
-import com.ekoehler.expressivecutout.ui.screen.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 import kotlin.math.roundToInt
 

@@ -33,6 +33,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
+import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
@@ -81,6 +82,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.lang.reflect.Proxy
+import kotlin.math.roundToInt
 
 /**
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
@@ -133,6 +135,18 @@ class IslandOverlayController(private val context: Context) {
     // orientation, ready for orientation-specific layout settings later.
     private var currentOrientation: Int = context.resources.configuration.orientation
     private val orientationState = MutableStateFlow(currentOrientation)
+
+    // The live display rotation (Surface.ROTATION_*). Tracked separately from [currentOrientation]
+    // because a 90° <-> 270° flip keeps the orientation LANDSCAPE yet moves the camera to the
+    // opposite edge, so stick-to-camera must react to it too. The flow drives the pill's rotated
+    // rendering so it re-orients on that flip without recreating the ComposeView.
+    private var currentRotation: Int = currentDisplayRotation()
+    private val rotationState = MutableStateFlow(currentRotation)
+
+    // Set while a rotation cross-fade is applying the new geometry with the island hidden, so the
+    // pill snaps to its new shape/placement instead of sliding there — the movement stays invisible
+    // and only the fade is seen.
+    private val rotationSnapState = MutableStateFlow(false)
 
     private val displayHeightPx: Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -386,14 +400,56 @@ class IslandOverlayController(private val context: Context) {
      * settings later — [currentOrientation] is the single place the live orientation is tracked.
      */
     fun onOrientationChanged(orientation: Int) {
-        if (orientation == currentOrientation) return
+        val rotation = currentDisplayRotation()
+        if (orientation == currentOrientation && rotation == currentRotation) return
+        val view = composeView
+        // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
+        if (view == null || overlayHidden) {
+            applyRotation(orientation, rotation)
+            return
+        }
+        // Cross-fade across the rotation: fade the island out at its old placement, snap to the new
+        // geometry while it is invisible (so it never slides from the top band to the side edge),
+        // then fade it back in.
+        view.animate().cancel()
+        view.animate()
+            .alpha(0f)
+            .setDuration(ROTATION_FADE_MS)
+            .withEndAction {
+                rotationSnapState.value = true
+                applyRotation(orientation, rotation)
+                val revealed = composeView
+                if (revealed == null || overlayHidden) {
+                    rotationSnapState.value = false
+                    return@withEndAction
+                }
+                revealed.animate()
+                    .alpha(1f)
+                    .setDuration(ROTATION_FADE_MS)
+                    .withEndAction { rotationSnapState.value = false }
+                    .start()
+            }
+            .start()
+    }
+
+    /** Adopt a new orientation/rotation: resize to the live width and re-place the window. */
+    private fun applyRotation(orientation: Int, rotation: Int) {
         currentOrientation = orientation
+        currentRotation = rotation
         orientationState.value = orientation
+        rotationState.value = rotation
         displayWidthPx = computeDisplayWidthPx()
         displayWidthDp.value = (displayWidthPx / density).toInt()
         applyLockVisibility()
         if (overlayHidden) return
-        syncWindowSize()
+        // Resize straight to the final geometry in one step (not the usual grow-then-shrink), while the
+        // island is still invisible mid cross-fade. The delayed shrink would otherwise fire after the
+        // fade-in and visibly slide the pill back to its place.
+        windowResizeJob?.cancel()
+        resizeWindow(
+            windowWidthPx(layoutState.value),
+            windowHeightPx(layoutState.value, expanded),
+        )
     }
 
     private fun addOverlay() {
@@ -409,13 +465,15 @@ class IslandOverlayController(private val context: Context) {
                 val appearance by appearanceState.collectAsStateWithLifecycle()
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
+                val rotation by rotationState.collectAsStateWithLifecycle()
+                val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
                 val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
                      behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
                 val effectiveForced = if (isNoExpandLandscape) false else forced
                 val isStickToCamera = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
-                val rot270 = isRotation270()
+                val rot270 = rotation == Surface.ROTATION_270
 
                 ExpressiveCutoutTheme {
                     DynamicIsland(
@@ -426,6 +484,7 @@ class IslandOverlayController(private val context: Context) {
                         forcedExpanded = effectiveForced,
                         isStickToCamera = isStickToCamera,
                         isRotation270 = rot270,
+                        snapGeometry = snapGeometry,
                         offsetYDp = layout.collapsed.offsetYDp,
                         animationStyle = behaviour.animationStyle,
                         animationSpeed = behaviour.animationSpeed,
@@ -449,6 +508,7 @@ class IslandOverlayController(private val context: Context) {
                         centerThemedIcons = behaviour.centerThemedIcons,
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
+                        hapticsOnPop = behaviour.hapticsOnPop,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
@@ -820,10 +880,14 @@ class IslandOverlayController(private val context: Context) {
         val view = composeView ?: return
         val params = layoutParams ?: return
         val targetGravity = computeWindowGravity()
-        if (params.width != targetWidthPx || params.height != targetHeightPx || params.gravity != targetGravity) {
+        val targetY = computeWindowOffsetY()
+        if (params.width != targetWidthPx || params.height != targetHeightPx ||
+            params.gravity != targetGravity || params.y != targetY
+        ) {
             params.width = targetWidthPx
             params.height = targetHeightPx
             params.gravity = targetGravity
+            params.y = targetY
             runCatching { windowManager.updateViewLayout(view, params) }
         }
     }
@@ -1021,7 +1085,10 @@ class IslandOverlayController(private val context: Context) {
         return incoming && call.incomingExpandedLayout && call.showActions && event.actions.isNotEmpty()
     }
 
-    /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
+    /**
+     * The extra height the expanded island claims for its bottom rows, mirroring the composable: the
+     * control row, plus the music progress bar when that's shown as a third row of its own.
+     */
     private fun expandedActionsBonusDp(): Int {
         val event = currentEvent.value
         val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
@@ -1029,11 +1096,14 @@ class IslandOverlayController(private val context: Context) {
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
         val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
-        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
-            expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
-        } else {
-            0
-        }
+        val controlsExtra =
+            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
+                expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
+            } else {
+                0
+            }
+        val progressExtra = if (event?.media?.showProgress == true) expandedMediaProgressExtraDp() else 0
+        return controlsExtra + progressExtra
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
@@ -1497,20 +1567,57 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    private fun isRotation270(): Boolean {
+    private fun currentDisplayRotation(): Int {
+        // Read from the WindowManager's display, not context.display: the accessibility service's
+        // context is not a visual/display context, so context.display throws on API R+.
         @Suppress("DEPRECATION")
-        val display = windowManager.defaultDisplay
-        return display?.rotation == Surface.ROTATION_270
+        return windowManager.defaultDisplay?.rotation ?: Surface.ROTATION_0
     }
 
+    /** The current display size in px in the live orientation (width, height). */
+    private fun currentScreenSizePx(): Pair<Int, Int> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            val metrics = context.resources.displayMetrics
+            metrics.widthPixels to metrics.heightPixels
+        }
+
+    /**
+     * Which edge the (rotated) landscape pill hugs. Derived from the camera cutout's real position
+     * (left/right half of the landscape screen) so it tracks the actual hole, falling back to the
+     * display rotation when the cutout can't be measured.
+     */
     private fun getLandscapeCameraGravity(): Int {
-        @Suppress("DEPRECATION")
-        val display = windowManager.defaultDisplay
-        return when (display?.rotation) {
-            Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) }
+        if (center != null) {
+            val (widthPx, _) = currentScreenSizePx()
+            return if (center.x < widthPx / 2f) {
+                Gravity.LEFT or Gravity.CENTER_VERTICAL
+            } else {
+                Gravity.RIGHT or Gravity.CENTER_VERTICAL
+            }
+        }
+        return when (currentRotation) {
             Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
             else -> Gravity.LEFT or Gravity.CENTER_VERTICAL
         }
+    }
+
+    /**
+     * The window's vertical offset from its gravity anchor. For landscape stick-to-camera the window
+     * hugs a side edge and is centred vertically, so shift it by the cutout's distance from the
+     * screen's vertical centre — that plants the pill's midline directly over the physical camera.
+     * Zero in every other case (portrait, or non-stick modes, position via gravity alone).
+     */
+    private fun computeWindowOffsetY(): Int {
+        if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) return 0
+        if (behaviourState.value.horizontalCutoutMode != HorizontalCutoutMode.STICK_TO_CAMERA) return 0
+        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) } ?: return 0
+        val (_, heightPx) = currentScreenSizePx()
+        return (center.y - heightPx / 2f).roundToInt()
     }
 
     private fun getLandscapeCameraRotation(): Float {
@@ -1545,6 +1652,7 @@ class IslandOverlayController(private val context: Context) {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = computeWindowGravity()
+            y = computeWindowOffsetY()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -1555,6 +1663,9 @@ class IslandOverlayController(private val context: Context) {
     private companion object {
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
+
+        /** Half-length of the rotation cross-fade: island fades out, snaps, then fades back in. */
+        const val ROTATION_FADE_MS = 150L
 
         // Slack around the pill's touchable rectangle so its rounded edges, shadow and tap "boop"
         // scale stay tappable — kept small so the shade-pull area beside the pill stays free.
