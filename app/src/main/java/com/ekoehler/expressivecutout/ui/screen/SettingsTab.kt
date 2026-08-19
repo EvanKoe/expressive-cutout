@@ -61,9 +61,11 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 import java.nio.file.WatchEvent
 
-// TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
-// are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
-// false in anything shipped.
+/**
+ * TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
+ * are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
+ * false in anything shipped.
+ */
 private const val FORCE_STALLED_CARDS_FOR_TESTING = false
 
 /**

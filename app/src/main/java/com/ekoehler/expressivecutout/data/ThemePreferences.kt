@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the app-level theme settings. */
 private val Context.appDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_prefs")
 
 /** Persists the selected [AppTheme], defaulting to [AppTheme.SYSTEM]. */

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the per-event settings: enabled, duration, colour and animated icon. */
 private val Context.eventDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs")
 
 /**
@@ -198,6 +199,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         it[DYNAMIC_COLOR_ROLE_KEY] = role.name
     }
 
+    /** Clamps to 0f..1f, the range the opacity slider offers. */
     suspend fun setDynamicColorOpacity(opacity: Float) = context.eventDataStore.edit {
         it[DYNAMIC_COLOR_OPACITY_KEY] = opacity.coerceIn(0f, 1f)
     }

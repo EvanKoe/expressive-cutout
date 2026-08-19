@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 
+/** Log tag for the reflection below, which reports failures rather than throwing. */
 private const val TAG = "StatusBarIcons"
 
 /** Hidden `StatusBarManager` disable flags. Only the ones we use are named here. */
@@ -114,6 +115,10 @@ object StatusBarIconController {
         val status: ShizukuStatus,
     )
 
+    /**
+     * Reflects `IStatusBarService` out from behind a Shizuku binder wrapper. Hidden and non-SDK,
+     * which is why the app lifts the hidden-API restriction at startup.
+     */
     private fun buildService(): Any {
         val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService("statusbar"))
         return Class.forName("com.android.internal.statusbar.IStatusBarService\$Stub")

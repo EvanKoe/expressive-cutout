@@ -21,6 +21,10 @@ object Permissions {
         NotificationManagerCompat.getEnabledListenerPackages(context)
             .contains(context.packageName)
 
+    /**
+     * Whether the accessibility service is enabled, read from the system's own colon-separated list
+     * rather than from the service itself so the answer is right even before it binds.
+     */
     fun isAccessibilityGranted(context: Context): Boolean {
         val expected = ComponentName(context, CutoutAccessibilityService::class.java)
             .flattenToString()
@@ -31,6 +35,10 @@ object Permissions {
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
+    /**
+     * Whether the app is exempt from battery optimisation, which it needs for the island to keep
+     * reacting after a long idle.
+     */
     fun isBatteryOptimizationIgnored(context: Context): Boolean {
         val powerManager = context.getSystemService<PowerManager>() ?: return false
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)

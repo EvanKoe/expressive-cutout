@@ -307,6 +307,7 @@ private fun BehaviourSliderRow(
     }
 }
 
+/** One choice in a radio group: its title and the line of explanation under it. */
 private data class RadioOption(
     val title: String,
     val description: String,

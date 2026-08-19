@@ -98,6 +98,10 @@ fun onDynamicRole(role: DynamicRole): Color {
     }
 }
 
+/**
+ * Picks one role out of the live Material You scheme, so a [DynamicRole] stored in preferences can
+ * be resolved at draw time.
+ */
 internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary

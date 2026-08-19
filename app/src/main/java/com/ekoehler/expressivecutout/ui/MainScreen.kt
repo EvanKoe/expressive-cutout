@@ -71,6 +71,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * The three top-level tabs, in the order the nav bar shows them, each carrying its own label and
+ * icon.
+ */
 private enum class HomeTab(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector,

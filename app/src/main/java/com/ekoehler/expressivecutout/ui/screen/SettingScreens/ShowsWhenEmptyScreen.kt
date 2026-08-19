@@ -407,6 +407,7 @@ private fun CenterShortcutsCard(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Title and description
             Text(
                 text = stringResource(R.string.shows_when_empty_center_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -416,6 +417,8 @@ private fun CenterShortcutsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Empty state, or one row per shortcut
             if (shortcuts.isEmpty()) {
                 Text(
                     text = stringResource(R.string.center_shortcuts_empty),
@@ -435,6 +438,8 @@ private fun CenterShortcutsCard(
                     )
                 }
             }
+
+            // Add button
             FilledTonalButton(onClick = onAdd, modifier = Modifier.padding(top = 4.dp)) {
                 Icon(imageVector = Icons.Rounded.Add, contentDescription = null)
                 Text(

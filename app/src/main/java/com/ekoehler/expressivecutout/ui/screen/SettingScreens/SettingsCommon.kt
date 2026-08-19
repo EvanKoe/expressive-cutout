@@ -353,6 +353,10 @@ internal fun IslandPreviewPanel(
     }
 }
 
+/**
+ * The measured camera cutout at the top of the screen, shared by the settings previews so they can
+ * draw the island against the device's real hole rather than a guess.
+ */
 internal data class TopCutout(
     val widthPx: Int,
     val heightPx: Int,

@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 // Its own file: the recent picks are shared by every colour picker in the app, and a second
 // delegate over an existing file throws "multiple DataStores active for the same file".
+/** Backing store for the colours the user picked most recently. */
 private val Context.recentColorsDataStore: DataStore<Preferences> by preferencesDataStore(name = "recent_colors")
 
 /** How many custom picks [RecentColorPreferences] keeps, newest first. */
@@ -44,6 +45,10 @@ class RecentColorPreferences(private val context: Context) : JsonSerializable {
             .joinToString(SEPARATOR)
     }
 
+    /**
+     * Parses the separated ARGB list, dropping anything unreadable and keeping at most
+     * [MAX_RECENT_COLORS] so a corrupted value degrades to a shorter list instead of an error.
+     */
     private fun String?.toArgbList(): List<Long> {
         if (isNullOrEmpty()) return emptyList()
         return split(SEPARATOR).mapNotNull { it.toLongOrNull() }.take(MAX_RECENT_COLORS)

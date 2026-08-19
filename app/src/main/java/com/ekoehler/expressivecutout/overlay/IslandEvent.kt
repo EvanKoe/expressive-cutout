@@ -17,6 +17,7 @@ import com.ekoehler.expressivecutout.service.ProgressData
  * cases keeps the [DynamicIsland] composable trivial and free of Android plumbing.
  */
 sealed interface IslandIcon {
+    /** A Material vector, drawn in the accent colour and always sharp at any size. */
     data class Vector(val image: ImageVector) : IslandIcon
 
     /**

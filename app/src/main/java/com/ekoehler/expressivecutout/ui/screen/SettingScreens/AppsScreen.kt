@@ -172,14 +172,20 @@ internal fun AppsScreen(
     }
 }
 
-// Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp.
-// Hoisted to constants rather than built per item — with a few hundred rows the allocation churn
-// during a fling is pure waste.
+/**
+ * Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp.
+ * Hoisted to constants rather than built per item — with a few hundred rows the allocation churn
+ * during a fling is pure waste.
+ */
 private val GroupShapeFirst = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
 private val GroupShapeMiddle = RoundedCornerShape(4.dp)
 private val GroupShapeLast = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp)
 private val GroupShapeOnly = RoundedCornerShape(32.dp)
 
+/**
+ * The shape one row takes in a grouped list: fully round when alone, rounded on the outer edge at
+ * either end, and squared off in the middle.
+ */
 private fun appGroupShape(index: Int, lastIndex: Int): Shape = when {
     index == 0 && index == lastIndex -> GroupShapeOnly
     index == 0 -> GroupShapeFirst
@@ -397,6 +403,10 @@ private fun Drawable.toListIconBitmap(): ImageBitmap {
     return bitmap.asImageBitmap()
 }
 
+/**
+ * Pixel size app icons are decoded at for the list, small enough that a long app list doesn't hold
+ * full-resolution bitmaps.
+ */
 private const val ICON_PX = 96
 
 /**

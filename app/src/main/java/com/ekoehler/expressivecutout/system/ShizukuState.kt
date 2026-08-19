@@ -57,6 +57,10 @@ object ShizukuState {
         _status.value = currentStatus()
     }
 
+    /**
+     * Works out the live Shizuku status, distinguishing not-installed from installed-but-stopped
+     * and from an old version whose handshake this app no longer speaks.
+     */
     private fun currentStatus(): ShizukuStatus {
         val context = appContext ?: return ShizukuStatus.NOT_INSTALLED
         if (!isInstalled(context)) return ShizukuStatus.NOT_INSTALLED
@@ -77,6 +81,7 @@ object ShizukuState {
         runCatching { Shizuku.requestPermission(PERMISSION_REQUEST_CODE) }
     }
 
+    /** Whether the Shizuku app is installed, treating any lookup failure as absent. */
     private fun isInstalled(context: Context): Boolean = runCatching {
         context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
         true

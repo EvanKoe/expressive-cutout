@@ -267,6 +267,10 @@ private fun DimensionsEditor(
     }
 }
 
+/**
+ * How many corner radii the user is editing at once: one for all four, one per side pair, or each
+ * corner on its own.
+ */
 private enum class CornerMode { All, TopBottom, Each }
 
 /**

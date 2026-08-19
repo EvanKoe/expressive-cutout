@@ -27,11 +27,19 @@ class OverlayLifecycleOwner :
     override val viewModelStore: ViewModelStore get() = store
     override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
 
+    /**
+     * Drives the fake lifecycle straight to RESUMED, which is what Compose needs before it will
+     * draw into a window the framework knows nothing about.
+     */
     fun onCreate() {
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
     }
 
+    /**
+     * Tears the fake lifecycle down and clears the ViewModel store, so a restarted overlay starts
+     * clean instead of inheriting the old one's state.
+     */
     fun onDestroy() {
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         store.clear()

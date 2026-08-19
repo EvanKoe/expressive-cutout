@@ -12,6 +12,10 @@ sealed interface IconSource {
     /** A built-in Material icon, referenced by its stable catalog key (see MaterialIconCatalog). */
     data class Material(val iconName: String) : IconSource
 
+    /**
+     * Encodes to a single tagged string so the icon choice fits one preference key. Read back by
+     * [decode].
+     */
     fun encode(): String = when (this) {
         is Image -> "$IMAGE_TAG$SEPARATOR$uri"
         is Material -> "$MATERIAL_TAG$SEPARATOR$iconName"

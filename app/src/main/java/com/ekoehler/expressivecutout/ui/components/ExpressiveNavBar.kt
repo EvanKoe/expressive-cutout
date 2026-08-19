@@ -31,7 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-// Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0).
+/** Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0). */
 private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /** One destination in the [ExpressiveNavBar]. */

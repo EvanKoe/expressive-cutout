@@ -167,48 +167,62 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// Text colours for a dark fill; on a light fill we swap in a dark text colour (see contentColorFor).
+/**
+ * Text colours for a dark fill; on a light fill we swap in a dark text colour (see
+ * contentColorFor).
+ */
 private val PillTextColor = Color(0xFFF5F5F5)
 private val PillTextColorDark = Color(0xFF0A0A0A)
 
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
 private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
 
-// The expanded notification's progress bar: its thickness, and the gap holding it off the text above.
+/**
+ * The expanded notification's progress bar: its thickness, and the gap holding it off the text
+ * above.
+ */
 private const val PROGRESS_BAR_HEIGHT_DP = 8
 private const val PROGRESS_BAR_TOP_GAP_DP = 6
 
-// Vertical spacing added around the action row on top of the chip height itself. Must equal the
-// expanded column's own child spacing, or a notification with actions and one without end up with
-// their header rows at different heights.
+/**
+ * Vertical spacing added around the action row on top of the chip height itself. Must equal the
+ * expanded column's own child spacing, or a notification with actions and one without end up with
+ * their header rows at different heights.
+ */
 private const val ACTIONS_ROW_SPACING_DP = 12
 
-// How far the island must be dragged upward before a swipe-up collapses it.
+/** How far the island must be dragged upward before a swipe-up collapses it. */
 private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
 
-// How far the island must be dragged sideways before releasing dismisses it.
+/** How far the island must be dragged sideways before releasing dismisses it. */
 private const val SWIPE_DISMISS_THRESHOLD_DP = 90
 
-// How long the "reply sent" confirmation stays on screen before the reply is dispatched.
+/** How long the "reply sent" confirmation stays on screen before the reply is dispatched. */
 private const val REPLY_SENT_FEEDBACK_MS = 900L
 
-// Time for the rotating album art to complete one full turn.
+/** Time for the rotating album art to complete one full turn. */
 private const val ALBUM_SPIN_MS = 8000
 
-// The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
-// itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
-// the same on the collapsed pill and in the (larger) expanded layout.
+/**
+ * The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
+ * itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
+ * the same on the collapsed pill and in the (larger) expanded layout.
+ */
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
 
-// How often the music progress bar re-reads its own clock. The media session pushes nothing between
-// real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
-// even a half-second step sub-pixel.
+/**
+ * How often the music progress bar re-reads its own clock. The media session pushes nothing between
+ * real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
+ * even a half-second step sub-pixel.
+ */
 private const val PROGRESS_TICK_MS = 500L
 
-// The tuned baseline for the island's primary expand/collapse transition. Every tween-based
-// animation is expressed relative to this, so the user's single "animation duration" knob scales
-// them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+/**
+ * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+ * animation is expressed relative to this, so the user's single "animation duration" knob scales
+ * them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+ */
 private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 
 /**
@@ -218,7 +232,9 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
  */
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
-// Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
+/**
+ * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
+ */
 private const val MEDIA_PROGRESS_HEIGHT_DP = 4
 
 /**
@@ -237,8 +253,10 @@ internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + AC
  */
 internal const val CENTER_SHORTCUTS_EXTRA_DP = 135
 
-// Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
-// content, used when fitting the island height to its measured shortcut row.
+/**
+ * Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the
+ * center's content, used when fitting the island height to its measured shortcut row.
+ */
 private const val CENTER_TOP_GAP_DP = 8
 
 /**
@@ -875,6 +893,10 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
     event.media?.takeIf { it.albumArtStroke }
         ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
 
+/**
+ * The collapsed pill's contents: the badge, the label, and whatever the live tiles want to put
+ * beside them. Sized to [heightDp] so it fits the user's own geometry.
+ */
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera: Boolean = false) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
@@ -1026,7 +1048,7 @@ private fun EmptyPillContent(
     }
 }
 
-// The height of each shortcut button in the expanded center (its diameter too, in disc mode).
+/** The height of each shortcut button in the expanded center (its diameter too, in disc mode). */
 private val CenterDiscDp = 64.dp
 
 /**
@@ -1505,12 +1527,14 @@ private fun ActionChip(
  */
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
-// How far the EXPAND press animation widens a button, on each side.
+/** How far the EXPAND press animation widens a button, on each side. */
 private val PressExpandDp = 7.dp
 
-// In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
-// the EXPAND animation: it grows by this share while the others give up the same total between them,
-// so the row always fills exactly its own width.
+/**
+ * In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
+ * the EXPAND animation: it grows by this share while the others give up the same total between
+ * them, so the row always fills exactly its own width.
+ */
 private const val FULL_EXPAND_DELTA = 0.15f
 
 /**
@@ -2188,24 +2212,32 @@ private fun MediaButton(
     }
 }
 
-// Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
-// callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+/**
+ * Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
+ * callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+ */
 private const val CALL_ROW_PADDING_DP = 8
 private const val CALL_ROW_SPACING_DP = 12
-// The photo/icon container and the hang-up button are deliberately the same size so the cutout
-// reads as symmetrical, with the caller between two equal circles.
+/**
+ * The photo/icon container and the hang-up button are deliberately the same size so the cutout
+ * reads as symmetrical, with the caller between two equal circles.
+ */
 private const val CALL_HANGUP_BUTTON_DP = 44
 private const val CALL_AVATAR_DP = CALL_HANGUP_BUTTON_DP
 private const val CALL_NAME_SIZE_SP = 15
-// A little breathing room so the name never sits flush against the button before the pill grows.
+/**
+ * A little breathing room so the name never sits flush against the button before the pill grows.
+ */
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
-// grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the camera
-// hole with a flexible gap before the buttons pinned to the bottom edge.
+/**
+ * Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
+ * grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the
+ * camera hole with a flexible gap before the buttons pinned to the bottom edge.
+ */
 private const val CALL_INCOMING_SIDE_PAD_DP = 14
 private const val CALL_INCOMING_BOTTOM_PAD_DP = 14
-// Top clearance for the camera hole, matching the empty top the expanded card leaves for it.
+/** Top clearance for the camera hole, matching the empty top the expanded card leaves for it. */
 private const val CALL_INCOMING_TOP_PAD_DP = 34
 private const val CALL_INCOMING_BUTTON_GAP_DP = 10
 private const val CALL_INCOMING_BUTTON_DP = 44

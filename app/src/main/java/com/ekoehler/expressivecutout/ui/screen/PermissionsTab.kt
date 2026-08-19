@@ -300,6 +300,10 @@ private fun PermissionCard(
     }
 }
 
+/**
+ * Replaces the permission list once everything is granted, so a fully set-up app doesn't show a
+ * wall of ticks.
+ */
 @Composable
 private fun AllSetCard() {
     Card(
@@ -338,6 +342,10 @@ private fun AllSetCard() {
     }
 }
 
+/**
+ * A snapshot of every grant the island needs, re-read on resume because the user can revoke any of
+ * them in system settings while the app is open.
+ */
 private data class PermissionStatus(
     val notifications: Boolean,
     val accessibility: Boolean,

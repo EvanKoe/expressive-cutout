@@ -77,6 +77,10 @@ private val AccentColors = listOf(
     0xFFEF4444L, 0xFFF59E0BL, 0xFF22C55EL, 0xFF3B82F6L, 0xFF8B5CF6L, 0xFFEC4899L,
 )
 
+/**
+ * Every colour offered as a preset, flattened into one list so a recently-picked colour can be
+ * tested against it and not shown twice.
+ */
 private val PresetArgbs = NeutralColors.map { it.first } + AccentColors
 
 /**
@@ -228,6 +232,7 @@ private fun GradientControls(
     gradient: CutoutFill.Gradient,
     onSelect: (CutoutFill) -> Unit,
 ) {
+    // Live preview of the gradient
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -236,17 +241,21 @@ private fun GradientControls(
             .background(gradient.resolveBrush()),
     )
 
+    // Start colour
     Text(text = stringResource(R.string.gradient_start), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.start,
         onChange = { onSelect(gradient.copy(start = it)) },
     )
+
+    // End colour
     Text(text = stringResource(R.string.gradient_end), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.end,
         onChange = { onSelect(gradient.copy(end = it)) },
     )
 
+    // Direction
     Text(
         text = stringResource(R.string.gradient_direction),
         style = MaterialTheme.typography.titleSmall,

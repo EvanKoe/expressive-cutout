@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
+/** Backing store for every appearance setting: fills, strokes, icons and action buttons. */
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
 
 /**
@@ -23,9 +24,22 @@ private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDa
  * Android 12+). Stored as a short string so it can live in a single preference key.
  */
 sealed interface CutoutColor {
+    /**
+     * A colour that follows the wallpaper: [role] is resolved against the live Material You scheme
+     * at render time.
+     */
     data class Dynamic(val role: DynamicRole = DynamicRole.PRIMARY) : CutoutColor
+
+    /**
+     * A fixed colour the user picked, held as a `Long` rather than a Compose `Color` so it fits one
+     * DataStore key.
+     */
     data class Solid(val argb: Long) : CutoutColor
 
+    /**
+     * Encodes to the single string held in preferences: `dynamic:ROLE`, or the bare ARGB number.
+     * Read back by [deserialize].
+     */
     fun serialize(): String = when (this) {
         is Dynamic -> "$DYNAMIC:${role.name}"
         is Solid -> argb.toString()
@@ -61,7 +75,13 @@ enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
  * made translucent. Serialized without the `:` used by [Fixed] so gradients can delimit on `|`.
  */
 sealed interface ColorSpec {
+    /** A fixed ARGB colour, its opacity carried in the alpha byte. */
     data class Fixed(val argb: Long) : ColorSpec
+
+    /**
+     * A Material You role resolved at render time, with [alpha] holding the opacity separately
+     * since the role supplies no alpha of its own.
+     */
     data class Dynamic(val role: DynamicRole, val alpha: Float = 1f) : ColorSpec
 
     /** 0f..1f opacity of this colour. */
@@ -80,6 +100,10 @@ sealed interface ColorSpec {
         }
     }
 
+    /**
+     * Encodes to `dynamic:ROLE:ALPHA` or the bare ARGB number. Never contains a `|`, which is what
+     * lets [CutoutFill.Gradient] delimit its stops on one.
+     */
     fun serialize(): String = when (this) {
         is Fixed -> argb.toString()
         is Dynamic -> "$DYNAMIC:${role.name}:$alpha"
@@ -114,13 +138,19 @@ sealed interface ColorSpec {
  * so an existing single background colour migrates into both states with no data loss.
  */
 sealed interface CutoutFill {
+    /** A single flat colour. */
     data class Solid(val color: ColorSpec) : CutoutFill
+    /** A two-stop linear gradient running along [direction]. */
     data class Gradient(
         val start: ColorSpec,
         val end: ColorSpec,
         val direction: GradientDirection,
     ) : CutoutFill
 
+    /**
+     * Encodes to the stop-delimited `gradient|start|end|DIRECTION`, or delegates to the single
+     * colour for [Solid]. Read back by [deserialize].
+     */
     fun serialize(): String = when (this) {
         is Solid -> color.serialize()
         is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name).joinToString("|")
@@ -251,24 +281,26 @@ data class AppearanceSettings(
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
 
-        // Match the pill's historical look: near-black fill, white stroke.
+        /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
 
-        // null keeps the historical reply-button look: the send button matches the
-        // notification's own accent and the cancel button stays a neutral tint.
+        /**
+         * null keeps the historical reply-button look: the send button matches the notification's
+         * own accent and the cancel button stays a neutral tint.
+         */
         val DEFAULT_SEND_BUTTON_COLOR: CutoutColor? = null
         val DEFAULT_CANCEL_BUTTON_COLOR: CutoutColor? = null
 
-        // Defaults reproduce the original action-button look exactly.
+        /** Defaults reproduce the original action-button look exactly. */
         val DEFAULT_ACTION_BUTTON_STYLE = ActionButtonStyle.EXPRESSIVE_TONAL
-        // null follows the notification's own accent, as the chips historically did.
+        /** null follows the notification's own accent, as the chips historically did. */
         val DEFAULT_ACTION_BUTTON_COLOR: CutoutColor? = null
-        // Chips historically hugged the leading edge.
+        /** Chips historically hugged the leading edge. */
         val DEFAULT_ACTION_BUTTON_ALIGNMENT = ActionButtonAlignment.LEFT
         val DEFAULT_REPLY_INPUT_STYLE = ReplyInputStyle.EXPRESSIVE
         const val DEFAULT_CANCEL_ON_LEFT = false
-        // The confirmation historically hugged the leading edge.
+        /** The confirmation historically hugged the leading edge. */
         val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
@@ -393,6 +425,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[STROKE_ENABLED] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * stroke width the UI has no way to correct.
+     */
     suspend fun setStrokeWidth(widthDp: Int) = context.appearanceDataStore.edit {
         it[STROKE_WIDTH] = widthDp.coerceIn(
             AppearanceSettings.MIN_STROKE_WIDTH_DP,
@@ -431,6 +467,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(ACTION_BUTTON_COLOR) else it[ACTION_BUTTON_COLOR] = color.serialize()
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * button height the UI has no way to correct.
+     */
     suspend fun setActionButtonHeight(heightDp: Int) = context.appearanceDataStore.edit {
         it[ACTION_BUTTON_HEIGHT] = heightDp.coerceIn(
             AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP,
@@ -459,7 +499,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
-        // Legacy single-colour key, still read to migrate existing installs into the two new keys.
+        /**
+         * Legacy single-colour key, still read to migrate existing installs into the two new keys.
+         */
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
         val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")
         val BACKGROUND_EXPANDED = stringPreferencesKey("background_expanded")

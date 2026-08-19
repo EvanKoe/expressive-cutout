@@ -164,7 +164,9 @@ internal fun AnimationScreen(
     }
 }
 
-// The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
+/**
+ * The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
+ */
 private val ExampleCollapsedSize = DpSize(96.dp, 30.dp)
 private val ExampleExpandedSize = DpSize(230.dp, 56.dp)
 

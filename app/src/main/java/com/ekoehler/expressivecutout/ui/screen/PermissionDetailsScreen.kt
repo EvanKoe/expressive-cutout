@@ -194,6 +194,10 @@ private fun IntroCard() {
     }
 }
 
+/**
+ * One permission explained at length: what it is for, and what the app deliberately does not do
+ * with it.
+ */
 @Composable
 private fun PermissionDocCard(doc: PermissionDoc) {
     Card(
@@ -207,6 +211,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Title row: icon, name, and the optional badge
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = doc.icon,
@@ -238,6 +243,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 }
             }
 
+            // The manifest permission itself
             Text(
                 text = doc.manifestName,
                 style = MaterialTheme.typography.labelSmall,
@@ -245,6 +251,8 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
             )
+
+            // Plain-language summary
             Text(
                 text = doc.summary,
                 style = MaterialTheme.typography.bodyMedium,
@@ -252,6 +260,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 modifier = Modifier.padding(top = 6.dp),
             )
 
+            // What the app uses it for
             BulletGroup(
                 icon = Icons.Rounded.Check,
                 label = stringResource(R.string.permission_details_uses),

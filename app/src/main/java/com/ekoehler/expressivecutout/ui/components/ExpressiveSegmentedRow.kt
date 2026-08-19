@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+/** The segmented row's fixed height, and the gap that separates one segment from the next. */
 private val SegmentHeight = 40.dp
 private val SegmentGap = 4.dp
 

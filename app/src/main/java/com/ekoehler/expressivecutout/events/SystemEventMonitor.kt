@@ -73,6 +73,10 @@ class SystemEventMonitor(private val context: Context) {
         override fun onLost(network: Network) = emit(SystemEventType.WIFI_DISCONNECTED)
     }
 
+    /**
+     * Registers every broadcast, audio-device and network callback the system events are built
+     * from. Paired with [stop].
+     */
     fun start() {
         // These are all protected system broadcasts, so the receiver is exported.
         ContextCompat.registerReceiver(
@@ -85,6 +89,10 @@ class SystemEventMonitor(private val context: Context) {
         connectivityManager?.registerNetworkCallback(wifiRequest(), networkCallback)
     }
 
+    /**
+     * Undoes everything [start] registered, each unregister guarded so one already-gone callback
+     * can't strand the rest.
+     */
     fun stop() {
         runCatching { context.unregisterReceiver(broadcastReceiver) }
         audioManager?.unregisterAudioDeviceCallback(audioDeviceCallback)
@@ -93,6 +101,10 @@ class SystemEventMonitor(private val context: Context) {
 
     private fun emit(type: SystemEventType) = IslandEventBus.emit(CutoutSignal.System(type))
 
+    /**
+     * The set of system broadcasts the pill reacts to, kept in one place so [start] and the
+     * manifest can't drift apart.
+     */
     private fun buildIntentFilter() = IntentFilter().apply {
         addAction(Intent.ACTION_POWER_CONNECTED)
         addAction(Intent.ACTION_POWER_DISCONNECTED)

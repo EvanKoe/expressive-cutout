@@ -55,6 +55,10 @@ object TestNotifier {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Posts the sample notification used to preview the island without waiting for a real one,
+     * complete with reply and mark-read actions.
+     */
     // Guarded by canPost() below; the lint check can't see through the runtime helper.
     @SuppressLint("MissingPermission")
     fun send(context: Context) {
@@ -228,6 +232,10 @@ object TestNotifier {
         return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 
+    /**
+     * Creates the notification channel on first use, tolerating an existing one so a reinstall
+     * doesn't duplicate it.
+     */
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
