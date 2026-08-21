@@ -43,7 +43,13 @@ object ShizukuState {
     private val permissionResult =
         Shizuku.OnRequestPermissionResultListener { _, _ -> refresh() }
 
-    /** Registers the binder listeners and seeds the initial state. Safe to call once, from the app. */
+    /**
+     * Registers the binder listeners and seeds the initial state. Safe to call once, from the app.
+     *
+     * There is deliberately no `stop()`: the [Application] owns this lifetime, and Android never
+     * calls a reliable teardown on it, so the listeners live until the process dies and are
+     * released with it.
+     */
     fun start(context: Context) {
         appContext = context.applicationContext
         Shizuku.addBinderReceivedListenerSticky(binderReceived)

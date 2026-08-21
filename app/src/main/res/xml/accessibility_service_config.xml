@@ -3,7 +3,15 @@
     The service exists chiefly so we may host a TYPE_ACCESSIBILITY_OVERLAY window without
     the SYSTEM_ALERT_WINDOW permission. It also listens for typeWindowStateChanged to learn
     which app is in the foreground (package name only), so the music tile can hide while the
-    playing app is open. canRetrieveWindowContent is false, so no screen content is ever read.
+    playing app is open.
+
+    canRetrieveWindowContent is true for exactly one feature: the assistant tile reads the
+    answer text out of an assistant window so it can show it in the island. That read is
+    gated on CutoutAccessibilityService.isAssistantPackage(), a fixed list of known
+    assistant packages; for every other app this service takes the package name and nothing
+    else. What is read is emitted on IslandEventBus, drawn, and dropped — never written to
+    DataStore, to a log, or to a file. The app declares no INTERNET permission, so no
+    screen content can leave the device.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeNotificationStateChanged"

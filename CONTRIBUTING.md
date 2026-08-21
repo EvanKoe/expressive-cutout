@@ -70,7 +70,7 @@ Add `@param` / `@return` only when the name doesn't already say it. Simple decla
 
 ```kotlin
 /** The Material You dynamic roles offered by default, in display order. */
-private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY)
+private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY)
 ```
 
 One exemption: a **one-line pass-through** whose name already says everything needs no KDoc.
@@ -140,3 +140,27 @@ These comments are forbidden in the code because they break readability:
 - `TODO` / `FIXME` comments: if your PR is ready to be merged, it shouldn't contain any.
 
 Please respect the format as well: `/** */` above declarations, `//` only for Composable block markers and *why* comments.
+
+### Project layout
+
+The source is grouped by feature, not by Android component type: `overlay/` holds everything about the island, `data/` holds the preferences, `system/` holds the privileged Shizuku work, and so on. The full tree, with a line explaining what each package is for, lives in [docs/CODING_STYLE.md](docs/CODING_STYLE.md#2-project-layout).
+
+**If your PR adds, removes, renames or moves a package, update that tree in the same PR.** It is a two-line edit and it is the only map of the project anyone has — a stale one sends the next contributor hunting through folders, which is exactly what grouping by feature was supposed to prevent. I'd rather review one PR that moves a package and fixes the doc than two.
+
+Please put a new file in an existing package if one fits. A new package is fine when the thing genuinely doesn't belong anywhere yet, but say why in the PR so it can go in the tree with a sentence that means something.
+
+### Lazy lists
+
+Any `items` or `itemsIndexed` block inside a `LazyColumn`, `LazyRow` or a lazy grid **must** get a `key`. It is a one-liner and it matters for performance: without a key Compose identifies rows by their position, so adding, removing or reordering one entry throws away the state of every row after it and recomposes them all. With a key, only the row that actually changed is touched, and `Modifier.animateItem()` can follow each row to its new place instead of cross-fading the whole list.
+
+```kotlin
+LazyColumn {
+    items(apps, key = { it.packageName }) { app ->
+        AppCard(app = app, modifier = Modifier.animateItem())
+    }
+}
+```
+
+Pick something stable and unique that belongs to the item itself — a package name, an id, an enum `name`. Never the index, that is exactly what the default already does.
+
+A standalone `item` block in the same list should get a literal key too (`item(key = "header")`), so it stays put when the keyed items around it change.

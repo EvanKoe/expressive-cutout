@@ -2,7 +2,6 @@ package com.ekoehler.expressivecutout.ui
 
 import android.content.Context
 import android.widget.Toast
-import android.widget.Toast.*
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -130,10 +129,10 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
      * When settings are exported, display a Toast as feedback
      */
     fun onSettingsExported(success: Boolean, path: String?) {
-        val toast = makeText(
+        val toast = Toast.makeText(
             context,
             if (success) "$exportSavedMsg $path" else exportFailedMsg,
-            LENGTH_SHORT
+            Toast.LENGTH_SHORT
         )
         toast.show()
     }
@@ -145,7 +144,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
             JsonSettings.ImportResult.NOT_A_SETTINGS_FILE -> importInvalidMsg
             JsonSettings.ImportResult.ERROR -> importFailedMsg
         }
-        makeText(context, message, LENGTH_SHORT).show()
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     // Opens the system file picker for a JSON document; the picked file is read and applied by the

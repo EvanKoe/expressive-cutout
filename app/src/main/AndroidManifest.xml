@@ -53,7 +53,14 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY. -->
+        <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY, which is why an
+             accessibility service is used at all: it removes the need for SYSTEM_ALERT_WINDOW.
+
+             This service may read screen content, for features only: it takes the foreground
+             app's package name (so tiles can react to it), and reads answer text out of known
+             assistant apps for the assistant tile. Nothing read is stored or transmitted, and
+             the app declares no INTERNET permission. See res/xml/accessibility_service_config.xml
+             for the exact scope. -->
         <service
             android:name=".service.CutoutAccessibilityService"
             android:exported="false"

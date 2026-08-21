@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Expressive Cutout</string>
     <string name="accessibility_service_label">Expressive Cutout overlay</string>
-    <string name="accessibility_service_description">Draws a small dynamic island over the camera cutout to surface notifications and system events. No screen content is read or stored.</string>
+    <string name="accessibility_service_description">Draws a small dynamic island over the camera cutout to surface notifications and system events. It reads which app is in the foreground, and reads text from assistant apps only, so it can show their answers in the island. Nothing it reads is ever stored or sent anywhere — the app has no internet access.</string>
     <string name="notification_service_label">Expressive Cutout notifications</string>
 
     <!-- System event labels shown inside the island -->

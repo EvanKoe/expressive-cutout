@@ -48,6 +48,11 @@ object StatusBarIconController {
     /**
      * Keeps the system status bar in sync with the saved wish, re-applying whenever Shizuku becomes
      * reachable again — after a reboot, or after the user starts Shizuku for the first time.
+     *
+     * There is deliberately no `stop()`, and adding one would be a mistake: releasing [token] is
+     * what restores the system icons, so a public stop would be a way to silently undo the user's
+     * setting. The process dying is the only thing that should clear these flags, which is the
+     * safety net described above.
      */
     fun start(context: Context, scope: CoroutineScope) {
         val preferences = StatusBarPreferences(context)

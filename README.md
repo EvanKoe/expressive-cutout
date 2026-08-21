@@ -81,7 +81,7 @@ DISCLAIMER: This app was made as a project to learn Jetpack Compose. I used AI t
 | **Action buttons** | Four button styles (Expressive tonal, Expressive filled, Material You, Outlined) · four reply-field styles, including a segmented bar · button colour and height · cancel button on the left or beside send · tile-specific button colours for the phone and timer tiles |
 | **Animations** | Expressive spring or ease-in-out style · slow / default / fast speed · big / normal / small bounce · animation duration scaled from 0 to 1000 ms · tuned against a live example |
 | **Behaviour & gestures** | Auto-collapse after a delay, or stay expanded until tapped · disappear entirely when it shrinks · swipe up to shrink · swipe sideways to dismiss, with a direction and a choice of which sizes it applies to · hide on lockscreen, tearing the overlay down completely so it uses no resources |
-| **Privacy** | No internet permission at all, so nothing can leave the device · no analytics or tracking · never queries your installed apps · every permission explained in-app, and the whole manifest is documented on the Permission details screen |
+| **Privacy** | No internet permission at all, so nothing can leave the device · no analytics or tracking · screen content is read for features only, never stored and never sent · every permission explained in-app, and the whole manifest is documented on the Permission details screen |
 | **Testing** | Send yourself a test notification with reply and action buttons · trigger a test ongoing call and a test incoming call · preview any system event on the island from its detail screen |
 
 ---
@@ -90,7 +90,7 @@ DISCLAIMER: This app was made as a project to learn Jetpack Compose. I used AI t
 
 Your data privacy matters. The app only requests the absolute minimum permissions required to function. Plus, it has no INTERNET access permission, which means nothing is sent on the Internet: no analytics, no usage data, no notification content stored anywhere. Everything stays on your phone. Always. Here are the required permissions:
 - Notification access: to display your notifications in the dynamic island,
-- Accessibility service: to display over other apps (no screen content is read),  
+- Accessibility service: to display over other apps. It may also read screen content, but only to make features work: it reads which app is in the foreground (so a tile can hide while you are in that app), and it reads answer text from assistant apps so the assistant tile can show you the answer. That is all it looks at — every other app is a package name and nothing more. Whatever is read is drawn on the island and immediately dropped: it is never written to storage, never logged, and — since the app has no internet permission — cannot be sent anywhere,  
 - Ignore battery optimisation (optional): to make sure battery optimisation does not kill the app,  
 - Post notification (optional): for testing purpose,  
 - Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it
