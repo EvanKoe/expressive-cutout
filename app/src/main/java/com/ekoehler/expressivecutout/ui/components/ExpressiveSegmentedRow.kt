@@ -31,8 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /** The segmented row's fixed height, and the gap that separates one segment from the next. */
-private val SegmentHeight = 40.dp
-private val SegmentGap = 4.dp
+private val SEGMENT_HEIGHT = 40.dp
+private val SEGMENT_GAP = 4.dp
 
 /**
  * A Material 3 "expressive" single-choice selector: a rounded container with a filled pill that
@@ -56,7 +56,7 @@ fun ExpressiveSegmentedRow(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
     ) {
         BoxWithConstraints(modifier = Modifier.padding(4.dp)) {
-            val segmentWidth = (maxWidth - SegmentGap * (count - 1)) / count
+            val segmentWidth = (maxWidth - SEGMENT_GAP * (count - 1)) / count
             val indicatorPosition by animateFloatAsState(
                 targetValue = selectedIndex.toFloat(),
                 animationSpec = spring(
@@ -69,9 +69,9 @@ fun ExpressiveSegmentedRow(
             // The sliding selected pill, drawn behind the labels.
             Box(
                 modifier = Modifier
-                    .offset(x = (segmentWidth + SegmentGap) * indicatorPosition)
+                    .offset(x = (segmentWidth + SEGMENT_GAP) * indicatorPosition)
                     .width(segmentWidth)
-                    .height(SegmentHeight)
+                    .height(SEGMENT_HEIGHT)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.primary),
             )
@@ -92,7 +92,7 @@ fun ExpressiveSegmentedRow(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(SegmentHeight)
+                            .height(SEGMENT_HEIGHT)
                             .selectable(
                                 selected = selected,
                                 enabled = !disabled,
@@ -113,7 +113,7 @@ fun ExpressiveSegmentedRow(
                         )
                     }
                     if (index < count - 1) {
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(SegmentGap))
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(SEGMENT_GAP))
                     }
                 }
             }

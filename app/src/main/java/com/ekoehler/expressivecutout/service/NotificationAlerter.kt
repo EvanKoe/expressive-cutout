@@ -105,7 +105,7 @@ class NotificationAlerter(private val context: Context) {
 
     /**
      * Buzz with the channel's own pattern where it has one. Most channels don't — they take the
-     * phone's default vibration, which isn't ours to read — so those get [DEFAULT_PATTERN], the same
+     * phone's default vibration, which isn't ours to read — so those get [defaultPattern], the same
      * two firm pulses the platform buzzes for a notification.
      *
      * Deliberately a waveform rather than one of the predefined effects: those are haptic-feedback
@@ -119,7 +119,7 @@ class NotificationAlerter(private val context: Context) {
         val effect = if (pattern != null && pattern.isNotEmpty()) {
             VibrationEffect.createWaveform(pattern, NO_REPEAT)
         } else {
-            VibrationEffect.createWaveform(DEFAULT_PATTERN, DEFAULT_AMPLITUDES, NO_REPEAT)
+            VibrationEffect.createWaveform(defaultPattern, defaultAmplitudes, NO_REPEAT)
         }
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -144,15 +144,15 @@ class NotificationAlerter(private val context: Context) {
          * What a notification buzzes like when its channel names no pattern of its own: wait none,
          * pulse, pause, pulse. Mirrors the platform's own default notification vibration.
          */
-        val DEFAULT_PATTERN = longArrayOf(0, 250, 250, 250)
+        val defaultPattern = longArrayOf(0, 250, 250, 250)
 
         /**
-         * Full strength for each pulse in [DEFAULT_PATTERN], zero for the gaps. Amplitudes are
+         * Full strength for each pulse in [defaultPattern], zero for the gaps. Amplitudes are
          * given explicitly rather than left to DEFAULT_AMPLITUDE so the buzz is as strong as the
          * hardware allows, which is the whole point of standing in for an alert the user would
          * otherwise miss.
          */
-        val DEFAULT_AMPLITUDES = intArrayOf(0, 255, 0, 255)
+        val defaultAmplitudes = intArrayOf(0, 255, 0, 255)
 
         /**
          * What the framework would have used for a notification, so the ring lands on the

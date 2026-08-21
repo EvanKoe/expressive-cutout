@@ -171,11 +171,11 @@ import kotlin.math.roundToInt
  * Text colours for a dark fill; on a light fill we swap in a dark text colour (see
  * contentColorFor).
  */
-private val PillTextColor = Color(0xFFF5F5F5)
-private val PillTextColorDark = Color(0xFF0A0A0A)
+private val PILL_TEXT_COLOR = Color(0xFFF5F5F5)
+private val PILL_TEXT_COLOR_DARK = Color(0xFF0A0A0A)
 
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
-private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
+private val MUSIC_BUTTON_FILLED_DEFAULT = Color(0xFFE0E0E0)
 
 /**
  * The expanded notification's progress bar: its thickness, and the gap holding it off the text
@@ -531,7 +531,7 @@ fun DynamicIsland(
                         .width(revealWidth)
                         .height(revealHeight)
                         .graphicsLayer {
-                            val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
+                            val extraPx = PRESS_EXPAND_DP.toPx() * 2f * pressExpand.value
                             val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
                             scaleX = boopScale.value * widen
                             scaleY = boopScale.value
@@ -824,7 +824,7 @@ private fun IslandSurface(
         progress,
     )
 
-    val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+    val contentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     val border = if (appearance.strokeEnabled) {
         BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
     } else {
@@ -998,7 +998,7 @@ private fun EmptyPillContent(
 
     val disc = containerColor?.resolve()
     val glyphColor = when {
-        disc != null -> if (disc.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        disc != null -> if (disc.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
         else -> LocalContentColor.current
     }
 
@@ -1049,7 +1049,7 @@ private fun EmptyPillContent(
 }
 
 /** The height of each shortcut button in the expanded center (its diameter too, in disc mode). */
-private val CenterDiscDp = 64.dp
+private val CENTER_DISC_DP = 64.dp
 
 /**
  * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
@@ -1157,9 +1157,9 @@ private fun CenterShortcutButton(
     val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
     val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
     val shapeModifier = if (fillContainer) {
-        Modifier.fillMaxWidth().height(CenterDiscDp)
+        Modifier.fillMaxWidth().height(CENTER_DISC_DP)
     } else {
-        Modifier.size(CenterDiscDp)
+        Modifier.size(CENTER_DISC_DP)
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1183,20 +1183,20 @@ private fun CenterShortcutButton(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp),
+                        modifier = Modifier.size(CENTER_DISC_DP),
                     )
 
                     appIcon != null -> androidx.compose.foundation.Image(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
-                        modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.6f).clip(CircleShape),
                     )
 
                     else -> Icon(
                         imageVector = CenterShortcutCatalog.iconFor(shortcut),
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp * 0.46f),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.46f),
                     )
                 }
             }
@@ -1487,7 +1487,7 @@ private fun ActionChip(
     }
     val content = when (style) {
         // A solid fill needs ink that contrasts with it; the rest sit on a translucent tint.
-        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
         ActionButtonStyle.OUTLINED -> fill
         else -> LocalContentColor.current
     }
@@ -1528,7 +1528,7 @@ private fun ActionChip(
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
 /** How far the EXPAND press animation widens a button, on each side. */
-private val PressExpandDp = 7.dp
+private val PRESS_EXPAND_DP = 7.dp
 
 /**
  * In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
@@ -1606,7 +1606,7 @@ private fun ActionChipRow(
  * feels the same. Two flavours, selected via [LocalActionButtonAnimation]:
  * [ActionButtonAnimation.SCALE] is the expressive "squish" — a springy scale-down that settles back
  * with a little bounce on release; [ActionButtonAnimation.EXPAND] instead briefly widens the button
- * by [PressExpandDp] on each side. Both animate on the same spring and via [graphicsLayer], so the
+ * by [PRESS_EXPAND_DP] on each side. Both animate on the same spring and via [graphicsLayer], so the
  * surrounding layout never reflows.
  */
 @Composable
@@ -1629,9 +1629,9 @@ private fun Modifier.pressScale(
                 scaleY = scale
             }
             ActionButtonAnimation.EXPAND -> {
-                // Grow the width by PressExpandDp on each side, expressed as a scale relative to the
+                // Grow the width by PRESS_EXPAND_DP on each side, expressed as a scale relative to the
                 // button's own measured width so layout stays put.
-                val extraPx = PressExpandDp.toPx() * 2f * progress
+                val extraPx = PRESS_EXPAND_DP.toPx() * 2f * progress
                 if (size.width > 0f) scaleX = (size.width + extraPx) / size.width
             }
         }
@@ -1671,7 +1671,7 @@ private fun ReplySentRow(tint: Color, heightDp: Int, alignment: SentAlignment) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = if (tint.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                tint = if (tint.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -1822,8 +1822,8 @@ private fun SegmentedReplyRow(
             container = if (sendEnabled) sendColor else LocalContentColor.current.copy(alpha = 0.12f),
             content = when {
                 !sendEnabled -> LocalContentColor.current.copy(alpha = 0.4f)
-                sendColor.luminance() > 0.5f -> PillTextColorDark
-                else -> PillTextColor
+                sendColor.luminance() > 0.5f -> PILL_TEXT_COLOR_DARK
+                else -> PILL_TEXT_COLOR
             },
             shape = endCap,
             heightDp = heightDp,
@@ -1945,7 +1945,7 @@ private fun ReplySendButton(
         interactionSource = interaction,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = sendColor,
-            contentColor = if (sendColor.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+            contentColor = if (sendColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
             disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
             disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
         ),
@@ -2143,10 +2143,10 @@ private fun MediaControls(
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
  *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
- *  A filled style with no colour falls back to [MusicButtonFilledDefault]. Opacity folds into alpha. */
+ *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha. */
 @Composable
 private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
+    val base = color?.resolve() ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
 
@@ -2197,7 +2197,7 @@ private fun MediaButton(
             shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
-                contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
                 disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
             ),
@@ -2389,7 +2389,7 @@ private fun CallSingleRowContent(
                     icon = Icons.Rounded.CallEnd,
                     description = "Hang up",
                     container = fill,
-                    content = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                    content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                     onClick = { onAction(hangUp) },
                 )
             }
@@ -2874,7 +2874,7 @@ private fun IconBadge(
             glyphColor = when (container) {
                 is CutoutColor.Dynamic -> onDynamicRole(container.role)
                 is CutoutColor.Solid ->
-                    if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+                    if (badgeColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
             }
         }
 

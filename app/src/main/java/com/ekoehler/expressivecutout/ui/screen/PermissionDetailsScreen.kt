@@ -63,7 +63,7 @@ private data class PermissionDoc(
  * the quiet one (network state) that is granted automatically and never prompts. This list is the
  * whole manifest — if a permission is added there, it belongs here too.
  */
-private val PermissionDocs: List<PermissionDoc> = listOf(
+private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
     PermissionDoc(
         icon = Icons.Rounded.Notifications,
         title = "Notification access",
@@ -157,7 +157,7 @@ fun PermissionDetailsScreen(contentPadding: PaddingValues) {
     ) {
         IntroCard()
 
-        PermissionDocs.forEach { doc -> PermissionDocCard(doc) }
+        PERMISSION_DOCS.forEach { doc -> PermissionDocCard(doc) }
 
         FooterCard()
     }

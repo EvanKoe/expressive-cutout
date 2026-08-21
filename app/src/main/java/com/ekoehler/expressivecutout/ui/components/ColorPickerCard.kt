@@ -43,7 +43,7 @@ import com.ekoehler.expressivecutout.ui.screen.dynamicDescription
  * The predefined swatches [ColorPickerCard] shows by default: black, white, dark/light grey, then
  * blue, red and green. Any screen can override the set by passing its own list to [ColorPickerCard].
  */
-val DefaultPresetColors: List<Long> = listOf(
+val DEFAULT_PRESET_COLORS: List<Long> = listOf(
     0xFF0A0A0A, // black
     0xFFFFFFFF, // white
     0xFF444444, // dark grey
@@ -54,7 +54,7 @@ val DefaultPresetColors: List<Long> = listOf(
 )
 
 /** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
-private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
+private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 @Composable
 fun ColorPickerCard (
@@ -63,8 +63,8 @@ fun ColorPickerCard (
     onSelect: (CutoutColor?) -> Unit,
     defaultLabel: String? = null,
     defaultColor: Color? = null,
-    presetColors: List<Long> = DefaultPresetColors,
-    dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
+    presetColors: List<Long> = DEFAULT_PRESET_COLORS,
+    dynamicRoles: List<DynamicRole> = DEFAULT_DYNAMIC_ROLES,
     roundedCorners: Dp = 24.dp,
     proposeOledBlack: Boolean = true
 ) {

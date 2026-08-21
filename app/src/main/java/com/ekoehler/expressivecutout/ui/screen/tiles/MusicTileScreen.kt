@@ -48,10 +48,10 @@ import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 import kotlin.math.roundToInt
 
 /** The pink tile accent, used as the play/pause default and the preview backdrop's default fill. */
-private val MusicAccent = Color(0xFFF472B6)
+private val MUSIC_ACCENT = Color(0xFFF472B6)
 
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
-private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
+private val MUSIC_BUTTON_FILLED_DEFAULT = Color(0xFFE0E0E0)
 
 /** Height of a transport button in the settings preview; the play/pause button is 16:9 off this. */
 private const val PREVIEW_BUTTON_HEIGHT_DP = 48
@@ -105,7 +105,7 @@ internal fun MusicTileScreen(
                         selected = settings.albumArtStrokeColor,
                         onSelect = viewModel::setMusicAlbumArtStrokeColor,
                         defaultLabel = stringResource(R.string.music_default_accent),
-                        defaultColor = MusicAccent,
+                        defaultColor = MUSIC_ACCENT,
                         roundedCorners = 4.dp
                     )
                 }
@@ -146,7 +146,7 @@ internal fun MusicTileScreen(
             SectionLabel(stringResource(R.string.music_skip_buttons_title))
             ButtonPresetRow(
                 current = settings.skipButton,
-                sampleFill = settings.skipButton.previewFill(fallback = null) ?: MusicButtonFilledDefault,
+                sampleFill = settings.skipButton.previewFill(fallback = null) ?: MUSIC_BUTTON_FILLED_DEFAULT,
                 onApply = viewModel::applyMusicSkipPreset,
             )
             ColorPickerCard(
@@ -165,7 +165,7 @@ internal fun MusicTileScreen(
             SectionLabel(stringResource(R.string.music_playpause_button_title))
             ButtonPresetRow(
                 current = settings.playPauseButton,
-                sampleFill = settings.playPauseButton.previewFill(fallback = MusicAccent) ?: MusicAccent,
+                sampleFill = settings.playPauseButton.previewFill(fallback = MUSIC_ACCENT) ?: MUSIC_ACCENT,
                 onApply = viewModel::applyMusicPlayPausePreset,
             )
             ColorPickerCard(
@@ -173,7 +173,7 @@ internal fun MusicTileScreen(
                 selected = settings.playPauseButton.color,
                 onSelect = viewModel::setMusicPlayPauseColor,
                 defaultLabel = stringResource(R.string.music_default_accent),
-                defaultColor = MusicAccent,
+                defaultColor = MUSIC_ACCENT,
             )
             ButtonShapeCard(
                 style = settings.playPauseButton,
@@ -346,7 +346,7 @@ private fun MusicButtonsPreview(
             // The play/pause button is a 16:9 rectangle, matching the live overlay.
             PreviewButton(
                 Icons.Rounded.PlayArrow,
-                playPauseStyle.previewFill(fallback = MusicAccent),
+                playPauseStyle.previewFill(fallback = MUSIC_ACCENT),
                 playPauseStyle.cornerPercent,
                 widthDp = PREVIEW_BUTTON_HEIGHT_DP * 16 / 9,
             )
@@ -356,10 +356,10 @@ private fun MusicButtonsPreview(
 }
 
 /** The concrete preview fill for a button style, or null for a plain (unfilled) button. A [filled]
- *  style with no colour falls back to [MusicButtonFilledDefault], mirroring the live overlay. */
+ *  style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT], mirroring the live overlay. */
 @Composable
 private fun MusicButtonStyle.previewFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
+    val base = color?.resolve() ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
 

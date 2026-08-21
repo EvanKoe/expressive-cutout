@@ -62,10 +62,10 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** Accent used by the preview event, matching the sibling settings screens. */
-private val PreviewAccent = Color(0xFF60A5FA)
+private val PREVIEW_ACCENT = Color(0xFF60A5FA)
 
 /** Neutral swatches offered first in every picker, with their content descriptions. */
-private val NeutralColors = listOf(
+private val NEUTRAL_COLORS = listOf(
     0xFF0A0A0AL to R.string.cd_color_black,
     0xFF444444L to R.string.cd_color_dark_grey,
     0xFFBBBBBBL to R.string.cd_color_light_grey,
@@ -73,7 +73,7 @@ private val NeutralColors = listOf(
 )
 
 /** Accent swatches shared with the other colour cards. */
-private val AccentColors = listOf(
+private val ACCENT_COLORS = listOf(
     0xFFEF4444L, 0xFFF59E0BL, 0xFF22C55EL, 0xFF3B82F6L, 0xFF8B5CF6L, 0xFFEC4899L,
 )
 
@@ -81,7 +81,7 @@ private val AccentColors = listOf(
  * Every colour offered as a preset, flattened into one list so a recently-picked colour can be
  * tested against it and not shown twice.
  */
-private val PresetArgbs = NeutralColors.map { it.first } + AccentColors
+private val PRESET_ARGBS = NEUTRAL_COLORS.map { it.first } + ACCENT_COLORS
 
 /**
  * "Background" screen (reached from the Appearance screen). The collapsed ("normal") and expanded
@@ -110,7 +110,7 @@ internal fun BackgroundScreen(
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
-            accent = PreviewAccent,
+            accent = PREVIEW_ACCENT,
         )
     }
     val cutout = rememberTopCutout()
@@ -285,7 +285,7 @@ private fun ColorSpecPicker(
     var showPicker by remember { mutableStateOf(false) }
     val opacity = spec.opacity
     val fixedRgb = (spec as? ColorSpec.Fixed)?.argb?.and(0xFFFFFFL)
-    val customRgb = fixedRgb?.takeIf { rgb -> PresetArgbs.none { it and 0xFFFFFFL == rgb } }
+    val customRgb = fixedRgb?.takeIf { rgb -> PRESET_ARGBS.none { it and 0xFFFFFFL == rgb } }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -296,7 +296,7 @@ private fun ColorSpecPicker(
     // recent pick and a preset of the same hue are the same swatch here.
     val recentRgbs = storedRecents
         .map { it and 0xFFFFFFL }
-        .filterNot { rgb -> PresetArgbs.any { it and 0xFFFFFFL == rgb } }
+        .filterNot { rgb -> PRESET_ARGBS.any { it and 0xFFFFFFL == rgb } }
     // Derived from the fill itself (OLED black == a fully-black fixed colour), not held as separate
     // local state: the normal and expanded tabs share this composable slot and only swap the [spec]
     // passed in, so a remembered flag would leak the toggle across both. Deriving keeps them
@@ -361,7 +361,7 @@ private fun ColorSpecPicker(
                     }
 
                     // Neutrals then accents, matched on RGB so opacity changes don't drop the selection.
-                    (NeutralColors.map { it.first } + AccentColors).forEach { argb ->
+                    (NEUTRAL_COLORS.map { it.first } + ACCENT_COLORS).forEach { argb ->
                         ColorSwatch(
                             color = Color(argb),
                             selected = spec is ColorSpec.Fixed && spec.argb and 0xFFFFFFL == argb and 0xFFFFFFL,

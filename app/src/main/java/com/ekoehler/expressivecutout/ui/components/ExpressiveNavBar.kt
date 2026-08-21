@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /** Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0). */
-private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private val EMPHASIZED_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /** One destination in the [ExpressiveNavBar]. */
 data class NavBarItem(
@@ -88,7 +88,7 @@ private fun NavBarPill(
         } else {
             Color.Transparent
         },
-        animationSpec = tween(durationMillis = 350, easing = EmphasizedEasing),
+        animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContainer",
     )
     val contentColor by animateColorAsState(
@@ -97,7 +97,7 @@ private fun NavBarPill(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        animationSpec = tween(durationMillis = 350, easing = EmphasizedEasing),
+        animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContent",
     )
 
@@ -123,10 +123,10 @@ private fun NavBarPill(
         )
         AnimatedVisibility(
             visible = selected,
-            enter = fadeIn(tween(durationMillis = 300, easing = EmphasizedEasing)) +
-                expandHorizontally(tween(durationMillis = 350, easing = EmphasizedEasing)),
-            exit = fadeOut(tween(durationMillis = 150, easing = EmphasizedEasing)) +
-                shrinkHorizontally(tween(durationMillis = 250, easing = EmphasizedEasing)),
+            enter = fadeIn(tween(durationMillis = 300, easing = EMPHASIZED_EASING)) +
+                expandHorizontally(tween(durationMillis = 350, easing = EMPHASIZED_EASING)),
+            exit = fadeOut(tween(durationMillis = 150, easing = EMPHASIZED_EASING)) +
+                shrinkHorizontally(tween(durationMillis = 250, easing = EMPHASIZED_EASING)),
         ) {
             Text(
                 text = item.label,
