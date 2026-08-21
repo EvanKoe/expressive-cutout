@@ -18,7 +18,7 @@ import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.GradientDirection
 
 /** Fallback accent used for dynamic colours before Android 12 (no Material You). */
-private val DynamicFallback = Color(0xFF60A5FA)
+private val DYNAMIC_FALLBACK = Color(0xFF60A5FA)
 
 /**
  * Resolve a [CutoutColor] to a concrete [Color]. [Dynamic] reads the system Material You accent
@@ -74,7 +74,7 @@ private fun dynamicRole(role: DynamicRole): Color {
         val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         scheme.forRole(role)
     } else {
-        DynamicFallback
+        DYNAMIC_FALLBACK
     }
 }
 
@@ -98,6 +98,10 @@ fun onDynamicRole(role: DynamicRole): Color {
     }
 }
 
+/**
+ * Picks one role out of the live Material You scheme, so a [DynamicRole] stored in preferences can
+ * be resolved at draw time.
+ */
 internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary

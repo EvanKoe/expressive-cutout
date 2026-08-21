@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the music tile's settings. */
 private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs")
 
 /**
@@ -240,10 +241,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(SKIP_COLOR) else it[SKIP_COLOR] = color.serialize()
     }
 
+    /** Clamps to 0f..1f, the range the opacity slider offers. */
     suspend fun setSkipOpacity(opacity: Float) = context.musicTileDataStore.edit {
         it[SKIP_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
+    /**
+     * Clamps to the range the corner slider offers, so an imported settings file can't leave a
+     * shape the UI has no way to correct.
+     */
     suspend fun setSkipCornerPercent(percent: Int) = context.musicTileDataStore.edit {
         it[SKIP_CORNER] = percent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,
@@ -260,6 +266,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(PLAY_PAUSE_COLOR) else it[PLAY_PAUSE_COLOR] = color.serialize()
     }
 
+    /** Clamps to 0f..1f, the range the opacity slider offers. */
     suspend fun setPlayPauseOpacity(opacity: Float) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_OPACITY] = opacity.coerceIn(0f, 1f)
     }
@@ -268,6 +275,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[SHOW_PROGRESS] = enabled
     }
 
+    /**
+     * Clamps to the range the corner slider offers, so an imported settings file can't leave a
+     * shape the UI has no way to correct.
+     */
     suspend fun setPlayPauseCornerPercent(percent: Int) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_CORNER] = percent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,

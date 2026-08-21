@@ -85,7 +85,7 @@ import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
-import com.ekoehler.expressivecutout.ui.components.DefaultPresetColors
+import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
 import kotlin.math.roundToInt
 
 @Composable

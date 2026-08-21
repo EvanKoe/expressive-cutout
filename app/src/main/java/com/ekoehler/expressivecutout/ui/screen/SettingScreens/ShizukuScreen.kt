@@ -157,6 +157,10 @@ internal fun ShizukuScreen(
     }
 }
 
+/**
+ * A mock status bar showing what the chosen hiding options will actually look like, so the user can
+ * see the effect without granting anything first.
+ */
 @Composable
 private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock: Boolean) {
     Row(
@@ -167,6 +171,7 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock:
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Clock
         AnimatedVisibility(visible = !hideClock) {
             Text(
                 text = stringResource(R.string.statusbar_preview_time),
@@ -175,6 +180,7 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock:
             )
         }
 
+        // Notification icons
         AnimatedVisibility(visible = !hideIcons) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(
@@ -199,8 +205,10 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock:
             }
         }
 
+        // Pushes the system icons to the far end
         Spacer(modifier = Modifier.weight(1f))
 
+        // System icons: wifi, signal, battery
         AnimatedVisibility(visible = !hideSystem) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(

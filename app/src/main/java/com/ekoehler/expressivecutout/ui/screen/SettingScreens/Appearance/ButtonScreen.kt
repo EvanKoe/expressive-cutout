@@ -65,7 +65,7 @@ import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import kotlin.math.roundToInt
 
 /** Accent used by the preview event, matching the accent shown on the sibling settings screens. */
-private val PreviewAccent = Color(0xFF60A5FA)
+private val PREVIEW_ACCENT = Color(0xFF60A5FA)
 
 /**
  * "Action buttons" screen (reached from the Appearance screen). Configures the chips and inline
@@ -107,7 +107,7 @@ internal fun ButtonScreen(
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
-            accent = PreviewAccent,
+            accent = PREVIEW_ACCENT,
             actions = listOf(
                 IslandAction(label = replyLabel, intent = noop),
                 IslandAction(label = archiveLabel, intent = noop),
@@ -221,7 +221,7 @@ internal fun ButtonScreen(
             selected = appearance.actionButtonColor,
             onSelect = viewModel::setActionButtonColor,
             defaultLabel = stringResource(R.string.cd_color_default_accent),
-            defaultColor = PreviewAccent,
+            defaultColor = PREVIEW_ACCENT,
         )
 
         // --- Chip height ---
@@ -356,7 +356,7 @@ internal fun ButtonScreen(
             selected = appearance.sendButtonColor,
             onSelect = viewModel::setSendButtonColor,
             defaultLabel = stringResource(R.string.cd_color_default_accent),
-            defaultColor = PreviewAccent,
+            defaultColor = PREVIEW_ACCENT,
         )
         ColorPickerCard(
             label = stringResource(R.string.appearance_cancel_color),

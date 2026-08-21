@@ -22,7 +22,7 @@ object JsonSettings {
     const val VERSION_KEY = "version"
     const val VERSION = 1
 
-    // Section labels — also the keys of the store map AppViewModel builds.
+    /** Section labels — also the keys of the store map AppViewModel builds. */
     const val THEME = "theme"
     const val LAYOUT = "layout"
     const val ICONS = "icons"

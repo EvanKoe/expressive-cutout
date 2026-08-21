@@ -43,7 +43,13 @@ object ShizukuState {
     private val permissionResult =
         Shizuku.OnRequestPermissionResultListener { _, _ -> refresh() }
 
-    /** Registers the binder listeners and seeds the initial state. Safe to call once, from the app. */
+    /**
+     * Registers the binder listeners and seeds the initial state. Safe to call once, from the app.
+     *
+     * There is deliberately no `stop()`: the [Application] owns this lifetime, and Android never
+     * calls a reliable teardown on it, so the listeners live until the process dies and are
+     * released with it.
+     */
     fun start(context: Context) {
         appContext = context.applicationContext
         Shizuku.addBinderReceivedListenerSticky(binderReceived)
@@ -57,6 +63,10 @@ object ShizukuState {
         _status.value = currentStatus()
     }
 
+    /**
+     * Works out the live Shizuku status, distinguishing not-installed from installed-but-stopped
+     * and from an old version whose handshake this app no longer speaks.
+     */
     private fun currentStatus(): ShizukuStatus {
         val context = appContext ?: return ShizukuStatus.NOT_INSTALLED
         if (!isInstalled(context)) return ShizukuStatus.NOT_INSTALLED
@@ -77,6 +87,7 @@ object ShizukuState {
         runCatching { Shizuku.requestPermission(PERMISSION_REQUEST_CODE) }
     }
 
+    /** Whether the Shizuku app is installed, treating any lookup failure as absent. */
     private fun isInstalled(context: Context): Boolean = runCatching {
         context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
         true

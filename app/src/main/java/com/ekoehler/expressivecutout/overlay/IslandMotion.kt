@@ -106,23 +106,35 @@ internal class IslandMotion(
         else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
 
     companion object {
-        // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
-        // animation is expressed relative to this, so the duration slider scales them in proportion.
+        /**
+         * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+         * animation is expressed relative to this, so the duration slider scales them in
+         * proportion.
+         */
         const val BASE_TRANSITION_MS = 220
 
-        // Standard ease-in-out — cubic-bezier(0.42, 0.0, 0.58, 1.0) — for AnimationStyle.EASE_IN_OUT.
+        /**
+         * Standard ease-in-out — cubic-bezier(0.42, 0.0, 0.58, 1.0) — for
+         * AnimationStyle.EASE_IN_OUT.
+         */
         private val EaseInOutEasing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
-        // The island's resting scale, i.e. the one the boop and the pop depart from and return to.
+        /**
+         * The island's resting scale, i.e. the one the boop and the pop depart from and return to.
+         */
         private const val REST_SCALE = 1f
 
-        // Damping for [pop]'s single-arc swell. Loose enough that the spring actually overshoots,
-        // tight enough that it settles in one swing rather than wobbling.
+        /**
+         * Damping for [pop]'s single-arc swell. Loose enough that the spring actually overshoots,
+         * tight enough that it settles in one swing rather than wobbling.
+         */
         private const val POP_DAMPING = 0.55f
 
-        // How far a spring launched from its target overshoots, as a fraction of velocity / omega:
-        // exp(-z * atan(sqrt(1 - z^2) / z) / sqrt(1 - z^2)), evaluated at z = POP_DAMPING.
-        // Keep in step with POP_DAMPING — it is only correct for that value.
+        /**
+         * How far a spring launched from its target overshoots, as a fraction of velocity / omega:
+         * exp(-z * atan(sqrt(1 - z^2) / z) / sqrt(1 - z^2)), evaluated at z = POP_DAMPING. Keep in
+         * step with POP_DAMPING — it is only correct for that value.
+         */
         private const val POP_PEAK_RATIO = 0.5216f
 
         /**

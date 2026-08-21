@@ -174,15 +174,13 @@ internal fun BehaviourScreen(
             checked = behaviour.vibrateOnTap,
             onCheckedChange = viewModel::setVibrateOnTap
         )
-        AnimatedVisibility(visible = !behaviour.showsWhenEmpty) {
-            SettingsToggleCard(
-                shape = groupedShape(isFirst = false, isLast = false),
-                title = stringResource(R.string.behaviour_hapticsOnPop_title),
-                description = stringResource(R.string.behaviour_hapticsOnPop_desc),
-                checked = behaviour.hapticsOnPop,
-                onCheckedChange = viewModel::setHapticsOnPop,
-            )
-        }
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_hapticsOnPop_title),
+            description = stringResource(R.string.behaviour_hapticsOnPop_desc),
+            checked = behaviour.hapticsOnPop,
+            onCheckedChange = viewModel::setHapticsOnPop,
+        )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_swipe_dismiss),
@@ -309,6 +307,7 @@ private fun BehaviourSliderRow(
     }
 }
 
+/** One choice in a radio group: its title and the line of explanation under it. */
 private data class RadioOption(
     val title: String,
     val description: String,

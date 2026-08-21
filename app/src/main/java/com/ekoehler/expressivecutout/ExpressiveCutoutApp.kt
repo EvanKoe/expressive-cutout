@@ -17,6 +17,10 @@ class ExpressiveCutoutApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * Starts the singletons that have to outlive any single service or activity, and lifts the
+     * hidden-API restriction they need, before anything else in the process runs.
+     */
     override fun onCreate() {
         super.onCreate()
         // IStatusBarService is a non-SDK interface, so plain reflection on it is blocked for apps

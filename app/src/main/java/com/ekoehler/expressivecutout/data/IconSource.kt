@@ -1,9 +1,12 @@
 package com.ekoehler.expressivecutout.data
 
+import androidx.compose.runtime.Immutable
+
 /**
  * A user-chosen override for a system event's icon. Persisted as a single tagged string so
  * it round-trips through DataStore; an absent value means "use the built-in default".
  */
+@Immutable
 sealed interface IconSource {
 
     /** A picked image file, referenced by a persistable content URI. */
@@ -12,6 +15,10 @@ sealed interface IconSource {
     /** A built-in Material icon, referenced by its stable catalog key (see MaterialIconCatalog). */
     data class Material(val iconName: String) : IconSource
 
+    /**
+     * Encodes to a single tagged string so the icon choice fits one preference key. Read back by
+     * [decode].
+     */
     fun encode(): String = when (this) {
         is Image -> "$IMAGE_TAG$SEPARATOR$uri"
         is Material -> "$MATERIAL_TAG$SEPARATOR$iconName"

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for every behaviour setting. */
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
 
 /** How the cutout behaves when the device is in horizontal/landscape orientation. */
@@ -342,6 +343,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[HIDE_ON_LOCKSCREEN] = enabled
     }
 
+    /**
+     * Keeps the landscape switch and [HorizontalCutoutMode] in step: turning it on forces the mode
+     * to [HorizontalCutoutMode.HIDDEN], since "hide in landscape" is that mode under an older name.
+     * Mirrored by [setHorizontalCutoutMode].
+     */
     suspend fun setHideInLandscape(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_IN_LANDSCAPE] = enabled
         if (enabled) {
@@ -349,6 +355,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
+    /**
+     * Keeps [HorizontalCutoutMode] and the older landscape switch in step, so a reader of either
+     * sees the same thing. Mirrors [setHideInLandscape].
+     */
     suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = context.behaviourDataStore.edit {
         it[HORIZONTAL_CUTOUT_MODE] = mode.name
         it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN)
@@ -370,6 +380,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[ACTION_BUTTON_ANIMATION] = animation.name
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave an
+     * animation length the UI has no way to correct.
+     */
     suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
         it[ANIMATION_DURATION_MS] = ms.coerceIn(
             BehaviourSettings.MIN_ANIMATION_DURATION_MS,
@@ -382,6 +396,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[DISMISS_NOTIFICATIONS] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * duration the UI has no way to correct.
+     */
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[NORMAL_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_NORMAL_SECONDS,
@@ -393,6 +411,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[AUTO_COLLAPSE] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * collapse delay the UI has no way to correct.
+     */
     suspend fun setCollapseSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[COLLAPSE_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_COLLAPSE_SECONDS,
@@ -449,6 +471,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it.remove(SHOWS_WHEN_EMPTY_ICON)
     }
 
+    /**
+     * Stores the empty pill's icon colour, or removes the key entirely for null so the icon falls
+     * back to the theme default.
+     */
     suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
         if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
         else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
@@ -458,6 +484,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
     }
 
+    /**
+     * Stores the package the empty pill opens, or removes the key entirely for null so no app is
+     * bound to the tap.
+     */
     suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = context.behaviourDataStore.edit {
         if (packageName == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE)
         else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName

@@ -38,8 +38,10 @@ class NotificationAlerter(private val context: Context) {
         }
     }
 
-    // The sound currently playing, so a notification landing on the heels of another replaces its
-    // ring rather than layering over it — as the framework does with its own.
+    /**
+     * The sound currently playing, so a notification landing on the heels of another replaces its
+     * ring rather than layering over it — as the framework does with its own.
+     */
     private var playing: Ringtone? = null
 
     /**
@@ -85,6 +87,10 @@ class NotificationAlerter(private val context: Context) {
         playing = null
     }
 
+    /**
+     * Plays one alert sound, replacing any still ringing. Guarded because a sound URI can name a
+     * file the user has since deleted.
+     */
     @Synchronized
     private fun play(uri: Uri?, attributes: AudioAttributes?) {
         val sound = uri ?: return
@@ -99,7 +105,7 @@ class NotificationAlerter(private val context: Context) {
 
     /**
      * Buzz with the channel's own pattern where it has one. Most channels don't — they take the
-     * phone's default vibration, which isn't ours to read — so those get [DEFAULT_PATTERN], the same
+     * phone's default vibration, which isn't ours to read — so those get [defaultPattern], the same
      * two firm pulses the platform buzzes for a notification.
      *
      * Deliberately a waveform rather than one of the predefined effects: those are haptic-feedback
@@ -113,7 +119,7 @@ class NotificationAlerter(private val context: Context) {
         val effect = if (pattern != null && pattern.isNotEmpty()) {
             VibrationEffect.createWaveform(pattern, NO_REPEAT)
         } else {
-            VibrationEffect.createWaveform(DEFAULT_PATTERN, DEFAULT_AMPLITUDES, NO_REPEAT)
+            VibrationEffect.createWaveform(defaultPattern, defaultAmplitudes, NO_REPEAT)
         }
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -131,20 +137,27 @@ class NotificationAlerter(private val context: Context) {
     private companion object {
         const val TAG = "NotificationAlerter"
 
-        // Play the waveform once through rather than looping it.
+        /** Play the waveform once through rather than looping it. */
         const val NO_REPEAT = -1
 
-        // What a notification buzzes like when its channel names no pattern of its own: wait none,
-        // pulse, pause, pulse. Mirrors the platform's own default notification vibration.
-        val DEFAULT_PATTERN = longArrayOf(0, 250, 250, 250)
+        /**
+         * What a notification buzzes like when its channel names no pattern of its own: wait none,
+         * pulse, pause, pulse. Mirrors the platform's own default notification vibration.
+         */
+        val defaultPattern = longArrayOf(0, 250, 250, 250)
 
-        // Full strength for each pulse in [DEFAULT_PATTERN], zero for the gaps. Amplitudes are given
-        // explicitly rather than left to DEFAULT_AMPLITUDE so the buzz is as strong as the hardware
-        // allows, which is the whole point of standing in for an alert the user would otherwise miss.
-        val DEFAULT_AMPLITUDES = intArrayOf(0, 255, 0, 255)
+        /**
+         * Full strength for each pulse in [defaultPattern], zero for the gaps. Amplitudes are
+         * given explicitly rather than left to DEFAULT_AMPLITUDE so the buzz is as strong as the
+         * hardware allows, which is the whole point of standing in for an alert the user would
+         * otherwise miss.
+         */
+        val defaultAmplitudes = intArrayOf(0, 255, 0, 255)
 
-        // What the framework would have used for a notification, so the ring lands on the
-        // notification volume and ducks against media the same way.
+        /**
+         * What the framework would have used for a notification, so the ring lands on the
+         * notification volume and ducks against media the same way.
+         */
         val NOTIFICATION_ATTRIBUTES: AudioAttributes = AudioAttributes.Builder()
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)

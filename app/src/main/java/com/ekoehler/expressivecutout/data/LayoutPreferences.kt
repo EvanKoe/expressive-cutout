@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the collapsed and expanded island geometry. */
 private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataStore(name = "layout_prefs")
 
 /**
@@ -50,6 +51,11 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         obj.optJSONObject("expanded")?.toDimensionsOrNull()?.let { setExpanded(it) }
     }
 
+    /**
+     * Reads one island geometry out of an imported settings file, returning null if any field is
+     * missing or malformed rather than throwing — a partial import leaves the stored layout
+     * untouched.
+     */
     private fun JSONObject.toDimensionsOrNull(): IslandDimensions? = runCatching {
         IslandDimensions.of(
             widthPercent = getInt("widthPercent"),
@@ -63,6 +69,10 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         )
     }.getOrNull()
 
+    /**
+     * Writes one island geometry for export, field by field so the JSON stays readable and
+     * hand-editable.
+     */
     private fun IslandDimensions.toJsonObject(): JSONObject = JSONObject().apply {
         put("widthPercent", widthPercent)
         put("heightDp", heightDp)
@@ -96,6 +106,10 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerBottomRightDp = this[keys.cornerBottomRight] ?: default.cornerBottomRightDp,
         )
 
+    /**
+     * Writes one island geometry into preferences under [keys], which is what lets the collapsed
+     * and expanded states share this code with different key sets.
+     */
     private fun MutablePreferences.writeDimensions(keys: Keys, dimensions: IslandDimensions) {
         this[keys.width] = dimensions.widthPercent
         this[keys.height] = dimensions.heightDp

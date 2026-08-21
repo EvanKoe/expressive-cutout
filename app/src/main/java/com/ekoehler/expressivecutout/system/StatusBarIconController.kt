@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 
+/** Log tag for the reflection below, which reports failures rather than throwing. */
 private const val TAG = "StatusBarIcons"
 
 /** Hidden `StatusBarManager` disable flags. Only the ones we use are named here. */
@@ -47,6 +48,11 @@ object StatusBarIconController {
     /**
      * Keeps the system status bar in sync with the saved wish, re-applying whenever Shizuku becomes
      * reachable again — after a reboot, or after the user starts Shizuku for the first time.
+     *
+     * There is deliberately no `stop()`, and adding one would be a mistake: releasing [token] is
+     * what restores the system icons, so a public stop would be a way to silently undo the user's
+     * setting. The process dying is the only thing that should clear these flags, which is the
+     * safety net described above.
      */
     fun start(context: Context, scope: CoroutineScope) {
         val preferences = StatusBarPreferences(context)
@@ -114,6 +120,10 @@ object StatusBarIconController {
         val status: ShizukuStatus,
     )
 
+    /**
+     * Reflects `IStatusBarService` out from behind a Shizuku binder wrapper. Hidden and non-SDK,
+     * which is why the app lifts the hidden-API restriction at startup.
+     */
     private fun buildService(): Any {
         val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService("statusbar"))
         return Class.forName("com.android.internal.statusbar.IStatusBarService\$Stub")
