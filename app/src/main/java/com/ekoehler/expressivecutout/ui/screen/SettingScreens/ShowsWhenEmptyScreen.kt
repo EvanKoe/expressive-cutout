@@ -539,7 +539,7 @@ private fun AddShortcutSheet(
                 .heightIn(max = 480.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         ) {
-            item {
+            item(key = "choose_app") {
                 AddShortcutRow(
                     icon = Icons.Rounded.Apps,
                     label = stringResource(R.string.center_add_choose_app),
