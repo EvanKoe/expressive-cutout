@@ -1,9 +1,12 @@
 package com.ekoehler.expressivecutout.data
 
+import androidx.compose.runtime.Immutable
+
 /**
  * A user-chosen override for a system event's icon. Persisted as a single tagged string so
  * it round-trips through DataStore; an absent value means "use the built-in default".
  */
+@Immutable
 sealed interface IconSource {
 
     /** A picked image file, referenced by a persistable content URI. */
