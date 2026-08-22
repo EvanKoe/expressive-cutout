@@ -555,6 +555,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
+        val pm = packageManager
+        val appName = runCatching {
+            pm.getApplicationLabel(pm.getApplicationInfo(notification.packageName, 0)).toString()
+        }.getOrNull()
+        val postTimeMs = if (notification.postTime > 0) notification.postTime else System.currentTimeMillis()
 
         // A notification the island already finished with, coming back on the same content: drop it
         // rather than re-popping to fight whatever replaced it. Progress notifications are exempt —
@@ -568,6 +573,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             packageName = notification.packageName,
             title = title,
             text = text,
+            appName = appName,
+            postTimeMs = postTimeMs,
             key = notification.key,
             contentIntent = notification.notification.contentIntent,
             actions = notification.notification.surfaceableActions(),

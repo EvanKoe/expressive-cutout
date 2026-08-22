@@ -131,6 +131,8 @@ class IconResolver(private val context: Context) {
             // leaving the island to name the app it came from.
             label = title ?: text ?: context.getString(R.string.island_notification),
             detail = if (title != null) text else null,
+            appName = signal.appName,
+            postTimeMs = signal.postTimeMs,
             accent = NOTIFICATION_ACCENT,
             // A notification badge is a monochrome glyph far more often than a system event's is
             // art, so it follows "Dynamic color for all events" too when that is on.

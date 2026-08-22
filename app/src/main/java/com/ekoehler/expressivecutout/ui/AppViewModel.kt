@@ -806,6 +806,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setStrokeEnabled(enabled)
     }
 
+    fun setShowSourceAppName(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowSourceAppName(enabled)
+    }
+
+    fun setShowTimestamp(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowTimestamp(enabled)
+    }
+
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
         appearancePreferences.setStrokeWidth(widthDp)
     }

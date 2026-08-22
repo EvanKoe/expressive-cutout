@@ -275,6 +275,8 @@ class IslandOverlayController(private val context: Context) {
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
             label = context.getString(R.string.preview_label),
             detail = context.getString(R.string.preview_detail),
+            appName = context.getString(R.string.app_name),
+            postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
         )
     }

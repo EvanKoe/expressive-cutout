@@ -102,14 +102,17 @@ internal fun BackgroundScreen(
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     val expandedTab = tabIndex == 1
 
+    val previewAppName = stringResource(R.string.app_name)
     val previewLabel = stringResource(R.string.preview_label)
     val previewDetail = stringResource(R.string.preview_detail)
-    val previewEvent = remember(previewLabel, previewDetail) {
+    val previewEvent = remember(previewAppName, previewLabel, previewDetail) {
         IslandEvent(
             id = 0L,
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
+            appName = previewAppName,
+            postTimeMs = System.currentTimeMillis(),
             accent = PREVIEW_ACCENT,
         )
     }
