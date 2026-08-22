@@ -155,6 +155,13 @@ internal fun BehaviourScreen(
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_ignore_silent_notif),
+            description = stringResource(R.string.behaviour_ignore_silent_notif_desc),
+            checked = behaviour.ignoreSilentNotifications,
+            onCheckedChange = viewModel::setIgnoreSilentNotifications,
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_action_buttons),
             description = stringResource(R.string.behaviour_action_buttons_desc),
             checked = behaviour.showActionButtons,
