@@ -105,6 +105,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        onNotificationPosted(sbn, null)
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
         val notification = sbn ?: return
 
         // Phone call
@@ -124,6 +128,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         if (!notification.shouldSurface()) return
 
+        val isSilent = isSilentNotification(notification, rankingMap)
         val extras = notification.notification.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
@@ -139,8 +144,34 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                 actions = notification.notification.surfaceableActions(),
                 largeIcon = notification.notification.getLargeIcon(),
                 smallIcon = notification.notification.smallIcon,
-                progressData = progress
+                progressData = progress,
+                isSilent = isSilent,
             ),
+        )
+    }
+
+    /**
+     * Determines whether [sbn] represents a silent notification.
+     */
+    fun isSilentNotification(sbn: StatusBarNotification, rankingMap: RankingMap? = null): Boolean {
+        val ranking = Ranking()
+        val found = (rankingMap != null && rankingMap.getRanking(sbn.key, ranking)) ||
+            (currentRanking != null && currentRanking.getRanking(sbn.key, ranking))
+        if (found) {
+            val importance = ranking.importance
+            val isAmbient = ranking.isAmbient
+            val priority = sbn.notification?.priority ?: Notification.PRIORITY_DEFAULT
+            return NotificationClassifier.isSilent(
+                importance = importance,
+                isAmbient = isAmbient,
+                priority = priority,
+            )
+        }
+        val priority = sbn.notification?.priority ?: Notification.PRIORITY_DEFAULT
+        return NotificationClassifier.isSilent(
+            importance = null,
+            isAmbient = false,
+            priority = priority,
         )
     }
 

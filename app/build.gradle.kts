@@ -57,5 +57,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.lottie.compose)
 
+    testImplementation(libs.junit)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
