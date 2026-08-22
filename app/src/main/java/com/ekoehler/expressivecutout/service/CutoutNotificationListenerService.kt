@@ -510,6 +510,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * dynamic tile, or nothing at all.
      */
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        onNotificationPosted(sbn, null)
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
         val notification = sbn ?: return
 
         if (CallNotificationParser.isCall(notification)) {
@@ -559,6 +563,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val fingerprint = fingerprint(notification.packageName, title, text)
         if (progress == null && suppressed.isSuppressed(fingerprint)) return
 
+        val isSilent = isSilentNotification(notification, rankingMap)
         val islandEvent = CutoutSignal.Notification(
             packageName = notification.packageName,
             title = title,
@@ -568,7 +573,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             actions = notification.notification.surfaceableActions(),
             largeIcon = notification.notification.getLargeIcon(),
             smallIcon = notification.notification.smallIcon,
-            progressData = progress
+            progressData = progress,
+            isSilent = isSilent,
         )
 
         IslandEventBus.emit(islandEvent)
@@ -593,6 +599,31 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * Cleans up the state a notification left behind once it is gone, so a dismissed call or timer
      * doesn't strand its tile.
      */
+    /**
+     * Determines whether [sbn] represents a silent notification.
+     */
+    fun isSilentNotification(sbn: StatusBarNotification, rankingMap: RankingMap? = null): Boolean {
+        val ranking = Ranking()
+        val found = (rankingMap != null && rankingMap.getRanking(sbn.key, ranking)) ||
+            (currentRanking != null && currentRanking.getRanking(sbn.key, ranking))
+        if (found) {
+            val importance = ranking.importance
+            val isAmbient = ranking.isAmbient
+            val priority = sbn.notification?.priority ?: Notification.PRIORITY_DEFAULT
+            return NotificationClassifier.isSilent(
+                importance = importance,
+                isAmbient = isAmbient,
+                priority = priority,
+            )
+        }
+        val priority = sbn.notification?.priority ?: Notification.PRIORITY_DEFAULT
+        return NotificationClassifier.isSilent(
+            importance = null,
+            isAmbient = false,
+            priority = priority,
+        )
+    }
+
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         // Clears call cutout when call ends
         if (sbn?.key != null && sbn.key == currentCallKey) {
