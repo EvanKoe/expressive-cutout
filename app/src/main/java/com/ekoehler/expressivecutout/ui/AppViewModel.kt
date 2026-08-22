@@ -580,6 +580,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setNotificationsAutoExpand(enabled)
     }
 
+    fun setIgnoreSilentNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setIgnoreSilentNotifications(enabled)
+    }
+
     fun setShowActionButtons(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowActionButtons(enabled)
     }
