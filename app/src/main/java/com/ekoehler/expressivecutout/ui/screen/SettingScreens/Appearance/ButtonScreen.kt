@@ -156,6 +156,7 @@ internal fun ButtonScreen(
             cornerBottomRightDp = expanded.cornerBottomRightDp,
             offsetXDp = expanded.offsetXDp,
             offsetYDp = expanded.offsetYDp,
+            topMarginDp = expanded.topMarginDp,
             expanded = true,
             event = previewEvent,
             appearance = previewAppearance,

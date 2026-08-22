@@ -94,6 +94,7 @@
     <string name="appearance_preview">Preview</string>
     <string name="appearance_width">Width</string>
     <string name="appearance_height">Height</string>
+    <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="corner_mode_all">All</string>
     <string name="corner_mode_split">Top / Bottom</string>
