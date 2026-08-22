@@ -91,11 +91,12 @@ internal fun ButtonScreen(
     val previewAppearance = appearance.copy(actionButtonHeightDp = buttonHeight.roundToInt())
 
     val context = LocalContext.current
+    val previewAppName = stringResource(R.string.app_name)
     val previewLabel = stringResource(R.string.preview_label)
     val previewDetail = stringResource(R.string.preview_detail)
     val replyLabel = stringResource(R.string.action_buttons_preview_reply)
     val archiveLabel = stringResource(R.string.action_buttons_preview_archive)
-    val previewEvent = remember(previewLabel, previewDetail, replyLabel, archiveLabel) {
+    val previewEvent = remember(previewAppName, previewLabel, previewDetail, replyLabel, archiveLabel) {
         // A harmless, never-fired intent so the preview chips have the PendingIntent they require.
         val noop = PendingIntent.getActivity(
             context, 0, Intent(),
@@ -106,6 +107,8 @@ internal fun ButtonScreen(
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
+            appName = previewAppName,
+            postTimeMs = System.currentTimeMillis(),
             accent = PreviewAccent,
             actions = listOf(
                 IslandAction(label = replyLabel, intent = noop),
@@ -156,6 +159,7 @@ internal fun ButtonScreen(
             cornerBottomRightDp = expanded.cornerBottomRightDp,
             offsetXDp = expanded.offsetXDp,
             offsetYDp = expanded.offsetYDp,
+            topMarginDp = expanded.topMarginDp,
             expanded = true,
             event = previewEvent,
             appearance = previewAppearance,

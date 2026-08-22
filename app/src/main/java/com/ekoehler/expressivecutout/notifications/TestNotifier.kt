@@ -97,6 +97,8 @@ object TestNotifier {
                 packageName = context.packageName,
                 title = context.getString(R.string.test_notification_title),
                 text = context.getString(R.string.test_notification_text),
+                appName = context.getString(R.string.app_name),
+                postTimeMs = System.currentTimeMillis(),
                 actions = listOf(
                     CutoutSignal.Notification.Action(
                         title = context.getString(R.string.test_notification_action_reply),
@@ -161,6 +163,8 @@ object TestNotifier {
                         packageName = appContext.packageName,
                         title = title,
                         text = text,
+                        appName = appContext.getString(R.string.app_name),
+                        postTimeMs = System.currentTimeMillis(),
                         key = PROGRESS_KEY,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(

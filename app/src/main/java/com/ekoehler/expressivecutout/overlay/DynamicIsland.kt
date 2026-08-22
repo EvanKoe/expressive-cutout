@@ -666,6 +666,7 @@ fun DynamicIsland(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
+                                        topMarginDp = expanded.topMarginDp,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -708,6 +709,7 @@ fun IslandPreview(
     cornerTopRightDp: Int,
     cornerBottomLeftDp: Int,
     cornerBottomRightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
@@ -729,6 +731,7 @@ fun IslandPreview(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
+                topMarginDp = topMarginDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
@@ -1223,11 +1226,53 @@ private fun timerRemainingText(): String? {
     return formatCallDuration((remainingMs + 999L) / 1_000L)
 }
 
+/** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
+fun formatRelativeTime(postTimeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val elapsedSeconds = ((nowMs - postTimeMs) / 1000L).coerceAtLeast(0L)
+    return when {
+        elapsedSeconds < 5L -> "Now"
+        elapsedSeconds < 60L -> "${elapsedSeconds}s ago"
+        elapsedSeconds < 3600L -> "${elapsedSeconds / 60L}m ago"
+        elapsedSeconds < 86400L -> "${elapsedSeconds / 3600L}h ago"
+        else -> "${elapsedSeconds / 86400L}d ago"
+    }
+}
+
+/** Combines source app name and relative timestamp according to visibility settings. */
+fun formatNotificationHeader(
+    appName: String?,
+    relativeTime: String?,
+    showAppName: Boolean,
+    showTimestamp: Boolean,
+): String? {
+    val showApp = showAppName && !appName.isNullOrBlank()
+    val showTime = showTimestamp && !relativeTime.isNullOrBlank()
+    return when {
+        showApp && showTime -> "$appName • $relativeTime"
+        showApp -> appName
+        showTime -> relativeTime
+        else -> null
+    }
+}
+
+@Composable
+fun rememberRelativeTime(postTimeMs: Long?): String? {
+    if (postTimeMs == null) return null
+    val relativeTime by produceState(initialValue = formatRelativeTime(postTimeMs), key1 = postTimeMs) {
+        while (true) {
+            delay(1_000L)
+            value = formatRelativeTime(postTimeMs)
+        }
+    }
+    return relativeTime
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1240,12 +1285,21 @@ private fun ExpandedContent(
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
-        MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
+        MediaExpandedContent(
+            event = event,
+            buttonHeightDp = appearance.actionButtonHeightDp,
+            topMarginDp = topMarginDp,
+        )
         return
     }
     // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
-        TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
+        TimerExpandedContent(
+            event = event,
+            appearance = appearance,
+            topMarginDp = topMarginDp,
+            onAction = onAction,
+        )
         return
     }
     // The assistant tile: icon + text response with vertical scrolling.
@@ -1259,12 +1313,21 @@ private fun ExpandedContent(
         )
         return
     }
-    // Content sits in the lower part of the card, leaving the top clear of the camera hole.
+
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
+
+    // Content sits below the top margin, leaving the top clear of the camera hole.
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = 16.dp),
+                .align(Alignment.TopStart)
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -1273,6 +1336,16 @@ private fun ExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -1864,16 +1937,20 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
+private fun MediaExpandedContent(
+    event: IslandEvent,
+    buttonHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -2474,6 +2551,7 @@ private fun CallStatus(onCall: OnCall?) {
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
@@ -2481,9 +2559,9 @@ private fun TimerExpandedContent(
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(

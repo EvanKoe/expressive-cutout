@@ -60,6 +60,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerTopRightDp = getInt("cornerTopRightDp"),
             cornerBottomLeftDp = getInt("cornerBottomLeftDp"),
             cornerBottomRightDp = getInt("cornerBottomRightDp"),
+            topMarginDp = optInt("topMarginDp", IslandDimensions.DEFAULT_TOP_MARGIN_DP),
         )
     }.getOrNull()
 
@@ -72,6 +73,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         put("cornerTopRightDp", cornerTopRightDp)
         put("cornerBottomLeftDp", cornerBottomLeftDp)
         put("cornerBottomRightDp", cornerBottomRightDp)
+        put("topMarginDp", topMarginDp)
     }
 
     suspend fun setCollapsed(dimensions: IslandDimensions) = context.layoutDataStore.edit {
@@ -94,6 +96,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerTopRightDp = this[keys.cornerTopRight] ?: default.cornerTopRightDp,
             cornerBottomLeftDp = this[keys.cornerBottomLeft] ?: default.cornerBottomLeftDp,
             cornerBottomRightDp = this[keys.cornerBottomRight] ?: default.cornerBottomRightDp,
+            topMarginDp = this[keys.topMargin] ?: default.topMarginDp,
         )
 
     private fun MutablePreferences.writeDimensions(keys: Keys, dimensions: IslandDimensions) {
@@ -105,6 +108,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         this[keys.cornerTopRight] = dimensions.cornerTopRightDp
         this[keys.cornerBottomLeft] = dimensions.cornerBottomLeftDp
         this[keys.cornerBottomRight] = dimensions.cornerBottomRightDp
+        this[keys.topMargin] = dimensions.topMarginDp
     }
 
     /** The preference keys backing one island state. */
@@ -117,6 +121,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         val cornerTopRight = intPreferencesKey("${prefix}_corner_tr")
         val cornerBottomLeft = intPreferencesKey("${prefix}_corner_bl")
         val cornerBottomRight = intPreferencesKey("${prefix}_corner_br")
+        val topMargin = intPreferencesKey("${prefix}_top_margin")
 
         companion object {
             val Collapsed = Keys("collapsed")

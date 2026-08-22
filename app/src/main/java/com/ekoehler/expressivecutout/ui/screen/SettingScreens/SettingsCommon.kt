@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
 
@@ -279,6 +280,7 @@ internal fun IslandPreviewPanel(
     cornerBottomRightDp: Int,
     offsetXDp: Int,
     offsetYDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
@@ -332,6 +334,7 @@ internal fun IslandPreviewPanel(
                 cornerTopRightDp = cornerTopRightDp,
                 cornerBottomLeftDp = cornerBottomLeftDp,
                 cornerBottomRightDp = cornerBottomRightDp,
+                topMarginDp = topMarginDp,
                 expanded = expanded,
                 appearance = appearance,
                 showActions = showActions,
