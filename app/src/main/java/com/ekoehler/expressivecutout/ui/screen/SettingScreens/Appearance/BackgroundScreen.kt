@@ -154,6 +154,7 @@ internal fun BackgroundScreen(
             cornerBottomRightDp = dims.cornerBottomRightDp,
             offsetXDp = dims.offsetXDp,
             offsetYDp = dims.offsetYDp,
+            topMarginDp = dims.topMarginDp,
             expanded = expandedTab,
             event = previewEvent,
             appearance = appearance,

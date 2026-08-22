@@ -782,7 +782,7 @@ fun DynamicIsland(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
-                                        collapsedHeightDp = collapsed.heightDp,
+                                        topMarginDp = expanded.topMarginDp,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -859,6 +859,7 @@ fun IslandPreview(
     cornerTopRightDp: Int,
     cornerBottomLeftDp: Int,
     cornerBottomRightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
@@ -881,7 +882,7 @@ fun IslandPreview(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
-                collapsedHeightDp = collapsedHeightDp,
+                topMarginDp = topMarginDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
@@ -1396,7 +1397,7 @@ private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1412,7 +1413,7 @@ private fun ExpandedContent(
         MediaExpandedContent(
             event = event,
             buttonHeightDp = appearance.actionButtonHeightDp,
-            collapsedHeightDp = collapsedHeightDp,
+            topMarginDp = topMarginDp,
         )
         return
     }
@@ -1421,7 +1422,7 @@ private fun ExpandedContent(
         TimerExpandedContent(
             event = event,
             appearance = appearance,
-            collapsedHeightDp = collapsedHeightDp,
+            topMarginDp = topMarginDp,
             onAction = onAction,
         )
         return
@@ -1432,24 +1433,18 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
-            collapsedHeightDp = collapsedHeightDp,
+            collapsedHeightDp = topMarginDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
         return
     }
-    // Content hugs the card's bottom edge, below a collapsed-pill-height band that keeps the camera
-    // hole clear. The band is a hard floor: a header tall enough to overrun the card (a two-line
-    // detail plus a progress bar) now spills past the bottom instead of riding up under the camera.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
-    ) {
+    // Content sits below the top margin, leaving the top clear of the camera hole.
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = 16.dp),
+                .align(Alignment.TopStart)
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the action / reply row below claims its full height first and the header
@@ -2070,20 +2065,24 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int, collapsedHeightDp: Int) {
+private fun MediaExpandedContent(
+    event: IslandEvent,
+    buttonHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+            .padding(start = 18.dp, end = 18.dp)
     ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the transport controls keep their height and the track text gives way.
@@ -2694,7 +2693,7 @@ private fun CallStatus(onCall: OnCall?) {
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
@@ -2702,13 +2701,13 @@ private fun TimerExpandedContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+            .padding(start = 18.dp, end = 18.dp)
     ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.

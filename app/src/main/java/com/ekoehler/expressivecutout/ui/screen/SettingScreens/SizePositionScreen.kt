@@ -167,6 +167,7 @@ private fun DimensionsEditor(
 ) {
     var width by remember(dimensions.widthPercent) { mutableStateOf(dimensions.widthPercent.toFloat()) }
     var height by remember(dimensions.heightDp) { mutableStateOf(dimensions.heightDp.toFloat()) }
+    var topMargin by remember(dimensions.topMarginDp) { mutableStateOf(dimensions.topMarginDp.toFloat()) }
     var offsetX by remember(dimensions.offsetXDp) { mutableStateOf(dimensions.offsetXDp.toFloat()) }
     var offsetY by remember(dimensions.offsetYDp) { mutableStateOf(dimensions.offsetYDp.toFloat()) }
     var cornerTl by remember(dimensions.cornerTopLeftDp) { mutableStateOf(dimensions.cornerTopLeftDp.toFloat()) }
@@ -187,6 +188,7 @@ private fun DimensionsEditor(
             cornerTopRightDp = cornerTr.roundToInt(),
             cornerBottomLeftDp = cornerBl.roundToInt(),
             cornerBottomRightDp = cornerBr.roundToInt(),
+            topMarginDp = topMargin.roundToInt(),
         ),
     )
 
@@ -209,6 +211,17 @@ private fun DimensionsEditor(
             onValueChange = { height = it },
             onCommit = { commit() },
         )
+        if (expandedPreview) {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_top_margin),
+                valueText = "${topMargin.roundToInt()} dp",
+                value = topMargin,
+                valueRange = IslandDimensions.MIN_TOP_MARGIN_DP.toFloat()..IslandDimensions.MAX_TOP_MARGIN_DP.toFloat(),
+                step = 2f,
+                onValueChange = { topMargin = it },
+                onCommit = { commit() },
+            )
+        }
         CornerRadiusControls(
             cornerTl = cornerTl,
             cornerTr = cornerTr,
@@ -246,6 +259,7 @@ private fun DimensionsEditor(
             onClick = {
                 width = defaults.widthPercent.toFloat()
                 height = defaults.heightDp.toFloat()
+                topMargin = defaults.topMarginDp.toFloat()
                 offsetX = defaults.offsetXDp.toFloat()
                 offsetY = defaults.offsetYDp.toFloat()
                 cornerTl = defaults.cornerTopLeftDp.toFloat()
