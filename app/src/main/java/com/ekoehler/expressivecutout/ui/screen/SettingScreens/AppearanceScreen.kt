@@ -150,6 +150,22 @@ internal fun AppearanceScreen(
             )
         }
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_app_name_title),
+            description = stringResource(R.string.appearance_show_app_name_desc),
+            checked = appearance.showSourceAppName,
+            onCheckedChange = viewModel::setShowSourceAppName,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_timestamp_title),
+            description = stringResource(R.string.appearance_show_timestamp_desc),
+            checked = appearance.showTimestamp,
+            onCheckedChange = viewModel::setShowTimestamp,
+        )
+
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
         BackgroundCard(onClick = {

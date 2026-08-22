@@ -232,6 +232,8 @@ data class AppearanceSettings(
     val strokeEnabled: Boolean = DEFAULT_STROKE_ENABLED,
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
+    val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
+    val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
@@ -250,6 +252,8 @@ data class AppearanceSettings(
         const val DEFAULT_STROKE_WIDTH_DP = 2
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
+        const val DEFAULT_SHOW_SOURCE_APP_NAME = true
+        const val DEFAULT_SHOW_TIMESTAMP = true
 
         // Match the pill's historical look: near-black fill, white stroke.
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -286,6 +290,8 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeWidthDp = (prefs[STROKE_WIDTH] ?: AppearanceSettings.DEFAULT_STROKE_WIDTH_DP)
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
+            showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
+            showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
             backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
@@ -317,6 +323,8 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("strokeEnabled", s.strokeEnabled)
             put("strokeWidthDp", s.strokeWidthDp)
             put("strokeColor", s.strokeColor.serialize())
+            put("showSourceAppName", s.showSourceAppName)
+            put("showTimestamp", s.showTimestamp)
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
             put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
@@ -346,6 +354,8 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
+            if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
+            if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
             if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
                 CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
             }
@@ -422,6 +432,14 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(CANCEL_BUTTON_COLOR) else it[CANCEL_BUTTON_COLOR] = color.serialize()
     }
 
+    suspend fun setShowSourceAppName(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_SOURCE_APP_NAME] = enabled
+    }
+
+    suspend fun setShowTimestamp(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_TIMESTAMP] = enabled
+    }
+
     suspend fun setActionButtonStyle(style: ActionButtonStyle) = context.appearanceDataStore.edit {
         it[ACTION_BUTTON_STYLE] = style.name
     }
@@ -459,6 +477,8 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
+        val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
+        val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
         // Legacy single-colour key, still read to migrate existing installs into the two new keys.
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
         val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")

@@ -58,6 +58,8 @@ data class IslandEvent(
     val icon: IslandIcon,
     val label: String,
     val detail: String? = null,
+    val appName: String? = null,
+    val postTimeMs: Long? = null,
     val accent: Color,
     /**
      * When true the icon badge ignores [accent] and is drawn with a Material You role colour and

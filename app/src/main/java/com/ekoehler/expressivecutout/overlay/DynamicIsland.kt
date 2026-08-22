@@ -1226,6 +1226,47 @@ private fun timerRemainingText(): String? {
     return formatCallDuration((remainingMs + 999L) / 1_000L)
 }
 
+/** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
+fun formatRelativeTime(postTimeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val elapsedSeconds = ((nowMs - postTimeMs) / 1000L).coerceAtLeast(0L)
+    return when {
+        elapsedSeconds < 5L -> "Now"
+        elapsedSeconds < 60L -> "${elapsedSeconds}s ago"
+        elapsedSeconds < 3600L -> "${elapsedSeconds / 60L}m ago"
+        elapsedSeconds < 86400L -> "${elapsedSeconds / 3600L}h ago"
+        else -> "${elapsedSeconds / 86400L}d ago"
+    }
+}
+
+/** Combines source app name and relative timestamp according to visibility settings. */
+fun formatNotificationHeader(
+    appName: String?,
+    relativeTime: String?,
+    showAppName: Boolean,
+    showTimestamp: Boolean,
+): String? {
+    val showApp = showAppName && !appName.isNullOrBlank()
+    val showTime = showTimestamp && !relativeTime.isNullOrBlank()
+    return when {
+        showApp && showTime -> "$appName • $relativeTime"
+        showApp -> appName
+        showTime -> relativeTime
+        else -> null
+    }
+}
+
+@Composable
+fun rememberRelativeTime(postTimeMs: Long?): String? {
+    if (postTimeMs == null) return null
+    val relativeTime by produceState(initialValue = formatRelativeTime(postTimeMs), key1 = postTimeMs) {
+        while (true) {
+            delay(1_000L)
+            value = formatRelativeTime(postTimeMs)
+        }
+    }
+    return relativeTime
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
@@ -1272,6 +1313,15 @@ private fun ExpandedContent(
         )
         return
     }
+
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
+
     // Content sits below the top margin, leaving the top clear of the camera hole.
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -1286,6 +1336,16 @@ private fun ExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
