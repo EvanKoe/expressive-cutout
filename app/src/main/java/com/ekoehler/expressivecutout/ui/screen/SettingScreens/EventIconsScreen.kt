@@ -426,6 +426,7 @@ internal fun EventIconThumbnail(
                 LottieAnimation(
                     composition = composition,
                     iterations = if (loop) LottieConstants.IterateForever else 1,
+                    speed = animated.speed,
                     dynamicProperties = dynamicProperties,
                     // Match the overlay's scaling; the oversized art is clipped to the badge circle.
                     modifier = Modifier.requiredSize(24.dp * animated.scale * sizeScale),

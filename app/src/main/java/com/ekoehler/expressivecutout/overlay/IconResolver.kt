@@ -39,14 +39,14 @@ fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
         clipEndFrame = 0,
         tint = true,
     )
-    // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
-    // padlock, but a device-unlocked event should rest unlocked. Tinted so the padlock follows the
-    // badge glyph colour (accent by default, the role's "on" colour under a dynamic container),
-    // rather than staying its baked-in light art — which vanished on a light dynamic fill.
+    // Play briskly and hold on the "open" frame (25 of 80): motion starts at frame 5 and reaches the
+    // open paddle state at frame 25. Starting at frame 5 with speed 2f snaps the paddle open the instant
+    // the phone unlocks without dead latency. Tinted to follow the badge glyph colour.
     SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(
         R.raw.unlock,
-        clipStartFrame = 0,
-        clipEndFrame = 45,
+        clipStartFrame = 5,
+        clipEndFrame = 25,
+        speed = 2f,
         tint = true,
     )
     // A charging bolt that loops for as long as the cutout is shown. It sits small within its own
