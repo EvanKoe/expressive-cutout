@@ -49,6 +49,7 @@ class SystemEventMonitor(private val context: Context) {
                     isLowBatteryState = false
                     null
                 }
+                Intent.ACTION_SCREEN_OFF -> SystemEventType.DEVICE_LOCKED
                 Intent.ACTION_USER_PRESENT -> SystemEventType.DEVICE_UNLOCKED
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> SystemEventType.USB_MOUNTED
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> SystemEventType.USB_UNMOUNTED
@@ -98,6 +99,7 @@ class SystemEventMonitor(private val context: Context) {
         addAction(Intent.ACTION_POWER_DISCONNECTED)
         addAction(Intent.ACTION_BATTERY_LOW)
         addAction(Intent.ACTION_BATTERY_OKAY)
+        addAction(Intent.ACTION_SCREEN_OFF)
         addAction(Intent.ACTION_USER_PRESENT)
         addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
         addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
