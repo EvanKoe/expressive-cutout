@@ -273,7 +273,7 @@ internal fun calculateExpandedNotificationHeightDp(
         return baseHeight
     }
     val naturalTotalHeight = if (measuredContentHeightDp > 0) {
-        measuredContentHeightDp
+        topMarginDp + measuredContentHeightDp + bottomPaddingDp
     } else {
         baseHeight
     }
@@ -1546,7 +1546,7 @@ private fun ExpandedContent(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight(unbounded = true)
+            .wrapContentHeight(align = Alignment.Top, unbounded = true)
             .wrapContentWidth(unbounded = true, align = Alignment.Start)
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentFade },
