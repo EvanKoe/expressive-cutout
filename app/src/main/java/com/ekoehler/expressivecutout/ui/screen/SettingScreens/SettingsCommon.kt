@@ -347,6 +347,7 @@ internal fun IslandPreviewPanel(
                 cornerBottomLeftDp = cornerBottomLeftDp,
                 cornerBottomRightDp = cornerBottomRightDp,
                 topMarginDp = topMarginDp,
+                offsetXDp = offsetXDp,
                 expanded = expanded,
                 appearance = appearance,
                 showActions = showActions,
