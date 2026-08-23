@@ -234,6 +234,7 @@ data class AppearanceSettings(
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
     val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
     val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
+    val preferDynamicIconColor: Boolean = DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
@@ -254,6 +255,7 @@ data class AppearanceSettings(
         const val MAX_STROKE_WIDTH_DP = 8
         const val DEFAULT_SHOW_SOURCE_APP_NAME = true
         const val DEFAULT_SHOW_TIMESTAMP = true
+        const val DEFAULT_PREFER_DYNAMIC_ICON_COLOR = false
 
         // Match the pill's historical look: near-black fill, white stroke.
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -292,6 +294,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
             showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
             showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
+            preferDynamicIconColor = prefs[PREFER_DYNAMIC_ICON_COLOR] ?: AppearanceSettings.DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
             backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
@@ -325,6 +328,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("strokeColor", s.strokeColor.serialize())
             put("showSourceAppName", s.showSourceAppName)
             put("showTimestamp", s.showTimestamp)
+            put("preferDynamicIconColor", s.preferDynamicIconColor)
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
             put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
@@ -356,6 +360,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             }
             if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
             if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
+            if (obj.has("preferDynamicIconColor")) it[PREFER_DYNAMIC_ICON_COLOR] = obj.getBoolean("preferDynamicIconColor")
             if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
                 CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
             }
@@ -440,6 +445,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[SHOW_TIMESTAMP] = enabled
     }
 
+    suspend fun setPreferDynamicIconColor(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[PREFER_DYNAMIC_ICON_COLOR] = enabled
+    }
+
     suspend fun setActionButtonStyle(style: ActionButtonStyle) = context.appearanceDataStore.edit {
         it[ACTION_BUTTON_STYLE] = style.name
     }
@@ -479,6 +488,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
         val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
         val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
+        val PREFER_DYNAMIC_ICON_COLOR = booleanPreferencesKey("prefer_dynamic_icon_color")
         // Legacy single-colour key, still read to migrate existing installs into the two new keys.
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
         val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")

@@ -661,6 +661,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setShowTimestamp(enabled)
     }
 
+    fun setPreferDynamicIconColor(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setPreferDynamicIconColor(enabled)
+    }
+
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
         appearancePreferences.setStrokeWidth(widthDp)
     }
