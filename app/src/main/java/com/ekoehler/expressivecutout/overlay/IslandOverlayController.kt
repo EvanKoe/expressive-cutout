@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.View
 import android.view.ViewTreeObserver
@@ -221,6 +222,7 @@ class IslandOverlayController(private val context: Context) {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var dismissJob: Job? = null
     private var windowResizeJob: Job? = null
+    private val collapseTrigger = MutableStateFlow(0L)
 
     // The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be removed.
     private var insetsListener: Any? = null
@@ -400,7 +402,14 @@ class IslandOverlayController(private val context: Context) {
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+            setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_OUTSIDE || event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                    onOutsideTouch()
+                }
+                false
+            }
             setContent {
+                val collapse by collapseTrigger.collectAsStateWithLifecycle()
                 val event by currentEvent.collectAsStateWithLifecycle()
                 val layout by layoutState.collectAsStateWithLifecycle()
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
@@ -423,6 +432,7 @@ class IslandOverlayController(private val context: Context) {
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
                         forcedExpanded = effectiveForced,
+                        collapseTrigger = collapse,
                         isStickToCamera = isStickToCamera,
                         isRotation270 = rot270,
                         offsetYDp = layout.collapsed.offsetYDp,
@@ -1316,6 +1326,15 @@ class IslandOverlayController(private val context: Context) {
         setFocusable(active)
     }
 
+    /**
+     * When the user clicks or taps outside of the expanded island, minimize it in a shrink animation.
+     */
+    private fun onOutsideTouch() {
+        if (shouldCollapseOnOutsideTouch(expanded, previewPinned)) {
+            collapseTrigger.value = System.currentTimeMillis()
+        }
+    }
+
     private fun setFocusable(focusable: Boolean) {
         val view = composeView ?: return
         val params = layoutParams ?: return
@@ -1504,7 +1523,8 @@ class IslandOverlayController(private val context: Context) {
         // A fixed band centred at the top, sized to hug the pill (see syncWindowSize) rather than span the
         // whole screen — so the areas either side stay free for the notification-shade pull, in landscape
         // too. Starts non-touchable (nothing showing) and becomes touchable only while the island is
-        // visible (so tap-to-expand works).
+        // visible (so tap-to-expand works). WATCH_OUTSIDE_TOUCH delivers ACTION_OUTSIDE when the user taps
+        // outside the expanded island to trigger the shrink animation.
         return WindowManager.LayoutParams(
             windowWidthPx(IslandLayout.DEFAULT),
             windowHeightPx(IslandLayout.DEFAULT),
@@ -1512,7 +1532,8 @@ class IslandOverlayController(private val context: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = computeWindowGravity()
@@ -1523,7 +1544,9 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    private companion object {
+    internal companion object {
+        fun shouldCollapseOnOutsideTouch(isExpanded: Boolean, previewPinned: Boolean): Boolean =
+            isExpanded && !previewPinned
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
 
