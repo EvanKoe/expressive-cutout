@@ -137,6 +137,23 @@ object NotificationHeaderResolver {
             offsetXDp = offsetXDp,
         )
     }
+
+    /**
+     * Calculates the vertical center (in dp) of the camera hole / minimized island relative to the
+     * top edge of the expanded island.
+     *
+     * [collapsedHeightDp]: height of the minimized island in dp (e.g. 34)
+     * [collapsedOffsetYDp]: vertical offset of the minimized island from screen top in dp (e.g. 6)
+     * [expandedOffsetYDp]: vertical offset of the expanded island from screen top in dp (e.g. 6)
+     */
+    fun calculateCameraCenterYDp(
+        collapsedHeightDp: Int,
+        collapsedOffsetYDp: Int = 6,
+        expandedOffsetYDp: Int = 6,
+    ): Float {
+        val screenCenterYDp = collapsedOffsetYDp + (collapsedHeightDp / 2f)
+        return screenCenterYDp - expandedOffsetYDp
+    }
 }
 
 /**
