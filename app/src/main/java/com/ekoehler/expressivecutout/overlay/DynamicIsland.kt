@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -259,7 +260,7 @@ internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + AC
  */
 internal fun calculateExpandedNotificationHeightDp(
     baseExpandedHeightDp: Int,
-    topMarginDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     bottomPaddingDp: Int = 22,
     measuredContentHeightDp: Int = 0,
     buttonHeightDp: Int = 0,
@@ -273,7 +274,7 @@ internal fun calculateExpandedNotificationHeightDp(
         return baseHeight
     }
     val naturalTotalHeight = if (measuredContentHeightDp > 0) {
-        topMarginDp + measuredContentHeightDp + bottomPaddingDp
+        measuredContentHeightDp
     } else {
         baseHeight
     }
@@ -826,7 +827,7 @@ fun DynamicIsland(
                         } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
-                                    CallNormalContent(event = e, onAction = onAction)
+                                    CallNormalContent(event = e, appearance = appearance, onAction = onAction)
                                 } else if (showExpanded) {
                                     ExpandedContent(
                                         event = e,
@@ -1547,6 +1548,7 @@ private fun ExpandedContent(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight(unbounded = true)
+            .wrapContentWidth(unbounded = true, align = Alignment.Start)
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentFade },
     ) {
@@ -2541,6 +2543,7 @@ internal fun callCutoutWidthPercent(
 @Composable
 private fun CallNormalContent(
     event: IslandEvent,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
@@ -2549,7 +2552,7 @@ private fun CallNormalContent(
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
     if (incoming && call.incomingExpandedLayout && hasActions) {
-        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, onAction = onAction)
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
     } else {
         CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
     }
@@ -2655,11 +2658,19 @@ private fun IncomingCallExpandedContent(
     event: IslandEvent,
     call: CallTileOptions,
     onCall: OnCall?,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val photo = onCall?.photo?.takeIf { call.showPhoto }
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
     val answer = event.actions.firstOrNull { it.answer }
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Column(
         modifier = Modifier
@@ -2683,15 +2694,26 @@ private fun IncomingCallExpandedContent(
             } else {
                 IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
             }
-            Text(
-                text = event.label,
-                modifier = Modifier.weight(1f),
-                color = LocalContentColor.current,
-                fontSize = CALL_NAME_SIZE_SP.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (headerText != null) {
+                    Text(
+                        text = headerText,
+                        color = event.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = CALL_NAME_SIZE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // A flexible gap pushes the button row down to the bottom edge.
         Spacer(modifier = Modifier.weight(1f))

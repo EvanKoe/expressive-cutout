@@ -15,26 +15,47 @@ class ExpandedNotificationHeightTest {
         val textRowHeightDp = 68 // Header (16) + Title (20) + 2-line detail (32)
         val itemSpacingDp = 12
 
-        // Inner content height measured inside the column (excluding top margin and bottom padding):
+        // Total content height measured by onGloballyPositioned on the Column (including top margin and bottom padding):
         val innerContentHeightDp = textRowHeightDp + itemSpacingDp + buttonHeightDp // 116 dp
-        val totalRequiredHeightDp = topMarginDp + innerContentHeightDp + bottomPaddingDp // 186 dp
+        val totalMeasuredColumnHeightDp = topMarginDp + innerContentHeightDp + bottomPaddingDp // 186 dp
 
         val calculatedHeight = calculateExpandedNotificationHeightDp(
             baseExpandedHeightDp = baseExpandedHeightDp,
             topMarginDp = topMarginDp,
             bottomPaddingDp = bottomPaddingDp,
-            measuredContentHeightDp = innerContentHeightDp,
+            measuredContentHeightDp = totalMeasuredColumnHeightDp,
             buttonHeightDp = buttonHeightDp,
             hasActions = true,
             showFullNotificationText = true,
         )
 
-        // The calculated height must equal the total required height so the button is not squished
+        // The calculated height must equal the measured required height so action buttons are preserved without overshoot
         assertTrue(
-            "Expected height >= $totalRequiredHeightDp to preserve action button height, but got $calculatedHeight",
-            calculatedHeight >= totalRequiredHeightDp
+            "Expected height >= $totalMeasuredColumnHeightDp to preserve action button height, but got $calculatedHeight",
+            calculatedHeight >= totalMeasuredColumnHeightDp
         )
-        assertEquals(totalRequiredHeightDp, calculatedHeight)
+        assertEquals(totalMeasuredColumnHeightDp, calculatedHeight)
+    }
+
+    @Test
+    fun testMeasuredHeightDoesNotDoubleAddPaddingOrOvershoot() {
+        val baseExpandedHeightDp = 108
+        val topMarginDp = 48
+        val bottomPaddingDp = 22
+        val measuredColumnHeightDp = 180
+
+        val calculatedHeight = calculateExpandedNotificationHeightDp(
+            baseExpandedHeightDp = baseExpandedHeightDp,
+            topMarginDp = topMarginDp,
+            bottomPaddingDp = bottomPaddingDp,
+            measuredContentHeightDp = measuredColumnHeightDp,
+            buttonHeightDp = 36,
+            hasActions = false,
+            showFullNotificationText = true,
+        )
+
+        // Must not double-add topMargin (48) and bottomPadding (22)
+        assertEquals(measuredColumnHeightDp, calculatedHeight)
     }
 
     @Test
