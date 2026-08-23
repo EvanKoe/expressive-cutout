@@ -290,6 +290,7 @@ fun DynamicIsland(
     expanded: IslandDimensions,
     displayWidthDp: Int,
     forcedExpanded: Boolean?,
+    collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
     isRotation270: Boolean = false,
     offsetYDp: Int = 6,
@@ -366,6 +367,13 @@ fun DynamicIsland(
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
     LaunchedEffect(isExpanded, event != null, emptyPill, emptyOpensCenter) {
         if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
+    }
+
+    LaunchedEffect(collapseTrigger) {
+        if (collapseTrigger > 0L && forcedExpanded == null && isExpanded) {
+            tapExpanded = false
+            replyingTo = null
+        }
     }
 
     LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
@@ -512,7 +520,19 @@ fun DynamicIsland(
     val haptic = LocalHapticFeedback.current
 
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(isExpanded, forcedExpanded) {
+                if (!isExpanded || forcedExpanded != null) return@pointerInput
+                detectTapGestures(
+                    onTap = {
+                        tapExpanded = false
+                        replyingTo = null
+                    }
+                )
+            }
+    ) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
