@@ -348,8 +348,10 @@ class IslandOverlayController(private val context: Context) {
             }
             savedEventBeforeHide != null -> {
                 dismissJob?.cancel()
+                expanded = savedEventBeforeHide?.initiallyExpanded ?: false
                 currentEvent.value = savedEventBeforeHide
                 savedEventBeforeHide = null
+                syncWindowSize()
                 scheduleDismiss()
             }
         }
