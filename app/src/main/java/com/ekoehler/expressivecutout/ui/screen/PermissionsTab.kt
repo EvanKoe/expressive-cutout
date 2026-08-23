@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.rounded.PhoneCallback
+import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
@@ -29,7 +31,6 @@ import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.PhoneCallback
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -86,6 +87,8 @@ fun PermissionsTab(contentPadding: PaddingValues) {
     }
 
     fun onTestNotification() = postWithPermission { TestNotifier.send(context) }
+
+    fun onTestMultilineNotification() = postWithPermission { TestNotifier.sendMultiline(context) }
 
     fun onTestProgressNotification() = postWithPermission { TestNotifier.sendProgress(context) }
 
@@ -145,6 +148,13 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 onClick = ::onTestNotification,
             )
 
+            // Send a multi-line test notification with action buttons
+            TestCard(
+                icon = Icons.AutoMirrored.Rounded.Subject,
+                title = stringResource(R.string.action_send_test_multiline),
+                onClick = ::onTestMultilineNotification,
+            )
+
             // Send a test progress notification
             TestCard(
                 icon = Icons.Rounded.Downloading,
@@ -161,7 +171,7 @@ fun PermissionsTab(contentPadding: PaddingValues) {
 
             // Test an incoming call
             TestCard(
-                icon = Icons.Rounded.PhoneCallback,
+                icon = Icons.AutoMirrored.Rounded.PhoneCallback,
                 title = stringResource(R.string.action_send_test_incoming_call),
                 onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
             )
