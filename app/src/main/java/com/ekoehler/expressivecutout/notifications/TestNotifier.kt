@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,10 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         // Show it on the island immediately, regardless of the listener's self-filter, wiring the
         // same buttons so the user can try inline reply straight from the island.
         IslandEventBus.emit(
@@ -98,8 +103,8 @@ object TestNotifier {
                 packageName = context.packageName,
                 title = context.getString(R.string.test_notification_title),
                 text = context.getString(R.string.test_notification_text),
-                appName = context.getString(R.string.app_name),
-                postTimeMs = System.currentTimeMillis(),
+                appName = appName,
+                postTimeMs = postTimeMs,
                 actions = listOf(
                     CutoutSignal.Notification.Action(
                         title = context.getString(R.string.test_notification_action_reply),
@@ -175,13 +180,17 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(MULTILINE_NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         IslandEventBus.emit(
             CutoutSignal.Notification(
                 packageName = context.packageName,
                 title = title,
                 text = text,
-                appName = context.getString(R.string.app_name),
-                postTimeMs = System.currentTimeMillis(),
+                appName = appName,
+                postTimeMs = postTimeMs,
                 actions = listOf(
                     CutoutSignal.Notification.Action(
                         title = context.getString(R.string.test_notification_action_reply),
@@ -243,13 +252,17 @@ object TestNotifier {
                     NotificationManagerCompat.from(appContext).notify(PROGRESS_NOTIFICATION_ID, notification)
                 }
 
+                val appName = NotificationHeaderResolver.resolveAppName(appContext, appContext.packageName)
+                    ?: appContext.getString(R.string.app_name)
+                val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
                 IslandEventBus.emit(
                     CutoutSignal.Notification(
                         packageName = appContext.packageName,
                         title = title,
                         text = text,
-                        appName = appContext.getString(R.string.app_name),
-                        postTimeMs = System.currentTimeMillis(),
+                        appName = appName,
+                        postTimeMs = postTimeMs,
                         key = PROGRESS_KEY,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(
