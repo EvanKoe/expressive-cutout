@@ -339,6 +339,20 @@ class NotificationHeaderResolverTest {
     }
 
     @Test
+    fun testCalculateCameraCenterYDp() {
+        // Default values: collapsed height = 34, collapsed offsetY = 6, expanded offsetY = 6
+        // Screen center = 6 + 17 = 23, relative center = 23 - 6 = 17
+        assertEquals(17f, NotificationHeaderResolver.calculateCameraCenterYDp(34, 6, 6), 0.001f)
+
+        // Custom offsets: collapsed height = 40, collapsed offsetY = 10, expanded offsetY = 6
+        // Screen center = 10 + 20 = 30, relative center = 30 - 6 = 24
+        assertEquals(24f, NotificationHeaderResolver.calculateCameraCenterYDp(40, 10, 6), 0.001f)
+
+        // Zero offsets: collapsed height = 30, collapsed offsetY = 0, expanded offsetY = 0
+        assertEquals(15f, NotificationHeaderResolver.calculateCameraCenterYDp(30, 0, 0), 0.001f)
+    }
+
+    @Test
     fun testResolveHeaderPlacementBlankAndNull() {
         val blankApp = NotificationHeaderResolver.resolveHeaderPlacement(
             appName = "  ",

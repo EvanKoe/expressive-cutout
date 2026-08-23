@@ -154,6 +154,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -719,6 +720,9 @@ fun DynamicIsland(
                                         event = e,
                                         appearance = appearance,
                                         offsetXDp = expanded.offsetXDp,
+                                        collapsedHeightDp = collapsed.heightDp,
+                                        collapsedOffsetYDp = collapsed.offsetYDp,
+                                        expandedOffsetYDp = expanded.offsetYDp,
                                         onAction = onAction,
                                     )
                                 } else if (showExpanded) {
@@ -728,6 +732,9 @@ fun DynamicIsland(
                                         appearance = appearance,
                                         topMarginDp = expanded.topMarginDp,
                                         offsetXDp = expanded.offsetXDp,
+                                        collapsedHeightDp = collapsed.heightDp,
+                                        collapsedOffsetYDp = collapsed.offsetYDp,
+                                        expandedOffsetYDp = expanded.offsetYDp,
                                         targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
                                         motion = motion,
                                         replyingTo = replyingTo,
@@ -774,6 +781,9 @@ fun IslandPreview(
     cornerBottomRightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
@@ -797,6 +807,9 @@ fun IslandPreview(
                 appearance = appearance,
                 topMarginDp = topMarginDp,
                 offsetXDp = offsetXDp,
+                collapsedHeightDp = collapsedHeightDp,
+                collapsedOffsetYDp = collapsedOffsetYDp,
+                expandedOffsetYDp = expandedOffsetYDp,
                 targetWidthDp = width.value.toInt(),
                 replyingTo = null,
                 replySent = false,
@@ -1314,6 +1327,8 @@ fun formatNotificationHeader(
  * - Center cutout (offsetXDp == 0): App name in the top-left corner, timestamp in the top-right corner.
  * - Left cutout (offsetXDp < 0): Combined header "$appName • $timestamp" in the top-right corner.
  * - Right cutout (offsetXDp > 0): Combined header "$appName • $timestamp" in the top-left corner.
+ *
+ * Vertically centers the text to match the horizontal centerline of the camera hole (minimized island).
  */
 @Composable
 fun NotificationCardHeader(
@@ -1323,6 +1338,9 @@ fun NotificationCardHeader(
     showTimestamp: Boolean,
     offsetXDp: Int,
     accentColor: Color,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     modifier: Modifier = Modifier,
 ) {
     val placement = NotificationHeaderResolver.resolveHeaderPlacement(
@@ -1340,30 +1358,40 @@ fun NotificationCardHeader(
         else -> Arrangement.End
     }
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = arrangement,
-        verticalAlignment = Alignment.CenterVertically,
+    val topOffsetDp = (collapsedOffsetYDp - expandedOffsetYDp).coerceAtLeast(0).dp
+    val headerHeightDp = collapsedHeightDp.dp
+
+    Box(
+        modifier = modifier
+            .padding(top = topOffsetDp)
+            .height(headerHeightDp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        if (placement.leftText != null) {
-            Text(
-                text = placement.leftText,
-                color = accentColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (placement.rightText != null) {
-            Text(
-                text = placement.rightText,
-                color = accentColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = arrangement,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (placement.leftText != null) {
+                Text(
+                    text = placement.leftText,
+                    color = accentColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (placement.rightText != null) {
+                Text(
+                    text = placement.rightText,
+                    color = accentColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -1387,6 +1415,9 @@ private fun ExpandedContent(
     appearance: AppearanceSettings,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     targetWidthDp: Int? = null,
     motion: IslandMotion? = null,
     replyingTo: IslandAction?,
@@ -1407,6 +1438,9 @@ private fun ExpandedContent(
             buttonHeightDp = appearance.actionButtonHeightDp,
             topMarginDp = topMarginDp,
             offsetXDp = offsetXDp,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
         )
         return
     }
@@ -1417,6 +1451,9 @@ private fun ExpandedContent(
             appearance = appearance,
             topMarginDp = topMarginDp,
             offsetXDp = offsetXDp,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             onAction = onAction,
         )
         return
@@ -1428,6 +1465,9 @@ private fun ExpandedContent(
             showActions = showActions,
             appearance = appearance,
             offsetXDp = offsetXDp,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
@@ -1461,10 +1501,12 @@ private fun ExpandedContent(
             showTimestamp = appearance.showTimestamp,
             offsetXDp = offsetXDp,
             accentColor = event.accent,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .then(if (innerWidth != null) Modifier.width(innerWidth) else Modifier.fillMaxWidth())
-                .padding(top = 10.dp),
+                .then(if (innerWidth != null) Modifier.width(innerWidth) else Modifier.fillMaxWidth()),
         )
 
         Column(
@@ -2083,6 +2125,9 @@ private fun MediaExpandedContent(
     buttonHeightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
@@ -2096,10 +2141,12 @@ private fun MediaExpandedContent(
             showTimestamp = appearance.showTimestamp,
             offsetXDp = offsetXDp,
             accentColor = event.accent,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(top = 10.dp),
+                .fillMaxWidth(),
         )
 
         Column(
@@ -2413,6 +2460,9 @@ private fun CallNormalContent(
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
@@ -2427,6 +2477,9 @@ private fun CallNormalContent(
             onCall = onCall,
             appearance = appearance,
             offsetXDp = offsetXDp,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             onAction = onAction,
         )
     } else {
@@ -2536,6 +2589,9 @@ private fun IncomingCallExpandedContent(
     onCall: OnCall?,
     appearance: AppearanceSettings = AppearanceSettings(),
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val photo = onCall?.photo?.takeIf { call.showPhoto }
@@ -2551,10 +2607,12 @@ private fun IncomingCallExpandedContent(
             showTimestamp = appearance.showTimestamp,
             offsetXDp = offsetXDp,
             accentColor = event.accent,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(top = 10.dp),
+                .fillMaxWidth(),
         )
 
         Column(
@@ -2735,6 +2793,9 @@ private fun TimerExpandedContent(
     appearance: AppearanceSettings,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
@@ -2748,10 +2809,12 @@ private fun TimerExpandedContent(
             showTimestamp = appearance.showTimestamp,
             offsetXDp = offsetXDp,
             accentColor = event.accent,
+            collapsedHeightDp = collapsedHeightDp,
+            collapsedOffsetYDp = collapsedOffsetYDp,
+            expandedOffsetYDp = expandedOffsetYDp,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(top = 10.dp),
+                .fillMaxWidth(),
         )
 
         Column(
@@ -2818,6 +2881,9 @@ private fun AssistantExpandedContent(
     showActions: Boolean,
     appearance: AppearanceSettings,
     offsetXDp: Int = 0,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -2858,6 +2924,9 @@ private fun AssistantExpandedContent(
                 showTimestamp = appearance.showTimestamp,
                 offsetXDp = offsetXDp,
                 accentColor = event.accent,
+                collapsedHeightDp = collapsedHeightDp,
+                collapsedOffsetYDp = collapsedOffsetYDp,
+                expandedOffsetYDp = expandedOffsetYDp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 6.dp),
