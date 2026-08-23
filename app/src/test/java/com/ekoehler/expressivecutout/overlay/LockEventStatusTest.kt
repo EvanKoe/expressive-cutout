@@ -40,12 +40,13 @@ class LockEventStatusTest {
         assertEquals(0, lockedAnimation?.clipEndFrame)
         assertTrue(lockedAnimation?.tint == true)
 
-        // Unlocked animation should animate from frame 0 to 45 (opening)
+        // Unlocked animation should snap open instantly starting at frame 5 (motion start) to frame 25 (fully open) at speed >= 1.8f
         val unlockedAnimation = SystemEventType.DEVICE_UNLOCKED.animatedIcon()
         assertNotNull("DEVICE_UNLOCKED should have an animated icon", unlockedAnimation)
         assertEquals(R.raw.unlock, unlockedAnimation?.resId)
-        assertEquals(0, unlockedAnimation?.clipStartFrame)
-        assertEquals(45, unlockedAnimation?.clipEndFrame)
+        assertEquals(5, unlockedAnimation?.clipStartFrame)
+        assertEquals(25, unlockedAnimation?.clipEndFrame)
+        assertTrue("Unlock animation speed should be fast for instant paddle opening", (unlockedAnimation?.speed ?: 1f) >= 1.8f)
         assertTrue(unlockedAnimation?.tint == true)
     }
 

@@ -2808,11 +2808,12 @@ private fun IconBadge(
                 } else {
                     null
                 }
-                key(icon.clipStartFrame, icon.clipEndFrame, icon.iterations) {
+                key(icon.clipStartFrame, icon.clipEndFrame, icon.iterations, icon.speed) {
                     LottieAnimation(
                         composition = composition,
                         iterations = icon.iterations,
                         clipSpec = clip,
+                        speed = icon.speed,
                         dynamicProperties = dynamicProperties,
                         // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
                         // being clamped to them; the overflow is clipped to the badge circle by the parent.
