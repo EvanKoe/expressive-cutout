@@ -27,6 +27,14 @@ import kotlin.math.sign
  * pure domain type, while both the overlay and the settings preview can share this single mapping.
  */
 fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
+    // Hold on the "closed" frame (frame 0) while the device is locked so the cutout shows the locked
+    // state persistently until the screen is unlocked.
+    SystemEventType.DEVICE_LOCKED -> IslandIcon.Lottie(
+        R.raw.unlock,
+        clipStartFrame = 0,
+        clipEndFrame = 0,
+        tint = true,
+    )
     // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
     // padlock, but a device-unlocked event should rest unlocked. Tinted so the padlock follows the
     // badge glyph colour (accent by default, the role's "on" colour under a dynamic container),
