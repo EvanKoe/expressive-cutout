@@ -170,4 +170,194 @@ class NotificationHeaderResolverTest {
             )
         )
     }
+
+    @Test
+    fun testResolveHeaderPlacementCenterCutout() {
+        // offsetXDp == 0 (Center cutout): App name on Left, Timestamp on Right
+        val placement = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            relativeTime = "2m ago",
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 0,
+        )
+        assertEquals("Slack", placement.leftText)
+        assertEquals("2m ago", placement.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementCenterCutoutPartial() {
+        // App name only
+        val appOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            relativeTime = "2m ago",
+            showAppName = true,
+            showTimestamp = false,
+            offsetXDp = 0,
+        )
+        assertEquals("Slack", appOnly.leftText)
+        assertNull(appOnly.rightText)
+
+        // Timestamp only
+        val timeOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            relativeTime = "2m ago",
+            showAppName = false,
+            showTimestamp = true,
+            offsetXDp = 0,
+        )
+        assertNull(timeOnly.leftText)
+        assertEquals("2m ago", timeOnly.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementLeftCutout() {
+        // offsetXDp < 0 (Left cutout): App name and timestamp together on Right
+        val placement = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "WhatsApp",
+            relativeTime = "Now",
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = -24,
+        )
+        assertNull(placement.leftText)
+        assertEquals("WhatsApp • Now", placement.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementRightCutout() {
+        // offsetXDp > 0 (Right cutout): App name and timestamp together on Left
+        val placement = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Gmail",
+            relativeTime = "5s ago",
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 30,
+        )
+        assertEquals("Gmail • 5s ago", placement.leftText)
+        assertNull(placement.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementDisabled() {
+        val placement = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Gmail",
+            relativeTime = "5s ago",
+            showAppName = false,
+            showTimestamp = false,
+            offsetXDp = 0,
+        )
+        assertNull(placement.leftText)
+        assertNull(placement.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementWithPostTimeMs() {
+        val now = 10_000_000L
+        val center = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            postTimeMs = now - 60_000L,
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 0,
+            nowMs = now,
+        )
+        assertEquals("Slack", center.leftText)
+        assertEquals("1m ago", center.rightText)
+
+        val leftCutout = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            postTimeMs = now - 60_000L,
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = -10,
+            nowMs = now,
+        )
+        assertNull(leftCutout.leftText)
+        assertEquals("Slack • 1m ago", leftCutout.rightText)
+
+        val rightCutout = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Slack",
+            postTimeMs = now - 60_000L,
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 10,
+            nowMs = now,
+        )
+        assertEquals("Slack • 1m ago", rightCutout.leftText)
+        assertNull(rightCutout.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementLeftCutoutPartials() {
+        // App name only with left cutout
+        val appOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Messages",
+            relativeTime = "30s ago",
+            showAppName = true,
+            showTimestamp = false,
+            offsetXDp = -15,
+        )
+        assertNull(appOnly.leftText)
+        assertEquals("Messages", appOnly.rightText)
+
+        // Timestamp only with left cutout
+        val timeOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Messages",
+            relativeTime = "30s ago",
+            showAppName = false,
+            showTimestamp = true,
+            offsetXDp = -15,
+        )
+        assertNull(timeOnly.leftText)
+        assertEquals("30s ago", timeOnly.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementRightCutoutPartials() {
+        // App name only with right cutout
+        val appOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Messages",
+            relativeTime = "30s ago",
+            showAppName = true,
+            showTimestamp = false,
+            offsetXDp = 15,
+        )
+        assertEquals("Messages", appOnly.leftText)
+        assertNull(appOnly.rightText)
+
+        // Timestamp only with right cutout
+        val timeOnly = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "Messages",
+            relativeTime = "30s ago",
+            showAppName = false,
+            showTimestamp = true,
+            offsetXDp = 15,
+        )
+        assertEquals("30s ago", timeOnly.leftText)
+        assertNull(timeOnly.rightText)
+    }
+
+    @Test
+    fun testResolveHeaderPlacementBlankAndNull() {
+        val blankApp = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "  ",
+            relativeTime = "Now",
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 0,
+        )
+        assertNull(blankApp.leftText)
+        assertEquals("Now", blankApp.rightText)
+
+        val nullTime = NotificationHeaderResolver.resolveHeaderPlacement(
+            appName = "App",
+            relativeTime = null,
+            showAppName = true,
+            showTimestamp = true,
+            offsetXDp = 0,
+        )
+        assertEquals("App", nullTime.leftText)
+        assertNull(nullTime.rightText)
+    }
 }
