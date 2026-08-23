@@ -193,6 +193,10 @@ class IconResolver(private val context: Context) {
         // carries none (or the user turned art off). Deliberately not the player's launcher icon:
         // resolving that would mean asking the system which apps are installed.
         val title = signal.title?.takeIf { it.isNotBlank() }
+        val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
+            ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(DynamicTile.MUSIC.labelRes)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.MUSIC.defaultIcon),
@@ -200,6 +204,8 @@ class IconResolver(private val context: Context) {
             // session itself, so an unnamed track falls back to "Music" rather than a package id.
             label = title ?: context.getString(DynamicTile.MUSIC.labelRes),
             detail = signal.artist?.takeIf { it.isNotBlank() },
+            appName = appName,
+            postTimeMs = postTimeMs,
             accent = Color(DynamicTile.MUSIC.accent),
             contentIntent = signal.contentIntent,
             media = MediaTileOptions(
@@ -218,10 +224,16 @@ class IconResolver(private val context: Context) {
     private fun resolveCall(signal: CutoutSignal.Call, settings: PhoneTileSettings): IslandEvent {
         // The live contact photo comes from OnCallBus; this icon is only the no-photo fallback, so a
         // person avatar reads as "a contact" (the Google-dialer default look) better than a handset.
+        val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
+            ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(DynamicTile.PHONE.labelRes)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(Icons.Rounded.Person),
             label = signal.callerLabel,
+            appName = appName,
+            postTimeMs = postTimeMs,
             accent = Color(DynamicTile.PHONE.accent),
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
@@ -262,11 +274,17 @@ class IconResolver(private val context: Context) {
         }
 
     private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
+        val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
+            ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(DynamicTile.TIMER.labelRes)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.TIMER.defaultIcon),
             label = signal.label?.takeIf { it.isNotBlank() }
                 ?: context.getString(DynamicTile.TIMER.labelRes),
+            appName = appName,
+            postTimeMs = postTimeMs,
             accent = Color(DynamicTile.TIMER.accent),
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
@@ -304,11 +322,18 @@ class IconResolver(private val context: Context) {
             IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon)
         }
 
+        val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
+            ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(DynamicTile.ASSISTANT.labelRes)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
             label = label,
             detail = answerText,
+            appName = appName,
+            postTimeMs = postTimeMs,
             accent = Color(DynamicTile.ASSISTANT.accent),
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
@@ -369,10 +394,15 @@ class IconResolver(private val context: Context) {
         val icon = customIcons[type]?.toIslandIconOrNull()
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
             label = context.getString(type.labelRes),
+            appName = appName,
+            postTimeMs = postTimeMs,
             accent = Color(type.accent),
             useThemeColor = dynamicEventColor,
             themeColorRole = dynamicEventColorRole,

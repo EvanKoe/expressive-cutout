@@ -1334,6 +1334,7 @@ private fun ExpandedContent(
     if (event.media != null) {
         MediaExpandedContent(
             event = event,
+            appearance = appearance,
             buttonHeightDp = appearance.actionButtonHeightDp,
             topMarginDp = topMarginDp,
         )
@@ -2008,11 +2009,19 @@ private fun ReplySendButton(
 @Composable
 private fun MediaExpandedContent(
     event: IslandEvent,
+    appearance: AppearanceSettings,
     buttonHeightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -2038,6 +2047,16 @@ private fun MediaExpandedContent(
                     IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 }
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -2624,6 +2643,13 @@ private fun TimerExpandedContent(
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
@@ -2639,6 +2665,16 @@ private fun TimerExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
                         text = timerRemainingText() ?: event.label,
@@ -2721,6 +2757,14 @@ private fun AssistantExpandedContent(
                     }
                 },
         ) {
+            val relativeTime = rememberRelativeTime(event.postTimeMs)
+            val headerText = formatNotificationHeader(
+                appName = event.appName,
+                relativeTime = relativeTime,
+                showAppName = appearance.showSourceAppName,
+                showTimestamp = appearance.showTimestamp,
+            )
+
             // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
             Row(
                 modifier = Modifier.widthIn(max = maxHeaderWidthDp),
@@ -2728,14 +2772,26 @@ private fun AssistantExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    text = event.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = event.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             // Answer content text displayed below title header
