@@ -166,6 +166,14 @@ internal fun AppearanceScreen(
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_full_notification_text_title),
+            description = stringResource(R.string.appearance_show_full_notification_text_desc),
+            checked = appearance.showFullNotificationText,
+            onCheckedChange = viewModel::setShowFullNotificationText,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
             description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
             checked = appearance.preferDynamicIconColor,

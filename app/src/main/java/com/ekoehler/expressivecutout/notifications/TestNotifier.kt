@@ -37,6 +37,7 @@ object TestNotifier {
     const val NOTIFICATION_ID = 4711
     const val PROGRESS_NOTIFICATION_ID = 4712
     const val PLAIN_NOTIFICATION_ID = 4713
+    const val MULTILINE_NOTIFICATION_ID = 4714
 
     /** The notification auto-dismisses after this long so the test never lingers. */
     private const val TIMEOUT_MS = 15_000L
@@ -162,6 +163,96 @@ object TestNotifier {
                 packageName = context.packageName,
                 title = title,
                 text = text,
+                appName = context.getString(R.string.app_name),
+                postTimeMs = System.currentTimeMillis(),
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts a multi-line system notification with action buttons and mirrors it onto the island,
+     * allowing users to verify how multi-line text and action buttons expand together cleanly.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendMultiline(context: Context) {
+        ensureChannel(context)
+
+        val replyIntent = broadcast(context, requestCode = 3, TestReplyReceiver.ACTION_REPLY)
+        val markReadIntent = broadcast(context, requestCode = 4, TestReplyReceiver.ACTION_MARK_READ)
+        val archiveIntent = broadcast(context, requestCode = 5, TestReplyReceiver.ACTION_ARCHIVE)
+        val replyHint = context.getString(R.string.test_notification_reply_hint)
+
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_stat_island,
+            context.getString(R.string.test_notification_action_reply),
+            replyIntent,
+        ).addRemoteInput(
+            RemoteInput.Builder(TestReplyReceiver.KEY_REPLY).setLabel(replyHint).build(),
+        ).build()
+
+        val title = context.getString(R.string.test_multiline_notification_title)
+        val text = context.getString(R.string.test_multiline_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .addAction(replyAction)
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_mark_read),
+                markReadIntent,
+            )
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_archive),
+                archiveIntent,
+            )
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(MULTILINE_NOTIFICATION_ID, notification)
+        }
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = context.getString(R.string.app_name),
+                postTimeMs = System.currentTimeMillis(),
+                actions = listOf(
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_reply),
+                        intent = replyIntent,
+                        reply = CutoutSignal.Notification.ReplyInput(
+                            resultKey = TestReplyReceiver.KEY_REPLY,
+                            remoteInputs = listOf(
+                                PlatformRemoteInput.Builder(TestReplyReceiver.KEY_REPLY)
+                                    .setLabel(replyHint)
+                                    .build(),
+                            ),
+                            hint = replyHint,
+                        ),
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_mark_read),
+                        intent = markReadIntent,
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_archive),
+                        intent = archiveIntent,
+                    ),
+                ),
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )

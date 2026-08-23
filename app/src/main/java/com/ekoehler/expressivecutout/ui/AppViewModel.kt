@@ -814,6 +814,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setShowTimestamp(enabled)
     }
 
+    fun setShowFullNotificationText(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowFullNotificationText(enabled)
+    }
+
     fun setPreferDynamicIconColor(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setPreferDynamicIconColor(enabled)
     }

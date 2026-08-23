@@ -36,6 +36,8 @@ class TestReplyReceiver : BroadcastReceiver() {
                 appContext.getString(R.string.test_notification_reply_sent, text)
             }
 
+            ACTION_ARCHIVE -> appContext.getString(R.string.test_notification_archived)
+
             else -> appContext.getString(R.string.test_notification_marked_read)
         }
 
@@ -49,7 +51,9 @@ class TestReplyReceiver : BroadcastReceiver() {
                     if (toastOnAction) {
                         Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
                     }
-                    NotificationManagerCompat.from(appContext).cancel(TestNotifier.NOTIFICATION_ID)
+                    val manager = NotificationManagerCompat.from(appContext)
+                    manager.cancel(TestNotifier.NOTIFICATION_ID)
+                    manager.cancel(TestNotifier.MULTILINE_NOTIFICATION_ID)
                 }
             } finally {
                 pendingResult.finish()
@@ -60,6 +64,7 @@ class TestReplyReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_REPLY = "com.ekoehler.expressivecutout.action.TEST_REPLY"
         const val ACTION_MARK_READ = "com.ekoehler.expressivecutout.action.TEST_MARK_READ"
+        const val ACTION_ARCHIVE = "com.ekoehler.expressivecutout.action.TEST_ARCHIVE"
         const val KEY_REPLY = "key_test_reply"
     }
 }

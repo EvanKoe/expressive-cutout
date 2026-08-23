@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -237,6 +238,7 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+/**
  * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
  */
 private const val MEDIA_PROGRESS_HEIGHT_DP = 4
@@ -248,6 +250,42 @@ private const val MEDIA_PROGRESS_HEIGHT_DP = 4
  * the bar, drawn after it, paints over the artist line.
  */
 internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
+
+/**
+ * Calculates the total target height for an expanded notification card.
+ * Ensures the height is at least the base expanded height (plus any action button extra height),
+ * and automatically adjusts upward if the measured content (header, multi-line text, action chips,
+ * and margins) requires more space, so action buttons and multi-line text are never squished.
+ */
+internal fun calculateExpandedNotificationHeightDp(
+    baseExpandedHeightDp: Int,
+    topMarginDp: Int,
+    bottomPaddingDp: Int = 22,
+    measuredContentHeightDp: Int = 0,
+    buttonHeightDp: Int = 0,
+    hasActions: Boolean = false,
+    showFullNotificationText: Boolean = false,
+    maxHeightLimitDp: Int = Int.MAX_VALUE,
+): Int {
+    val baseExtra = if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
+    val baseHeight = baseExpandedHeightDp + baseExtra
+    if (!showFullNotificationText) {
+        return baseHeight
+    }
+    val naturalTotalHeight = if (measuredContentHeightDp > 0) {
+        topMarginDp + measuredContentHeightDp + bottomPaddingDp
+    } else {
+        baseHeight
+    }
+    return maxOf(baseHeight, naturalTotalHeight).coerceAtMost(maxHeightLimitDp)
+}
+
+/**
+ * A safe upper bound on the extra height an expanded notification can claim below the base
+ * expanded cutout for multi-line text and action buttons. The controller reserves this for the
+ * overlay window and touchable region so they never clip the taller layout.
+ */
+internal const val EXPANDED_NOTIFICATION_EXTRA_DP = 160
 
 /**
  * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
@@ -426,7 +464,7 @@ fun DynamicIsland(
         else -> collapsed
     }
 
-    var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
+    var expandedContentHeightDp by remember(shownEvent?.id) { mutableStateOf(0) }
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
 
@@ -441,18 +479,29 @@ fun DynamicIsland(
         emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
-            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
+            val fitHeightDp = if (expandedContentHeightDp > 0) expandedContentHeightDp else 110
             val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
-        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions ||
-            hasMediaProgress) -> {
-            val controlsExtra = if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
-                expandedActionsExtraDp(appearance.actionButtonHeightDp)
-            } else {
-                0
-            }
+        isExpanded && shownEvent?.media != null -> {
+            val controlsExtra = if (hasMediaControls) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
             controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
+        }
+        isExpanded && shownEvent?.timer != null ->
+            if (hasTimerActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+        isExpanded -> {
+            val maxCutoutHeightDp = (screenHeightDp * 0.70f).toInt()
+            val targetHeightDp = calculateExpandedNotificationHeightDp(
+                baseExpandedHeightDp = dims.heightDp,
+                topMarginDp = expanded.topMarginDp,
+                bottomPaddingDp = 22,
+                measuredContentHeightDp = expandedContentHeightDp,
+                buttonHeightDp = appearance.actionButtonHeightDp,
+                hasActions = hasActions,
+                showFullNotificationText = appearance.showFullNotificationText,
+                maxHeightLimitDp = maxCutoutHeightDp,
+            )
+            targetHeightDp - dims.heightDp
         }
         callTwoRow -> callIncomingExtraDp()
         else -> 0
@@ -481,9 +530,10 @@ fun DynamicIsland(
 
     val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
+    val isDynamicHeight = isAssistantAnswer || (isExpanded && expandedContentHeightDp > 0)
     val heightSpec: AnimationSpec<Dp> = when {
         reveal.value == 0f || snapGeometry -> snap()
-        isAssistantAnswer -> motion.dpSmooth()
+        isDynamicHeight -> motion.dpSmooth()
         else -> spec
     }
 
@@ -783,6 +833,8 @@ fun DynamicIsland(
                                         showActions = showActions,
                                         appearance = appearance,
                                         topMarginDp = expanded.topMarginDp,
+                                        targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
+                                        motion = motion,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -800,7 +852,7 @@ fun DynamicIsland(
                                             replyingTo = null
                                         },
                                         onDismiss = onDismiss,
-                                        onHeightMeasured = { assistantContentHeightDp = it },
+                                        onHeightMeasured = { expandedContentHeightDp = it },
                                     )
                                 } else {
                                     CollapsedContent(
@@ -883,6 +935,7 @@ fun IslandPreview(
                 showActions = showActions,
                 appearance = appearance,
                 topMarginDp = topMarginDp,
+                targetWidthDp = width.value.toInt(),
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
@@ -1439,6 +1492,8 @@ private fun ExpandedContent(
     showActions: Boolean,
     appearance: AppearanceSettings,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    targetWidthDp: Int? = null,
+    motion: IslandMotion? = null,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1481,6 +1536,7 @@ private fun ExpandedContent(
         return
     }
 
+    val density = LocalDensity.current.density
     val relativeTime = rememberRelativeTime(event.postTimeMs)
     val headerText = formatNotificationHeader(
         appName = event.appName,
@@ -1489,12 +1545,33 @@ private fun ExpandedContent(
         showTimestamp = appearance.showTimestamp,
     )
 
+    val contentFade by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = motion?.fade() ?: tween(180),
+        label = "expandedContentFade",
+    )
+
+    val innerWidth = if (targetWidthDp != null && targetWidthDp > 36) (targetWidthDp - 36).dp else null
+
     // Content sits below the top margin, leaving the top clear of the camera hole.
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(unbounded = true)
+            .padding(horizontal = 18.dp)
+            .graphicsLayer { alpha = contentFade },
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = topMarginDp.dp, bottom = 16.dp),
+                .then(if (innerWidth != null) Modifier.width(innerWidth) else Modifier.fillMaxWidth())
+                .padding(top = topMarginDp.dp, bottom = 22.dp)
+                .onGloballyPositioned { coordinates ->
+                    val hDp = (coordinates.size.height / density).toInt()
+                    if (hDp > 0) {
+                        onHeightMeasured?.invoke(hDp)
+                    }
+                },
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the action / reply row below claims its full height first and the header
@@ -1534,7 +1611,7 @@ private fun ExpandedContent(
                             modifier = Modifier.weight(1f, fill = false),
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
-                            maxLines = 2,
+                            maxLines = if (appearance.showFullNotificationText) 20 else 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
