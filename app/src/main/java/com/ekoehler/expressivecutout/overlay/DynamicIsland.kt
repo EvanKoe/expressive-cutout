@@ -154,7 +154,6 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
-import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -716,25 +715,13 @@ fun DynamicIsland(
                         } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
-                                    CallNormalContent(
-                                        event = e,
-                                        appearance = appearance,
-                                        offsetXDp = expanded.offsetXDp,
-                                        collapsedHeightDp = collapsed.heightDp,
-                                        collapsedOffsetYDp = collapsed.offsetYDp,
-                                        expandedOffsetYDp = expanded.offsetYDp,
-                                        onAction = onAction,
-                                    )
+                                    CallNormalContent(event = e, appearance = appearance, onAction = onAction)
                                 } else if (showExpanded) {
                                     ExpandedContent(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
                                         topMarginDp = expanded.topMarginDp,
-                                        offsetXDp = expanded.offsetXDp,
-                                        collapsedHeightDp = collapsed.heightDp,
-                                        collapsedOffsetYDp = collapsed.offsetYDp,
-                                        expandedOffsetYDp = expanded.offsetYDp,
                                         targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
                                         motion = motion,
                                         replyingTo = replyingTo,
@@ -780,10 +767,6 @@ fun IslandPreview(
     cornerBottomLeftDp: Int,
     cornerBottomRightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
@@ -806,10 +789,6 @@ fun IslandPreview(
                 showActions = showActions,
                 appearance = appearance,
                 topMarginDp = topMarginDp,
-                offsetXDp = offsetXDp,
-                collapsedHeightDp = collapsedHeightDp,
-                collapsedOffsetYDp = collapsedOffsetYDp,
-                expandedOffsetYDp = expandedOffsetYDp,
                 targetWidthDp = width.value.toInt(),
                 replyingTo = null,
                 replySent = false,
@@ -1322,80 +1301,6 @@ fun formatNotificationHeader(
     showTimestamp = showTimestamp,
 )
 
-/**
- * Renders the app name and timestamp at the top of the expanded card according to cutout position:
- * - Center cutout (offsetXDp == 0): App name in the top-left corner, timestamp in the top-right corner.
- * - Left cutout (offsetXDp < 0): Combined header "$appName • $timestamp" in the top-right corner.
- * - Right cutout (offsetXDp > 0): Combined header "$appName • $timestamp" in the top-left corner.
- *
- * Vertically centers the text to match the horizontal centerline of the camera hole (minimized island).
- */
-@Composable
-fun NotificationCardHeader(
-    appName: String?,
-    relativeTime: String?,
-    showAppName: Boolean,
-    showTimestamp: Boolean,
-    offsetXDp: Int,
-    accentColor: Color,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
-    modifier: Modifier = Modifier,
-) {
-    val placement = NotificationHeaderResolver.resolveHeaderPlacement(
-        appName = appName,
-        relativeTime = relativeTime,
-        showAppName = showAppName,
-        showTimestamp = showTimestamp,
-        offsetXDp = offsetXDp,
-    )
-    if (placement.leftText == null && placement.rightText == null) return
-
-    val arrangement = when {
-        placement.leftText != null && placement.rightText != null -> Arrangement.SpaceBetween
-        placement.leftText != null -> Arrangement.Start
-        else -> Arrangement.End
-    }
-
-    val topOffsetDp = (collapsedOffsetYDp - expandedOffsetYDp).coerceAtLeast(0).dp
-    val headerHeightDp = collapsedHeightDp.dp
-
-    Box(
-        modifier = modifier
-            .padding(top = topOffsetDp)
-            .height(headerHeightDp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = arrangement,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (placement.leftText != null) {
-                Text(
-                    text = placement.leftText,
-                    color = accentColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (placement.rightText != null) {
-                Text(
-                    text = placement.rightText,
-                    color = accentColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
 @Composable
 fun rememberRelativeTime(postTimeMs: Long?): String? {
     if (postTimeMs == null) return null
@@ -1414,10 +1319,6 @@ private fun ExpandedContent(
     showActions: Boolean,
     appearance: AppearanceSettings,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     targetWidthDp: Int? = null,
     motion: IslandMotion? = null,
     replyingTo: IslandAction?,
@@ -1437,10 +1338,6 @@ private fun ExpandedContent(
             appearance = appearance,
             buttonHeightDp = appearance.actionButtonHeightDp,
             topMarginDp = topMarginDp,
-            offsetXDp = offsetXDp,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
         )
         return
     }
@@ -1450,10 +1347,6 @@ private fun ExpandedContent(
             event = event,
             appearance = appearance,
             topMarginDp = topMarginDp,
-            offsetXDp = offsetXDp,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
             onAction = onAction,
         )
         return
@@ -1464,10 +1357,6 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
-            offsetXDp = offsetXDp,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
@@ -1476,6 +1365,12 @@ private fun ExpandedContent(
 
     val density = LocalDensity.current.density
     val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     val contentFade by animateFloatAsState(
         targetValue = 1f,
@@ -1494,21 +1389,6 @@ private fun ExpandedContent(
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentFade },
     ) {
-        NotificationCardHeader(
-            appName = event.appName,
-            relativeTime = relativeTime,
-            showAppName = appearance.showSourceAppName,
-            showTimestamp = appearance.showTimestamp,
-            offsetXDp = offsetXDp,
-            accentColor = event.accent,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .then(if (innerWidth != null) Modifier.width(innerWidth) else Modifier.fillMaxWidth()),
-        )
-
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -1528,6 +1408,16 @@ private fun ExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -2124,31 +2014,18 @@ private fun MediaExpandedContent(
     appearance: AppearanceSettings,
     buttonHeightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
     val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
-        NotificationCardHeader(
-            appName = event.appName,
-            relativeTime = relativeTime,
-            showAppName = appearance.showSourceAppName,
-            showTimestamp = appearance.showTimestamp,
-            offsetXDp = offsetXDp,
-            accentColor = event.accent,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth(),
-        )
-
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -2172,6 +2049,16 @@ private fun MediaExpandedContent(
                     IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 }
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -2459,10 +2346,6 @@ internal fun callCutoutWidthPercent(
 private fun CallNormalContent(
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
@@ -2471,17 +2354,7 @@ private fun CallNormalContent(
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
     if (incoming && call.incomingExpandedLayout && hasActions) {
-        IncomingCallExpandedContent(
-            event = event,
-            call = call,
-            onCall = onCall,
-            appearance = appearance,
-            offsetXDp = offsetXDp,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
-            onAction = onAction,
-        )
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
     } else {
         CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
     }
@@ -2588,65 +2461,63 @@ private fun IncomingCallExpandedContent(
     call: CallTileOptions,
     onCall: OnCall?,
     appearance: AppearanceSettings = AppearanceSettings(),
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val photo = onCall?.photo?.takeIf { call.showPhoto }
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
     val answer = event.actions.firstOrNull { it.answer }
     val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = CALL_INCOMING_SIDE_PAD_DP.dp)) {
-        NotificationCardHeader(
-            appName = event.appName,
-            relativeTime = relativeTime,
-            showAppName = appearance.showSourceAppName,
-            showTimestamp = appearance.showTimestamp,
-            offsetXDp = offsetXDp,
-            accentColor = event.accent,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth(),
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    top = CALL_INCOMING_TOP_PAD_DP.dp,
-                    bottom = CALL_INCOMING_BOTTOM_PAD_DP.dp,
-                ),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                start = CALL_INCOMING_SIDE_PAD_DP.dp,
+                end = CALL_INCOMING_SIDE_PAD_DP.dp,
+                top = CALL_INCOMING_TOP_PAD_DP.dp,
+                bottom = CALL_INCOMING_BOTTOM_PAD_DP.dp,
+            ),
+    ) {
+        // Caller row — pinned just below the top camera clearance, so the single label (already the
+        // name when known, else the number) sits clear of the camera hole.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
         ) {
-            // Caller row — pinned just below the top camera clearance, so the single label (already the
-            // name when known, else the number) sits clear of the camera hole.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
-            ) {
-                if (photo != null) {
-                    ContactPhoto(bitmap = photo, size = CALL_INCOMING_AVATAR_DP.dp)
-                } else {
-                    IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
-                }
-                Column(modifier = Modifier.weight(1f)) {
+            if (photo != null) {
+                ContactPhoto(bitmap = photo, size = CALL_INCOMING_AVATAR_DP.dp)
+            } else {
+                IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                if (headerText != null) {
                     Text(
-                        text = event.label,
-                        color = LocalContentColor.current,
-                        fontSize = CALL_NAME_SIZE_SP.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = headerText,
+                        color = event.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = CALL_NAME_SIZE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            // A flexible gap pushes the button row down to the bottom edge.
+        }
+        // A flexible gap pushes the button row down to the bottom edge.
         Spacer(modifier = Modifier.weight(1f))
         // Button row — Take (answer) then Hang up (decline), each filling half the width.
         if (call.showActions && (answer != null || hangUp != null)) {
@@ -2677,7 +2548,6 @@ private fun IncomingCallExpandedContent(
             }
         }
     }
-}
 }
 
 /** A full-width, filled call button (Take / Hang up) with a leading icon and label, used by the
@@ -2792,31 +2662,18 @@ private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
     val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
-        NotificationCardHeader(
-            appName = event.appName,
-            relativeTime = relativeTime,
-            showAppName = appearance.showSourceAppName,
-            showTimestamp = appearance.showTimestamp,
-            offsetXDp = offsetXDp,
-            accentColor = event.accent,
-            collapsedHeightDp = collapsedHeightDp,
-            collapsedOffsetYDp = collapsedOffsetYDp,
-            expandedOffsetYDp = expandedOffsetYDp,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth(),
-        )
-
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -2830,6 +2687,16 @@ private fun TimerExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
                         text = timerRemainingText() ?: event.label,
@@ -2880,10 +2747,6 @@ private fun AssistantExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
-    offsetXDp: Int = 0,
-    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
-    collapsedOffsetYDp: Int = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-    expandedOffsetYDp: Int = IslandLayout.DEFAULT_EXPANDED.offsetYDp,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -2917,19 +2780,11 @@ private fun AssistantExpandedContent(
                 },
         ) {
             val relativeTime = rememberRelativeTime(event.postTimeMs)
-            NotificationCardHeader(
+            val headerText = formatNotificationHeader(
                 appName = event.appName,
                 relativeTime = relativeTime,
                 showAppName = appearance.showSourceAppName,
                 showTimestamp = appearance.showTimestamp,
-                offsetXDp = offsetXDp,
-                accentColor = event.accent,
-                collapsedHeightDp = collapsedHeightDp,
-                collapsedOffsetYDp = collapsedOffsetYDp,
-                expandedOffsetYDp = expandedOffsetYDp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
             )
 
             // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
@@ -2939,14 +2794,26 @@ private fun AssistantExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    text = event.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = event.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             // Answer content text displayed below title header
