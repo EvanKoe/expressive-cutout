@@ -994,7 +994,8 @@ class IslandOverlayController(private val context: Context) {
                 CENTER_SHORTCUTS_EXTRA_DP
             expanded && previewPinned -> expandedActionsBonusDp()
             expanded -> if (appearanceState.value.showFullNotificationText) {
-                maxOf(expandedActionsBonusDp(), EXPANDED_NOTIFICATION_EXTRA_DP)
+                val maxCutoutDp = (displayHeightDp * 70 / 100)
+                maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
             } else {
                 expandedActionsBonusDp()
             }

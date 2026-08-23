@@ -15,47 +15,47 @@ class ExpandedNotificationHeightTest {
         val textRowHeightDp = 68 // Header (16) + Title (20) + 2-line detail (32)
         val itemSpacingDp = 12
 
-        // Total content height measured by onGloballyPositioned on the Column (including top margin and bottom padding):
+        // Inner content height measured by onGloballyPositioned inside the padding:
         val innerContentHeightDp = textRowHeightDp + itemSpacingDp + buttonHeightDp // 116 dp
-        val totalMeasuredColumnHeightDp = topMarginDp + innerContentHeightDp + bottomPaddingDp // 186 dp
+        val totalRequiredHeightDp = topMarginDp + innerContentHeightDp + bottomPaddingDp // 186 dp
 
         val calculatedHeight = calculateExpandedNotificationHeightDp(
             baseExpandedHeightDp = baseExpandedHeightDp,
             topMarginDp = topMarginDp,
             bottomPaddingDp = bottomPaddingDp,
-            measuredContentHeightDp = totalMeasuredColumnHeightDp,
+            measuredContentHeightDp = innerContentHeightDp,
             buttonHeightDp = buttonHeightDp,
             hasActions = true,
             showFullNotificationText = true,
         )
 
-        // The calculated height must equal the measured required height so action buttons are preserved without overshoot
+        // The calculated height must equal topMarginDp + innerContentHeightDp + bottomPaddingDp
         assertTrue(
-            "Expected height >= $totalMeasuredColumnHeightDp to preserve action button height, but got $calculatedHeight",
-            calculatedHeight >= totalMeasuredColumnHeightDp
+            "Expected height >= $totalRequiredHeightDp to preserve action button height, but got $calculatedHeight",
+            calculatedHeight >= totalRequiredHeightDp
         )
-        assertEquals(totalMeasuredColumnHeightDp, calculatedHeight)
+        assertEquals(totalRequiredHeightDp, calculatedHeight)
     }
 
     @Test
-    fun testMeasuredHeightDoesNotDoubleAddPaddingOrOvershoot() {
+    fun testProgressNotificationPreservesTopMarginAndBottomPadding() {
         val baseExpandedHeightDp = 108
         val topMarginDp = 48
         val bottomPaddingDp = 22
-        val measuredColumnHeightDp = 180
+        val innerRowWithProgressHeightDp = 58 // Header + title + progress bar
 
         val calculatedHeight = calculateExpandedNotificationHeightDp(
             baseExpandedHeightDp = baseExpandedHeightDp,
             topMarginDp = topMarginDp,
             bottomPaddingDp = bottomPaddingDp,
-            measuredContentHeightDp = measuredColumnHeightDp,
+            measuredContentHeightDp = innerRowWithProgressHeightDp,
             buttonHeightDp = 36,
             hasActions = false,
             showFullNotificationText = true,
         )
 
-        // Must not double-add topMargin (48) and bottomPadding (22)
-        assertEquals(measuredColumnHeightDp, calculatedHeight)
+        val expectedTotalHeightDp = topMarginDp + innerRowWithProgressHeightDp + bottomPaddingDp // 128 dp
+        assertEquals(expectedTotalHeightDp, calculatedHeight)
     }
 
     @Test
