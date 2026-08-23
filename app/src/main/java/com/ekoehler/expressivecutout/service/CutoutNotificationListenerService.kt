@@ -32,6 +32,7 @@ import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
+import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 
@@ -555,11 +556,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
-        val pm = packageManager
-        val appName = runCatching {
-            pm.getApplicationLabel(pm.getApplicationInfo(notification.packageName, 0)).toString()
-        }.getOrNull()
-        val postTimeMs = if (notification.postTime > 0) notification.postTime else System.currentTimeMillis()
+        val appName = NotificationHeaderResolver.resolveAppName(this, notification.packageName)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(notification.postTime)
 
         // A notification the island already finished with, coming back on the same content: drop it
         // rather than re-popping to fight whatever replaced it. Progress notifications are exempt —
