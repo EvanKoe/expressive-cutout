@@ -164,6 +164,14 @@ internal fun AppearanceScreen(
             onCheckedChange = viewModel::setShowTimestamp,
         )
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
+            description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
+            checked = appearance.preferDynamicIconColor,
+            onCheckedChange = viewModel::setPreferDynamicIconColor,
+        )
+
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
         BackgroundCard(onClick = {

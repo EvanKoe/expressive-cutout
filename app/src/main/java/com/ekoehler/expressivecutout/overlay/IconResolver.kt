@@ -1,11 +1,15 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.content.Context
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.net.Uri
+import android.os.Build
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import com.airbnb.lottie.compose.LottieConstants
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
@@ -87,12 +91,14 @@ class IconResolver(private val context: Context) {
         animatedIconEnabled: Map<SystemEventType, Boolean> = emptyMap(),
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
         eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
+        preferDynamicIconColor: Boolean = false,
     ): IslandEvent = when (signal) {
         is CutoutSignal.Notification -> resolveNotification(
             signal,
             dynamicEventColor,
             dynamicEventColorRole,
             dynamicEventColorOpacity,
+            preferDynamicIconColor,
         )
         is CutoutSignal.System -> resolveSystem(
             signal.type,
@@ -115,11 +121,9 @@ class IconResolver(private val context: Context) {
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
         dynamicEventColorOpacity: Float,
+        preferDynamicIconColor: Boolean = false,
     ): IslandEvent {
-        // Everything shown comes from the notification itself — no app lookup, so the app needs no
-        // package-visibility declaration at all. A notification always carries a small icon, so
-        // the generic bell is a belt-and-braces fallback for one that somehow doesn't.
-        val icon = signal.notificationIcon() ?: IslandIcon.Vector(Icons.Rounded.Notifications)
+        val icon = signal.notificationIcon(preferDynamicIconColor) ?: IslandIcon.Vector(Icons.Rounded.Notifications)
 
         val title = signal.title?.takeIf { it.isNotBlank() }
         val text = signal.text?.takeIf { it.isNotBlank() }
@@ -155,15 +159,37 @@ class IconResolver(private val context: Context) {
     }
 
     /**
-     * The icon the posting app put on the notification itself, or null when it carries neither.
-     * Colour first: a large icon is full-colour art (a sender's photo, a podcast cover) and is
-     * drawn as-is. The small icon is Android's status-bar glyph — an alpha-only silhouette with no
-     * colour of its own — so it is tinted with the badge's ink, following the theme like every
-     * other glyph rather than being drawn as flat white pixels.
+     * Resolves the display icon for a notification based on [preferDynamicColor].
+     *
+     * When [preferDynamicColor] is true, dynamic/monochrome icons are preferred:
+     * 1. The app's monochrome adaptive icon layer (Android 13+), tinted with dynamic/accent color.
+     * 2. The notification's small status-bar glyph, tinted with dynamic/accent color.
+     * 3. Plain/default app icon or large icon fallback.
+     *
+     * When [preferDynamicColor] is false (default), plain/default app icons are always used:
+     * 1. The app's full-color launcher icon from the package manager.
+     * 2. The notification's large icon.
+     * 3. The small icon as fallback if no plain app icon or large icon is available.
      */
-    private fun CutoutSignal.Notification.notificationIcon(): IslandIcon? {
-        largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it) }
-        smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
+    private fun CutoutSignal.Notification.notificationIcon(preferDynamicColor: Boolean): IslandIcon? {
+        val appDrawable = runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+        if (preferDynamicColor) {
+            val monochrome = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                (appDrawable as? AdaptiveIconDrawable)?.monochrome
+            } else {
+                null
+            }
+            if (monochrome != null) {
+                return IslandIcon.Raster(monochrome.toBitmap().asImageBitmap(), tint = true)
+            }
+            smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
+            appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }
+            largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = false) }
+        } else {
+            appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }
+            largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = false) }
+            smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
+        }
         return null
     }
 

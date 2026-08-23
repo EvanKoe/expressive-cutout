@@ -1423,18 +1423,19 @@ class IslandOverlayController(private val context: Context) {
             val autoExpand = if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
 
             val resolvedEvent = resolver.resolve(
-                signal,
-                customIcons,
-                musicSettings,
-                phoneSettings,
-                timerSettings,
-                assistantSettings,
-                eventDynamicColor,
-                eventDynamicColorRole,
-                eventDynamicColorOpacity,
-                eventAnimatedIcons,
-                eventAnimatedIconLoops,
-                eventColors,
+                signal = signal,
+                customIcons = customIcons,
+                musicSettings = musicSettings,
+                phoneSettings = phoneSettings,
+                timerSettings = timerSettings,
+                assistantSettings = assistantSettings,
+                dynamicEventColor = eventDynamicColor,
+                dynamicEventColorRole = eventDynamicColorRole,
+                dynamicEventColorOpacity = eventDynamicColorOpacity,
+                animatedIconEnabled = eventAnimatedIcons,
+                animatedIconLoop = eventAnimatedIconLoops,
+                eventColorOverrides = eventColors,
+                preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
             ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
 
             if (overlayHidden) {
