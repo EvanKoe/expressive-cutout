@@ -460,6 +460,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = previewExpanded
                 expanded = previewExpanded
                 currentEvent.value = previewEvent
+                setTouchable(false)
             }
             callActive && lastCallEvent != null -> {
                 dismissJob?.cancel()
@@ -1014,10 +1015,11 @@ class IslandOverlayController(private val context: Context) {
      * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
      * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
      * unaffected; the pill's own footprint does stop passing touches through.
+     * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
-            setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+            setTouchable(!previewPinned && (event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)))
         }
     }
 
@@ -1314,9 +1316,9 @@ class IslandOverlayController(private val context: Context) {
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
                 CENTER_SHORTCUTS_EXTRA_DP
+            expanded && previewPinned -> expandedActionsBonusDp()
             expanded -> if (appearanceState.value.showFullNotificationText) {
-                val maxCutoutDp = (displayHeightDp * 70 / 100)
-                maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+                maxOf(expandedActionsBonusDp(), EXPANDED_NOTIFICATION_EXTRA_DP)
             } else {
                 expandedActionsBonusDp()
             }
@@ -1374,6 +1376,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
+                setTouchable(!pinned && (currentEvent.value != null || (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)))
                 syncWindowSize()
             }
     }
