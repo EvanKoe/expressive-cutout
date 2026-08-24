@@ -121,6 +121,7 @@ internal fun SizePositionScreen(
             IslandPreviewBus.setExpandedPreview(false)
         }
     }
+    // Mirror which tab is being edited (collapsed vs expanded) in the pinned live preview.
     LaunchedEffect(tab) { IslandPreviewBus.setExpandedPreview(tab == 1) }
 
     Column(

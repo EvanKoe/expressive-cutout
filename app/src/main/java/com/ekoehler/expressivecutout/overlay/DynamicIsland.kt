@@ -744,6 +744,8 @@ fun DynamicIsland(
                     shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
                     appearance = appearance,
                     progress = expandProgress,
+                    appColor = shownEvent?.primaryColor(),
+                    adaptiveColor = shownEvent?.primaryColor(),
                 ) {
                     Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
                         if (emptyPill) {
@@ -864,6 +866,7 @@ fun IslandPreview(
     showActions: Boolean = true,
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
+    val eventPrimaryColor = event.primaryColor()
     IslandSurface(
         modifier = Modifier.size(width, heightDp.dp),
         shape = cornerShape(
@@ -875,6 +878,8 @@ fun IslandPreview(
         appearance = appearance,
         // A static preview shows one state outright, so snap the fill to it.
         progress = if (expanded) 1f else 0f,
+        appColor = eventPrimaryColor,
+        adaptiveColor = eventPrimaryColor,
     ) {
         if (expanded) {
             ExpandedContent(
@@ -906,33 +911,41 @@ private fun IslandSurface(
     shape: Shape,
     appearance: AppearanceSettings,
     progress: Float,
+    appColor: Color? = null,
+    adaptiveColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
-    val normalBrush = appearance.backgroundNormal.resolveBrush()
-    val expandedBrush = appearance.backgroundExpanded.resolveBrush()
+    val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
+    val expandedBrush = appearance.backgroundExpanded.resolveBrush(appColor, adaptiveColor)
+    val normalBaseColor = appearance.backgroundNormal.resolveBaseColor(appColor, adaptiveColor)
+    val expandedBaseColor = appearance.backgroundExpanded.resolveBaseColor(appColor, adaptiveColor)
+    val currentBaseColor = lerp(normalBaseColor, expandedBaseColor, progress)
+
     val repColor = lerp(
-        appearance.backgroundNormal.representativeColor(),
-        appearance.backgroundExpanded.representativeColor(),
+        appearance.backgroundNormal.representativeColor(appColor, adaptiveColor),
+        appearance.backgroundExpanded.representativeColor(appColor, adaptiveColor),
         progress,
     )
 
     val contentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     val border = if (appearance.strokeEnabled) {
-        BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
+        val baseColor = appearance.strokeColor.resolve(appColor, adaptiveColor)
+        val strokeFinalColor = baseColor.copy(alpha = (baseColor.alpha * appearance.strokeOpacity).coerceIn(0f, 1f))
+        BorderStroke(appearance.strokeWidthDp.dp, strokeFinalColor)
     } else {
         null
     }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.background(currentBaseColor, shape),
         shape = shape,
-        color = Color.Transparent,
+        color = currentBaseColor,
         contentColor = contentColor,
         shadowElevation = if (appearance.shadowEnabled) 6.dp else 0.dp,
         tonalElevation = 0.dp,
         border = border,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().background(currentBaseColor)) {
             Box(modifier = Modifier.fillMaxSize().background(normalBrush))
             if (progress > 0f) {
                 Box(
@@ -2976,7 +2989,7 @@ private fun IconBadge(
             badgeColor = container.resolve()
             glyphColor = when (container) {
                 is CutoutColor.Dynamic -> onDynamicRole(container.role)
-                is CutoutColor.Solid ->
+                is CutoutColor.Solid, is CutoutColor.AppIcon ->
                     if (badgeColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
             }
         }

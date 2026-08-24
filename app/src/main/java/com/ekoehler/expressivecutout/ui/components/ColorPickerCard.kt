@@ -26,9 +26,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.AppColorFallback
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.RecentColorPreferences
@@ -56,8 +60,64 @@ val DEFAULT_PRESET_COLORS: List<Long> = listOf(
 /** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
 private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
+/**
+ * Reusable segmented row for choosing fallback behavior when app icon color is selected
+ * but no active notification provides an app icon.
+ */
 @Composable
-fun ColorPickerCard (
+fun AppColorFallbackRow(
+    fallback: AppColorFallback,
+    onSelect: (AppColorFallback) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fallbackOptions = listOf(
+        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
+        AppColorFallback.DYNAMIC_THEME to R.string.app_color_fallback_dynamic,
+        AppColorFallback.OLED_BLACK to R.string.app_color_fallback_oled,
+    )
+
+    Column(
+        modifier = modifier.padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.app_color_fallback_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        ExpressiveSegmentedRow(
+            options = fallbackOptions.map { stringResource(it.second) },
+            selectedIndex = fallbackOptions.indexOfFirst { it.first == fallback }.coerceAtLeast(0),
+            onSelect = { index -> onSelect(fallbackOptions[index].first) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Contextual description card showing user what the active color swatch selection does.
+ */
+@Composable
+fun ColorSelectionTooltip(
+    text: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (text == null) return
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = modifier.fillMaxWidth().padding(top = 2.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+fun ColorPickerCard(
     label: String? = null,
     selected: CutoutColor?,
     onSelect: (CutoutColor?) -> Unit,
@@ -66,13 +126,11 @@ fun ColorPickerCard (
     presetColors: List<Long> = DEFAULT_PRESET_COLORS,
     dynamicRoles: List<DynamicRole> = DEFAULT_DYNAMIC_ROLES,
     roundedCorners: Dp = 24.dp,
-    proposeOledBlack: Boolean = true
+    allowAppIcon: Boolean = true,
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    // A Solid colour that isn't one of the presets is the user's own custom pick.
     val customArgb = (selected as? CutoutColor.Solid)?.argb
         ?.takeIf { argb -> presetColors.none { it == argb } }
-    // Seed the picker with whatever colour is active right now.
     val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
 
     val context = LocalContext.current
@@ -100,7 +158,6 @@ fun ColorPickerCard (
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
                     .padding(horizontal = 4.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -116,6 +173,20 @@ fun ColorPickerCard (
                         onClick = { onSelect(null) },
                     )
                 }
+
+                if (allowAppIcon) {
+                    ColorSwatch(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        selected = selected is CutoutColor.AppIcon,
+                        badgePainter = painterResource(R.drawable.ic_play_store),
+                        badgeDescription = stringResource(R.string.cd_color_app_icon),
+                        onClick = {
+                            val currentFallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
+                            onSelect(CutoutColor.AppIcon(currentFallback))
+                        },
+                    )
+                }
+
                 dynamicRoles.forEach { role ->
                     ColorSwatch(
                         color = CutoutColor.Dynamic(role).resolve(),
@@ -144,6 +215,27 @@ fun ColorPickerCard (
                     )
                 }
             }
+
+            AnimatedVisibility(visible = allowAppIcon && selected is CutoutColor.AppIcon) {
+                val fallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
+                AppColorFallbackRow(
+                    fallback = fallback,
+                    onSelect = { onSelect(CutoutColor.AppIcon(it)) },
+                )
+            }
+
+            val tooltipText = when {
+                selected == null -> stringResource(R.string.tooltip_default_reset)
+                selected is CutoutColor.AppIcon -> stringResource(R.string.tooltip_app_icon)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.PRIMARY -> stringResource(R.string.tooltip_dynamic_primary)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.SECONDARY -> stringResource(R.string.tooltip_dynamic_secondary)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.TERTIARY -> stringResource(R.string.tooltip_dynamic_tertiary)
+                selected is CutoutColor.Solid && (selected.argb and 0xFFFFFFL == 0x000000L) -> stringResource(R.string.tooltip_oled_black)
+                selected is CutoutColor.Solid && customArgb != null -> stringResource(R.string.tooltip_custom_color)
+                selected is CutoutColor.Solid -> stringResource(R.string.tooltip_preset_color)
+                else -> null
+            }
+            ColorSelectionTooltip(text = tooltipText)
         }
     }
 
