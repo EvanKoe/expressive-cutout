@@ -5,7 +5,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -78,12 +80,18 @@ fun AppColorFallbackRow(
 
     Column(
         modifier = modifier.padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = stringResource(R.string.app_color_fallback_title),
             style = MaterialTheme.typography.titleSmall,
         )
+        Text(
+            text = stringResource(R.string.app_color_fallback_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
         ExpressiveSegmentedRow(
             options = fallbackOptions.map { stringResource(it.second) },
             selectedIndex = fallbackOptions.indexOfFirst { it.first == fallback }.coerceAtLeast(0),
