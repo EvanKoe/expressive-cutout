@@ -46,6 +46,7 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
@@ -742,6 +743,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPermissionDotPosition(position: PermissionDotPosition) = viewModelScope.launch {
         permissionDotPreferences.setPosition(position)
+    }
+
+    /** Which resources get a dot; one switched off is neither polled for nor drawn. */
+    val permissionDotKinds: StateFlow<PermissionDotKinds> =
+        permissionDotPreferences.kinds.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotKinds(),
+        )
+
+    fun setPermissionDotLocation(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setLocation(enabled)
+    }
+
+    fun setPermissionDotCamera(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setCamera(enabled)
+    }
+
+    fun setPermissionDotMicrophone(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophone(enabled)
     }
 
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {

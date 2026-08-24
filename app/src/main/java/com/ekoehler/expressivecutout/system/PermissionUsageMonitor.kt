@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.IBinder
 import android.util.Log
 import androidx.compose.runtime.Immutable
+import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -98,12 +99,14 @@ object PermissionUsageMonitor {
         val preferences = PermissionDotPreferences(context)
         val ownPackage = context.packageName
         scope.launch {
-            combine(preferences.enabled, ShizukuState.status) { enabled, status ->
-                enabled && status == ShizukuStatus.READY
+            combine(preferences.enabled, preferences.kinds, ShizukuState.status) { enabled, kinds, status ->
+                // Null stands for "report nothing": the feature is off, Shizuku can't answer, or
+                // the user has switched every resource off, which leaves nothing to draw.
+                kinds.takeIf { enabled && kinds.any && status == ShizukuStatus.READY }
             }
                 .distinctUntilChanged()
-                .collectLatest { active ->
-                    if (!active) {
+                .collectLatest { kinds ->
+                    if (kinds == null) {
                         // A dead Shizuku also invalidates the cached proxy; drop it so the next
                         // successful call rebuilds one over the fresh binder.
                         service = null
@@ -111,12 +114,19 @@ object PermissionUsageMonitor {
                         return@collectLatest
                     }
                     while (true) {
-                        _usage.value = read(ownPackage)
+                        _usage.value = read(ownPackage).maskedBy(kinds)
                         delay(POLL_INTERVAL_MS)
                     }
                 }
         }
     }
+
+    /** Drops the resources the user isn't watching, so a switched-off one never lights a dot. */
+    private fun PermissionUsage.maskedBy(kinds: PermissionDotKinds) = PermissionUsage(
+        microphone = microphone && kinds.microphone,
+        camera = camera && kinds.camera,
+        location = location && kinds.location,
+    )
 
     /**
      * Reads one snapshot of who is using what, ignoring our own package so the island never reports

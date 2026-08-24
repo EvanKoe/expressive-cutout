@@ -233,6 +233,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenBackground = { settingsRoute = SettingsRoute.Background },
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
                             onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
+                            onOpenPermissionDot = { settingsRoute = SettingsRoute.PermissionDot },
                         )
 
                         HomeTab.Permissions -> PermissionsTab(contentPadding)
@@ -306,6 +307,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
                     SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
                     SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
+                    SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
                     else -> stringResource(R.string.section_icons_title)
                 }
                 BackNavBar(

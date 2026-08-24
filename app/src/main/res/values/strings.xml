@@ -217,6 +217,12 @@
     <string name="permission_dot_position_title">Position</string>
     <string name="permission_dot_position_left">Left</string>
     <string name="permission_dot_position_right">Right</string>
+    <string name="permission_dot_location_title">Location</string>
+    <string name="permission_dot_location_desc">Show a blue dot while an app is reading your location.</string>
+    <string name="permission_dot_camera_title">Camera</string>
+    <string name="permission_dot_camera_desc">Show a red dot while an app is using the camera.</string>
+    <string name="permission_dot_microphone_title">Microphone</string>
+    <string name="permission_dot_microphone_desc">Show a green dot while an app is using the microphone.</string>
     <string name="shizuku_not_installed_title">Shizuku required</string>
     <string name="shizuku_not_installed_desc">Changing the status bar needs shell access. Tap to install Shizuku.</string>
     <string name="shizuku_not_running_title">Shizuku isn\'t running</string>
