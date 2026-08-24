@@ -488,7 +488,10 @@ fun DynamicIsland(
     // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring —
     // has anything for the dots to collide with. Everything else has empty pill there, so the dots
     // fit as they are and the pill is left at the width the user chose.
-    val hasTrailingContent = shownEvent?.let { it.timer != null || it.progressData != null } == true
+    //
+    // Read from [event] rather than [shownEvent]: the latter keeps the last event so the pill can
+    // fade out gracefully, and a width that outlived its tile would leave the pill grown for good.
+    val hasTrailingContent = event?.let { it.timer != null || it.progressData != null } == true
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.
