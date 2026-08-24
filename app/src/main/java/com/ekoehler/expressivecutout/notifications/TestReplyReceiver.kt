@@ -21,6 +21,10 @@ import kotlinx.coroutines.withContext
  */
 class TestReplyReceiver : BroadcastReceiver() {
 
+    /**
+     * Handles the test notification's reply and mark-read actions, turning the typed text into the
+     * confirmation the island shows.
+     */
     override fun onReceive(context: Context, intent: Intent) {
         val appContext = context.applicationContext
         val message = when (intent.action) {

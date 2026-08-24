@@ -36,16 +36,25 @@ data class ParsedCall(
  */
 object CallNotificationParser {
 
-    // Values of Notification.EXTRA_CALL_TYPE (API 31+); duplicated as ints so we can read them
-    // without gating the whole call on the SDK level.
+    /**
+     * Values of Notification.EXTRA_CALL_TYPE (API 31+); duplicated as ints so we can read them
+     * without gating the whole call on the SDK level.
+     */
     private const val CALL_TYPE_INCOMING = 1
     private const val CALL_TYPE_ONGOING = 2
 
-    // Both legacy call notifications and the modern CallStyle template carry this category
-    // (CallStyle sets it automatically), so it alone reliably identifies a call notification.
+    /**
+     * Both legacy call notifications and the modern CallStyle template carry this category
+     * (CallStyle sets it automatically), so it alone reliably identifies a call notification.
+     */
     fun isCall(sbn: StatusBarNotification): Boolean =
         sbn.notification?.category == Notification.CATEGORY_CALL
 
+    /**
+     * Reads a call notification into the shape the phone tile needs: caller label, photo, whether
+     * the call is connected, and the answer/end actions. Falls back through person, then title,
+     * then a generic string so the tile always has something to show.
+     */
     fun parse(sbn: StatusBarNotification, context: Context): ParsedCall {
         val notification = sbn.notification
         val extras = notification.extras

@@ -6,8 +6,6 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Path
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -47,6 +45,12 @@ import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotKinds
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.PermissionDotPreferences
+import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -59,10 +63,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileWriter
 import java.io.IOException
-import kotlin.io.encoding.Base64
 
 /**
  * Holds UI-facing state for the icon customisation screen and mediates writes to
@@ -82,6 +83,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val timerTilePreferences = TimerTilePreferences(application)
     private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
+    private val recentColorPreferences = RecentColorPreferences(application)
+    private val statusBarPreferences = StatusBarPreferences(application)
+    private val permissionDotPreferences = PermissionDotPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -246,6 +250,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.TIMER_TILE to timerTilePreferences,
         JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
+        JsonSettings.RECENT_COLORS to recentColorPreferences,
+        JsonSettings.STATUS_BAR to statusBarPreferences,
+        JsonSettings.PERMISSION_DOT to permissionDotPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
@@ -517,6 +524,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setVibrateOnTap(enabled)
     }
 
+    fun setHapticsOnPop(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHapticsOnPop(enabled)
+    }
+
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setHideOnLockscreen(enabled)
     }
@@ -649,6 +660,148 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setShadowEnabled(enabled)
     }
 
+    /**
+     * Whether the user wants the system status bar's notification icons hidden. Saved even while
+     * Shizuku is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideNotificationIcons: StateFlow<Boolean> =
+        statusBarPreferences.hideNotificationIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideNotificationIcons(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideNotificationIcons(hide)
+    }
+
+    /**
+     * Whether the user wants the system status bar's info icons (clock, battery, Wi-Fi, signal)
+     * hidden. Saved even while Shizuku is unreachable; `StatusBarIconController` applies it as soon
+     * as the bridge is back.
+     */
+    val hideSystemInfo: StateFlow<Boolean> =
+        statusBarPreferences.hideSystemInfo.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideSystemInfo(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideSystemInfo(hide)
+    }
+
+    /**
+     * Whether the user wants the system status bar's clock hidden. Saved even while Shizuku is
+     * unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val hideClock: StateFlow<Boolean> =
+        statusBarPreferences.hideClock.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setHideClock(hide: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setHideClock(hide)
+    }
+
+    /**
+     * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
+     * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
+     * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val silenceSystemAlerts: StateFlow<Boolean> =
+        statusBarPreferences.silenceAlerts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setSilenceSystemAlerts(silence: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setSilenceAlerts(silence)
+    }
+
+    /**
+     * Whether the user wants the island to mark live microphone, camera and location use. Saved even
+     * while Shizuku is unreachable; `PermissionUsageMonitor` starts reading as soon as the bridge is
+     * back, and reports nothing until then.
+     */
+    val permissionDotEnabled: StateFlow<Boolean> =
+        permissionDotPreferences.enabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotEnabled(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setEnabled(enabled)
+    }
+
+    /** Which end of the collapsed pill the permission dots sit on. */
+    val permissionDotPosition: StateFlow<PermissionDotPosition> =
+        permissionDotPreferences.position.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotPosition.RIGHT,
+        )
+
+    fun setPermissionDotPosition(position: PermissionDotPosition) = viewModelScope.launch {
+        permissionDotPreferences.setPosition(position)
+    }
+
+    /** Whether the dots stack vertically rather than running along the pill. */
+    val permissionDotVertical: StateFlow<Boolean> =
+        permissionDotPreferences.vertical.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotVertical(vertical: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setVertical(vertical)
+    }
+
+    /** Which resources get a dot; one switched off is neither polled for nor drawn. */
+    val permissionDotKinds: StateFlow<PermissionDotKinds> =
+        permissionDotPreferences.kinds.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotKinds(),
+        )
+
+    fun setPermissionDotLocation(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setLocation(enabled)
+    }
+
+    fun setPermissionDotCamera(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setCamera(enabled)
+    }
+
+    fun setPermissionDotMicrophone(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophone(enabled)
+    }
+
+    /** The colour each dot is drawn in, one per watched resource. */
+    val permissionDotColors: StateFlow<PermissionDotColors> =
+        permissionDotPreferences.colors.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotColors(),
+        )
+
+    fun setPermissionDotLocationColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setLocationColor(color)
+    }
+
+    fun setPermissionDotCameraColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setCameraColor(color)
+    }
+
+    fun setPermissionDotMicrophoneColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophoneColor(color)
+    }
+
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setStrokeEnabled(enabled)
     }
@@ -679,6 +832,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setStrokeColor(color: CutoutColor) = viewModelScope.launch {
         appearancePreferences.setStrokeColor(color)
+    }
+
+    fun setTextColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTextColor(color)
     }
 
     fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {
@@ -727,5 +884,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowProgress(enabled)
+    }
+
+    fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDismissNotifications(enabled)
+    }
+
+    fun setDisplayWhileDnd(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDisplayWhileDnd(enabled)
+    }
+
+    fun setAlertOnNotification(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setAlertOnNotification(enabled)
     }
 }

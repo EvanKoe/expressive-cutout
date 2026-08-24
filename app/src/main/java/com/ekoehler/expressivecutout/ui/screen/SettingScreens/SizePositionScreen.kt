@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -43,6 +45,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
@@ -58,9 +61,66 @@ internal fun SizePositionScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
 ) {
+    val context = LocalContext.current
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
+    // Cutout-aware defaults: centre the pill behind the physical camera and match the expanded
+    // island's corners to the device's own rounded corners. Falls back to the static defaults when
+    // the device reports no cutout / rounded corners (or predates the APIs).
+    val view = LocalView.current
+    val density = LocalDensity.current.density
+    val cutoutOffsetXDp = remember(view, density) {
+        CutoutMetrics.cutoutCenterPx(view)?.let { center ->
+            val screenWidthPx = view.resources.displayMetrics.widthPixels
+            ((center.x - screenWidthPx / 2f) / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_OFFSET_X_DP, IslandDimensions.MAX_OFFSET_X_DP)
+        }
+    }
+    val screenCornerDp = remember(view, density) {
+        CutoutMetrics.screenCornerRadiusPx(view)?.let { radiusPx ->
+            (radiusPx / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_CORNER_DP, IslandDimensions.MAX_CORNER_DP)
+        }
+    }
+    val collapsedDefaults = remember(cutoutOffsetXDp) {
+        cutoutOffsetXDp?.let { IslandLayout.DEFAULT_COLLAPSED.copy(offsetXDp = it) }
+            ?: IslandLayout.DEFAULT_COLLAPSED
+    }
+    val expandedDefaults = remember(cutoutOffsetXDp, screenCornerDp) {
+        var d = IslandLayout.DEFAULT_EXPANDED
+        cutoutOffsetXDp?.let { d = d.copy(offsetXDp = it) }
+        screenCornerDp?.let { c ->
+            d = d.copy(
+                cornerTopLeftDp = c,
+                cornerTopRightDp = c,
+                cornerBottomLeftDp = c,
+                cornerBottomRightDp = c,
+            )
+        }
+        d
+    }
+
+    // Pin the real overlay open only on this screen, gated on accessibility. The pinned island
+    // mirrors the tab being edited (collapsed vs expanded).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        fun refresh() = IslandPreviewBus.setActive(Permissions.isAccessibilityGranted(context))
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> refresh()
+                Lifecycle.Event.ON_PAUSE -> IslandPreviewBus.setActive(false)
+                else -> Unit
+            }
+        }
+        refresh()
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            IslandPreviewBus.setActive(false)
+            IslandPreviewBus.setExpandedPreview(false)
+        }
+    }
     // Mirror which tab is being edited (collapsed vs expanded) in the pinned live preview.
     LaunchedEffect(tab) { IslandPreviewBus.setExpandedPreview(tab == 1) }
 
@@ -84,14 +144,14 @@ internal fun SizePositionScreen(
         when (tab) {
             0 -> DimensionsEditor(
                 dimensions = layout.collapsed,
-                defaults = IslandLayout.DEFAULT_COLLAPSED,
+                defaults = collapsedDefaults,
                 expandedPreview = false,
                 onChange = viewModel::setCollapsedDimensions,
             )
 
             else -> DimensionsEditor(
                 dimensions = layout.expanded,
-                defaults = IslandLayout.DEFAULT_EXPANDED,
+                defaults = expandedDefaults,
                 expandedPreview = true,
                 onChange = viewModel::setExpandedDimensions,
             )
@@ -108,7 +168,6 @@ private fun DimensionsEditor(
 ) {
     var width by remember(dimensions.widthPercent) { mutableStateOf(dimensions.widthPercent.toFloat()) }
     var height by remember(dimensions.heightDp) { mutableStateOf(dimensions.heightDp.toFloat()) }
-    var topMargin by remember(dimensions.topMarginDp) { mutableStateOf(dimensions.topMarginDp.toFloat()) }
     var offsetX by remember(dimensions.offsetXDp) { mutableStateOf(dimensions.offsetXDp.toFloat()) }
     var offsetY by remember(dimensions.offsetYDp) { mutableStateOf(dimensions.offsetYDp.toFloat()) }
     var cornerTl by remember(dimensions.cornerTopLeftDp) { mutableStateOf(dimensions.cornerTopLeftDp.toFloat()) }
@@ -129,7 +188,6 @@ private fun DimensionsEditor(
             cornerTopRightDp = cornerTr.roundToInt(),
             cornerBottomLeftDp = cornerBl.roundToInt(),
             cornerBottomRightDp = cornerBr.roundToInt(),
-            topMarginDp = topMargin.roundToInt(),
         ),
     )
 
@@ -152,17 +210,6 @@ private fun DimensionsEditor(
             onValueChange = { height = it },
             onCommit = { commit() },
         )
-        if (expandedPreview) {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_top_margin),
-                valueText = "${topMargin.roundToInt()} dp",
-                value = topMargin,
-                valueRange = IslandDimensions.MIN_TOP_MARGIN_DP.toFloat()..IslandDimensions.MAX_TOP_MARGIN_DP.toFloat(),
-                step = 2f,
-                onValueChange = { topMargin = it },
-                onCommit = { commit() },
-            )
-        }
         CornerRadiusControls(
             cornerTl = cornerTl,
             cornerTr = cornerTr,
@@ -200,7 +247,6 @@ private fun DimensionsEditor(
             onClick = {
                 width = defaults.widthPercent.toFloat()
                 height = defaults.heightDp.toFloat()
-                topMargin = defaults.topMarginDp.toFloat()
                 offsetX = defaults.offsetXDp.toFloat()
                 offsetY = defaults.offsetYDp.toFloat()
                 cornerTl = defaults.cornerTopLeftDp.toFloat()
@@ -222,6 +268,10 @@ private fun DimensionsEditor(
     }
 }
 
+/**
+ * How many corner radii the user is editing at once: one for all four, one per side pair, or each
+ * corner on its own.
+ */
 private enum class CornerMode { All, TopBottom, Each }
 
 /**

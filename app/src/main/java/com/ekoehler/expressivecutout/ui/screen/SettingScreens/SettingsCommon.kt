@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
 
@@ -175,7 +176,11 @@ internal fun SettingsSliderCard(
     }
 }
 
-/** A surface card wrapping a title/description and a trailing [Switch]. */
+/**
+ * A surface card wrapping a title/description and a trailing [Switch]. Pass [enabled] = false for a
+ * setting that exists but can't be changed yet — the row dims and the switch stops responding,
+ * which keeps the feature discoverable instead of hiding it.
+ */
 @Composable
 internal fun SettingsToggleCard(
     shape: Shape,
@@ -183,7 +188,9 @@ internal fun SettingsToggleCard(
     description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
+    val contentAlpha = if (enabled) 1f else 0.38f
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
@@ -196,15 +203,19 @@ internal fun SettingsToggleCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
                 )
             }
             Spacer(Modifier.width(12.dp))
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
         }
     }
 }
@@ -288,6 +299,7 @@ internal fun IslandPreviewPanel(
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
     val cutoutOutline = Color.White.copy(alpha = 0.28f)
     // Grow the panel so the island (at its offset) always fits without clipping.
@@ -341,11 +353,16 @@ internal fun IslandPreviewPanel(
                 expanded = expanded,
                 appearance = appearance,
                 showActions = showActions,
+                collapsedHeightDp = collapsedHeightDp,
             )
         }
     }
 }
 
+/**
+ * The measured camera cutout at the top of the screen, shared by the settings previews so they can
+ * draw the island against the device's real hole rather than a guess.
+ */
 internal data class TopCutout(
     val widthPx: Int,
     val heightPx: Int,

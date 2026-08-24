@@ -18,3 +18,5 @@ keystore.properties
 key.properties
 .kotlin/
 google-services.json
+*~
+*.swp

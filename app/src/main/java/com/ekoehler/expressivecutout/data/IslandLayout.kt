@@ -83,7 +83,12 @@ fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): I
 const val CALL_MIN_WIDTH_PERCENT = 60
 const val CALL_MAX_WIDTH_PERCENT = 80
 
+/**
+ * Height of the call cutout, fixed so an in-call island is recognisable whatever the user's normal
+ * geometry is.
+ */
 private const val CALL_HEIGHT_DP = 60
+/** Corner radius of the call cutout, half of [CALL_HEIGHT_DP] so its ends are fully round. */
 private const val CALL_CORNER_DP = 30
 
 /** The two independently configurable island states. */

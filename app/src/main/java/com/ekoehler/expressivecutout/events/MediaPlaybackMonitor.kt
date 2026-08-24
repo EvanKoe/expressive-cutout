@@ -46,16 +46,16 @@ class MediaPlaybackMonitor(private val context: Context) {
     private val appPreferences = AppPreferences(context)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Controllers we're currently watching, paired with the callback registered on each.
+    /** Controllers we're currently watching, paired with the callback registered on each. */
     private val watched = mutableMapOf<MediaController, MediaController.Callback>()
 
-    // Enabled state of dynamic tiles
+    /** Enabled state of dynamic tiles */
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
 
-    // Packages the user muted on the Apps screen; their sessions are ignored outright.
+    /** Packages the user muted on the Apps screen; their sessions are ignored outright. */
     private var disabledApps: Set<String> = emptySet()
 
-    // The track last surfaced as a "show" signal, so we don't re-pop on every state tick.
+    /** The track last surfaced as a "show" signal, so we don't re-pop on every state tick. */
     private var lastShownKey: String? = null
 
     private val sessionsListener =
@@ -63,6 +63,10 @@ class MediaPlaybackMonitor(private val context: Context) {
             rebind(controllers.orEmpty())
         }
 
+    /**
+     * Begins watching the active media sessions and the tile's own enabled flag. Does nothing
+     * without notification access, since the session manager is unavailable until then.
+     */
     fun start() {
         val manager = sessionManager ?: return
         scope.launch {
@@ -84,6 +88,10 @@ class MediaPlaybackMonitor(private val context: Context) {
         }.onFailure { Log.w(TAG, "Media session access unavailable", it) }
     }
 
+    /**
+     * Unregisters every session callback and clears the published state, so a disabled tile leaves
+     * nothing behind on the island.
+     */
     fun stop() {
         sessionManager?.let { runCatching { it.removeOnActiveSessionsChangedListener(sessionsListener) } }
         watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
@@ -110,11 +118,16 @@ class MediaPlaybackMonitor(private val context: Context) {
         sync()
     }
 
+    /** Stops watching one controller and re-syncs, for a session that has gone away. */
     private fun detach(controller: MediaController) {
         watched.remove(controller)?.let { controller.unregisterCallback(it) }
         sync()
     }
 
+    /**
+     * Whether the package is a voice assistant. Assistants publish a media session for their own
+     * chime, which would otherwise pop a music tile for a sound the user never started.
+     */
     private fun isAssistantPackage(packageName: String): Boolean {
         val pkg = packageName.lowercase()
         return pkg == "com.google.android.googlequicksearchbox" ||

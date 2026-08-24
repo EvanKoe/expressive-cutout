@@ -106,6 +106,10 @@ fun ChangelogScreen(contentPadding: PaddingValues) {
     }
 }
 
+/**
+ * One release in the changelog. The entry matching the running build is called out so the user can
+ * see where they are.
+ */
 @Composable
 private fun ReleaseCard(release: Release, isCurrent: Boolean) {
     Card(

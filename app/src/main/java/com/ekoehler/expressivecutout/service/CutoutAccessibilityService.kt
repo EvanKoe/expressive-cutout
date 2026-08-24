@@ -28,6 +28,10 @@ class CutoutAccessibilityService : AccessibilityService() {
     private var mediaPlayback: MediaPlaybackMonitor? = null
     private var lastAssistantKey: String? = null
 
+    /**
+     * Starts the overlay and the two event monitors, and publishes the service so the rest of the
+     * app can see that the island is live. Mirrored by [teardown].
+     */
     override fun onServiceConnected() {
         super.onServiceConnected()
         overlay = IslandOverlayController(this).also { it.start() }
@@ -37,6 +41,10 @@ class CutoutAccessibilityService : AccessibilityService() {
         _bound.value = true
     }
 
+    /**
+     * Whether the package is a voice assistant, checked against the known first-party and OEM
+     * assistant packages so their windows can be inspected for a spoken answer.
+     */
     private fun isAssistantPackage(packageName: String): Boolean {
         val pkg = packageName.lowercase()
         return pkg == "com.google.android.googlequicksearchbox" ||
@@ -65,11 +73,19 @@ class CutoutAccessibilityService : AccessibilityService() {
         "share screen with live"
     )
 
+    /**
+     * Whether a line of assistant text is boilerplate (a safety notice, a "check your results"
+     * footer) rather than the answer itself.
+     */
     private fun isDisclaimer(text: String): Boolean {
         val lower = text.lowercase()
         return DISCLAIMER_PATTERNS.any { lower.contains(it) }
     }
 
+    /**
+     * Notes which app is in front, and inspects assistant windows when one is. Nothing here reads
+     * content from any other app.
+     */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val ev = event ?: return
         val pkg = ev.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
@@ -87,6 +103,10 @@ class CutoutAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Reads the spoken answer out of an assistant window, emitting an inactive signal as soon as
+     * the window is gone so the tile can't outlive the answer it shows.
+     */
     private fun inspectAssistantWindow(pkg: String, event: AccessibilityEvent) {
         val rootNode = rootInActiveWindow ?: event.source
         if (rootNode == null) {
@@ -126,6 +146,10 @@ class CutoutAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Walks a node tree collecting usable text, skipping single characters and boilerplate that
+     * would otherwise crowd out the answer.
+     */
     private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<String>) {
         if (node == null) return
         val text = node.text?.toString()?.trim()
@@ -148,18 +172,29 @@ class CutoutAccessibilityService : AccessibilityService() {
         overlay?.onOrientationChanged(newConfig.orientation)
     }
 
+    /** Required by the framework. The island has no interruptible work of its own. */
     override fun onInterrupt() = Unit
 
+    /**
+     * Tears everything down on unbind, which is when the user turns the service off in settings.
+     */
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         teardown()
         return super.onUnbind(intent)
     }
 
+    /**
+     * Tears everything down on destroy, since a service can be killed without ever being unbound.
+     */
     override fun onDestroy() {
         teardown()
         super.onDestroy()
     }
 
+    /**
+     * Stops the monitors and the overlay and clears the published state. Written to be safe to call
+     * twice, because unbind and destroy both reach it.
+     */
     private fun teardown() {
         _bound.value = false
         instance = null

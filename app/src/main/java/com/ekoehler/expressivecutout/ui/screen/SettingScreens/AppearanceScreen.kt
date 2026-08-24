@@ -88,10 +88,8 @@ import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
 import kotlin.math.roundToInt
-
-/** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
-private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 @Composable
 internal fun AppearanceScreen(
@@ -204,6 +202,14 @@ internal fun AppearanceScreen(
             description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
             checked = appearance.preferDynamicIconColor,
             onCheckedChange = viewModel::setPreferDynamicIconColor,
+        )
+
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_text_color),
+            selected = appearance.textColor,
+            onSelect = viewModel::setTextColor,
+            defaultLabel = stringResource(R.string.appearance_text_color_auto),
+            allowAppIcon = true,
         )
 
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours

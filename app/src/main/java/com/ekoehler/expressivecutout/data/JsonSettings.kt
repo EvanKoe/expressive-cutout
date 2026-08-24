@@ -22,7 +22,7 @@ object JsonSettings {
     const val VERSION_KEY = "version"
     const val VERSION = 1
 
-    // Section labels — also the keys of the store map AppViewModel builds.
+    /** Section labels — also the keys of the store map AppViewModel builds. */
     const val THEME = "theme"
     const val LAYOUT = "layout"
     const val ICONS = "icons"
@@ -35,6 +35,9 @@ object JsonSettings {
     const val TIMER_TILE = "timerTile"
     const val ASSISTANT_TILE = "assistantTile"
     const val APPS = "apps"
+    const val RECENT_COLORS = "recentColors"
+    const val STATUS_BAR = "statusBar"
+    const val PERMISSION_DOT = "permissionDot"
 
     /** The outcome of an [import], so the UI can tell the user exactly what happened. */
     enum class ImportResult { SUCCESS, NOT_A_SETTINGS_FILE, ERROR }

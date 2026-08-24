@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for every behaviour setting. */
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
 
 /** How the cutout behaves when the device is in horizontal/landscape orientation. */
@@ -100,15 +101,18 @@ data class BehaviourSettings(
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
     val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
     val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
+    val hapticsOnPop: Boolean = DEFAULT_HAPTICS_ON_POP,
+    val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS,
+    val displayWhileDnd: Boolean = DEFAULT_DISPLAY_WHILE_DND,
+    val alertOnNotification: Boolean = DEFAULT_ALERT_ON_NOTIFICATION,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
         const val DEFAULT_HIDE_IN_LANDSCAPE = false
         const val DEFAULT_VIBRATE_ON_TAP = true
+        const val DEFAULT_HAPTICS_ON_POP = false
         val DEFAULT_HORIZONTAL_CUTOUT_MODE = HorizontalCutoutMode.CENTER
-        // Baseline for the island's primary expand/collapse transition; the reveal, background fade
-        // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
         const val DEFAULT_ANIMATION_DURATION_MS = 220
         val DEFAULT_ANIMATION_STYLE = AnimationStyle.EXPRESSIVE
         val DEFAULT_ANIMATION_SPEED = AnimationSpeed.DEFAULT
@@ -138,6 +142,9 @@ data class BehaviourSettings(
         const val CENTER_SHOW_LABELS = true
         const val CENTER_FILL_CONTAINERS = false
         const val CENTER_THEMED_ICONS = false
+        const val DEFAULT_DISMISS_NOTIFICATIONS = false
+        const val DEFAULT_DISPLAY_WHILE_DND = false
+        const val DEFAULT_ALERT_ON_NOTIFICATION = false
     }
 }
 
@@ -204,7 +211,15 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
-            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP
+            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP,
+            /** If enabled, haptic feedback fires when the cutout appears and disappears */
+            hapticsOnPop = prefs[HAPTICS_ON_POP] ?: BehaviourSettings.DEFAULT_HAPTICS_ON_POP,
+            /** If enabled, remove Android notification pop-ups */
+            dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS,
+            /** If enabled, notification cutout appears even when Do not disturb is enabled */
+            displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND,
+            /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+            alertOnNotification = prefs[ALERT_ON_NOTIFICATION] ?: BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION
         )
     }
 
@@ -244,6 +259,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("centerFillContainers", s.centerFillContainers)
             put("centerThemedIcons", s.centerThemedIcons)
             put("vibrateOnTap", s.vibrateOnTap)
+            put("hapticsOnPop", s.hapticsOnPop)
+            put("dismissNotifications", s.dismissNotifications)
+            put("displayWhileDnd", s.displayWhileDnd)
+            put("alertOnNotification", s.alertOnNotification)
         }.toString()
     }
 
@@ -308,6 +327,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("centerFillContainers")) it[CENTER_FILL_CONTAINERS] = obj.getBoolean("centerFillContainers")
             if (obj.has("centerThemedIcons")) it[CENTER_THEMED_ICONS] = obj.getBoolean("centerThemedIcons")
             if (obj.has("vibrateOnTap")) it[VIBRATE_ON_TAP] = obj.getBoolean("vibrateOnTap")
+            if (obj.has("hapticsOnPop")) it[HAPTICS_ON_POP] = obj.getBoolean("hapticsOnPop")
+            if (obj.has("dismissNotifications")) it[DISMISS_NOTIFICATIONS] = obj.getBoolean("dismissNotifications")
+            if (obj.has("displayWhileDnd")) it[DISPLAY_WHILE_DND] = obj.getBoolean("displayWhileDnd")
+            if (obj.has("alertOnNotification")) it[ALERT_ON_NOTIFICATION] = obj.getBoolean("alertOnNotification")
         }
     }
 
@@ -325,6 +348,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[HIDE_ON_LOCKSCREEN] = enabled
     }
 
+    /**
+     * Keeps the landscape switch and [HorizontalCutoutMode] in step: turning it on forces the mode
+     * to [HorizontalCutoutMode.HIDDEN], since "hide in landscape" is that mode under an older name.
+     * Mirrored by [setHorizontalCutoutMode].
+     */
     suspend fun setHideInLandscape(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_IN_LANDSCAPE] = enabled
         if (enabled) {
@@ -332,6 +360,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
+    /**
+     * Keeps [HorizontalCutoutMode] and the older landscape switch in step, so a reader of either
+     * sees the same thing. Mirrors [setHideInLandscape].
+     */
     suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = context.behaviourDataStore.edit {
         it[HORIZONTAL_CUTOUT_MODE] = mode.name
         it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN)
@@ -353,6 +385,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[ACTION_BUTTON_ANIMATION] = animation.name
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave an
+     * animation length the UI has no way to correct.
+     */
     suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
         it[ANIMATION_DURATION_MS] = ms.coerceIn(
             BehaviourSettings.MIN_ANIMATION_DURATION_MS,
@@ -360,6 +396,15 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    /** If enabled, dismiss notifications automatically */
+    suspend fun setDismissNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISMISS_NOTIFICATIONS] = enabled
+    }
+
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * duration the UI has no way to correct.
+     */
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[NORMAL_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_NORMAL_SECONDS,
@@ -371,6 +416,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[AUTO_COLLAPSE] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * collapse delay the UI has no way to correct.
+     */
     suspend fun setCollapseSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[COLLAPSE_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_COLLAPSE_SECONDS,
@@ -431,6 +480,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it.remove(SHOWS_WHEN_EMPTY_ICON)
     }
 
+    /**
+     * Stores the empty pill's icon colour, or removes the key entirely for null so the icon falls
+     * back to the theme default.
+     */
     suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
         if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
         else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
@@ -440,6 +493,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
     }
 
+    /**
+     * Stores the package the empty pill opens, or removes the key entirely for null so no app is
+     * bound to the tap.
+     */
     suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = context.behaviourDataStore.edit {
         if (packageName == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE)
         else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName
@@ -468,6 +525,21 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
     /** Sets whether the cutout vibrates on tap */
     suspend fun setVibrateOnTap(enabled: Boolean) = context.behaviourDataStore.edit {
         it[VIBRATE_ON_TAP] = enabled
+    }
+
+    /** Sets whether haptic feedback fires when the cutout appears and disappears */
+    suspend fun setHapticsOnPop(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[HAPTICS_ON_POP] = enabled
+    }
+
+    /** Set if notifications appear while Do not disturb is on */
+    suspend fun setDisplayWhileDnd(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISPLAY_WHILE_DND] = enabled
+    }
+
+    /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+    suspend fun setAlertOnNotification(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[ALERT_ON_NOTIFICATION] = enabled
     }
 
     private companion object {
@@ -503,5 +575,9 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
         val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
         val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
+        val HAPTICS_ON_POP = booleanPreferencesKey("haptics_on_pop")
+        val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
+        val DISPLAY_WHILE_DND = booleanPreferencesKey("display_while_dnd")
+        val ALERT_ON_NOTIFICATION = booleanPreferencesKey("alert_on_notification")
     }
 }

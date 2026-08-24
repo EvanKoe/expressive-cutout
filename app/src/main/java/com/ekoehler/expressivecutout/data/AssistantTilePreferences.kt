@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the assistant tile's settings. */
 private val Context.assistantTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "assistant_tile_prefs")
 
 /** The assistant tile's settings, edited on its dedicated settings screen. */
@@ -75,10 +76,18 @@ class AssistantTilePreferences(private val context: Context) : JsonSerializable 
         it[DISPLAY_ANSWER_IN_CUTOUT] = enabled
     }
 
+    /**
+     * Clamps to 10..80 percent: below that the tile has no room to draw, above it the island would
+     * swallow most of the screen.
+     */
     suspend fun setMaxCutoutHeightPercent(percent: Int) = context.assistantTileDataStore.edit {
         it[MAX_CUTOUT_HEIGHT_PERCENT] = percent.coerceIn(10, 80)
     }
 
+    /**
+     * Stores the icon container colour, or removes the key entirely for null so the tile falls back
+     * to the theme default.
+     */
     suspend fun setIconContainerColor(color: CutoutColor?) = context.assistantTileDataStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }

@@ -57,6 +57,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.lottie.compose)
 
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation(libs.hiddenapibypass)
+
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation("junit:junit:4.13.2")

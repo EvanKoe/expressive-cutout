@@ -16,11 +16,10 @@ import com.ekoehler.expressivecutout.data.ColorSpec
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
-import com.ekoehler.expressivecutout.data.FadeDirection
 import com.ekoehler.expressivecutout.data.GradientDirection
 
 /** Fallback accent used for dynamic colours before Android 12 (no Material You). */
-private val DynamicFallback = Color(0xFF60A5FA)
+private val DYNAMIC_FALLBACK = Color(0xFF60A5FA)
 
 /**
  * Resolve a [CutoutColor] to a concrete [Color]. [Dynamic] reads the system Material You accent
@@ -58,7 +57,7 @@ fun ColorSpec.resolve(appColor: Color? = null, adaptiveColor: Color? = null): Co
 /** Non-composable variant of [CutoutColor.resolve] allowing a custom dynamic color resolver for testing. */
 fun CutoutColor.resolveColor(
     appColor: Color? = null,
-    dynamicResolver: (DynamicRole) -> Color = { DynamicFallback },
+    dynamicResolver: (DynamicRole) -> Color = { DYNAMIC_FALLBACK },
     adaptiveColor: Color? = null,
 ): Color = when (this) {
     is CutoutColor.Solid -> Color(argb)
@@ -75,7 +74,7 @@ fun CutoutColor.resolveColor(
 /** Non-composable variant of [ColorSpec.resolve] allowing a custom dynamic color resolver for testing. */
 fun ColorSpec.resolveColor(
     appColor: Color? = null,
-    dynamicResolver: (DynamicRole) -> Color = { DynamicFallback },
+    dynamicResolver: (DynamicRole) -> Color = { DYNAMIC_FALLBACK },
     adaptiveColor: Color? = null,
 ): Color = when (this) {
     is ColorSpec.Fixed -> Color(argb)
@@ -92,8 +91,7 @@ fun ColorSpec.resolveColor(
 
 /**
  * Resolve a [CutoutFill] to the [Brush] painted behind the island. A [CutoutFill.Solid] is a flat
- * [SolidColor]; a [CutoutFill.Gradient] becomes a two-stop gradient in its chosen direction;
- * a [CutoutFill.AppFade] renders a directional fade with solid percentage into the base color.
+ * [SolidColor]; a [CutoutFill.Gradient] becomes a two-stop gradient in its chosen direction.
  */
 @Composable
 fun CutoutFill.resolveBrush(appColor: Color? = null, adaptiveColor: Color? = null): Brush = when (this) {
@@ -107,83 +105,6 @@ fun CutoutFill.resolveBrush(appColor: Color? = null, adaptiveColor: Color? = nul
             GradientDirection.HORIZONTAL -> Brush.horizontalGradient(colors)
             GradientDirection.DIAGONAL -> Brush.linearGradient(colors)
         }
-    }
-    is CutoutFill.AppFade -> {
-        val resolvedApp = appColorSpec.resolve(appColor, adaptiveColor).let { it.copy(alpha = it.alpha * opacity) }
-        val resolvedBase = baseColor.resolve(appColor, adaptiveColor).let { it.copy(alpha = it.alpha * opacity) }
-        val gFrac = (solidPercent / 100f).coerceIn(0f, 1f)
-        val fFrac = (fadeDistance / 100f).coerceIn(0f, 1f)
-
-        val stops = when (direction) {
-            FadeDirection.LEFT_TO_RIGHT -> {
-                val fadeEnd = (gFrac + fFrac).coerceIn(0f, 1f)
-                if (gFrac <= 0f && fFrac <= 0f) {
-                    arrayOf(0.0f to resolvedBase, 1.0f to resolvedBase)
-                } else if (gFrac >= 1f) {
-                    arrayOf(0.0f to resolvedApp, 1.0f to resolvedApp)
-                } else if (fFrac <= 0f) {
-                    // Harsh break at gFrac
-                    arrayOf(
-                        0.0f to resolvedApp,
-                        gFrac to resolvedApp,
-                        gFrac to resolvedBase,
-                        1.0f to resolvedBase,
-                    )
-                } else {
-                    if (gFrac <= 0f) {
-                        if (fadeEnd >= 1f) {
-                            arrayOf(0.0f to resolvedApp, 1.0f to resolvedBase)
-                        } else {
-                            arrayOf(0.0f to resolvedApp, fadeEnd to resolvedBase, 1.0f to resolvedBase)
-                        }
-                    } else if (fadeEnd >= 1f) {
-                        arrayOf(0.0f to resolvedApp, gFrac to resolvedApp, 1.0f to resolvedBase)
-                    } else {
-                        arrayOf(
-                            0.0f to resolvedApp,
-                            gFrac to resolvedApp,
-                            fadeEnd to resolvedBase,
-                            1.0f to resolvedBase,
-                        )
-                    }
-                }
-            }
-            FadeDirection.RIGHT_TO_LEFT -> {
-                val appStart = (1f - gFrac).coerceIn(0f, 1f)
-                val fadeStart = (1f - gFrac - fFrac).coerceIn(0f, 1f)
-                if (gFrac <= 0f && fFrac <= 0f) {
-                    arrayOf(0.0f to resolvedBase, 1.0f to resolvedBase)
-                } else if (gFrac >= 1f) {
-                    arrayOf(0.0f to resolvedApp, 1.0f to resolvedApp)
-                } else if (fFrac <= 0f) {
-                    // Harsh break at appStart
-                    arrayOf(
-                        0.0f to resolvedBase,
-                        appStart to resolvedBase,
-                        appStart to resolvedApp,
-                        1.0f to resolvedApp,
-                    )
-                } else {
-                    if (gFrac <= 0f) {
-                        if (fadeStart <= 0f) {
-                            arrayOf(0.0f to resolvedBase, 1.0f to resolvedApp)
-                        } else {
-                            arrayOf(0.0f to resolvedBase, fadeStart to resolvedBase, 1.0f to resolvedApp)
-                        }
-                    } else if (fadeStart <= 0f) {
-                        arrayOf(0.0f to resolvedBase, appStart to resolvedApp, 1.0f to resolvedApp)
-                    } else {
-                        arrayOf(
-                            0.0f to resolvedBase,
-                            fadeStart to resolvedBase,
-                            appStart to resolvedApp,
-                            1.0f to resolvedApp,
-                        )
-                    }
-                }
-            }
-        }
-        Brush.horizontalGradient(colorStops = stops)
     }
 }
 
@@ -199,23 +120,14 @@ fun CutoutFill.representativeColor(appColor: Color? = null, adaptiveColor: Color
         end.resolve(appColor, adaptiveColor).let { it.copy(alpha = it.alpha * opacity) },
         0.5f,
     )
-    is CutoutFill.AppFade -> lerp(
-        appColorSpec.resolve(appColor, adaptiveColor).let { it.copy(alpha = it.alpha * opacity) },
-        baseColor.resolve(appColor, adaptiveColor).let { it.copy(alpha = it.alpha * opacity) },
-        0.5f,
-    )
 }
 
 /**
  * Resolves the solid base background color for a [CutoutFill] to sit on top of.
- * If the user configured an AppIcon fallback or a target base color, that is used;
- * otherwise defaults to OLED Black (#000000).
+ * Defaults to OLED Black (#000000), or the configured fallback if Solid AppIcon is chosen.
  */
 @Composable
 fun CutoutFill.resolveBaseColor(appColor: Color? = null, adaptiveColor: Color? = null): Color = when (this) {
-    is CutoutFill.AppFade -> {
-        baseColor.resolve(appColor, adaptiveColor).copy(alpha = 1f)
-    }
     is CutoutFill.Solid -> when (val spec = color) {
         is ColorSpec.AppIcon -> when (spec.fallback) {
             AppColorFallback.DYNAMIC_THEME -> dynamicRole(DynamicRole.PRIMARY)
@@ -235,7 +147,7 @@ fun CutoutFill.resolveBaseColor(appColor: Color? = null, adaptiveColor: Color? =
  * 3. Extracted [IslandEvent.appColor] for apps/notifications
  * 4. Built-in [IslandEvent.accent] default color
  */
-fun IslandEvent.resolvePrimaryColor(dynamicResolver: (DynamicRole) -> Color = { DynamicFallback }): Color = when {
+fun IslandEvent.resolvePrimaryColor(dynamicResolver: (DynamicRole) -> Color = { DYNAMIC_FALLBACK }): Color = when {
     colorOverride != null -> colorOverride.resolveColor(appColor, dynamicResolver)
     useThemeColor -> dynamicResolver(themeColorRole)
     appColor != null -> appColor
@@ -259,7 +171,7 @@ internal fun dynamicRole(role: DynamicRole): Color {
         val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         scheme.forRole(role)
     } else {
-        DynamicFallback
+        DYNAMIC_FALLBACK
     }
 }
 
@@ -283,6 +195,10 @@ fun onDynamicRole(role: DynamicRole): Color {
     }
 }
 
+/**
+ * Picks one role out of the live Material You scheme, so a [DynamicRole] stored in preferences can
+ * be resolved at draw time.
+ */
 internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary

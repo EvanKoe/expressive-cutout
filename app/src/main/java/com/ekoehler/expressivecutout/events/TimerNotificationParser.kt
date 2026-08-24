@@ -34,12 +34,20 @@ data class ParsedTimer(
  */
 object TimerNotificationParser {
 
+    /**
+     * Whether this notification is a countdown timer, by either the modern metric extras or the
+     * classic count-down chronometer.
+     */
     fun isTimer(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification ?: return false
         val extras = notification.extras ?: return false
         return readMetricCountdown(extras) != null || isClassicCountdown(notification, extras)
     }
 
+    /**
+     * Reads a timer notification into the shape the timer tile needs: remaining time, label, and
+     * the pause/stop actions.
+     */
     fun parse(sbn: StatusBarNotification): ParsedTimer {
         val notification = sbn.notification
         val extras = notification.extras
@@ -93,6 +101,11 @@ object TimerNotificationParser {
         return null
     }
 
+    /**
+     * Recognises the pre-metric form of a timer: a chronometer counting *down* from an anchored
+     * start. Both flags are needed, since a count-up chronometer is a call and a hidden one is a
+     * plain notification.
+     */
     private fun isClassicCountdown(notification: Notification, extras: Bundle): Boolean {
         val countsDown = extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN)
         val showsChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
@@ -102,14 +115,21 @@ object TimerNotificationParser {
     private fun Bundle.notificationTitle(): String? =
         getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
 
+    /**
+     * The timer state a modern clock app publishes directly, before it is turned into a tile.
+     * Either running (with an end time) or paused (with the remaining time frozen).
+     */
     private data class MetricCountdown(
         val endElapsedRealtimeMs: Long?,
         val pausedRemainingMs: Long?,
         val label: String?,
     )
 
-    // Keys the MetricStyle template stores its data under (mirrored by androidx NotificationCompat's
-    // MetricStyle). Read defensively — any missing key just means "not a countdown we can read".
+    /**
+     * Keys the MetricStyle template stores its data under (mirrored by androidx
+     * NotificationCompat's MetricStyle). Read defensively — any missing key just means "not a
+     * countdown we can read".
+     */
     private const val KEY_METRICS = "android.metrics"
     private const val KEY_CRITICAL_INDEX = "android.metrics.criticalIndex"
     private const val KEY_LABEL = "label"

@@ -19,9 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +29,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -46,7 +43,6 @@ import com.ekoehler.expressivecutout.data.AppColorFallback
 import com.ekoehler.expressivecutout.data.ColorSpec
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
-import com.ekoehler.expressivecutout.data.FadeDirection
 import com.ekoehler.expressivecutout.data.GradientDirection
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.overlay.resolveBaseColor
@@ -79,7 +75,7 @@ private val PresetArgbs = NeutralColors.map { it.first } + AccentColors
 
 /**
  * "Background" screen (reached from the Appearance screen). The collapsed ("normal") and expanded
- * cutout each get their own fill — a solid colour, a two-colour gradient, or an app-adaptive fade.
+ * cutout each get their own fill — a solid colour or a two-colour gradient.
  */
 @Composable
 internal fun BackgroundScreen(
@@ -119,7 +115,7 @@ internal fun BackgroundScreen(
     }
 }
 
-/** The fill editor for one state: a Solid/Gradient/AppFade switch and the matching controls. */
+/** The fill editor for one state: a Solid/Gradient switch and the matching controls. */
 @Composable
 private fun FillPickerCard(
     selected: CutoutFill,
@@ -128,7 +124,6 @@ private fun FillPickerCard(
     val modeIndex = when (selected) {
         is CutoutFill.Solid -> 0
         is CutoutFill.Gradient -> 1
-        is CutoutFill.AppFade -> 2
     }
 
     Card(
@@ -144,7 +139,6 @@ private fun FillPickerCard(
                 options = listOf(
                     stringResource(R.string.label_solid),
                     stringResource(R.string.label_gradient),
-                    stringResource(R.string.label_app_fade),
                 ),
                 selectedIndex = modeIndex,
                 onSelect = { index ->
@@ -153,7 +147,6 @@ private fun FillPickerCard(
                             val color = when (selected) {
                                 is CutoutFill.Solid -> selected.color
                                 is CutoutFill.Gradient -> selected.start
-                                is CutoutFill.AppFade -> selected.appColorSpec
                             }
                             onSelect(CutoutFill.Solid(color))
                         }
@@ -161,7 +154,6 @@ private fun FillPickerCard(
                             val start = when (selected) {
                                 is CutoutFill.Solid -> selected.color
                                 is CutoutFill.Gradient -> selected.start
-                                is CutoutFill.AppFade -> selected.appColorSpec
                             }
                             onSelect(
                                 CutoutFill.Gradient(
@@ -171,25 +163,12 @@ private fun FillPickerCard(
                                 )
                             )
                         }
-                        2 -> {
-                            onSelect(
-                                CutoutFill.AppFade(
-                                    appColorSpec = ColorSpec.AppIcon(),
-                                    baseColor = ColorSpec.Fixed(OledBlackArgb),
-                                    direction = FadeDirection.LEFT_TO_RIGHT,
-                                    solidPercent = 30,
-                                )
-                            )
-                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
 
             when (selected) {
-                is CutoutFill.AppFade -> {
-                    AppFadeControls(fade = selected, onSelect = onSelect)
-                }
                 is CutoutFill.Gradient -> {
                     GradientControls(gradient = selected, onSelect = onSelect)
                 }
@@ -205,111 +184,33 @@ private fun FillPickerCard(
     }
 }
 
-/** Controls for directional App Fade background mode. */
-@Composable
-private fun AppFadeControls(
-    fade: CutoutFill.AppFade,
-    onSelect: (CutoutFill) -> Unit,
-) {
-    val baseColor = fade.resolveBaseColor(PreviewAccent)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(baseColor)
-            .background(fade.resolveBrush(PreviewAccent)),
-    )
-
-    Text(
-        text = stringResource(R.string.fade_direction),
-        style = MaterialTheme.typography.titleSmall,
-    )
-    ExpressiveSegmentedRow(
-        options = listOf(
-            stringResource(R.string.fade_left_to_right),
-            stringResource(R.string.fade_right_to_left),
-        ),
-        selectedIndex = if (fade.direction == FadeDirection.LEFT_TO_RIGHT) 0 else 1,
-        onSelect = {
-            onSelect(fade.copy(direction = if (it == 0) FadeDirection.LEFT_TO_RIGHT else FadeDirection.RIGHT_TO_LEFT))
-        },
-        modifier = Modifier.fillMaxWidth(),
-    )
-
-    AdjustableSlider(
-        label = stringResource(R.string.fade_gradient_distance),
-        valueText = "${fade.solidPercent}%",
-        value = fade.solidPercent.toFloat(),
-        valueRange = 0f..100f,
-        step = 5f,
-        onValueChange = { onSelect(fade.copy(solidPercent = it.roundToInt())) },
-        onCommit = {},
-    )
-
-    AdjustableSlider(
-        label = stringResource(R.string.fade_distance),
-        valueText = "${fade.fadeDistance}%",
-        value = fade.fadeDistance.toFloat(),
-        valueRange = 0f..100f,
-        step = 5f,
-        onValueChange = { onSelect(fade.copy(fadeDistance = it.roundToInt())) },
-        onCommit = {},
-    )
-
-    AdjustableSlider(
-        label = stringResource(R.string.opacity),
-        valueText = "${(fade.opacity * 100).roundToInt()}%",
-        value = fade.opacity,
-        valueRange = 0f..1f,
-        step = 0.05f,
-        onValueChange = { onSelect(fade.copy(opacity = it)) },
-        onCommit = {},
-    )
-
-    AppColorFallbackRow(
-        fallback = fade.appColorSpec.fallback,
-        onSelect = { onSelect(fade.copy(appColorSpec = fade.appColorSpec.copy(fallback = it))) },
-    )
-
-    Text(
-        text = stringResource(R.string.fade_base_color),
-        style = MaterialTheme.typography.titleSmall,
-    )
-    ColorSpecPicker(
-        spec = fade.baseColor,
-        onChange = { onSelect(fade.copy(baseColor = it)) },
-        allowAppIcon = false,
-    )
-}
-
 /** A gradient preview strip, start/end colour pickers and a direction selector. */
 @Composable
 private fun GradientControls(
     gradient: CutoutFill.Gradient,
     onSelect: (CutoutFill) -> Unit,
 ) {
-    val baseColor = gradient.resolveBaseColor()
+    val baseColor = gradient.resolveBaseColor(PreviewAccent, PreviewAccent)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(baseColor)
-            .background(gradient.resolveBrush()),
+            .background(gradient.resolveBrush(PreviewAccent, PreviewAccent)),
     )
 
     Text(text = stringResource(R.string.gradient_start), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.start,
         onChange = { onSelect(gradient.copy(start = it)) },
-        allowAppIcon = false,
+        allowAppIcon = true,
     )
     Text(text = stringResource(R.string.gradient_end), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.end,
         onChange = { onSelect(gradient.copy(end = it)) },
-        allowAppIcon = false,
+        allowAppIcon = true,
     )
 
     Text(

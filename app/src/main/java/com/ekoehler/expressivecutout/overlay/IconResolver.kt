@@ -215,6 +215,9 @@ class IconResolver(private val context: Context) {
         return null
     }
 
+    /**
+     * Turns a music signal into a renderable event, choosing between album art and the note glyph.
+     */
     private fun resolveMusic(
         signal: CutoutSignal.Music,
         packageName: String,
@@ -255,6 +258,10 @@ class IconResolver(private val context: Context) {
         )
     }
 
+    /**
+     * Turns a call signal into a renderable event. The caller photo is not resolved here; it
+     * arrives live on [OnCallBus] instead.
+     */
     private fun resolveCall(
         signal: CutoutSignal.Call,
         packageName: String,
@@ -314,6 +321,10 @@ class IconResolver(private val context: Context) {
             )
         }
 
+    /**
+     * Turns a timer signal into a renderable event, falling back to the tile's own label when the
+     * clock app names none.
+     */
     private fun resolveTimer(
         signal: CutoutSignal.Timer,
         packageName: String,
@@ -347,6 +358,10 @@ class IconResolver(private val context: Context) {
         )
     }
 
+    /**
+     * Turns an assistant signal into a renderable event, preferring the spoken title over the body
+     * text.
+     */
     private fun resolveAssistant(
         signal: CutoutSignal.Assistant,
         packageName: String,
@@ -537,18 +552,25 @@ class IconResolver(private val context: Context) {
             return 100
         }
 
-        // Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'
-        // notifications localise to the device language, but English covers the common case); the
-        // phrases avoid false hits like "send" that a bare "end" would catch.
+        /**
+         * Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'
+         * notifications localise to the device language, but English covers the common case); the
+         * phrases avoid false hits like "send" that a bare "end" would catch.
+         */
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
 
-        // Lower-cased substrings marking an incoming call's answer/accept action, so the tile can
-        // render it as the take-call button (mirrors HANG_UP_KEYWORDS; English covers the common case).
+        /**
+         * Lower-cased substrings marking an incoming call's answer/accept action, so the tile can
+         * render it as the take-call button (mirrors HANG_UP_KEYWORDS; English covers the common
+         * case).
+         */
         val ANSWER_KEYWORDS = listOf("answer", "accept", "pick up", "pickup", "take call")
 
-        // Lower-cased substrings marking a timer's reset/terminate action, so it can be tinted apart.
-        // "stop" and "delete" cover the common clock apps; "pause" is deliberately excluded (it isn't
-        // a reset, so it takes the shared "other" colour like Add 1 min).
+        /**
+         * Lower-cased substrings marking a timer's reset/terminate action, so it can be tinted
+         * apart. "stop" and "delete" cover the common clock apps; "pause" is deliberately excluded
+         * (it isn't a reset, so it takes the shared "other" colour like Add 1 min).
+         */
         val RESET_KEYWORDS = listOf("reset", "stop", "delete", "cancel", "dismiss")
     }
 }
