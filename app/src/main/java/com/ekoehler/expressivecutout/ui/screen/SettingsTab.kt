@@ -188,7 +188,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -210,7 +210,7 @@ val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
         SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot -> 2
+        SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot -> 2
         else -> 1
     }
 
