@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 // Deliberately not "app_prefs" — ThemePreferences already owns that file, and a second delegate
 // over the same file throws "multiple DataStores active for the same file" on first read.
+/** Backing store for the per-app island overrides. */
 private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataStore(name = "per_app_prefs")
 
 /**
@@ -38,11 +39,20 @@ class AppPreferences(private val context: Context) : JsonSerializable {
         prefs[NORMAL_ONLY_KEY].orEmpty()
     }
 
+    /**
+     * Adds or removes [packageName] from the disabled set. Only *disabled* apps are stored, so an
+     * app the user has never opened the settings for is enabled by default and newly installed apps
+     * need no migration.
+     */
     suspend fun setEnabled(packageName: String, enabled: Boolean) = context.perAppDataStore.edit { prefs ->
         val current = prefs[DISABLED_KEY].orEmpty()
         prefs[DISABLED_KEY] = if (enabled) current - packageName else current + packageName
     }
 
+    /**
+     * Adds or removes [packageName] from the normal-only set: apps listed here still get the
+     * collapsed cutout, but never the expanded island.
+     */
     suspend fun setNormalOnly(packageName: String, normalOnly: Boolean) = context.perAppDataStore.edit { prefs ->
         val current = prefs[NORMAL_ONLY_KEY].orEmpty()
         prefs[NORMAL_ONLY_KEY] = if (normalOnly) current + packageName else current - packageName
@@ -80,6 +90,10 @@ class AppPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
+    /**
+     * Reads a JSON array of strings, skipping empty entries. A missing array is an empty set rather
+     * than a failure, so a settings file exported before this key existed still imports.
+     */
     private fun JSONArray?.toStringSet(): Set<String> {
         if (this == null) return emptySet()
         return (0 until length()).mapNotNull { optString(it).takeIf { s -> s.isNotEmpty() } }.toSet()

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for which dynamic tiles the user has enabled. */
 private val Context.dynamicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "dynamic_tile_prefs")
 
 /**

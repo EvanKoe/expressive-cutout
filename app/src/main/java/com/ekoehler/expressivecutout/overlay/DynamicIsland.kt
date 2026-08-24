@@ -29,14 +29,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -153,6 +156,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
@@ -164,42 +168,62 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// Text colours for a dark fill; on a light fill we swap in a dark text colour (see contentColorFor).
-private val PillTextColor = Color(0xFFF5F5F5)
-private val PillTextColorDark = Color(0xFF0A0A0A)
+/**
+ * Text colours for a dark fill; on a light fill we swap in a dark text colour (see
+ * contentColorFor).
+ */
+private val PILL_TEXT_COLOR = Color(0xFFF5F5F5)
+private val PILL_TEXT_COLOR_DARK = Color(0xFF0A0A0A)
 
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
-private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
+private val MUSIC_BUTTON_FILLED_DEFAULT = Color(0xFFE0E0E0)
 
-// Vertical spacing added around the action row on top of the chip height itself.
-private const val ACTIONS_ROW_SPACING_DP = 14
+/**
+ * The expanded notification's progress bar: its thickness, and the gap holding it off the text
+ * above.
+ */
+private const val PROGRESS_BAR_HEIGHT_DP = 8
+private const val PROGRESS_BAR_TOP_GAP_DP = 6
 
-// How far the island must be dragged upward before a swipe-up collapses it.
+/**
+ * Vertical spacing added around the action row on top of the chip height itself. Must equal the
+ * expanded column's own child spacing, or a notification with actions and one without end up with
+ * their header rows at different heights.
+ */
+private const val ACTIONS_ROW_SPACING_DP = 12
+
+/** How far the island must be dragged upward before a swipe-up collapses it. */
 private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
 
-// How far the island must be dragged sideways before releasing dismisses it.
+/** How far the island must be dragged sideways before releasing dismisses it. */
 private const val SWIPE_DISMISS_THRESHOLD_DP = 90
 
-// How long the "reply sent" confirmation stays on screen before the reply is dispatched.
+/** How long the "reply sent" confirmation stays on screen before the reply is dispatched. */
 private const val REPLY_SENT_FEEDBACK_MS = 900L
 
-// Time for the rotating album art to complete one full turn.
+/** Time for the rotating album art to complete one full turn. */
 private const val ALBUM_SPIN_MS = 8000
 
-// The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
-// itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
-// the same on the collapsed pill and in the (larger) expanded layout.
+/**
+ * The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
+ * itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
+ * the same on the collapsed pill and in the (larger) expanded layout.
+ */
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
 
-// How often the music progress bar re-reads its own clock. The media session pushes nothing between
-// real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
-// even a half-second step sub-pixel.
+/**
+ * How often the music progress bar re-reads its own clock. The media session pushes nothing between
+ * real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
+ * even a half-second step sub-pixel.
+ */
 private const val PROGRESS_TICK_MS = 500L
 
-// The tuned baseline for the island's primary expand/collapse transition. Every tween-based
-// animation is expressed relative to this, so the user's single "animation duration" knob scales
-// them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+/**
+ * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+ * animation is expressed relative to this, so the user's single "animation duration" knob scales
+ * them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+ */
 private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 
 /**
@@ -210,6 +234,19 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+ * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
+ */
+private const val MEDIA_PROGRESS_HEIGHT_DP = 4
+
+/**
+ * Extra height added to the expanded music tile when it shows the progress bar: the bar itself plus
+ * the spacing above it. Reserved separately from [expandedActionsExtraDp] because the bar is a third
+ * row in the same column — without its own allowance the track text is squeezed out of its slot and
+ * the bar, drawn after it, paints over the artist line.
+ */
+internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
+
+/**
  * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
  * visible island fits its measured content exactly (see the height-bonus logic in [DynamicIsland]);
  * the controller reserves this for the host window and touchable region so they never clip the
@@ -217,8 +254,10 @@ internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp +
  */
 internal const val CENTER_SHORTCUTS_EXTRA_DP = 135
 
-// Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
-// content, used when fitting the island height to its measured shortcut row.
+/**
+ * Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the
+ * center's content, used when fitting the island height to its measured shortcut row.
+ */
 private const val CENTER_TOP_GAP_DP = 8
 
 /**
@@ -252,8 +291,10 @@ fun DynamicIsland(
     expanded: IslandDimensions,
     displayWidthDp: Int,
     forcedExpanded: Boolean?,
+    collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
     isRotation270: Boolean = false,
+    snapGeometry: Boolean = false,
     offsetYDp: Int = 6,
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
@@ -277,6 +318,7 @@ fun DynamicIsland(
     centerFillContainers: Boolean = false,
     centerThemedIcons: Boolean = false,
     vibrateOnTap: Boolean = true,
+    hapticsOnPop: Boolean = false,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -330,6 +372,13 @@ fun DynamicIsland(
         if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
     }
 
+    LaunchedEffect(collapseTrigger) {
+        if (collapseTrigger > 0L && forcedExpanded == null && isExpanded) {
+            tapExpanded = false
+            replyingTo = null
+        }
+    }
+
     LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
         if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
             delay(autoCollapseMs)
@@ -339,6 +388,7 @@ fun DynamicIsland(
 
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
+    val hasMediaProgress = shownEvent?.media?.showProgress == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
@@ -387,8 +437,15 @@ fun DynamicIsland(
             val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
-        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
-            expandedActionsExtraDp(appearance.actionButtonHeightDp)
+        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions ||
+            hasMediaProgress) -> {
+            val controlsExtra = if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
+                expandedActionsExtraDp(appearance.actionButtonHeightDp)
+            } else {
+                0
+            }
+            controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
+        }
         callTwoRow -> callIncomingExtraDp()
         else -> 0
     }
@@ -414,10 +471,10 @@ fun DynamicIsland(
         }
     }
 
-    val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
+    val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val heightSpec: AnimationSpec<Dp> = when {
-        reveal.value == 0f -> snap()
+        reveal.value == 0f || snapGeometry -> snap()
         isAssistantAnswer -> motion.dpSmooth()
         else -> spec
     }
@@ -456,8 +513,29 @@ fun DynamicIsland(
 
     val haptic = LocalHapticFeedback.current
 
+    val hasEvent = event != null
+    var lastHasEvent by remember { mutableStateOf(hasEvent) }
+    LaunchedEffect(hasEvent) {
+        if (hapticsOnPop && hasEvent != lastHasEvent) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastHasEvent = hasEvent
+    }
+
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(isExpanded, forcedExpanded) {
+                if (!isExpanded || forcedExpanded != null) return@pointerInput
+                detectTapGestures(
+                    onTap = {
+                        tapExpanded = false
+                        replyingTo = null
+                    }
+                )
+            }
+    ) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
@@ -474,7 +552,7 @@ fun DynamicIsland(
                         .width(revealWidth)
                         .height(revealHeight)
                         .graphicsLayer {
-                            val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
+                            val extraPx = PRESS_EXPAND_DP.toPx() * 2f * pressExpand.value
                             val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
                             scaleX = boopScale.value * widen
                             scaleY = boopScale.value
@@ -667,6 +745,7 @@ fun DynamicIsland(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
+                                        collapsedHeightDp = collapsed.heightDp,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -712,6 +791,7 @@ fun IslandPreview(
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
     IslandSurface(
         modifier = Modifier.size(width, heightDp.dp),
@@ -730,6 +810,7 @@ fun IslandPreview(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
+                collapsedHeightDp = collapsedHeightDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
@@ -764,7 +845,7 @@ private fun IslandSurface(
         progress,
     )
 
-    val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+    val contentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     val border = if (appearance.strokeEnabled) {
         BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
     } else {
@@ -833,6 +914,10 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
     event.media?.takeIf { it.albumArtStroke }
         ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
 
+/**
+ * The collapsed pill's contents: the badge, the label, and whatever the live tiles want to put
+ * beside them. Sized to [heightDp] so it fits the user's own geometry.
+ */
 @Composable
 private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera: Boolean = false) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
@@ -934,7 +1019,7 @@ private fun EmptyPillContent(
 
     val disc = containerColor?.resolve()
     val glyphColor = when {
-        disc != null -> if (disc.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        disc != null -> if (disc.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
         else -> LocalContentColor.current
     }
 
@@ -984,8 +1069,8 @@ private fun EmptyPillContent(
     }
 }
 
-// The height of each shortcut button in the expanded center (its diameter too, in disc mode).
-private val CenterDiscDp = 64.dp
+/** The height of each shortcut button in the expanded center (its diameter too, in disc mode). */
+private val CENTER_DISC_DP = 64.dp
 
 /**
  * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
@@ -1093,9 +1178,9 @@ private fun CenterShortcutButton(
     val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
     val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
     val shapeModifier = if (fillContainer) {
-        Modifier.fillMaxWidth().height(CenterDiscDp)
+        Modifier.fillMaxWidth().height(CENTER_DISC_DP)
     } else {
-        Modifier.size(CenterDiscDp)
+        Modifier.size(CENTER_DISC_DP)
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1119,20 +1204,20 @@ private fun CenterShortcutButton(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp),
+                        modifier = Modifier.size(CENTER_DISC_DP),
                     )
 
                     appIcon != null -> androidx.compose.foundation.Image(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
-                        modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.6f).clip(CircleShape),
                     )
 
                     else -> Icon(
                         imageVector = CenterShortcutCatalog.iconFor(shortcut),
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp * 0.46f),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.46f),
                     )
                 }
             }
@@ -1229,6 +1314,7 @@ private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1241,12 +1327,21 @@ private fun ExpandedContent(
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
-        MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
+        MediaExpandedContent(
+            event = event,
+            buttonHeightDp = appearance.actionButtonHeightDp,
+            collapsedHeightDp = collapsedHeightDp,
+        )
         return
     }
     // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
-        TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
+        TimerExpandedContent(
+            event = event,
+            appearance = appearance,
+            collapsedHeightDp = collapsedHeightDp,
+            onAction = onAction,
+        )
         return
     }
     // The assistant tile: icon + text response with vertical scrolling.
@@ -1255,20 +1350,31 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
+            collapsedHeightDp = collapsedHeightDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
         return
     }
-    // Content sits in the lower part of the card, leaving the top clear of the camera hole.
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    // Content hugs the card's bottom edge, below a collapsed-pill-height band that keeps the camera
+    // hole clear. The band is a hard floor: a header tall enough to overrun the card (a two-line
+    // detail plus a progress bar) now spills past the bottom instead of riding up under the camera.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the action / reply row below claims its full height first and the header
+            // takes what is left: when the card is too short for both, the text ellipsises rather
+            // than the buttons shrinking.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -1282,9 +1388,13 @@ private fun ExpandedContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    // The only flexible child: the title above and the progress bar below are
+                    // measured at their full size first, so a card too short for all three cuts
+                    // the body text down (and ellipsises it) rather than shaving the bar.
                     event.detail?.let { detail ->
                         Text(
                             text = detail,
+                            modifier = Modifier.weight(1f, fill = false),
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
                             maxLines = 2,
@@ -1295,9 +1405,19 @@ private fun ExpandedContent(
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
                     AnimatedVisibility(visible = progressData != null) {
+                        // Material's default indicator is a 4dp hairline at a fixed 240dp width,
+                        // which reads as a stray line on the island. Span the text column and set
+                        // the thickness explicitly — the bar derives its stroke from this height.
+                        // requiredHeight, not height: the latter coerces into whatever the column
+                        // has left over, which is what let a tight card flatten the bar.
+                        val barModifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = PROGRESS_BAR_TOP_GAP_DP.dp)
+                            .requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp)
                         lastProgressData?.let { p ->
                             if (p.isIndeterminate) {
                                 LinearProgressIndicator(
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
@@ -1311,6 +1431,7 @@ private fun ExpandedContent(
                                 )
                                 LinearProgressIndicator(
                                     progress = { animatedFraction },
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
@@ -1387,7 +1508,7 @@ private fun ActionChip(
     }
     val content = when (style) {
         // A solid fill needs ink that contrasts with it; the rest sit on a translucent tint.
-        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
         ActionButtonStyle.OUTLINED -> fill
         else -> LocalContentColor.current
     }
@@ -1427,12 +1548,14 @@ private fun ActionChip(
  */
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
-// How far the EXPAND press animation widens a button, on each side.
-private val PressExpandDp = 7.dp
+/** How far the EXPAND press animation widens a button, on each side. */
+private val PRESS_EXPAND_DP = 7.dp
 
-// In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
-// the EXPAND animation: it grows by this share while the others give up the same total between them,
-// so the row always fills exactly its own width.
+/**
+ * In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
+ * the EXPAND animation: it grows by this share while the others give up the same total between
+ * them, so the row always fills exactly its own width.
+ */
 private const val FULL_EXPAND_DELTA = 0.15f
 
 /**
@@ -1504,7 +1627,7 @@ private fun ActionChipRow(
  * feels the same. Two flavours, selected via [LocalActionButtonAnimation]:
  * [ActionButtonAnimation.SCALE] is the expressive "squish" — a springy scale-down that settles back
  * with a little bounce on release; [ActionButtonAnimation.EXPAND] instead briefly widens the button
- * by [PressExpandDp] on each side. Both animate on the same spring and via [graphicsLayer], so the
+ * by [PRESS_EXPAND_DP] on each side. Both animate on the same spring and via [graphicsLayer], so the
  * surrounding layout never reflows.
  */
 @Composable
@@ -1527,9 +1650,9 @@ private fun Modifier.pressScale(
                 scaleY = scale
             }
             ActionButtonAnimation.EXPAND -> {
-                // Grow the width by PressExpandDp on each side, expressed as a scale relative to the
+                // Grow the width by PRESS_EXPAND_DP on each side, expressed as a scale relative to the
                 // button's own measured width so layout stays put.
-                val extraPx = PressExpandDp.toPx() * 2f * progress
+                val extraPx = PRESS_EXPAND_DP.toPx() * 2f * progress
                 if (size.width > 0f) scaleX = (size.width + extraPx) / size.width
             }
         }
@@ -1569,7 +1692,7 @@ private fun ReplySentRow(tint: Color, heightDp: Int, alignment: SentAlignment) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = if (tint.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                tint = if (tint.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -1720,8 +1843,8 @@ private fun SegmentedReplyRow(
             container = if (sendEnabled) sendColor else LocalContentColor.current.copy(alpha = 0.12f),
             content = when {
                 !sendEnabled -> LocalContentColor.current.copy(alpha = 0.4f)
-                sendColor.luminance() > 0.5f -> PillTextColorDark
-                else -> PillTextColor
+                sendColor.luminance() > 0.5f -> PILL_TEXT_COLOR_DARK
+                else -> PILL_TEXT_COLOR
             },
             shape = endCap,
             heightDp = heightDp,
@@ -1843,7 +1966,7 @@ private fun ReplySendButton(
         interactionSource = interaction,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = sendColor,
-            contentColor = if (sendColor.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+            contentColor = if (sendColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
             disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
             disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
         ),
@@ -1865,19 +1988,25 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
+private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int, collapsedHeightDp: Int) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the transport controls keep their height and the track text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -2035,10 +2164,10 @@ private fun MediaControls(
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
  *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
- *  A filled style with no colour falls back to [MusicButtonFilledDefault]. Opacity folds into alpha. */
+ *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha. */
 @Composable
 private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
+    val base = color?.resolve() ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
 
@@ -2089,7 +2218,7 @@ private fun MediaButton(
             shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
-                contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
                 disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
             ),
@@ -2104,24 +2233,32 @@ private fun MediaButton(
     }
 }
 
-// Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
-// callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+/**
+ * Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
+ * callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+ */
 private const val CALL_ROW_PADDING_DP = 8
 private const val CALL_ROW_SPACING_DP = 12
-// The photo/icon container and the hang-up button are deliberately the same size so the cutout
-// reads as symmetrical, with the caller between two equal circles.
+/**
+ * The photo/icon container and the hang-up button are deliberately the same size so the cutout
+ * reads as symmetrical, with the caller between two equal circles.
+ */
 private const val CALL_HANGUP_BUTTON_DP = 44
 private const val CALL_AVATAR_DP = CALL_HANGUP_BUTTON_DP
 private const val CALL_NAME_SIZE_SP = 15
-// A little breathing room so the name never sits flush against the button before the pill grows.
+/**
+ * A little breathing room so the name never sits flush against the button before the pill grows.
+ */
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
-// grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the camera
-// hole with a flexible gap before the buttons pinned to the bottom edge.
+/**
+ * Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
+ * grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the
+ * camera hole with a flexible gap before the buttons pinned to the bottom edge.
+ */
 private const val CALL_INCOMING_SIDE_PAD_DP = 14
 private const val CALL_INCOMING_BOTTOM_PAD_DP = 14
-// Top clearance for the camera hole, matching the empty top the expanded card leaves for it.
+/** Top clearance for the camera hole, matching the empty top the expanded card leaves for it. */
 private const val CALL_INCOMING_TOP_PAD_DP = 34
 private const val CALL_INCOMING_BUTTON_GAP_DP = 10
 private const val CALL_INCOMING_BUTTON_DP = 44
@@ -2273,7 +2410,7 @@ private fun CallSingleRowContent(
                     icon = Icons.Rounded.CallEnd,
                     description = "Hang up",
                     container = fill,
-                    content = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                    content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                     onClick = { onAction(hangUp) },
                 )
             }
@@ -2475,19 +2612,26 @@ private fun CallStatus(onCall: OnCall?) {
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -2543,6 +2687,7 @@ private fun AssistantExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    collapsedHeightDp: Int,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -2558,7 +2703,7 @@ private fun AssistantExpandedContent(
             .fillMaxWidth()
             .heightIn(max = maxCutoutHeightDp)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(start = 18.dp, end = 18.dp, top = 14.dp + collapsedHeightDp.dp, bottom = 14.dp),
     ) {
         Column(
             modifier = Modifier
@@ -2568,10 +2713,13 @@ private fun AssistantExpandedContent(
                 // into its own fit-to-content target — the loop that made the cutout bob as the answer
                 // streamed in. The content column is laid out with unbounded height, so its reported
                 // height is the answer's true natural height, independent of the surrounding animation.
+                // The reported height must cover the band as well as the 14dp padding above and
+                // below, or the card fits itself to the answer alone and the band pushes the tail
+                // of it out of view.
                 .onGloballyPositioned { coordinates ->
                     val hDp = (coordinates.size.height / density).toInt()
                     if (hDp > 0) {
-                        onHeightMeasured?.invoke(hDp + 28)
+                        onHeightMeasured?.invoke(hDp + 28 + collapsedHeightDp)
                     }
                 },
         ) {
@@ -2656,6 +2804,12 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
  * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
  * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
  * non-null [strokeColor] rings the cover, set apart from it by a small gap.
+ *
+ * [size] is the cover's ceiling rather than a promise. The expanded layout gives this a height budget
+ * that shrinks as the track text and transport controls take their share, and because a `size()` is
+ * still coerced into the parent's maximum, a tight budget used to squash the (width-unconstrained)
+ * cover into an ellipse. Capping both axes and pinning the ratio instead keeps a spinning cover
+ * perfectly round, scaling down as one piece when there isn't room for the full [size].
  */
 @Composable
 private fun AlbumArt(
@@ -2688,7 +2842,12 @@ private fun AlbumArt(
     val gap = if (strokeColor != null) size * ALBUM_STROKE_GAP_FRACTION else 0.dp
     val coverSize = size - (strokeWidth + gap) * 2
 
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .sizeIn(maxWidth = size, maxHeight = size)
+            .aspectRatio(1f),
+        contentAlignment = Alignment.Center,
+    ) {
         if (strokeColor != null) {
             Box(
                 modifier = Modifier
@@ -2703,7 +2862,8 @@ private fun AlbumArt(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(coverSize)
+                .fillMaxSize()
+                .padding(strokeWidth + gap)
                 .rotate(if (rotate) angle.value else 0f)
                 .clip(albumArtShape(rotate, coverSize)),
         )
@@ -2735,7 +2895,7 @@ private fun IconBadge(
             glyphColor = when (container) {
                 is CutoutColor.Dynamic -> onDynamicRole(container.role)
                 is CutoutColor.Solid ->
-                    if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+                    if (badgeColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
             }
         }
 

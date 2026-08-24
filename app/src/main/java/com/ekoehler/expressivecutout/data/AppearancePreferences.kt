@@ -13,212 +13,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
-import kotlin.math.roundToInt
 
+/** Backing store for every appearance setting: fills, strokes, icons and action buttons. */
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
-
-/**
- * A user-selectable colour for the island. Either a fixed ARGB value or [Dynamic], which resolves
- * to one of the system's Material You scheme roles at render time (so it follows the wallpaper on
- * Android 12+). Stored as a short string so it can live in a single preference key.
- */
-sealed interface CutoutColor {
-    data class Dynamic(val role: DynamicRole = DynamicRole.PRIMARY) : CutoutColor
-    data class Solid(val argb: Long) : CutoutColor
-
-    fun serialize(): String = when (this) {
-        is Dynamic -> "$DYNAMIC:${role.name}"
-        is Solid -> argb.toString()
-    }
-
-    companion object {
-        private const val DYNAMIC = "dynamic"
-
-        fun deserialize(value: String?): CutoutColor? = when {
-            value == null -> null
-            // Legacy bare "dynamic" (before roles) migrates to the primary accent.
-            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
-            value.startsWith("$DYNAMIC:") -> {
-                val role = runCatching { DynamicRole.valueOf(value.substringAfter(':')) }
-                    .getOrDefault(DynamicRole.PRIMARY)
-                Dynamic(role)
-            }
-            else -> value.toLongOrNull()?.let(::Solid)
-        }
-    }
-}
-
-/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
-enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
-
-/** Direction a [CutoutFill.Gradient] runs across the island. */
-enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
-
-/**
- * A single resolvable colour used by a [CutoutFill] (as a solid fill or a gradient stop): either a
- * [Fixed] ARGB value or a Material You [Dynamic] role resolved at render time. Both carry an
- * opacity — [Fixed] in its ARGB alpha byte, [Dynamic] in [Dynamic.alpha] — so any colour can be
- * made translucent. Serialized without the `:` used by [Fixed] so gradients can delimit on `|`.
- */
-sealed interface ColorSpec {
-    data class Fixed(val argb: Long) : ColorSpec
-    data class Dynamic(val role: DynamicRole, val alpha: Float = 1f) : ColorSpec
-
-    /** 0f..1f opacity of this colour. */
-    val opacity: Float
-        get() = when (this) {
-            is Fixed -> ((argb ushr 24) and 0xFF) / 255f
-            is Dynamic -> alpha
-        }
-
-    /** A copy of this colour at the given [opacity] (0f..1f). */
-    fun withOpacity(opacity: Float): ColorSpec {
-        val a = (opacity.coerceIn(0f, 1f) * 255f).roundToInt().toLong()
-        return when (this) {
-            is Fixed -> Fixed((argb and 0x00FFFFFFL) or (a shl 24))
-            is Dynamic -> copy(alpha = opacity.coerceIn(0f, 1f))
-        }
-    }
-
-    fun serialize(): String = when (this) {
-        is Fixed -> argb.toString()
-        is Dynamic -> "$DYNAMIC:${role.name}:$alpha"
-    }
-
-    companion object {
-        private const val DYNAMIC = "dynamic"
-
-        fun deserialize(value: String?): ColorSpec? = when {
-            value == null -> null
-            // Legacy bare "dynamic" (from the old CutoutColor default).
-            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
-            value.startsWith("$DYNAMIC:") -> {
-                val parts = value.split(':')
-                val role = runCatching { DynamicRole.valueOf(parts[1]) }.getOrDefault(DynamicRole.PRIMARY)
-                val alpha = parts.getOrNull(2)?.toFloatOrNull() ?: 1f
-                Dynamic(role, alpha.coerceIn(0f, 1f))
-            }
-            // A bare ARGB number.
-            else -> value.toLongOrNull()?.let(::Fixed)
-        }
-    }
-}
-
-/**
- * The fill painted behind the island. Richer than [CutoutColor] (it also allows a two-colour
- * [Gradient]) and used only for the background, which has an independent value for the collapsed
- * ([AppearanceSettings.backgroundNormal]) and expanded ([AppearanceSettings.backgroundExpanded])
- * states. Serialized to a single string so it fits one preference key.
- *
- * [deserialize] also accepts the legacy [CutoutColor] encoding (`"dynamic"` or a bare ARGB number)
- * so an existing single background colour migrates into both states with no data loss.
- */
-sealed interface CutoutFill {
-    data class Solid(val color: ColorSpec) : CutoutFill
-    data class Gradient(
-        val start: ColorSpec,
-        val end: ColorSpec,
-        val direction: GradientDirection,
-    ) : CutoutFill
-
-    fun serialize(): String = when (this) {
-        is Solid -> color.serialize()
-        is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name).joinToString("|")
-    }
-
-    companion object {
-        private const val GRADIENT = "gradient"
-
-        fun deserialize(value: String?): CutoutFill? = when {
-            value == null -> null
-            value.startsWith("$GRADIENT|") -> {
-                val parts = value.split('|')
-                val start = ColorSpec.deserialize(parts.getOrNull(1))
-                val end = ColorSpec.deserialize(parts.getOrNull(2))
-                val direction = runCatching { GradientDirection.valueOf(parts[3]) }
-                    .getOrDefault(GradientDirection.VERTICAL)
-                if (start != null && end != null) Gradient(start, end, direction) else null
-            }
-            // Anything else is a single colour (incl. the legacy "dynamic" / bare-ARGB encodings).
-            else -> ColorSpec.deserialize(value)?.let(::Solid)
-        }
-    }
-}
-
-/**
- * Visual treatment of the expanded island's action chips. Stored by [name] so it fits a single
- * preference key; a mix of Material 3 Expressive and Material You looks.
- */
-enum class ActionButtonStyle {
-    /** Material 3 Expressive: a translucent accent pill (the original look). */
-    EXPRESSIVE_TONAL,
-    /** Material 3 Expressive: a solid, fully-filled accent pill. */
-    EXPRESSIVE_FILLED,
-    /** Material You: a softly-rounded tonal container. */
-    MATERIAL_YOU,
-    /** An outlined chip over a transparent fill. */
-    OUTLINED,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ActionButtonStyle? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Horizontal placement of the expanded island's action-chip row. */
-enum class ActionButtonAlignment {
-    /** Chips hug the leading edge (the historical look). */
-    LEFT,
-    /** Chips are centred across the island. */
-    CENTER,
-    /** Chips hug the trailing edge. */
-    RIGHT,
-
-    /** Chips share the full width equally (each grows to fill), like CSS `flex: 1`. */
-    FULL,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ActionButtonAlignment? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Horizontal placement of the post-send "Sent" confirmation row shown before the island dismisses. */
-enum class SentAlignment {
-    /** Hugs the leading edge (the historical look). */
-    LEFT,
-    /** Centred across the island. */
-    CENTER,
-    /** Hugs the trailing edge. */
-    RIGHT,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): SentAlignment? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Visual treatment of the inline reply text field. */
-enum class ReplyInputStyle {
-    /** Material 3 Expressive: a fully-rounded (pill) field. */
-    EXPRESSIVE,
-    /** Material You: a generously 16dp-rounded field. */
-    MATERIAL_YOU,
-    /** Material 2: a lightly 4dp-rounded field. */
-    MATERIAL_2,
-
-    /** Cancel, field and send joined as one connected bar with rounded end-caps. */
-    SEGMENTED,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ReplyInputStyle? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
 
 /**
  * Visual styling of the island that is independent of its geometry: whether it casts a shadow,
@@ -251,24 +48,26 @@ data class AppearanceSettings(
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
 
-        // Match the pill's historical look: near-black fill, white stroke.
+        /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
 
-        // null keeps the historical reply-button look: the send button matches the
-        // notification's own accent and the cancel button stays a neutral tint.
+        /**
+         * null keeps the historical reply-button look: the send button matches the notification's
+         * own accent and the cancel button stays a neutral tint.
+         */
         val DEFAULT_SEND_BUTTON_COLOR: CutoutColor? = null
         val DEFAULT_CANCEL_BUTTON_COLOR: CutoutColor? = null
 
-        // Defaults reproduce the original action-button look exactly.
+        /** Defaults reproduce the original action-button look exactly. */
         val DEFAULT_ACTION_BUTTON_STYLE = ActionButtonStyle.EXPRESSIVE_TONAL
-        // null follows the notification's own accent, as the chips historically did.
+        /** null follows the notification's own accent, as the chips historically did. */
         val DEFAULT_ACTION_BUTTON_COLOR: CutoutColor? = null
-        // Chips historically hugged the leading edge.
+        /** Chips historically hugged the leading edge. */
         val DEFAULT_ACTION_BUTTON_ALIGNMENT = ActionButtonAlignment.LEFT
         val DEFAULT_REPLY_INPUT_STYLE = ReplyInputStyle.EXPRESSIVE
         const val DEFAULT_CANCEL_ON_LEFT = false
-        // The confirmation historically hugged the leading edge.
+        /** The confirmation historically hugged the leading edge. */
         val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
@@ -393,6 +192,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[STROKE_ENABLED] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * stroke width the UI has no way to correct.
+     */
     suspend fun setStrokeWidth(widthDp: Int) = context.appearanceDataStore.edit {
         it[STROKE_WIDTH] = widthDp.coerceIn(
             AppearanceSettings.MIN_STROKE_WIDTH_DP,
@@ -431,6 +234,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(ACTION_BUTTON_COLOR) else it[ACTION_BUTTON_COLOR] = color.serialize()
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * button height the UI has no way to correct.
+     */
     suspend fun setActionButtonHeight(heightDp: Int) = context.appearanceDataStore.edit {
         it[ACTION_BUTTON_HEIGHT] = heightDp.coerceIn(
             AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP,
@@ -459,7 +266,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
-        // Legacy single-colour key, still read to migrate existing installs into the two new keys.
+        /**
+         * Legacy single-colour key, still read to migrate existing installs into the two new keys.
+         */
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
         val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")
         val BACKGROUND_EXPANDED = stringPreferencesKey("background_expanded")

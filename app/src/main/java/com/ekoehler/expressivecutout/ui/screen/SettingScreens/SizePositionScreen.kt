@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -43,6 +45,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
@@ -61,6 +64,42 @@ internal fun SizePositionScreen(
     val context = LocalContext.current
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+
+    // Cutout-aware defaults: centre the pill behind the physical camera and match the expanded
+    // island's corners to the device's own rounded corners. Falls back to the static defaults when
+    // the device reports no cutout / rounded corners (or predates the APIs).
+    val view = LocalView.current
+    val density = LocalDensity.current.density
+    val cutoutOffsetXDp = remember(view, density) {
+        CutoutMetrics.cutoutCenterPx(view)?.let { center ->
+            val screenWidthPx = view.resources.displayMetrics.widthPixels
+            ((center.x - screenWidthPx / 2f) / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_OFFSET_X_DP, IslandDimensions.MAX_OFFSET_X_DP)
+        }
+    }
+    val screenCornerDp = remember(view, density) {
+        CutoutMetrics.screenCornerRadiusPx(view)?.let { radiusPx ->
+            (radiusPx / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_CORNER_DP, IslandDimensions.MAX_CORNER_DP)
+        }
+    }
+    val collapsedDefaults = remember(cutoutOffsetXDp) {
+        cutoutOffsetXDp?.let { IslandLayout.DEFAULT_COLLAPSED.copy(offsetXDp = it) }
+            ?: IslandLayout.DEFAULT_COLLAPSED
+    }
+    val expandedDefaults = remember(cutoutOffsetXDp, screenCornerDp) {
+        var d = IslandLayout.DEFAULT_EXPANDED
+        cutoutOffsetXDp?.let { d = d.copy(offsetXDp = it) }
+        screenCornerDp?.let { c ->
+            d = d.copy(
+                cornerTopLeftDp = c,
+                cornerTopRightDp = c,
+                cornerBottomLeftDp = c,
+                cornerBottomRightDp = c,
+            )
+        }
+        d
+    }
 
     // Pin the real overlay open only on this screen, gated on accessibility. The pinned island
     // mirrors the tab being edited (collapsed vs expanded).
@@ -104,14 +143,14 @@ internal fun SizePositionScreen(
         when (tab) {
             0 -> DimensionsEditor(
                 dimensions = layout.collapsed,
-                defaults = IslandLayout.DEFAULT_COLLAPSED,
+                defaults = collapsedDefaults,
                 expandedPreview = false,
                 onChange = viewModel::setCollapsedDimensions,
             )
 
             else -> DimensionsEditor(
                 dimensions = layout.expanded,
-                defaults = IslandLayout.DEFAULT_EXPANDED,
+                defaults = expandedDefaults,
                 expandedPreview = true,
                 onChange = viewModel::setExpandedDimensions,
             )
@@ -228,6 +267,10 @@ private fun DimensionsEditor(
     }
 }
 
+/**
+ * How many corner radii the user is editing at once: one for all four, one per side pair, or each
+ * corner on its own.
+ */
 private enum class CornerMode { All, TopBottom, Each }
 
 /**

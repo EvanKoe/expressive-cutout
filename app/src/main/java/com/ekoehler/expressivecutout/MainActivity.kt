@@ -19,6 +19,10 @@ import com.ekoehler.expressivecutout.ui.theme.isDark
 /** Single-activity host. The overlay itself runs independently in the services. */
 class MainActivity : ComponentActivity() {
 
+    /**
+     * Hosts the whole settings UI: one edge-to-edge activity with the Compose tree rooted here, so
+     * the system bars follow the app theme.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -36,6 +40,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Re-arms the notification listener on the way back into the app. The framework silently
+     * unbinds it after an app update while the grant still reads as given, which would leave every
+     * dynamic tile starved with nothing to show the user is wrong.
+     */
     override fun onResume() {
         super.onResume()
 

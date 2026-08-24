@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.core
 
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +66,7 @@ data class MediaProgress(
 }
 
 /** The transport actions the music tile exposes. Backed by the active media session's controls. */
+@Stable
 interface MediaTransport {
     fun previous()
     fun playPause()

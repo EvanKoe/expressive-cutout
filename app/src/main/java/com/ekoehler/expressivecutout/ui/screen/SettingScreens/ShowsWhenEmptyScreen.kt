@@ -79,6 +79,7 @@ import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -406,6 +407,7 @@ private fun CenterShortcutsCard(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Title and description
             Text(
                 text = stringResource(R.string.shows_when_empty_center_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -415,6 +417,8 @@ private fun CenterShortcutsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Empty state, or one row per shortcut
             if (shortcuts.isEmpty()) {
                 Text(
                     text = stringResource(R.string.center_shortcuts_empty),
@@ -434,6 +438,8 @@ private fun CenterShortcutsCard(
                     )
                 }
             }
+
+            // Add button
             FilledTonalButton(onClick = onAdd, modifier = Modifier.padding(top = 4.dp)) {
                 Icon(imageVector = Icons.Rounded.Add, contentDescription = null)
                 Text(
@@ -533,7 +539,7 @@ private fun AddShortcutSheet(
                 .heightIn(max = 480.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         ) {
-            item {
+            item(key = "choose_app") {
                 AddShortcutRow(
                     icon = Icons.Rounded.Apps,
                     label = stringResource(R.string.center_add_choose_app),

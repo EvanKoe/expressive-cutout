@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Backing store for the user's per-event icon overrides. */
 private val Context.iconDataStore: DataStore<Preferences> by preferencesDataStore(name = "icon_prefs")
 
 /**
@@ -71,10 +72,12 @@ class IconPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
+    /** Overrides the icon shown for [type]. Paired with [clearIcon]. */
     suspend fun setIcon(type: SystemEventType, source: IconSource) {
         context.iconDataStore.edit { prefs -> prefs[type.preferenceKey] = source.encode() }
     }
 
+    /** Drops the override for [type], so the event falls back to its built-in icon. */
     suspend fun clearIcon(type: SystemEventType) {
         context.iconDataStore.edit { prefs -> prefs.remove(type.preferenceKey) }
     }

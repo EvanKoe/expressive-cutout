@@ -164,9 +164,11 @@ internal fun AnimationScreen(
     }
 }
 
-// The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
-private val ExampleCollapsedSize = DpSize(96.dp, 30.dp)
-private val ExampleExpandedSize = DpSize(230.dp, 56.dp)
+/**
+ * The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
+ */
+private val EXAMPLE_COLLAPSED_SIZE = DpSize(96.dp, 30.dp)
+private val EXAMPLE_EXPANDED_SIZE = DpSize(230.dp, 56.dp)
 
 /**
  * A live side-by-side example of the two animation styles: both pills expand and collapse on a
@@ -222,11 +224,11 @@ private fun AnimationExampleCard(
  *  properties (and spec) the real island animates between its normal and expanded shapes. */
 @Composable
 private fun ExamplePill(label: String, motion: IslandMotion, expanded: Boolean) {
-    val target = if (expanded) ExampleExpandedSize else ExampleCollapsedSize
+    val target = if (expanded) EXAMPLE_EXPANDED_SIZE else EXAMPLE_COLLAPSED_SIZE
     val width by animateDpAsState(target.width, motion.dp(), label = "exampleWidth")
     val height by animateDpAsState(target.height, motion.dp(), label = "exampleHeight")
     val corner by animateDpAsState(
-        if (expanded) 24.dp else ExampleCollapsedSize.height / 2,
+        if (expanded) 24.dp else EXAMPLE_COLLAPSED_SIZE.height / 2,
         motion.dp(),
         label = "exampleCorner",
     )
@@ -240,7 +242,7 @@ private fun ExamplePill(label: String, motion: IslandMotion, expanded: Boolean) 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ExampleExpandedSize.height),
+                .height(EXAMPLE_EXPANDED_SIZE.height),
             contentAlignment = Alignment.TopCenter,
         ) {
             Box(

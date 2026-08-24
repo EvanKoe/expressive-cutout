@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Card
@@ -60,9 +61,11 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 import java.nio.file.WatchEvent
 
-// TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
-// are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
-// false in anything shipped.
+/**
+ * TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
+ * are healthy, so the layout and copy can be eyeballed without breaking a real binding. Must be
+ * false in anything shipped.
+ */
 private const val FORCE_STALLED_CARDS_FOR_TESTING = false
 
 /**
@@ -91,6 +94,7 @@ fun SettingsTab(
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenShizuku: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     // Deeper routes slide in from the right; stepping back slides in from the left, so the
@@ -119,6 +123,7 @@ fun SettingsTab(
                     onOpenBehaviour = onOpenBehaviour,
                     onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
+                    onOpenShizuku = onOpenShizuku,
                 )
             }
 
@@ -133,16 +138,18 @@ fun SettingsTab(
             SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding, onOpenShowsWhenEmpty)
             SettingsRoute.ShowsWhenEmpty -> ShowsWhenEmptyScreen(viewModel, contentPadding)
             SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
-            SettingsRoute.Appearance -> AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
+            SettingsRoute.Appearance ->
+                AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
+            SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding)
         }
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -150,7 +157,8 @@ enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicT
  */
 val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
-        SettingsRoute.Background, SettingsRoute.ActionButtons -> SettingsRoute.Appearance
+        SettingsRoute.Background, SettingsRoute.ActionButtons ->
+            SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
@@ -178,6 +186,7 @@ private fun SettingsList(
     onOpenBehaviour: () -> Unit,
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
+    onOpenShizuku: () -> Unit,
 ) {
     val context = LocalContext.current
     // Re-reads on resume so returning from the system Accessibility settings updates immediately.
@@ -281,6 +290,12 @@ private fun SettingsList(
                 subtitle = stringResource(R.string.settings_animation_subtitle),
                 onClick = onOpenAnimation,
             )
+            SettingsListItem(
+                icon = Icons.Rounded.Terminal,
+                title = stringResource(R.string.shizuku_options_title),
+                subtitle = stringResource(R.string.settings_shizuku_subtitle),
+                onClick = onOpenShizuku,
+            )
         }
 
         // Events and tiles that trigger the cutout
@@ -345,7 +360,7 @@ private fun CutoutEnableCard(
 }
 
 @Composable
-private fun SettingsListItem(
+internal fun SettingsListItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,

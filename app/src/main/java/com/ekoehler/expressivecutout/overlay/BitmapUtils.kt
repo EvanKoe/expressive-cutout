@@ -12,8 +12,19 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.createBitmap
 
+/** Log tag for the bitmap decoding below, which fails softly rather than throwing. */
 private const val TAG = "BitmapUtils"
+
+/**
+ * Longest edge a badge icon is scaled down to. Icons arrive at whatever size their app chose, and
+ * the island draws them a few dp across.
+ */
 private const val MAX_ICON_PX = 128
+
+/**
+ * Longest edge album art is scaled down to. Larger than an icon because the art fills the expanded
+ * island, but still far below the full-size bitmap a player hands over.
+ */
 private const val MAX_ART_PX = 256
 
 /** Rasterises any [Drawable] (e.g. an app launcher icon) into an [ImageBitmap]. */
@@ -56,6 +67,11 @@ private fun Bitmap.scaledToIcon(): Bitmap = scaledToMax(MAX_ICON_PX)
 /** Down-samples a media album-art [Bitmap] to a display-friendly [ImageBitmap]. */
 fun Bitmap.toArtImageBitmap(): ImageBitmap = scaledToMax(MAX_ART_PX).asImageBitmap()
 
+/**
+ * Scales a bitmap down so its longest edge is at most [maxPx], returning it untouched when it is
+ * already small enough. Icons and album art arrive at whatever size their app chose, and the island
+ * draws them a few dp across.
+ */
 private fun Bitmap.scaledToMax(maxPx: Int): Bitmap {
     val longest = maxOf(width, height)
     if (longest <= maxPx) return this

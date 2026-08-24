@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +50,7 @@ import com.ekoehler.expressivecutout.data.ColorSpec
 import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.GradientDirection
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -55,13 +58,14 @@ import com.ekoehler.expressivecutout.overlay.resolveBrush
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** Accent used by the preview event, matching the sibling settings screens. */
-private val PreviewAccent = Color(0xFF60A5FA)
+private val PREVIEW_ACCENT = Color(0xFF60A5FA)
 
 /** Neutral swatches offered first in every picker, with their content descriptions. */
-private val NeutralColors = listOf(
+private val NEUTRAL_COLORS = listOf(
     0xFF0A0A0AL to R.string.cd_color_black,
     0xFF444444L to R.string.cd_color_dark_grey,
     0xFFBBBBBBL to R.string.cd_color_light_grey,
@@ -69,11 +73,15 @@ private val NeutralColors = listOf(
 )
 
 /** Accent swatches shared with the other colour cards. */
-private val AccentColors = listOf(
+private val ACCENT_COLORS = listOf(
     0xFFEF4444L, 0xFFF59E0BL, 0xFF22C55EL, 0xFF3B82F6L, 0xFF8B5CF6L, 0xFFEC4899L,
 )
 
-private val PresetArgbs = NeutralColors.map { it.first } + AccentColors
+/**
+ * Every colour offered as a preset, flattened into one list so a recently-picked colour can be
+ * tested against it and not shown twice.
+ */
+private val PRESET_ARGBS = NEUTRAL_COLORS.map { it.first } + ACCENT_COLORS
 
 /**
  * "Background" screen (reached from the Appearance screen). The collapsed ("normal") and expanded
@@ -102,7 +110,7 @@ internal fun BackgroundScreen(
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
-            accent = PreviewAccent,
+            accent = PREVIEW_ACCENT,
         )
     }
     val cutout = rememberTopCutout()
@@ -224,6 +232,7 @@ private fun GradientControls(
     gradient: CutoutFill.Gradient,
     onSelect: (CutoutFill) -> Unit,
 ) {
+    // Live preview of the gradient
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -232,17 +241,21 @@ private fun GradientControls(
             .background(gradient.resolveBrush()),
     )
 
+    // Start colour
     Text(text = stringResource(R.string.gradient_start), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.start,
         onChange = { onSelect(gradient.copy(start = it)) },
     )
+
+    // End colour
     Text(text = stringResource(R.string.gradient_end), style = MaterialTheme.typography.titleSmall)
     ColorSpecPicker(
         spec = gradient.end,
         onChange = { onSelect(gradient.copy(end = it)) },
     )
 
+    // Direction
     Text(
         text = stringResource(R.string.gradient_direction),
         style = MaterialTheme.typography.titleSmall,
@@ -272,7 +285,18 @@ private fun ColorSpecPicker(
     var showPicker by remember { mutableStateOf(false) }
     val opacity = spec.opacity
     val fixedRgb = (spec as? ColorSpec.Fixed)?.argb?.and(0xFFFFFFL)
-    val customRgb = fixedRgb?.takeIf { rgb -> PresetArgbs.none { it and 0xFFFFFFL == rgb } }
+    val customRgb = fixedRgb?.takeIf { rgb -> PRESET_ARGBS.none { it and 0xFFFFFFL == rgb } }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val recentColorPreferences = remember(context) { RecentColorPreferences(context) }
+    val storedRecents by recentColorPreferences.recentColors
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    // Compared on RGB only, like the presets below: opacity lives on the spec, not the swatch, so a
+    // recent pick and a preset of the same hue are the same swatch here.
+    val recentRgbs = storedRecents
+        .map { it and 0xFFFFFFL }
+        .filterNot { rgb -> PRESET_ARGBS.any { it and 0xFFFFFFL == rgb } }
     // Derived from the fill itself (OLED black == a fully-black fixed colour), not held as separate
     // local state: the normal and expanded tabs share this composable slot and only swap the [spec]
     // passed in, so a remembered flag would leak the toggle across both. Deriving keeps them
@@ -327,8 +351,17 @@ private fun ColorSpecPicker(
                         onClick = { showPicker = true },
                     )
 
+                    // The user's own recent picks, newest first.
+                    recentRgbs.forEach { rgb ->
+                        ColorSwatch(
+                            color = Color(0xFF000000L or rgb),
+                            selected = fixedRgb == rgb,
+                            onClick = { pickFixed(0xFF000000L or rgb) },
+                        )
+                    }
+
                     // Neutrals then accents, matched on RGB so opacity changes don't drop the selection.
-                    (NeutralColors.map { it.first } + AccentColors).forEach { argb ->
+                    (NEUTRAL_COLORS.map { it.first } + ACCENT_COLORS).forEach { argb ->
                         ColorSwatch(
                             color = Color(argb),
                             selected = spec is ColorSpec.Fixed && spec.argb and 0xFFFFFFL == argb and 0xFFFFFFL,
@@ -355,7 +388,9 @@ private fun ColorSpecPicker(
             initial = customRgb?.let { Color(0xFF000000L or it) } ?: Color.White,
             onConfirm = { picked ->
                 showPicker = false
-                pickFixed(picked.toArgb().toLong() and 0xFFFFFFFFL)
+                val argb = picked.toArgb().toLong() and 0xFFFFFFFFL
+                pickFixed(argb)
+                scope.launch { recentColorPreferences.record(argb) }
             },
             onDismiss = { showPicker = false },
         )
