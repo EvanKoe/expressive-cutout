@@ -14,6 +14,7 @@
     <string name="event_headphones_disconnected">Headphones out</string>
     <string name="event_usb_mounted">USB connected</string>
     <string name="event_usb_unmounted">USB removed</string>
+    <string name="event_device_locked">Locked</string>
     <string name="event_device_unlocked">Unlocked</string>
 
     <!-- Dynamic tile labels shown inside the island -->

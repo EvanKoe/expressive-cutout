@@ -27,14 +27,22 @@ import kotlin.math.sign
  * pure domain type, while both the overlay and the settings preview can share this single mapping.
  */
 fun SystemEventType.animatedIcon(): IslandIcon.Lottie? = when (this) {
-    // Play once and hold on the "open" frame (45 of 80): the source clip loops back to a closed
-    // padlock, but a device-unlocked event should rest unlocked. Tinted so the padlock follows the
-    // badge glyph colour (accent by default, the role's "on" colour under a dynamic container),
-    // rather than staying its baked-in light art — which vanished on a light dynamic fill.
-    SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(
+    // Hold on the "closed" frame (frame 0) while the device is locked so the cutout shows the locked
+    // state persistently until the screen is unlocked.
+    SystemEventType.DEVICE_LOCKED -> IslandIcon.Lottie(
         R.raw.unlock,
         clipStartFrame = 0,
-        clipEndFrame = 45,
+        clipEndFrame = 0,
+        tint = true,
+    )
+    // Play briskly and hold on the "open" frame (25 of 80): motion starts at frame 5 and reaches the
+    // open paddle state at frame 25. Starting at frame 5 with speed 2f snaps the paddle open the instant
+    // the phone unlocks without dead latency. Tinted to follow the badge glyph colour.
+    SystemEventType.DEVICE_UNLOCKED -> IslandIcon.Lottie(
+        R.raw.unlock,
+        clipStartFrame = 5,
+        clipEndFrame = 25,
+        speed = 2f,
         tint = true,
     )
     // A charging bolt that loops for as long as the cutout is shown. It sits small within its own

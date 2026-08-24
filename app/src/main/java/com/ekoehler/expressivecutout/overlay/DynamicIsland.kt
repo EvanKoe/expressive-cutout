@@ -68,6 +68,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
@@ -2967,15 +2968,18 @@ private fun IconBadge(
                 } else {
                     null
                 }
-                LottieAnimation(
-                    composition = composition,
-                    iterations = icon.iterations,
-                    clipSpec = clip,
-                    dynamicProperties = dynamicProperties,
-                    // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
-                    // being clamped to them; the overflow is clipped to the badge circle by the parent.
-                    modifier = Modifier.requiredSize(iconSize * icon.scale),
-                )
+                key(icon.clipStartFrame, icon.clipEndFrame, icon.iterations, icon.speed) {
+                    LottieAnimation(
+                        composition = composition,
+                        iterations = icon.iterations,
+                        clipSpec = clip,
+                        speed = icon.speed,
+                        dynamicProperties = dynamicProperties,
+                        // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
+                        // being clamped to them; the overflow is clipped to the badge circle by the parent.
+                        modifier = Modifier.requiredSize(iconSize * icon.scale),
+                    )
+                }
             }
         }
     }

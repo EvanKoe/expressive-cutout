@@ -245,6 +245,10 @@ class IslandOverlayController(private val context: Context) {
     private var lastTimerEvent: IslandEvent? = null
     private var assistantActive = false
     private var lastAssistantEvent: IslandEvent? = null
+    // True while the device is locked (screen off or keyguard active); keeps the locked cutout pinned
+    // up (no auto-dismiss) until the screen is unlocked.
+    private var isDeviceLocked = false
+    private var lastLockEvent: IslandEvent? = null
 
     /** A neutral sample shown while the settings screen pins the island open. */
     private val previewEvent by lazy {
@@ -358,8 +362,10 @@ class IslandOverlayController(private val context: Context) {
      * locked or in landscape, and gesture areas stay completely unblocked.
      */
     private fun applyLockVisibility() {
-        val shouldHideLock = behaviourState.value.hideOnLockscreen &&
-            keyguardManager?.isKeyguardLocked == true
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
+        val isDeviceLockedActual = keyguardManager?.isDeviceLocked == true
+        isDeviceLocked = isDeviceLockedActual
+        val shouldHideLock = behaviourState.value.hideOnLockscreen && isKeyguardLocked
         val isLandscapeHidden = behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.HIDDEN ||
             behaviourState.value.hideInLandscape
         val shouldHideLandscape = isLandscapeHidden &&
@@ -384,7 +390,40 @@ class IslandOverlayController(private val context: Context) {
                 syncWindowSize()
                 restoreActiveState()
             }
+
+            !shouldHide && !overlayHidden && isDeviceLockedActual && currentEvent.value == null -> {
+                showLockedEvent()
+            }
+
+            !shouldHide && !overlayHidden && !isDeviceLockedActual && currentEvent.value?.id == lastLockEvent?.id && lastLockEvent != null -> {
+                lastLockEvent = null
+                IslandEventBus.emit(CutoutSignal.System(SystemEventType.DEVICE_UNLOCKED))
+            }
         }
+    }
+
+    private fun showLockedEvent() {
+        if (!behaviourState.value.cutoutEnabled || eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return
+        val lockedSignal = CutoutSignal.System(SystemEventType.DEVICE_LOCKED)
+        val resolved = resolver.resolve(
+            lockedSignal,
+            customIcons,
+            musicSettings,
+            phoneSettings,
+            timerSettings,
+            assistantSettings,
+            eventDynamicColor,
+            eventDynamicColorRole,
+            eventDynamicColorOpacity,
+            eventAnimatedIcons,
+            eventAnimatedIconLoops,
+            eventColors,
+        ).copy(initiallyExpanded = false, normalOnly = false)
+        isDeviceLocked = true
+        lastLockEvent = resolved
+        currentEvent.value = resolved
+        dismissJob?.cancel()
+        syncWindowSize()
     }
 
     /**
@@ -413,6 +452,14 @@ class IslandOverlayController(private val context: Context) {
             timerActive && lastTimerEvent != null -> {
                 dismissJob?.cancel()
                 currentEvent.value = lastTimerEvent
+            }
+            isDeviceLocked && lastLockEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentEvent.value = lastLockEvent
+            }
+            isDeviceLocked -> {
+                showLockedEvent()
             }
             savedEventBeforeHide != null -> {
                 dismissJob?.cancel()
@@ -894,8 +941,11 @@ class IslandOverlayController(private val context: Context) {
     /** The assistant cutout should stay pinned up (no auto-dismiss) while assistant is active. */
     private fun isPinnedAssistant(): Boolean = assistantActive && currentEvent.value?.assistant != null
 
-    /** Any live tile (music, a call, a running timer, or assistant) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant()
+    /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */
+    private fun isPinnedLock(): Boolean = isDeviceLocked && currentEvent.value?.id == lastLockEvent?.id
+
+    /** Any live tile (music, a call, a running timer, assistant, or lock status) is currently pinned up. */
+    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant() || isPinnedLock()
 
     /**
      * Mirrors the island geometry, re-sizing the window as it changes so a slider drag in settings
@@ -1327,6 +1377,15 @@ class IslandOverlayController(private val context: Context) {
                             timerActive = true
                             lastTimerEvent = resolvedEvent
                         }
+                        is CutoutSignal.System -> {
+                            if (signal.type == SystemEventType.DEVICE_LOCKED) {
+                                isDeviceLocked = true
+                                lastLockEvent = resolvedEvent
+                            } else if (signal.type == SystemEventType.DEVICE_UNLOCKED) {
+                                isDeviceLocked = false
+                                lastLockEvent = null
+                            }
+                        }
                         else -> {}
                     }
                 }
@@ -1376,6 +1435,20 @@ class IslandOverlayController(private val context: Context) {
                     assistantActive = true
                     lastAssistantEvent = currentEvent.value
                     dismissJob?.cancel()
+                }
+
+                is CutoutSignal.System -> {
+                    if (signal.type == SystemEventType.DEVICE_LOCKED) {
+                        isDeviceLocked = true
+                        lastLockEvent = resolvedEvent
+                        dismissJob?.cancel()
+                    } else if (signal.type == SystemEventType.DEVICE_UNLOCKED) {
+                        isDeviceLocked = false
+                        lastLockEvent = null
+                        scheduleDismiss()
+                    } else {
+                        scheduleDismiss()
+                    }
                 }
 
                 else -> scheduleDismiss()
@@ -1590,15 +1663,16 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * The collapsed live-tile pill to fall back to when an interrupting event is hidden, or null to
-     * clear the island. A live call takes precedence over music. Each returns its pill only when the
-     * hidden event wasn't a live pill itself, that tile is still live, and the tile is enabled.
+     * clear the island. A live call takes precedence over music, which takes precedence over lock state.
+     * Each returns its pill only when the hidden event wasn't a live pill itself, that tile is still live,
+     * and the tile is enabled.
      */
     private fun livePillToReturnTo(): IslandEvent? =
-        callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo()
+        callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo() ?: lockPillToReturnTo()
 
     /** True while the shown event is itself a live tile (so we never "return" on top of one). */
     private fun showingLiveTile(): Boolean = currentEvent.value?.let {
-        it.media != null || it.call != null || it.timer != null
+        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id)
     } == true
 
     /**
@@ -1650,6 +1724,14 @@ class IslandOverlayController(private val context: Context) {
         if (!timerActive) return null
         if (tileEnabled[DynamicTile.TIMER] == false) return null
         return lastTimerEvent?.copy(initiallyExpanded = false)
+    }
+
+    private fun lockPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        if (!isDeviceLocked) return null
+        if (eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return null
+        if (!behaviourState.value.cutoutEnabled) return null
+        return lastLockEvent?.copy(initiallyExpanded = false)
     }
 
     /**

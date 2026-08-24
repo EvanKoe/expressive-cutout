@@ -48,6 +48,7 @@ sealed interface IslandIcon {
         val clipEndFrame: Int? = null,
         val scale: Float = 1f,
         val tint: Boolean = false,
+        val speed: Float = 1f,
     ) : IslandIcon
 }
 
