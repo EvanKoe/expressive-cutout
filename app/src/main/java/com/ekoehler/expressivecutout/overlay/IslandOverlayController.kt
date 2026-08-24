@@ -298,11 +298,10 @@ class IslandOverlayController(private val context: Context) {
      * locked or in landscape, and gesture areas stay completely unblocked.
      */
     private fun applyLockVisibility() {
-        val isLocked = keyguardManager?.isKeyguardLocked == true
-        if (isLocked) {
-            isDeviceLocked = true
-        }
-        val shouldHideLock = behaviourState.value.hideOnLockscreen && isLocked
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
+        val isDeviceLockedActual = keyguardManager?.isDeviceLocked == true
+        isDeviceLocked = isDeviceLockedActual
+        val shouldHideLock = behaviourState.value.hideOnLockscreen && isKeyguardLocked
         val isLandscapeHidden = behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.HIDDEN ||
             behaviourState.value.hideInLandscape
         val shouldHideLandscape = isLandscapeHidden &&
@@ -328,8 +327,13 @@ class IslandOverlayController(private val context: Context) {
                 restoreActiveState()
             }
 
-            !shouldHide && !overlayHidden && isLocked && currentEvent.value == null -> {
+            !shouldHide && !overlayHidden && isDeviceLockedActual && currentEvent.value == null -> {
                 showLockedEvent()
+            }
+
+            !shouldHide && !overlayHidden && !isDeviceLockedActual && currentEvent.value?.id == lastLockEvent?.id && lastLockEvent != null -> {
+                lastLockEvent = null
+                IslandEventBus.emit(CutoutSignal.System(SystemEventType.DEVICE_UNLOCKED))
             }
         }
     }
