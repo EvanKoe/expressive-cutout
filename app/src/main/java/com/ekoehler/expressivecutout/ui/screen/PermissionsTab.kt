@@ -23,14 +23,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.rounded.PhoneCallback
 import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BatteryAlert
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallReceived
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -174,6 +179,41 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 icon = Icons.AutoMirrored.Rounded.PhoneCallback,
                 title = stringResource(R.string.action_send_test_incoming_call),
                 onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
+            )
+
+            // Test Wi-Fi connected (Green dot)
+            TestCard(
+                icon = Icons.Rounded.Wifi,
+                title = stringResource(R.string.action_send_test_wifi_connected),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.WIFI_CONNECTED) },
+            )
+
+            // Test Wi-Fi disconnected (Red dot)
+            TestCard(
+                icon = Icons.Rounded.WifiOff,
+                title = stringResource(R.string.action_send_test_wifi_disconnected),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.WIFI_DISCONNECTED) },
+            )
+
+            // Test Battery low (Yellow dot)
+            TestCard(
+                icon = Icons.Rounded.BatteryAlert,
+                title = stringResource(R.string.action_send_test_battery_low),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.BATTERY_LOW) },
+            )
+
+            // Test Device locked (Blue dot)
+            TestCard(
+                icon = Icons.Rounded.Lock,
+                title = stringResource(R.string.action_send_test_device_locked),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.DEVICE_LOCKED) },
+            )
+
+            // Test Charging started (Green dot)
+            TestCard(
+                icon = Icons.Rounded.BatteryChargingFull,
+                title = stringResource(R.string.action_send_test_charging_started),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.CHARGING_STARTED) },
             )
         }
     }
