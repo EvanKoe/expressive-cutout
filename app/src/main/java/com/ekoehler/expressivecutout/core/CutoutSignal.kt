@@ -146,7 +146,7 @@ enum class SystemEventType(
     CHARGING_STOPPED(Icons.Rounded.PowerOff, R.string.event_charging_stopped, 0xFF94A3B8),
     BATTERY_LOW(Icons.Rounded.BatteryAlert, R.string.event_battery_low, 0xFFF87171),
     WIFI_CONNECTED(Icons.Rounded.Wifi, R.string.event_wifi_connected, 0xFF4ADE80),
-    WIFI_DISCONNECTED(Icons.Rounded.WifiOff, R.string.event_wifi_disconnected, 0xFF94A3B8),
+    WIFI_DISCONNECTED(Icons.Rounded.WifiOff, R.string.event_wifi_disconnected, 0xFFF87171),
     HEADPHONES_CONNECTED(Icons.Rounded.Headphones, R.string.event_headphones_connected, 0xFFA78BFA),
     HEADPHONES_DISCONNECTED(Icons.Rounded.HeadsetOff, R.string.event_headphones_disconnected, 0xFF94A3B8),
     USB_MOUNTED(Icons.Rounded.Usb, R.string.event_usb_mounted, 0xFF38BDF8),
