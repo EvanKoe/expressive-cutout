@@ -488,13 +488,13 @@ class IconResolver(private val context: Context) {
             SystemEventType.WIFI_CONNECTED -> STATUS_COLOR_SUCCESS
             SystemEventType.HEADPHONES_CONNECTED -> STATUS_COLOR_SUCCESS
             SystemEventType.USB_MOUNTED -> STATUS_COLOR_SUCCESS
-            SystemEventType.DEVICE_UNLOCKED -> STATUS_COLOR_SUCCESS
             SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
+            SystemEventType.DEVICE_LOCKED -> STATUS_COLOR_WARNING
+            SystemEventType.DEVICE_UNLOCKED -> STATUS_COLOR_WARNING
             SystemEventType.CHARGING_STOPPED -> STATUS_COLOR_DANGER
             SystemEventType.WIFI_DISCONNECTED -> STATUS_COLOR_DANGER
             SystemEventType.HEADPHONES_DISCONNECTED -> STATUS_COLOR_DANGER
             SystemEventType.USB_UNMOUNTED -> STATUS_COLOR_DANGER
-            SystemEventType.DEVICE_LOCKED -> STATUS_COLOR_NEUTRAL
         }
 
         // Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'

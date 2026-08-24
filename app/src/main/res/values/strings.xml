@@ -75,8 +75,11 @@
     <string name="action_send_test_wifi_connected">Test Wi‑Fi connected (Green dot)</string>
     <string name="action_send_test_wifi_disconnected">Test Wi‑Fi disconnected (Red dot)</string>
     <string name="action_send_test_battery_low">Test battery low (Yellow dot)</string>
-    <string name="action_send_test_device_locked">Test device locked (Blue dot)</string>
+    <string name="action_send_test_device_locked">Test device locked (Yellow dot)</string>
     <string name="action_send_test_charging_started">Test charging started (Green dot)</string>
+    <string name="action_send_test_charging_stopped">Test unplugged (Red dot)</string>
+    <string name="action_send_test_headphones_disconnected">Test headphones out (Red dot)</string>
+    <string name="action_send_test_usb_unmounted">Test USB removed (Red dot)</string>
     <string name="test_call_hang_up">Hang up</string>
     <string name="test_call_answer">Answer</string>
     <string name="test_call_decline">Decline</string>
