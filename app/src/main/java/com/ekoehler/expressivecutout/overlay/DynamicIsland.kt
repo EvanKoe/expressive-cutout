@@ -158,6 +158,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
@@ -322,6 +323,7 @@ fun DynamicIsland(
     permissionDotsEnabled: Boolean = false,
     permissionUsage: PermissionUsage = PermissionUsage(),
     permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
+    permissionDotColors: PermissionDotColors = PermissionDotColors(),
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -779,6 +781,7 @@ fun DynamicIsland(
                         Box(modifier = Modifier.fillMaxSize()) {
                             PermissionDotRow(
                                 usage = permissionUsage,
+                                colors = permissionDotColors,
                                 heightDp = collapsed.heightDp,
                                 modifier = Modifier
                                     .align(

@@ -38,6 +38,22 @@ data class PermissionDotKinds(
 }
 
 /**
+ * The colour each dot is drawn in: green for the camera, red for the microphone, blue for location.
+ * The user can recolour any of them, so these are only the starting point.
+ */
+@Immutable
+data class PermissionDotColors(
+    val location: CutoutColor = DEFAULT_LOCATION_DOT_COLOR,
+    val camera: CutoutColor = DEFAULT_CAMERA_DOT_COLOR,
+    val microphone: CutoutColor = DEFAULT_MICROPHONE_DOT_COLOR,
+)
+
+/** The stock dot colours, also used as the color picker's "default" swatch. */
+val DEFAULT_LOCATION_DOT_COLOR: CutoutColor = CutoutColor.Solid(0xFF3B82F6)
+val DEFAULT_CAMERA_DOT_COLOR: CutoutColor = CutoutColor.Solid(0xFF19C337)
+val DEFAULT_MICROPHONE_DOT_COLOR: CutoutColor = CutoutColor.Solid(0xFFE5484D)
+
+/**
  * Whether the island marks live microphone, camera and location use with a coloured dot, and where
  * on the pill that dot goes.
  *
@@ -70,6 +86,19 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         )
     }
 
+    /**
+     * The colour of each dot, falling back to that resource's stock colour for an unset or
+     * unreadable value. Kept apart from [kinds] so recolouring a dot doesn't restart the app-op
+     * polling loop that flow gates.
+     */
+    val colors: Flow<PermissionDotColors> = context.permissionDotDataStore.data.map { prefs ->
+        PermissionDotColors(
+            location = CutoutColor.deserialize(prefs[LOCATION_COLOR]) ?: DEFAULT_LOCATION_DOT_COLOR,
+            camera = CutoutColor.deserialize(prefs[CAMERA_COLOR]) ?: DEFAULT_CAMERA_DOT_COLOR,
+            microphone = CutoutColor.deserialize(prefs[MICROPHONE_COLOR]) ?: DEFAULT_MICROPHONE_DOT_COLOR,
+        )
+    }
+
     suspend fun setEnabled(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
         prefs[ENABLED] = enabled
     }
@@ -90,6 +119,18 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         prefs[MICROPHONE] = enabled
     }
 
+    suspend fun setLocationColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+        prefs[LOCATION_COLOR] = color.serialize()
+    }
+
+    suspend fun setCameraColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+        prefs[CAMERA_COLOR] = color.serialize()
+    }
+
+    suspend fun setMicrophoneColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+        prefs[MICROPHONE_COLOR] = color.serialize()
+    }
+
     /**
      * Exports the permission-dot settings in a JSON string
      * { enabled: boolean, position: "LEFT" | "RIGHT", location, camera, microphone: boolean }
@@ -98,12 +139,16 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         val enabled = enabled.first()
         val position = position.first()
         val kinds = kinds.first()
+        val colors = colors.first()
         return JSONObject().apply {
             put("enabled", enabled)
             put("position", position.name)
             put("location", kinds.location)
             put("camera", kinds.camera)
             put("microphone", kinds.microphone)
+            put("locationColor", colors.location.serialize())
+            put("cameraColor", colors.camera.serialize())
+            put("microphoneColor", colors.microphone.serialize())
         }.toString()
     }
 
@@ -118,6 +163,9 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         if (obj.has("location")) setLocation(obj.optBoolean("location", true))
         if (obj.has("camera")) setCamera(obj.optBoolean("camera", true))
         if (obj.has("microphone")) setMicrophone(obj.optBoolean("microphone", true))
+        CutoutColor.deserialize(obj.optString("locationColor"))?.let { setLocationColor(it) }
+        CutoutColor.deserialize(obj.optString("cameraColor"))?.let { setCameraColor(it) }
+        CutoutColor.deserialize(obj.optString("microphoneColor"))?.let { setMicrophoneColor(it) }
         if (obj.has("position")) {
             runCatching { PermissionDotPosition.valueOf(obj.optString("position")) }
                 .getOrNull()
@@ -131,6 +179,9 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         val LOCATION = booleanPreferencesKey("permission_dot_location")
         val CAMERA = booleanPreferencesKey("permission_dot_camera")
         val MICROPHONE = booleanPreferencesKey("permission_dot_microphone")
+        val LOCATION_COLOR = stringPreferencesKey("permission_dot_location_color")
+        val CAMERA_COLOR = stringPreferencesKey("permission_dot_camera_color")
+        val MICROPHONE_COLOR = stringPreferencesKey("permission_dot_microphone_color")
 
         val DEFAULT_POSITION = PermissionDotPosition.RIGHT
     }

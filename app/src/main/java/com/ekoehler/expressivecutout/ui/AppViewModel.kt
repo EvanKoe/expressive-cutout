@@ -46,6 +46,7 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
@@ -763,6 +764,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPermissionDotMicrophone(enabled: Boolean) = viewModelScope.launch {
         permissionDotPreferences.setMicrophone(enabled)
+    }
+
+    /** The colour each dot is drawn in, one per watched resource. */
+    val permissionDotColors: StateFlow<PermissionDotColors> =
+        permissionDotPreferences.colors.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotColors(),
+        )
+
+    fun setPermissionDotLocationColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setLocationColor(color)
+    }
+
+    fun setPermissionDotCameraColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setCameraColor(color)
+    }
+
+    fun setPermissionDotMicrophoneColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophoneColor(color)
     }
 
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {

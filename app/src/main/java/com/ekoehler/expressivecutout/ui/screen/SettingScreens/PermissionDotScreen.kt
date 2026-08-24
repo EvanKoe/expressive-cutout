@@ -1,32 +1,45 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_DOT_COLOR
+import com.ekoehler.expressivecutout.data.DEFAULT_LOCATION_DOT_COLOR
+import com.ekoehler.expressivecutout.data.DEFAULT_MICROPHONE_DOT_COLOR
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 
 /**
  * "Permission dot" detail screen, reached from the switch on the Shizuku options list. Holds which
- * end of the collapsed pill the dots sit on, plus one switch per watched resource.
+ * end of the collapsed pill the dots sit on, plus a switch and a dot colour per watched resource.
  *
  * A resource switched off here is dropped by `PermissionUsageMonitor` rather than merely hidden, so
  * an unwatched resource costs nothing and can never light a dot.
@@ -38,6 +51,7 @@ internal fun PermissionDotScreen(
 ) {
     val position by viewModel.permissionDotPosition.collectAsStateWithLifecycle()
     val kinds by viewModel.permissionDotKinds.collectAsStateWithLifecycle()
+    val colors by viewModel.permissionDotColors.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -51,29 +65,98 @@ internal fun PermissionDotScreen(
             onSelect = viewModel::setPermissionDotPosition,
         )
 
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+        PermissionDotKindCard(
             title = stringResource(R.string.permission_dot_location_title),
             description = stringResource(R.string.permission_dot_location_desc),
+            colorLabel = stringResource(R.string.permission_dot_location_color),
             checked = kinds.location,
             onCheckedChange = viewModel::setPermissionDotLocation,
+            color = colors.location,
+            defaultColor = DEFAULT_LOCATION_DOT_COLOR,
+            onSelectColor = viewModel::setPermissionDotLocationColor,
         )
 
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+        PermissionDotKindCard(
             title = stringResource(R.string.permission_dot_camera_title),
             description = stringResource(R.string.permission_dot_camera_desc),
+            colorLabel = stringResource(R.string.permission_dot_camera_color),
             checked = kinds.camera,
             onCheckedChange = viewModel::setPermissionDotCamera,
+            color = colors.camera,
+            defaultColor = DEFAULT_CAMERA_DOT_COLOR,
+            onSelectColor = viewModel::setPermissionDotCameraColor,
         )
 
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+        PermissionDotKindCard(
             title = stringResource(R.string.permission_dot_microphone_title),
             description = stringResource(R.string.permission_dot_microphone_desc),
+            colorLabel = stringResource(R.string.permission_dot_microphone_color),
             checked = kinds.microphone,
             onCheckedChange = viewModel::setPermissionDotMicrophone,
+            color = colors.microphone,
+            defaultColor = DEFAULT_MICROPHONE_DOT_COLOR,
+            onSelectColor = viewModel::setPermissionDotMicrophoneColor,
         )
+    }
+}
+
+/**
+ * One watched resource, as a single card: its switch, and — while the resource is on — the colour
+ * its dot is drawn in. Grouped rather than stacked as two cards so the colour visibly belongs to
+ * the resource above it. Clearing the picker falls back to [defaultColor], the stock colour.
+ */
+@Composable
+private fun PermissionDotKindCard(
+    title: String,
+    description: String,
+    colorLabel: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    color: CutoutColor,
+    defaultColor: CutoutColor,
+    onSelectColor: (CutoutColor) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+
+        AnimatedVisibility(visible = checked) {
+            Column {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                // The shared picker, with its own card flattened into this one so the pair reads as
+                // a single grouped setting.
+                ColorPickerCard(
+                    label = colorLabel,
+                    selected = color,
+                    onSelect = { onSelectColor(it ?: defaultColor) },
+                    defaultLabel = stringResource(R.string.label_default),
+                    defaultColor = defaultColor.resolve(),
+                    roundedCorners = 0.dp,
+                )
+            }
+        }
     }
 }
 
