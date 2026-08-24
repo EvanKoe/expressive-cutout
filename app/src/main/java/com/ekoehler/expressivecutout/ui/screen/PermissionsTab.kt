@@ -30,10 +30,13 @@ import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallReceived
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Downloading
+import androidx.compose.material.icons.rounded.HeadsetOff
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PowerOff
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
@@ -202,7 +205,7 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.BATTERY_LOW) },
             )
 
-            // Test Device locked (Blue dot)
+            // Test Device locked (Yellow dot)
             TestCard(
                 icon = Icons.Rounded.Lock,
                 title = stringResource(R.string.action_send_test_device_locked),
@@ -214,6 +217,27 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 icon = Icons.Rounded.BatteryChargingFull,
                 title = stringResource(R.string.action_send_test_charging_started),
                 onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.CHARGING_STARTED) },
+            )
+
+            // Test Unplugged (Red dot)
+            TestCard(
+                icon = Icons.Rounded.PowerOff,
+                title = stringResource(R.string.action_send_test_charging_stopped),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.CHARGING_STOPPED) },
+            )
+
+            // Test Headphones out (Red dot)
+            TestCard(
+                icon = Icons.Rounded.HeadsetOff,
+                title = stringResource(R.string.action_send_test_headphones_disconnected),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.HEADPHONES_DISCONNECTED) },
+            )
+
+            // Test USB removed (Red dot)
+            TestCard(
+                icon = Icons.Rounded.Usb,
+                title = stringResource(R.string.action_send_test_usb_unmounted),
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.USB_UNMOUNTED) },
             )
         }
     }
