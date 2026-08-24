@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.IBinder
 import android.util.Log
 import androidx.compose.runtime.Immutable
+import com.ekoehler.expressivecutout.core.PermissionDotPreviewBus
 import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -99,18 +100,38 @@ object PermissionUsageMonitor {
         val preferences = PermissionDotPreferences(context)
         val ownPackage = context.packageName
         scope.launch {
-            combine(preferences.enabled, preferences.kinds, ShizukuState.status) { enabled, kinds, status ->
-                // Null stands for "report nothing": the feature is off, Shizuku can't answer, or
-                // the user has switched every resource off, which leaves nothing to draw.
-                kinds.takeIf { enabled && kinds.any && status == ShizukuStatus.READY }
+            combine(
+                preferences.enabled,
+                preferences.kinds,
+                ShizukuState.status,
+                PermissionDotPreviewBus.active,
+            ) { enabled, kinds, status, preview ->
+                when {
+                    // The settings screen is open: report every watched resource as in use so the
+                    // dots can be seen on the real cutout, whatever Shizuku is doing.
+                    preview -> Reading(kinds, poll = false)
+                    // Nothing to report: the feature is off, Shizuku can't answer, or the user has
+                    // switched every resource off.
+                    !enabled || !kinds.any || status != ShizukuStatus.READY -> null
+                    else -> Reading(kinds, poll = true)
+                }
             }
                 .distinctUntilChanged()
-                .collectLatest { kinds ->
-                    if (kinds == null) {
+                .collectLatest { reading ->
+                    if (reading == null) {
                         // A dead Shizuku also invalidates the cached proxy; drop it so the next
                         // successful call rebuilds one over the fresh binder.
                         service = null
                         _usage.value = PermissionUsage()
+                        return@collectLatest
+                    }
+                    val kinds = reading.kinds
+                    if (!reading.poll) {
+                        _usage.value = PermissionUsage(
+                            microphone = kinds.microphone,
+                            camera = kinds.camera,
+                            location = kinds.location,
+                        )
                         return@collectLatest
                     }
                     while (true) {
@@ -120,6 +141,9 @@ object PermissionUsageMonitor {
                 }
         }
     }
+
+    /** What the monitor should report right now: which resources to watch, and whether to read app ops for them. */
+    private data class Reading(val kinds: PermissionDotKinds, val poll: Boolean)
 
     /** Drops the resources the user isn't watching, so a switched-off one never lights a dot. */
     private fun PermissionUsage.maskedBy(kinds: PermissionDotKinds) = PermissionUsage(

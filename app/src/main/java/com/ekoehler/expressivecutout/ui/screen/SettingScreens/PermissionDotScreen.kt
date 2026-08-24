@@ -20,19 +20,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.core.PermissionDotPreviewBus
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_DOT_COLOR
 import com.ekoehler.expressivecutout.data.DEFAULT_LOCATION_DOT_COLOR
 import com.ekoehler.expressivecutout.data.DEFAULT_MICROPHONE_DOT_COLOR
+import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.overlay.resolve
+import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
@@ -43,6 +52,9 @@ import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
  *
  * A resource switched off here is dropped by `PermissionUsageMonitor` rather than merely hidden, so
  * an unwatched resource costs nothing and can never light a dot.
+ *
+ * There is no mock preview: while this screen is open the real island is pinned and every enabled
+ * dot is reported as in use, so the dots are judged where they actually live.
  */
 @Composable
 internal fun PermissionDotScreen(
@@ -52,6 +64,31 @@ internal fun PermissionDotScreen(
     val position by viewModel.permissionDotPosition.collectAsStateWithLifecycle()
     val kinds by viewModel.permissionDotKinds.collectAsStateWithLifecycle()
     val colors by viewModel.permissionDotColors.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // The preview is the real thing: pin the island open and have the monitor report every enabled
+    // resource as in use, so the dots show on the actual cutout while this screen is up. Both are
+    // dropped on pause so a backgrounded app isn't left claiming the camera is in use.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        fun pin(active: Boolean) {
+            IslandPreviewBus.setActive(active && Permissions.isAccessibilityGranted(context))
+            PermissionDotPreviewBus.setActive(active)
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> pin(true)
+                Lifecycle.Event.ON_PAUSE -> pin(false)
+                else -> Unit
+            }
+        }
+        pin(true)
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            pin(false)
+        }
+    }
 
     Column(
         modifier = Modifier

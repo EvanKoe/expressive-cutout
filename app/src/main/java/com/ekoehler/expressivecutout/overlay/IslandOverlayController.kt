@@ -38,6 +38,7 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.core.PermissionDotPreviewBus
 import com.ekoehler.expressivecutout.core.ForegroundAppBus
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
@@ -543,6 +544,8 @@ class IslandOverlayController(private val context: Context) {
                 val permissionDotsEnabled by permissionDotEnabledState.collectAsStateWithLifecycle()
                 val permissionDotPosition by permissionDotPositionState.collectAsStateWithLifecycle()
                 val permissionDotColors by permissionDotColorsState.collectAsStateWithLifecycle()
+                // The dot settings screen shows every enabled dot here, switch on or not.
+                val permissionDotPreview by PermissionDotPreviewBus.active.collectAsStateWithLifecycle()
                 val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
                      behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
@@ -585,7 +588,7 @@ class IslandOverlayController(private val context: Context) {
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
                         hapticsOnPop = behaviour.hapticsOnPop,
-                        permissionDotsEnabled = permissionDotsEnabled,
+                        permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
                         permissionUsage = permissionUsage,
                         permissionDotPosition = permissionDotPosition,
                         permissionDotColors = permissionDotColors,

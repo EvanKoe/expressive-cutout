@@ -1,14 +1,16 @@
 package com.ekoehler.expressivecutout.overlay
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -55,14 +57,20 @@ internal fun permissionDotEndInsetDp(heightDp: Int): Float = heightDp * DOT_TRAI
 internal fun permissionDotRowWidthDp(usage: PermissionUsage, heightDp: Int): Int {
     if (usage.count == 0) return 0
     val dots = usage.count * heightDp * DOT_SIZE_FRACTION
-    val gaps = (usage.count - 1) * heightDp * DOT_GAP_FRACTION
-    return (dots + gaps + heightDp * DOT_GAP_FRACTION).roundToInt()
+    // Each dot carries half a gap on each side, so one gap per dot.
+    val gaps = usage.count * heightDp * DOT_GAP_FRACTION
+    return (dots + gaps).roundToInt()
 }
 
 /**
  * The microphone / camera / location dots, drawn on the collapsed pill while an app is using that
  * resource. Sized to [heightDp] so they follow the user's own geometry, and each fades and scales in
  * on its own so a second resource lighting up doesn't restart the first dot's animation.
+ *
+ * A dot also expands the row's width as it appears, which slides the dots already there along
+ * instead of jumping them aside. The gap between dots is carried as each dot's own padding rather
+ * than by the row's arrangement, so the space a dot needs grows with it — an arrangement gap would
+ * pop into place the moment the dot became visible.
  *
  * Each dot takes its colour from [colors], the user's own pick per resource.
  */
@@ -75,7 +83,6 @@ internal fun PermissionDotRow(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy((heightDp * DOT_GAP_FRACTION).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Microphone
@@ -89,16 +96,20 @@ internal fun PermissionDotRow(
     }
 }
 
-/** One dot, popping in and out with the resource it stands for. */
+/**
+ * One dot, popping in and out with the resource it stands for while its slot — the dot plus half a
+ * gap on each side — widens and narrows, which is what slides its neighbours.
+ */
 @Composable
 private fun PermissionDot(visible: Boolean, color: Color, heightDp: Int) {
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn() + scaleIn(initialScale = 0.4f),
-        exit = fadeOut() + scaleOut(targetScale = 0.4f),
+        enter = fadeIn() + scaleIn(initialScale = 0.4f) + expandHorizontally(clip = false),
+        exit = fadeOut() + scaleOut(targetScale = 0.4f) + shrinkHorizontally(clip = false),
     ) {
         Box(
             modifier = Modifier
+                .padding(horizontal = (heightDp * DOT_GAP_FRACTION / 2f).dp)
                 .size((heightDp * DOT_SIZE_FRACTION).dp)
                 .clip(CircleShape)
                 .background(color),
