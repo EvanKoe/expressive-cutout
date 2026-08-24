@@ -61,6 +61,7 @@ import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import kotlin.math.roundToInt
 
 /** Accent used by the preview event, matching the accent shown on the sibling settings screens. */

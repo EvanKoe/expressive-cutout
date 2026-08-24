@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -17,22 +18,45 @@ import kotlin.math.roundToInt
 
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
 
+/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
+enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
+
+/** Fallback color strategy when AppIcon color is chosen but no app notification is active. */
+enum class AppColorFallback {
+    /** Material You primary dynamic accent. */
+    DYNAMIC_THEME,
+    /** OLED Pure Black (#000000). */
+    OLED_BLACK,
+    /** Adaptive (Media Art for music, Material You for system events). */
+    ADAPTIVE;
+
+    companion object {
+        fun deserialize(value: String?): AppColorFallback =
+            value?.let { runCatching { valueOf(it) }.getOrNull() } ?: ADAPTIVE
+    }
+}
+
+/** Direction a [CutoutFill.AppFade] color fade runs horizontally across the island. */
+enum class FadeDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
+
 /**
- * A user-selectable colour for the island. Either a fixed ARGB value or [Dynamic], which resolves
- * to one of the system's Material You scheme roles at render time (so it follows the wallpaper on
- * Android 12+). Stored as a short string so it can live in a single preference key.
+ * A user-selectable colour for the island. Either a fixed ARGB value, [Dynamic] (Material You),
+ * or [AppIcon] which extracts the primary color of the active app's default launcher icon.
  */
 sealed interface CutoutColor {
     data class Dynamic(val role: DynamicRole = DynamicRole.PRIMARY) : CutoutColor
     data class Solid(val argb: Long) : CutoutColor
+    data class AppIcon(val fallback: AppColorFallback = AppColorFallback.ADAPTIVE) : CutoutColor
 
     fun serialize(): String = when (this) {
         is Dynamic -> "$DYNAMIC:${role.name}"
         is Solid -> argb.toString()
+        is AppIcon -> "$APP_ICON:${fallback.name}"
     }
 
     companion object {
         private const val DYNAMIC = "dynamic"
+        private const val APP_ICON = "app_icon"
 
         fun deserialize(value: String?): CutoutColor? = when {
             value == null -> null
@@ -43,54 +67,62 @@ sealed interface CutoutColor {
                     .getOrDefault(DynamicRole.PRIMARY)
                 Dynamic(role)
             }
+            value == APP_ICON -> AppIcon(AppColorFallback.ADAPTIVE)
+            value.startsWith("$APP_ICON:") -> {
+                val fallback = AppColorFallback.deserialize(value.substringAfter(':'))
+                AppIcon(fallback)
+            }
             else -> value.toLongOrNull()?.let(::Solid)
         }
     }
 }
-
-/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
-enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
 
 /** Direction a [CutoutFill.Gradient] runs across the island. */
 enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
 
 /**
  * A single resolvable colour used by a [CutoutFill] (as a solid fill or a gradient stop): either a
- * [Fixed] ARGB value or a Material You [Dynamic] role resolved at render time. Both carry an
- * opacity — [Fixed] in its ARGB alpha byte, [Dynamic] in [Dynamic.alpha] — so any colour can be
- * made translucent. Serialized without the `:` used by [Fixed] so gradients can delimit on `|`.
+ * [Fixed] ARGB value, a Material You [Dynamic] role, or [AppIcon] color resolved at render time.
+ * Opacity is carried so any colour can be made translucent.
  */
 sealed interface ColorSpec {
     data class Fixed(val argb: Long) : ColorSpec
     data class Dynamic(val role: DynamicRole, val alpha: Float = 1f) : ColorSpec
+    data class AppIcon(val fallback: AppColorFallback = AppColorFallback.ADAPTIVE, val alpha: Float = 1f) : ColorSpec
 
     /** 0f..1f opacity of this colour. */
     val opacity: Float
         get() = when (this) {
             is Fixed -> ((argb ushr 24) and 0xFF) / 255f
             is Dynamic -> alpha
+            is AppIcon -> alpha
         }
 
     /** A copy of this colour at the given [opacity] (0f..1f). */
     fun withOpacity(opacity: Float): ColorSpec {
-        val a = (opacity.coerceIn(0f, 1f) * 255f).roundToInt().toLong()
+        val a = opacity.coerceIn(0f, 1f)
         return when (this) {
-            is Fixed -> Fixed((argb and 0x00FFFFFFL) or (a shl 24))
-            is Dynamic -> copy(alpha = opacity.coerceIn(0f, 1f))
+            is Fixed -> {
+                val alphaByte = (a * 255f).roundToInt().toLong()
+                Fixed((argb and 0x00FFFFFFL) or (alphaByte shl 24))
+            }
+            is Dynamic -> copy(alpha = a)
+            is AppIcon -> copy(alpha = a)
         }
     }
 
     fun serialize(): String = when (this) {
         is Fixed -> argb.toString()
         is Dynamic -> "$DYNAMIC:${role.name}:$alpha"
+        is AppIcon -> "$APP_ICON:${fallback.name}:$alpha"
     }
 
     companion object {
         private const val DYNAMIC = "dynamic"
+        private const val APP_ICON = "app_icon"
 
         fun deserialize(value: String?): ColorSpec? = when {
             value == null -> null
-            // Legacy bare "dynamic" (from the old CutoutColor default).
             value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
             value.startsWith("$DYNAMIC:") -> {
                 val parts = value.split(':')
@@ -98,20 +130,20 @@ sealed interface ColorSpec {
                 val alpha = parts.getOrNull(2)?.toFloatOrNull() ?: 1f
                 Dynamic(role, alpha.coerceIn(0f, 1f))
             }
-            // A bare ARGB number.
+            value == APP_ICON -> AppIcon(AppColorFallback.ADAPTIVE)
+            value.startsWith("$APP_ICON:") -> {
+                val parts = value.split(':')
+                val fallback = AppColorFallback.deserialize(parts.getOrNull(1))
+                val alpha = parts.getOrNull(2)?.toFloatOrNull() ?: 1f
+                AppIcon(fallback, alpha.coerceIn(0f, 1f))
+            }
             else -> value.toLongOrNull()?.let(::Fixed)
         }
     }
 }
 
 /**
- * The fill painted behind the island. Richer than [CutoutColor] (it also allows a two-colour
- * [Gradient]) and used only for the background, which has an independent value for the collapsed
- * ([AppearanceSettings.backgroundNormal]) and expanded ([AppearanceSettings.backgroundExpanded])
- * states. Serialized to a single string so it fits one preference key.
- *
- * [deserialize] also accepts the legacy [CutoutColor] encoding (`"dynamic"` or a bare ARGB number)
- * so an existing single background colour migrates into both states with no data loss.
+ * The fill painted behind the island.
  */
 sealed interface CutoutFill {
     data class Solid(val color: ColorSpec) : CutoutFill
@@ -119,15 +151,26 @@ sealed interface CutoutFill {
         val start: ColorSpec,
         val end: ColorSpec,
         val direction: GradientDirection,
+        val opacity: Float = 1f,
+    ) : CutoutFill
+    data class AppFade(
+        val appColorSpec: ColorSpec.AppIcon = ColorSpec.AppIcon(),
+        val baseColor: ColorSpec = ColorSpec.Fixed(0xFF000000L),
+        val direction: FadeDirection = FadeDirection.LEFT_TO_RIGHT,
+        val solidPercent: Int = 30,
+        val fadeDistance: Int = 20,
+        val opacity: Float = 1f,
     ) : CutoutFill
 
     fun serialize(): String = when (this) {
         is Solid -> color.serialize()
-        is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name).joinToString("|")
+        is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name, opacity.toString()).joinToString("|")
+        is AppFade -> listOf(APP_FADE, appColorSpec.serialize(), baseColor.serialize(), direction.name, solidPercent.toString(), fadeDistance.toString(), opacity.toString()).joinToString("|")
     }
 
     companion object {
         private const val GRADIENT = "gradient"
+        private const val APP_FADE = "app_fade"
 
         fun deserialize(value: String?): CutoutFill? = when {
             value == null -> null
@@ -137,7 +180,19 @@ sealed interface CutoutFill {
                 val end = ColorSpec.deserialize(parts.getOrNull(2))
                 val direction = runCatching { GradientDirection.valueOf(parts[3]) }
                     .getOrDefault(GradientDirection.VERTICAL)
-                if (start != null && end != null) Gradient(start, end, direction) else null
+                val opacity = parts.getOrNull(4)?.toFloatOrNull()?.coerceIn(0f, 1f) ?: 1f
+                if (start != null && end != null) Gradient(start, end, direction, opacity) else null
+            }
+            value.startsWith("$APP_FADE|") -> {
+                val parts = value.split('|')
+                val appColor = (ColorSpec.deserialize(parts.getOrNull(1)) as? ColorSpec.AppIcon) ?: ColorSpec.AppIcon()
+                val baseColor = ColorSpec.deserialize(parts.getOrNull(2)) ?: ColorSpec.Fixed(0xFF000000L)
+                val direction = runCatching { FadeDirection.valueOf(parts[3]) }
+                    .getOrDefault(FadeDirection.LEFT_TO_RIGHT)
+                val solidPercent = parts.getOrNull(4)?.toIntOrNull()?.coerceIn(0, 100) ?: 30
+                val fadeDistance = parts.getOrNull(5)?.toIntOrNull()?.coerceIn(0, 100) ?: 20
+                val opacity = parts.getOrNull(6)?.toFloatOrNull()?.coerceIn(0f, 1f) ?: 1f
+                AppFade(appColor, baseColor, direction, solidPercent, fadeDistance, opacity)
             }
             // Anything else is a single colour (incl. the legacy "dynamic" / bare-ARGB encodings).
             else -> ColorSpec.deserialize(value)?.let(::Solid)
@@ -231,6 +286,7 @@ data class AppearanceSettings(
     val shadowEnabled: Boolean = DEFAULT_SHADOW_ENABLED,
     val strokeEnabled: Boolean = DEFAULT_STROKE_ENABLED,
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
+    val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
@@ -250,6 +306,7 @@ data class AppearanceSettings(
         const val DEFAULT_STROKE_WIDTH_DP = 2
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
+        const val DEFAULT_STROKE_OPACITY = 1f
 
         // Match the pill's historical look: near-black fill, white stroke.
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -285,6 +342,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeEnabled = prefs[STROKE_ENABLED] ?: AppearanceSettings.DEFAULT_STROKE_ENABLED,
             strokeWidthDp = (prefs[STROKE_WIDTH] ?: AppearanceSettings.DEFAULT_STROKE_WIDTH_DP)
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
+            strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
@@ -316,6 +374,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("shadowEnabled", s.shadowEnabled)
             put("strokeEnabled", s.strokeEnabled)
             put("strokeWidthDp", s.strokeWidthDp)
+            put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
@@ -343,6 +402,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("strokeEnabled")) it[STROKE_ENABLED] = obj.getBoolean("strokeEnabled")
             if (obj.has("strokeWidthDp")) it[STROKE_WIDTH] = obj.getInt("strokeWidthDp")
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP)
+            if (obj.has("strokeOpacity")) it[STROKE_OPACITY] = obj.getDouble("strokeOpacity").toFloat().coerceIn(0f, 1f)
             if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
@@ -398,6 +458,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             AppearanceSettings.MIN_STROKE_WIDTH_DP,
             AppearanceSettings.MAX_STROKE_WIDTH_DP,
         )
+    }
+
+    suspend fun setStrokeOpacity(opacity: Float) = context.appearanceDataStore.edit {
+        it[STROKE_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
     suspend fun setStrokeColor(color: CutoutColor) = context.appearanceDataStore.edit {
@@ -458,6 +522,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
+        val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
         // Legacy single-colour key, still read to migrate existing installs into the two new keys.
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")

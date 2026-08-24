@@ -127,7 +127,11 @@ data class IslandEvent(
      * Contains the progress of this notification if it is a progress one.
      * Is null otherwise
      */
-    val progressData: ProgressData? = null
+    val progressData: ProgressData? = null,
+    /** The package name of the app that posted this event, if any. */
+    val packageName: String? = null,
+    /** The primary branding color extracted from the posting app's default launcher icon, if any. */
+    val appColor: Color? = null,
 )
 
 /** Which parts of the assistant tile to render (display text, max height). */

@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,9 +52,13 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
@@ -92,6 +97,38 @@ fun SettingsTab(
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val isPreviewRoute = route == SettingsRoute.SizePosition ||
+        route == SettingsRoute.Appearance ||
+        route == SettingsRoute.Background
+
+    DisposableEffect(lifecycleOwner, isPreviewRoute) {
+        fun refresh() {
+            if (isPreviewRoute) {
+                IslandPreviewBus.setActive(Permissions.isAccessibilityGranted(context))
+            } else {
+                IslandPreviewBus.setActive(false)
+                IslandPreviewBus.setExpandedPreview(false)
+            }
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> refresh()
+                Lifecycle.Event.ON_PAUSE -> IslandPreviewBus.setActive(false)
+                else -> Unit
+            }
+        }
+        refresh()
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (isPreviewRoute) {
+                IslandPreviewBus.setActive(false)
+                IslandPreviewBus.setExpandedPreview(false)
+            }
+        }
+    }
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     // Deeper routes slide in from the right; stepping back slides in from the left, so the
     // motion mirrors the predictive-back peek.

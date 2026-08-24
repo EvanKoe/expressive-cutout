@@ -653,6 +653,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setStrokeWidth(widthDp)
     }
 
+    fun setStrokeOpacity(opacity: Float) = viewModelScope.launch {
+        appearancePreferences.setStrokeOpacity(opacity)
+    }
+
     fun setStrokeColor(color: CutoutColor) = viewModelScope.launch {
         appearancePreferences.setStrokeColor(color)
     }

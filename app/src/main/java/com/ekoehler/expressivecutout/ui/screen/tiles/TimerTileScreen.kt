@@ -20,7 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.screen.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 
 /**
