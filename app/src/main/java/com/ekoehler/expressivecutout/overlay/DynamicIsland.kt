@@ -927,7 +927,8 @@ private fun IslandSurface(
         progress,
     )
 
-    val contentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    val autoContentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    val contentColor = appearance.textColor?.resolve(appColor, adaptiveColor) ?: autoContentColor
     val border = if (appearance.strokeEnabled) {
         val baseColor = appearance.strokeColor.resolve(appColor, adaptiveColor)
         val strokeFinalColor = baseColor.copy(alpha = (baseColor.alpha * appearance.strokeOpacity).coerceIn(0f, 1f))

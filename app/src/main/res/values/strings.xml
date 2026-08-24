@@ -190,6 +190,8 @@
     <string name="appearance_stroke_width">Stroke width</string>
     <string name="appearance_stroke_opacity">Stroke opacity</string>
     <string name="appearance_stroke_color">Stroke colour</string>
+    <string name="appearance_text_color">Text colour</string>
+    <string name="appearance_text_color_auto">Auto (contrast)</string>
     <string name="appearance_background_color">Background colour</string>
     <string name="appearance_send_color">Send button colour</string>
     <string name="appearance_cancel_color">Cancel button colour</string>

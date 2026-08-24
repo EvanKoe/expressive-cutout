@@ -21,9 +21,6 @@ enum class AppColorFallback {
     }
 }
 
-/** Direction a [CutoutFill.AppFade] color fade runs horizontally across the island. */
-enum class FadeDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
-
 /** Direction a [CutoutFill.Gradient] runs across the island. */
 enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
 
@@ -163,7 +160,7 @@ sealed interface ColorSpec {
 
 /**
  * The fill painted behind the island. Richer than [CutoutColor] (it also allows a two-colour
- * [Gradient] and an [AppFade]) and used only for the background, which has an independent value for the collapsed
+ * [Gradient]) and used only for the background, which has an independent value for the collapsed
  * ([AppearanceSettings.backgroundNormal]) and expanded ([AppearanceSettings.backgroundExpanded])
  * states. Serialized to a single string so it fits one preference key.
  *
@@ -181,24 +178,14 @@ sealed interface CutoutFill {
         val direction: GradientDirection,
         val opacity: Float = 1f,
     ) : CutoutFill
-    /** A subtle fade from the active app's branding color into [baseColor] across the island. */
-    data class AppFade(
-        val appColorSpec: ColorSpec.AppIcon = ColorSpec.AppIcon(),
-        val baseColor: ColorSpec = ColorSpec.Fixed(0xFF000000L),
-        val direction: FadeDirection = FadeDirection.LEFT_TO_RIGHT,
-        val solidPercent: Int = 30,
-        val fadeDistance: Int = 20,
-        val opacity: Float = 1f,
-    ) : CutoutFill
 
     /**
-     * Encodes to the stop-delimited `gradient|start|end|DIRECTION|opacity`, `app_fade|...`, or delegates to the single
+     * Encodes to the stop-delimited `gradient|start|end|DIRECTION|opacity` or delegates to the single
      * colour for [Solid]. Read back by [deserialize].
      */
     fun serialize(): String = when (this) {
         is Solid -> color.serialize()
         is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name, opacity.toString()).joinToString("|")
-        is AppFade -> listOf(APP_FADE, appColorSpec.serialize(), baseColor.serialize(), direction.name, solidPercent.toString(), fadeDistance.toString(), opacity.toString()).joinToString("|")
     }
 
     companion object {
@@ -217,15 +204,12 @@ sealed interface CutoutFill {
                 if (start != null && end != null) Gradient(start, end, direction, opacity) else null
             }
             value.startsWith("$APP_FADE|") -> {
+                // Migrate legacy app_fade serialization into a horizontal gradient
                 val parts = value.split('|')
                 val appColor = (ColorSpec.deserialize(parts.getOrNull(1)) as? ColorSpec.AppIcon) ?: ColorSpec.AppIcon()
                 val baseColor = ColorSpec.deserialize(parts.getOrNull(2)) ?: ColorSpec.Fixed(0xFF000000L)
-                val direction = runCatching { FadeDirection.valueOf(parts[3]) }
-                    .getOrDefault(FadeDirection.LEFT_TO_RIGHT)
-                val solidPercent = parts.getOrNull(4)?.toIntOrNull()?.coerceIn(0, 100) ?: 30
-                val fadeDistance = parts.getOrNull(5)?.toIntOrNull()?.coerceIn(0, 100) ?: 20
                 val opacity = parts.getOrNull(6)?.toFloatOrNull()?.coerceIn(0f, 1f) ?: 1f
-                AppFade(appColor, baseColor, direction, solidPercent, fadeDistance, opacity)
+                Gradient(start = appColor, end = baseColor, direction = GradientDirection.HORIZONTAL, opacity = opacity)
             }
             // Anything else is a single colour (incl. the legacy "dynamic" / bare-ARGB encodings).
             else -> ColorSpec.deserialize(value)?.let(::Solid)

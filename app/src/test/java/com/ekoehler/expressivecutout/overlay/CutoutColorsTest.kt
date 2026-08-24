@@ -7,8 +7,11 @@ import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AppColorFallback
 import com.ekoehler.expressivecutout.data.ColorSpec
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.CutoutFill
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.GradientDirection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CutoutColorsTest {
@@ -120,5 +123,34 @@ class CutoutColorsTest {
 
         val oledFallback = CutoutColor.AppIcon(AppColorFallback.OLED_BLACK)
         assertEquals(Color(0xFF000000L), oledFallback.resolveColor(appColor = appColor, dynamicResolver = dynamicResolver))
+    }
+
+    @Test
+    fun testGradientWithAppIconSerialization() {
+        val gradient = CutoutFill.Gradient(
+            start = ColorSpec.AppIcon(AppColorFallback.ADAPTIVE),
+            end = ColorSpec.Fixed(0xFF000000L),
+            direction = GradientDirection.HORIZONTAL,
+            opacity = 0.8f,
+        )
+        val serialized = gradient.serialize()
+        val deserialized = CutoutFill.deserialize(serialized) as? CutoutFill.Gradient
+
+        assertEquals(gradient.start, deserialized?.start)
+        assertEquals(gradient.end, deserialized?.end)
+        assertEquals(gradient.direction, deserialized?.direction)
+        assertEquals(0.8f, deserialized?.opacity ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun testLegacyAppFadeMigration() {
+        val legacySerialized = "app_fade|app_icon:ADAPTIVE:1.0|4278190080:1.0|LEFT_TO_RIGHT|30|20|1.0"
+        val deserialized = CutoutFill.deserialize(legacySerialized)
+
+        assertTrue(deserialized is CutoutFill.Gradient)
+        val grad = deserialized as CutoutFill.Gradient
+        assertTrue(grad.start is ColorSpec.AppIcon)
+        assertEquals(GradientDirection.HORIZONTAL, grad.direction)
+        assertEquals(1.0f, grad.opacity, 0.001f)
     }
 }

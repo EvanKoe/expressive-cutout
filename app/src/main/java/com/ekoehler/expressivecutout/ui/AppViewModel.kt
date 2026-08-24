@@ -814,6 +814,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setStrokeColor(color)
     }
 
+    fun setTextColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTextColor(color)
+    }
+
     fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {
         appearancePreferences.setBackgroundNormal(fill)
     }

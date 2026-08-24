@@ -32,6 +32,7 @@ data class AppearanceSettings(
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
     val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
+    val textColor: CutoutColor? = DEFAULT_TEXT_COLOR,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
@@ -55,6 +56,8 @@ data class AppearanceSettings(
         /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
+        /** null means automatic high-contrast text color based on background luminance. */
+        val DEFAULT_TEXT_COLOR: CutoutColor? = null
 
         /**
          * null keeps the historical reply-button look: the send button matches the notification's
@@ -90,6 +93,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
             strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
+            textColor = CutoutColor.deserialize(prefs[TEXT_COLOR]),
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
             backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
@@ -122,6 +126,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("strokeWidthDp", s.strokeWidthDp)
             put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
+            put("textColor", s.textColor?.serialize() ?: JSONObject.NULL)
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
             put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
@@ -152,6 +157,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
+            it.applyNullableColor(obj, "textColor", TEXT_COLOR)
             if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
                 CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
             }
@@ -218,6 +224,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[STROKE_COLOR] = color.serialize()
     }
 
+    /** A null [color] clears the override, restoring automatic contrast-based text color. */
+    suspend fun setTextColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
+    }
+
     suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
         it[BACKGROUND_NORMAL] = fill.serialize()
     }
@@ -278,6 +289,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
         val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
+        val TEXT_COLOR = stringPreferencesKey("text_color")
         /**
          * Legacy single-colour key, still read to migrate existing installs into the two new keys.
          */

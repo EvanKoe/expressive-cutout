@@ -172,6 +172,14 @@ internal fun AppearanceScreen(
             }
         }
 
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_text_color),
+            selected = appearance.textColor,
+            onSelect = viewModel::setTextColor,
+            defaultLabel = stringResource(R.string.appearance_text_color_auto),
+            allowAppIcon = true,
+        )
+
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
         BackgroundCard(onClick = {
