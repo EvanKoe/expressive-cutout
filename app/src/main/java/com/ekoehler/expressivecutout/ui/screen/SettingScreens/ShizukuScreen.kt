@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material.icons.rounded.NetworkWifi
 import androidx.compose.material.icons.rounded.ShapeLine
 import androidx.compose.material.icons.rounded.Square
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,10 +49,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import java.nio.file.WatchEvent
 
 /**
@@ -72,6 +76,8 @@ internal fun ShizukuScreen(
     val hideSystemInfo by viewModel.hideSystemInfo.collectAsStateWithLifecycle()
     val hideClock by viewModel.hideClock.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
+    val permissionDot by viewModel.permissionDotEnabled.collectAsStateWithLifecycle()
+    val permissionDotPosition by viewModel.permissionDotPosition.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
 
     // Returning from the Shizuku app is the one moment the state reliably changes without a binder
@@ -154,6 +160,68 @@ internal fun ShizukuScreen(
             onCheckedChange = viewModel::setSilenceSystemAlerts,
             enabled = ready,
         )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.permission_dot_title),
+            description = stringResource(R.string.permission_dot_desc),
+            checked = ready && permissionDot,
+            onCheckedChange = viewModel::setPermissionDotEnabled,
+            enabled = ready,
+        )
+
+        AnimatedVisibility(
+            visible = ready && permissionDot,
+            modifier = Modifier.clip(RoundedCornerShape(24.dp)),
+        ) {
+            PermissionDotPositionCard(
+                selected = permissionDotPosition,
+                onSelect = viewModel::setPermissionDotPosition,
+            )
+        }
+    }
+}
+
+/**
+ * The "Position" selector that appears under the permission-dot switch: which end of the collapsed
+ * pill the dots sit on. [PermissionDotPosition]'s declaration order is the option order, so the two
+ * can't drift apart.
+ */
+@Composable
+private fun PermissionDotPositionCard(
+    selected: PermissionDotPosition,
+    onSelect: (PermissionDotPosition) -> Unit,
+) {
+    val options = PermissionDotPosition.entries
+    val labels = options.map {
+        stringResource(
+            when (it) {
+                PermissionDotPosition.LEFT -> R.string.permission_dot_position_left
+                PermissionDotPosition.RIGHT -> R.string.permission_dot_position_right
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.permission_dot_position_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            ExpressiveSegmentedRow(
+                options = labels,
+                selectedIndex = options.indexOf(selected),
+                onSelect = { onSelect(options[it]) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

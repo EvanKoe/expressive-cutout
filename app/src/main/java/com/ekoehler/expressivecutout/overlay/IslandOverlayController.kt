@@ -66,11 +66,14 @@ import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -119,6 +122,7 @@ class IslandOverlayController(private val context: Context) {
     private val timerTilePreferences = TimerTilePreferences(context)
     private val assistantTilePreferences = AssistantTilePreferences(context)
     private val appPreferences = AppPreferences(context)
+    private val permissionDotPreferences = PermissionDotPreferences(context)
     private val density = context.resources.displayMetrics.density
 
     /**
@@ -170,6 +174,14 @@ class IslandOverlayController(private val context: Context) {
     private val forcedExpanded = MutableStateFlow<Boolean?>(null)
     private val behaviourState = MutableStateFlow(BehaviourSettings())
     private val appearanceState = MutableStateFlow(AppearanceSettings())
+
+    /**
+     * Whether the permission dots are switched on, and which end of the pill they sit on. *What* to
+     * draw comes from [PermissionUsageMonitor] instead; the enabled flag is mirrored separately so
+     * the island can keep the (empty) dot row mounted and let each dot animate itself.
+     */
+    private val permissionDotEnabledState = MutableStateFlow(false)
+    private val permissionDotPositionState = MutableStateFlow(PermissionDotPosition.RIGHT)
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
@@ -303,6 +315,7 @@ class IslandOverlayController(private val context: Context) {
         observeEventDynamicColorOpacity()
         observeTilePreferences()
         observeAppPreferences()
+        observePermissionDotSettings()
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
@@ -524,6 +537,9 @@ class IslandOverlayController(private val context: Context) {
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
                 val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
+                val permissionUsage by PermissionUsageMonitor.usage.collectAsStateWithLifecycle()
+                val permissionDotsEnabled by permissionDotEnabledState.collectAsStateWithLifecycle()
+                val permissionDotPosition by permissionDotPositionState.collectAsStateWithLifecycle()
                 val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
                      behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
@@ -566,6 +582,9 @@ class IslandOverlayController(private val context: Context) {
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
                         hapticsOnPop = behaviour.hapticsOnPop,
+                        permissionDotsEnabled = permissionDotsEnabled,
+                        permissionUsage = permissionUsage,
+                        permissionDotPosition = permissionDotPosition,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
@@ -675,6 +694,12 @@ class IslandOverlayController(private val context: Context) {
     private fun observeAppPreferences() {
         scope.launch { appPreferences.disabledPackages.collect { disabledApps = it } }
         scope.launch { appPreferences.normalOnlyPackages.collect { normalOnlyApps = it } }
+    }
+
+    /** Mirrors the permission-dot switch and its placement into their respective states. */
+    private fun observePermissionDotSettings() {
+        scope.launch { permissionDotPreferences.enabled.collect { permissionDotEnabledState.value = it } }
+        scope.launch { permissionDotPreferences.position.collect { permissionDotPositionState.value = it } }
     }
 
     /**

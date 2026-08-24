@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout
 
 import android.app.Application
+import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.StatusBarIconController
 import kotlinx.coroutines.CoroutineScope
@@ -11,7 +12,7 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass
 /**
  * Application entry point. Owns the process-lifetime pieces of the Shizuku bridge: the hidden-API
  * exemption, the binder listeners behind [ShizukuState], and the coroutine scope that re-applies the
- * status-bar flags whenever Shizuku reconnects.
+ * status-bar flags and re-reads permission usage whenever Shizuku reconnects.
  */
 class ExpressiveCutoutApp : Application() {
 
@@ -28,5 +29,6 @@ class ExpressiveCutoutApp : Application() {
         HiddenApiBypass.addHiddenApiExemptions("")
         ShizukuState.start(this)
         StatusBarIconController.start(this, appScope)
+        PermissionUsageMonitor.start(this, appScope)
     }
 }
