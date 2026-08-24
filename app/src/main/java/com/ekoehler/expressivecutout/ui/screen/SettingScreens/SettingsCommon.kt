@@ -36,7 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -365,6 +368,64 @@ internal fun rememberTopCutout(): TopCutout? {
             )
         } else {
             null
+        }
+    }
+}
+
+@Composable
+internal fun SettingsListItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    bgColor: Color = MaterialTheme.colorScheme.surface,
+    fgColor: Color? = null,
+    hapticsOnClick: Boolean = true,
+) {
+    val haptics = LocalHapticFeedback.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = {
+                if (hapticsOnClick) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+
+                onClick()
+            }),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = bgColor,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
