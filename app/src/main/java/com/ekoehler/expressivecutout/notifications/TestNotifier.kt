@@ -282,8 +282,11 @@ object TestNotifier {
     /**
      * Emits a system event so the status dot and cutout reaction can be tested immediately.
      */
-    fun sendSystemEvent(type: com.ekoehler.expressivecutout.core.SystemEventType) {
-        IslandEventBus.emit(CutoutSignal.System(type))
+    fun sendSystemEvent(
+        type: com.ekoehler.expressivecutout.core.SystemEventType,
+        batteryLevel: Int? = null,
+    ) {
+        IslandEventBus.emit(CutoutSignal.System(type, batteryLevel))
     }
 
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */

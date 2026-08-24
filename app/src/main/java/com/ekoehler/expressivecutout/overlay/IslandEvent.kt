@@ -143,6 +143,13 @@ data class IslandEvent(
      * on the trailing edge of the collapsed island.
      */
     val statusDotColor: Color? = null,
+    /**
+     * Trailing status text (e.g. battery percentage "85%") shown on the trailing edge of the collapsed
+     * island instead of a status dot.
+     */
+    val trailingText: String? = null,
+    /** Color for [trailingText]. Null falls back to theme content color. */
+    val trailingTextColor: Color? = null,
 )
 
 /** Which parts of the assistant tile to render (display text, max height). */

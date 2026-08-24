@@ -109,6 +109,7 @@ class IconResolver(private val context: Context) {
             )
             is CutoutSignal.System -> resolveSystem(
                 signal.type,
+                signal.batteryLevel,
                 customIcons,
                 dynamicEventColor,
                 dynamicEventColorRole,
@@ -386,6 +387,7 @@ class IconResolver(private val context: Context) {
 
     private fun resolveSystem(
         type: SystemEventType,
+        batteryLevel: Int?,
         customIcons: Map<SystemEventType, IconSource>,
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
@@ -407,7 +409,20 @@ class IconResolver(private val context: Context) {
         val icon = customIcons[type]?.toIslandIconOrNull()
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
-        val statusColor = statusDotColorFor(type)
+        
+        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED || type == SystemEventType.BATTERY_LOW
+        val trailingText = if (isBatteryEvent) {
+            val level = (batteryLevel ?: getBatteryPercentage(context)).coerceIn(0, 100)
+            "$level%"
+        } else {
+            null
+        }
+        val trailingTextColor = if (isBatteryEvent) {
+            batteryTextColorFor(type)
+        } else {
+            null
+        }
+        val statusColor = if (isBatteryEvent) null else statusDotColorFor(type)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
@@ -418,6 +433,8 @@ class IconResolver(private val context: Context) {
             themeColorOpacity = dynamicEventColorOpacity,
             colorOverride = eventColorOverrides[type],
             statusDotColor = statusColor,
+            trailingText = trailingText,
+            trailingTextColor = trailingTextColor,
         )
     }
 
@@ -437,12 +454,12 @@ class IconResolver(private val context: Context) {
         val STATUS_COLOR_DANGER = Color(0xFFF87171)
         val STATUS_COLOR_NEUTRAL = Color(0xFF60A5FA)
 
-        fun statusDotColorFor(type: SystemEventType): Color = when (type) {
-            SystemEventType.CHARGING_STARTED -> STATUS_COLOR_SUCCESS
+        fun statusDotColorFor(type: SystemEventType): Color? = when (type) {
+            SystemEventType.CHARGING_STARTED,
+            SystemEventType.BATTERY_LOW -> null
             SystemEventType.WIFI_CONNECTED -> STATUS_COLOR_SUCCESS
             SystemEventType.HEADPHONES_CONNECTED -> STATUS_COLOR_SUCCESS
             SystemEventType.USB_MOUNTED -> STATUS_COLOR_SUCCESS
-            SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
             SystemEventType.DEVICE_LOCKED -> STATUS_COLOR_WARNING
             SystemEventType.DEVICE_UNLOCKED -> STATUS_COLOR_WARNING
             SystemEventType.CHARGING_STOPPED -> STATUS_COLOR_DANGER
@@ -456,6 +473,27 @@ class IconResolver(private val context: Context) {
          * notifications localise to the device language, but English covers the common case); the
          * phrases avoid false hits like "send" that a bare "end" would catch.
          */
+        fun batteryTextColorFor(type: SystemEventType): Color = when (type) {
+            SystemEventType.CHARGING_STARTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
+            else -> STATUS_COLOR_SUCCESS
+        }
+
+        fun getBatteryPercentage(context: Context): Int {
+            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+            val capacity = batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            if (capacity != null && capacity in 0..100) {
+                return capacity
+            }
+            val intentFilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, intentFilter)
+            val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level >= 0 && scale > 0) {
+                return (level * 100 / scale)
+            }
+            return 100
+        }
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
 
         /**

@@ -75,7 +75,10 @@ sealed interface CutoutSignal {
     }
 
     /** A device-level event occurred. */
-    data class System(val type: SystemEventType) : CutoutSignal
+    data class System(
+        val type: SystemEventType,
+        val batteryLevel: Int? = null,
+    ) : CutoutSignal
 
     /** Media started playing on the device (surfaced from any app's media session). */
     data class Music(
