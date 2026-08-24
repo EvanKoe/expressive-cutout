@@ -198,11 +198,11 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.WIFI_DISCONNECTED) },
             )
 
-            // Test Battery low (Yellow dot)
+            // Test Battery low (Yellow percentage)
             TestCard(
                 icon = Icons.Rounded.BatteryAlert,
                 title = stringResource(R.string.action_send_test_battery_low),
-                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.BATTERY_LOW) },
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.BATTERY_LOW, 15) },
             )
 
             // Test Device locked (Yellow dot)
@@ -212,11 +212,11 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.DEVICE_LOCKED) },
             )
 
-            // Test Charging started (Green dot)
+            // Test Charging started (Green percentage)
             TestCard(
                 icon = Icons.Rounded.BatteryChargingFull,
                 title = stringResource(R.string.action_send_test_charging_started),
-                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.CHARGING_STARTED) },
+                onClick = { TestNotifier.sendSystemEvent(com.ekoehler.expressivecutout.core.SystemEventType.CHARGING_STARTED, 85) },
             )
 
             // Test Unplugged (Red dot)

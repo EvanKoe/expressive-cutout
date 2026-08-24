@@ -1009,15 +1009,29 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                 )
             }
         }
-        // Trailing radiating status dot for status events (green for success, red for danger, yellow for warning, blue for neutral)
-        if (event.timer == null && event.progressData == null && !isStickToCamera && event.statusDotColor != null) {
-            RadiatingStatusDot(
-                color = event.statusDotColor,
-                sizeDp = (heightDp * 0.18f).dp,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = (heightDp * 0.20f).dp),
-            )
+        // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
+        if (event.timer == null && event.progressData == null && !isStickToCamera) {
+            if (event.trailingText != null) {
+                Text(
+                    text = event.trailingText,
+                    color = event.colorOverride?.resolve() ?: event.trailingTextColor ?: LocalContentColor.current,
+                    fontSize = (heightDp * 0.34f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
+                )
+            } else if (event.statusDotColor != null) {
+                RadiatingStatusDot(
+                    color = event.statusDotColor,
+                    sizeDp = (heightDp * 0.18f).dp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
+                )
+            }
         }
     }
 }
