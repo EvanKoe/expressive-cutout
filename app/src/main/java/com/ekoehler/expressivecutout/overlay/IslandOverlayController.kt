@@ -221,6 +221,7 @@ class IslandOverlayController(private val context: Context) {
             appName = context.getString(R.string.app_name),
             postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
+            appColor = Color(0xFF60A5FA),
         )
     }
 

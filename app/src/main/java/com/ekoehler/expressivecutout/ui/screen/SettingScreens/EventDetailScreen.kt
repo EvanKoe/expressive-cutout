@@ -59,6 +59,7 @@ import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import kotlin.math.roundToInt
 
 /**

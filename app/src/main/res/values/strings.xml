@@ -199,10 +199,12 @@
     <string name="appearance_prefer_dynamic_icon_color_title">Prefer dynamic icon color</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Use dynamic Material You app icon when available, or plain icon when off</string>
     <string name="appearance_stroke_width">Stroke width</string>
+    <string name="appearance_stroke_opacity">Stroke opacity</string>
     <string name="appearance_stroke_color">Stroke colour</string>
     <string name="appearance_background_color">Background colour</string>
     <string name="appearance_send_color">Send button colour</string>
     <string name="appearance_cancel_color">Cancel button colour</string>
+    <string name="cd_color_app_icon">App icon colour</string>
     <string name="cd_color_dynamic">Material You dynamic colour</string>
     <string name="cd_color_default_accent">Match notification colour</string>
     <string name="cd_color_default_neutral">Default neutral colour</string>
@@ -212,10 +214,33 @@
     <string name="cd_color_tertiary">Tertiary colour</string>
     <string name="cd_color_error">Error colour</string>
 
+    <string name="app_color_fallback_title">Non-app event fallback</string>
+    <string name="app_color_fallback_desc">Fallback colour when no app notification is active</string>
+    <string name="app_color_fallback_dynamic">Material You</string>
+    <string name="app_color_fallback_oled">OLED Black</string>
+    <string name="app_color_fallback_adaptive">Adaptive</string>
+
+    <string name="tooltip_dynamic_primary">Material You (Primary) — Dynamic accent adapting to your wallpaper and Android theme.</string>
+    <string name="tooltip_dynamic_secondary">Material You (Secondary) — Subtle tonal dynamic accent matching your wallpaper.</string>
+    <string name="tooltip_dynamic_tertiary">Material You (Tertiary) — Playful dynamic accent color derived from your theme.</string>
+    <string name="tooltip_app_icon">App Icon Adaptive Colour — Dynamically extracts the primary branding colour from the notifying app\'s default launcher icon.</string>
+    <string name="tooltip_oled_black">Pure Black (#000000) — Turns off pixels on OLED displays for maximum battery efficiency and stealth.</string>
+    <string name="tooltip_custom_color">Custom Colour — Uses your chosen color across all events.</string>
+    <string name="tooltip_preset_color">Preset Colour — Uses this fixed accent across all events.</string>
+    <string name="tooltip_default_reset">Default Island Accent — Restores the built-in default theme colour.</string>
+
     <!-- Background screen -->
     <string name="settings_background_subtitle">Separate colours or gradients for the normal and expanded cutout</string>
     <string name="label_solid">Solid</string>
     <string name="label_gradient">Gradient</string>
+    <string name="label_app_fade">App Fade</string>
+    <string name="fade_direction">Fade direction</string>
+    <string name="fade_left_to_right">Left to right</string>
+    <string name="fade_right_to_left">Right to left</string>
+    <string name="fade_gradient_distance">Gradient distance</string>
+    <string name="fade_distance">Fade distance</string>
+    <string name="fade_solid_length">Gradient distance</string>
+    <string name="fade_base_color">Fade target colour</string>
     <string name="gradient_start">Start colour</string>
     <string name="gradient_end">End colour</string>
     <string name="gradient_direction">Direction</string>

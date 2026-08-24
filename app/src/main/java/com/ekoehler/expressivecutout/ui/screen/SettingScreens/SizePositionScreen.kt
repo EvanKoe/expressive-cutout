@@ -58,30 +58,10 @@ internal fun SizePositionScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
 ) {
-    val context = LocalContext.current
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
-    // Pin the real overlay open only on this screen, gated on accessibility. The pinned island
-    // mirrors the tab being edited (collapsed vs expanded).
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        fun refresh() = IslandPreviewBus.setActive(Permissions.isAccessibilityGranted(context))
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> refresh()
-                Lifecycle.Event.ON_PAUSE -> IslandPreviewBus.setActive(false)
-                else -> Unit
-            }
-        }
-        refresh()
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            IslandPreviewBus.setActive(false)
-            IslandPreviewBus.setExpandedPreview(false)
-        }
-    }
+    // Mirror which tab is being edited (collapsed vs expanded) in the pinned live preview.
     LaunchedEffect(tab) { IslandPreviewBus.setExpandedPreview(tab == 1) }
 
     Column(
