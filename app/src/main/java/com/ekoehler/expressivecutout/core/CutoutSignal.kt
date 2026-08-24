@@ -143,14 +143,14 @@ enum class SystemEventType(
     val accent: Long,
 ) {
     CHARGING_STARTED(Icons.Rounded.BatteryChargingFull, R.string.event_charging_started, 0xFF4ADE80),
-    CHARGING_STOPPED(Icons.Rounded.PowerOff, R.string.event_charging_stopped, 0xFF94A3B8),
+    CHARGING_STOPPED(Icons.Rounded.PowerOff, R.string.event_charging_stopped, 0xFFF87171),
     BATTERY_LOW(Icons.Rounded.BatteryAlert, R.string.event_battery_low, 0xFFF87171),
     WIFI_CONNECTED(Icons.Rounded.Wifi, R.string.event_wifi_connected, 0xFF4ADE80),
     WIFI_DISCONNECTED(Icons.Rounded.WifiOff, R.string.event_wifi_disconnected, 0xFFF87171),
     HEADPHONES_CONNECTED(Icons.Rounded.Headphones, R.string.event_headphones_connected, 0xFFA78BFA),
-    HEADPHONES_DISCONNECTED(Icons.Rounded.HeadsetOff, R.string.event_headphones_disconnected, 0xFF94A3B8),
+    HEADPHONES_DISCONNECTED(Icons.Rounded.HeadsetOff, R.string.event_headphones_disconnected, 0xFFF87171),
     USB_MOUNTED(Icons.Rounded.Usb, R.string.event_usb_mounted, 0xFF38BDF8),
-    USB_UNMOUNTED(Icons.Rounded.Usb, R.string.event_usb_unmounted, 0xFF94A3B8),
+    USB_UNMOUNTED(Icons.Rounded.Usb, R.string.event_usb_unmounted, 0xFFF87171),
     DEVICE_LOCKED(Icons.Rounded.Lock, R.string.event_device_locked, 0xFFFACC15),
     DEVICE_UNLOCKED(Icons.Rounded.LockOpen, R.string.event_device_unlocked, 0xFFFACC15),
 }
