@@ -195,7 +195,6 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 title = stringResource(R.string.action_send_test_multiline),
                 onClick = ::onTestMultilineNotification,
             )
-            )
 
             // Send a test progress notification
             TestCard(

@@ -262,10 +262,6 @@ object TestNotifier {
             ),
         )
     }
-                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
-            ),
-        )
-    }
 
     /**
      * Posts a real progress notification and mirrors it onto the island, sweeping the bar from 0 to

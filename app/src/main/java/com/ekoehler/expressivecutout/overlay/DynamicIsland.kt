@@ -158,6 +158,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.PermissionDotColors
@@ -237,7 +238,6 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
  */
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
-/**
 /**
  * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
  */
