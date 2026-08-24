@@ -281,6 +281,13 @@ object TestNotifier {
         }
     }
 
+    /**
+     * Emits a system event so the status dot and cutout reaction can be tested immediately.
+     */
+    fun sendSystemEvent(type: com.ekoehler.expressivecutout.core.SystemEventType) {
+        IslandEventBus.emit(CutoutSignal.System(type))
+    }
+
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */
     private fun broadcast(context: Context, requestCode: Int, action: String): PendingIntent {
         val intent = Intent(context, TestReplyReceiver::class.java).setAction(action)
