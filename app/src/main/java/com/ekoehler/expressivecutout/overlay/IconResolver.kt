@@ -407,6 +407,7 @@ class IconResolver(private val context: Context) {
         val icon = customIcons[type]?.toIslandIconOrNull()
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
+        val statusColor = statusDotColorFor(type)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
@@ -416,6 +417,7 @@ class IconResolver(private val context: Context) {
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
             colorOverride = eventColorOverrides[type],
+            statusDotColor = statusColor,
         )
     }
 
@@ -428,8 +430,26 @@ class IconResolver(private val context: Context) {
             MaterialIconCatalog.iconFor(iconName)?.let(IslandIcon::Vector)
     }
 
-    private companion object {
+    internal companion object {
         val NOTIFICATION_ACCENT = Color(0xFF38BDF8)
+        val STATUS_COLOR_SUCCESS = Color(0xFF4ADE80)
+        val STATUS_COLOR_WARNING = Color(0xFFFACC15)
+        val STATUS_COLOR_DANGER = Color(0xFFF87171)
+        val STATUS_COLOR_NEUTRAL = Color(0xFF60A5FA)
+
+        fun statusDotColorFor(type: SystemEventType): Color = when (type) {
+            SystemEventType.CHARGING_STARTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.WIFI_CONNECTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.HEADPHONES_CONNECTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.USB_MOUNTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.DEVICE_UNLOCKED -> STATUS_COLOR_SUCCESS
+            SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
+            SystemEventType.CHARGING_STOPPED -> STATUS_COLOR_DANGER
+            SystemEventType.WIFI_DISCONNECTED -> STATUS_COLOR_DANGER
+            SystemEventType.HEADPHONES_DISCONNECTED -> STATUS_COLOR_DANGER
+            SystemEventType.USB_UNMOUNTED -> STATUS_COLOR_DANGER
+            SystemEventType.DEVICE_LOCKED -> STATUS_COLOR_NEUTRAL
+        }
 
         /**
          * Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'

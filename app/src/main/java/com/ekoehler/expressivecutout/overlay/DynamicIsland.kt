@@ -12,8 +12,10 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -1188,6 +1190,72 @@ private fun CollapsedContent(
                 )
             }
         }
+        // Trailing radiating status dot for status events (green for success, red for danger, yellow for warning, blue for neutral)
+        if (event.timer == null && event.progressData == null && !isStickToCamera && event.statusDotColor != null) {
+            RadiatingStatusDot(
+                color = event.statusDotColor,
+                sizeDp = (heightDp * 0.18f).dp,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = (heightDp * 0.20f).dp),
+            )
+        }
+    }
+}
+
+/**
+ * A pulsing status dot on the trailing edge of the island that radiates animated expanding rings
+ * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
+ */
+@Composable
+private fun RadiatingStatusDot(
+    color: Color,
+    sizeDp: Dp = 8.dp,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "radiatingStatus")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveScale",
+    )
+    val waveAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveAlpha",
+    )
+
+    Box(
+        modifier = modifier.size(sizeDp * 2.5f),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse ring
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .graphicsLayer {
+                    scaleX = waveScale
+                    scaleY = waveScale
+                    alpha = waveAlpha
+                }
+                .clip(CircleShape)
+                .background(color),
+        )
+        // Solid center core dot
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(CircleShape)
+                .background(color),
+        )
     }
 }
 
