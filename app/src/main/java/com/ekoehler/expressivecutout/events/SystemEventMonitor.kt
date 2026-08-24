@@ -13,6 +13,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.BatteryManager
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.ekoehler.expressivecutout.core.CutoutSignal
@@ -54,13 +55,15 @@ class SystemEventMonitor(
             when (intent.action) {
                 Intent.ACTION_POWER_CONNECTED -> {
                     isLowBatteryState = false
-                    emit(SystemEventType.CHARGING_STARTED)
+                    val level = getBatteryLevel(context)
+                    emit(SystemEventType.CHARGING_STARTED, level)
                 }
                 Intent.ACTION_POWER_DISCONNECTED -> emit(SystemEventType.CHARGING_STOPPED)
                 Intent.ACTION_BATTERY_LOW -> {
                     if (!isLowBatteryState) {
                         isLowBatteryState = true
-                        emit(SystemEventType.BATTERY_LOW)
+                        val level = getBatteryLevel(context)
+                        emit(SystemEventType.BATTERY_LOW, level)
                     }
                 }
                 Intent.ACTION_BATTERY_OKAY -> {
@@ -173,7 +176,28 @@ class SystemEventMonitor(
         lockPollingJob = null
     }
 
-    private fun emit(type: SystemEventType) = IslandEventBus.emit(CutoutSignal.System(type))
+    private fun emit(type: SystemEventType, batteryLevel: Int? = null) =
+        IslandEventBus.emit(CutoutSignal.System(type, batteryLevel))
+
+    private fun getBatteryLevel(context: Context): Int {
+        val batteryManager = context.getSystemService<BatteryManager>()
+        val capacity = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        if (capacity != null && capacity in 0..100) {
+            return capacity
+        }
+        val batteryStatus = ContextCompat.registerReceiver(
+            context,
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        if (level >= 0 && scale > 0) {
+            return (level * 100 / scale)
+        }
+        return 100
+    }
 
     private fun buildIntentFilter() = IntentFilter().apply {
         addAction(Intent.ACTION_POWER_CONNECTED)
