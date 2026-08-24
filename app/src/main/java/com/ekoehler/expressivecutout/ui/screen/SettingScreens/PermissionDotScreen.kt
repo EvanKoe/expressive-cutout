@@ -64,6 +64,7 @@ internal fun PermissionDotScreen(
     val position by viewModel.permissionDotPosition.collectAsStateWithLifecycle()
     val kinds by viewModel.permissionDotKinds.collectAsStateWithLifecycle()
     val colors by viewModel.permissionDotColors.collectAsStateWithLifecycle()
+    val vertical by viewModel.permissionDotVertical.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // The preview is the real thing: pin the island open and have the monitor report every enabled
@@ -100,6 +101,14 @@ internal fun PermissionDotScreen(
         PermissionDotPositionCard(
             selected = position,
             onSelect = viewModel::setPermissionDotPosition,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.permission_dot_vertical_title),
+            description = stringResource(R.string.permission_dot_vertical_desc),
+            checked = vertical,
+            onCheckedChange = viewModel::setPermissionDotVertical,
         )
 
         PermissionDotKindCard(

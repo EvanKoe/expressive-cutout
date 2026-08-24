@@ -746,6 +746,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         permissionDotPreferences.setPosition(position)
     }
 
+    /** Whether the dots stack vertically rather than running along the pill. */
+    val permissionDotVertical: StateFlow<Boolean> =
+        permissionDotPreferences.vertical.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotVertical(vertical: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setVertical(vertical)
+    }
+
     /** Which resources get a dot; one switched off is neither polled for nor drawn. */
     val permissionDotKinds: StateFlow<PermissionDotKinds> =
         permissionDotPreferences.kinds.stateIn(

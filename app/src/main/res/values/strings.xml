@@ -217,6 +217,8 @@
     <string name="permission_dot_position_title">Position</string>
     <string name="permission_dot_position_left">Left</string>
     <string name="permission_dot_position_right">Right</string>
+    <string name="permission_dot_vertical_title">Vertical dot alignment</string>
+    <string name="permission_dot_vertical_desc">Stack the dots in a column instead of a row, so they take up less of the cutout\'s width.</string>
     <string name="permission_dot_location_title">Location</string>
     <string name="permission_dot_location_desc">Show a blue dot while an app is reading your location.</string>
     <string name="permission_dot_camera_title">Camera</string>

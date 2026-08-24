@@ -99,12 +99,21 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
         )
     }
 
+    /** Whether the dots stack in a column instead of running along the pill. */
+    val vertical: Flow<Boolean> = context.permissionDotDataStore.data.map { prefs ->
+        prefs[VERTICAL] ?: false
+    }
+
     suspend fun setEnabled(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
         prefs[ENABLED] = enabled
     }
 
     suspend fun setPosition(position: PermissionDotPosition) = context.permissionDotDataStore.edit { prefs ->
         prefs[POSITION] = position.name
+    }
+
+    suspend fun setVertical(vertical: Boolean) = context.permissionDotDataStore.edit { prefs ->
+        prefs[VERTICAL] = vertical
     }
 
     suspend fun setLocation(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
@@ -138,11 +147,13 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
     override suspend fun toJson(): String {
         val enabled = enabled.first()
         val position = position.first()
+        val vertical = vertical.first()
         val kinds = kinds.first()
         val colors = colors.first()
         return JSONObject().apply {
             put("enabled", enabled)
             put("position", position.name)
+            put("vertical", vertical)
             put("location", kinds.location)
             put("camera", kinds.camera)
             put("microphone", kinds.microphone)
@@ -160,6 +171,7 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
         if (obj.has("enabled")) setEnabled(obj.optBoolean("enabled", false))
+        if (obj.has("vertical")) setVertical(obj.optBoolean("vertical", false))
         if (obj.has("location")) setLocation(obj.optBoolean("location", true))
         if (obj.has("camera")) setCamera(obj.optBoolean("camera", true))
         if (obj.has("microphone")) setMicrophone(obj.optBoolean("microphone", true))
@@ -176,6 +188,7 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
     private companion object {
         val ENABLED = booleanPreferencesKey("permission_dot_enabled")
         val POSITION = stringPreferencesKey("permission_dot_position")
+        val VERTICAL = booleanPreferencesKey("permission_dot_vertical")
         val LOCATION = booleanPreferencesKey("permission_dot_location")
         val CAMERA = booleanPreferencesKey("permission_dot_camera")
         val MICROPHONE = booleanPreferencesKey("permission_dot_microphone")
