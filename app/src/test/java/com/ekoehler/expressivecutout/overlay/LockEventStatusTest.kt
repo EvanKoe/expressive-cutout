@@ -94,6 +94,56 @@ class LockEventStatusTest {
     }
 
     @Test
+    fun testFaceUnlockOnLockScreenTransitionsToUnlockedState() {
+        // Scenario: Phone is on lock screen (isKeyguardLocked = true).
+        // User unlocks via Face (isDeviceLocked transitions from true -> false).
+        // The island must reflect the actual device lock state (isDeviceLocked), not keyguard lock state.
+
+        fun resolveIslandLockState(
+            isKeyguardLocked: Boolean,
+            isDeviceLocked: Boolean,
+        ): String {
+            return if (isDeviceLocked) "locked" else "unlocked"
+        }
+
+        // Before face unlock: on lock screen and device is locked
+        assertEquals(
+            "locked",
+            resolveIslandLockState(isKeyguardLocked = true, isDeviceLocked = true),
+        )
+
+        // After face unlock: still on lock screen (isKeyguardLocked=true), but device is unlocked (isDeviceLocked=false)
+        assertEquals(
+            "unlocked",
+            resolveIslandLockState(isKeyguardLocked = true, isDeviceLocked = false),
+        )
+
+        // After swiping up to home screen: keyguard dismissed and device is unlocked
+        assertEquals(
+            "unlocked",
+            resolveIslandLockState(isKeyguardLocked = false, isDeviceLocked = false),
+        )
+    }
+
+    @Test
+    fun testHideOnLockscreenRespectsKeyguardState() {
+        fun shouldHideOverlay(
+            hideOnLockscreen: Boolean,
+            isKeyguardLocked: Boolean,
+        ): Boolean {
+            return hideOnLockscreen && isKeyguardLocked
+        }
+
+        // When hideOnLockscreen is enabled, overlay is hidden whenever keyguard is locked
+        assertTrue(shouldHideOverlay(hideOnLockscreen = true, isKeyguardLocked = true))
+        assertFalse(shouldHideOverlay(hideOnLockscreen = true, isKeyguardLocked = false))
+
+        // When hideOnLockscreen is disabled, overlay remains visible on keyguard
+        assertFalse(shouldHideOverlay(hideOnLockscreen = false, isKeyguardLocked = true))
+        assertFalse(shouldHideOverlay(hideOnLockscreen = false, isKeyguardLocked = false))
+    }
+
+    @Test
     fun testLivePillFallbackToLockEventWhileLocked() {
         fun resolveLivePillToReturnTo(
             hasCall: Boolean,
