@@ -242,8 +242,8 @@
     <string name="perm_shizuku_title">Shizuku</string>
     <string name="perm_shizuku_desc">Optional. Only needed to hide the status bar notification icons.</string>
 
-    <string name="app_color_fallback_title">Non-app event fallback</string>
-    <string name="app_color_fallback_desc">Fallback colour when no app notification is active</string>
+    <string name="app_color_fallback_title">Fallback colour</string>
+    <string name="app_color_fallback_desc">Used when no app icon is available (such as system events or an idle island)</string>
     <string name="app_color_fallback_dynamic">Material You</string>
     <string name="app_color_fallback_oled">OLED Black</string>
     <string name="app_color_fallback_adaptive">Adaptive</string>
