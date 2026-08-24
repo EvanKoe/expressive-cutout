@@ -46,6 +46,10 @@ import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotKinds
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
@@ -81,6 +85,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val appPreferences = AppPreferences(application)
     private val recentColorPreferences = RecentColorPreferences(application)
     private val statusBarPreferences = StatusBarPreferences(application)
+    private val permissionDotPreferences = PermissionDotPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -247,6 +252,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
         JsonSettings.STATUS_BAR to statusBarPreferences,
+        JsonSettings.PERMISSION_DOT to permissionDotPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
@@ -710,6 +716,86 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSilenceSystemAlerts(silence: Boolean) = viewModelScope.launch {
         statusBarPreferences.setSilenceAlerts(silence)
+    }
+
+    /**
+     * Whether the user wants the island to mark live microphone, camera and location use. Saved even
+     * while Shizuku is unreachable; `PermissionUsageMonitor` starts reading as soon as the bridge is
+     * back, and reports nothing until then.
+     */
+    val permissionDotEnabled: StateFlow<Boolean> =
+        permissionDotPreferences.enabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotEnabled(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setEnabled(enabled)
+    }
+
+    /** Which end of the collapsed pill the permission dots sit on. */
+    val permissionDotPosition: StateFlow<PermissionDotPosition> =
+        permissionDotPreferences.position.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotPosition.RIGHT,
+        )
+
+    fun setPermissionDotPosition(position: PermissionDotPosition) = viewModelScope.launch {
+        permissionDotPreferences.setPosition(position)
+    }
+
+    /** Whether the dots stack vertically rather than running along the pill. */
+    val permissionDotVertical: StateFlow<Boolean> =
+        permissionDotPreferences.vertical.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotVertical(vertical: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setVertical(vertical)
+    }
+
+    /** Which resources get a dot; one switched off is neither polled for nor drawn. */
+    val permissionDotKinds: StateFlow<PermissionDotKinds> =
+        permissionDotPreferences.kinds.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotKinds(),
+        )
+
+    fun setPermissionDotLocation(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setLocation(enabled)
+    }
+
+    fun setPermissionDotCamera(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setCamera(enabled)
+    }
+
+    fun setPermissionDotMicrophone(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophone(enabled)
+    }
+
+    /** The colour each dot is drawn in, one per watched resource. */
+    val permissionDotColors: StateFlow<PermissionDotColors> =
+        permissionDotPreferences.colors.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotColors(),
+        )
+
+    fun setPermissionDotLocationColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setLocationColor(color)
+    }
+
+    fun setPermissionDotCameraColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setCameraColor(color)
+    }
+
+    fun setPermissionDotMicrophoneColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophoneColor(color)
     }
 
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {

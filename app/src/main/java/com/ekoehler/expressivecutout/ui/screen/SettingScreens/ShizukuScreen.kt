@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material.icons.rounded.NetworkWifi
 import androidx.compose.material.icons.rounded.ShapeLine
 import androidx.compose.material.icons.rounded.Square
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,6 +53,7 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import java.nio.file.WatchEvent
 
 /**
@@ -66,12 +69,14 @@ import java.nio.file.WatchEvent
 internal fun ShizukuScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
+    onOpenPermissionDot: () -> Unit,
 ) {
     val context = LocalContext.current
     val hideIcons by viewModel.hideNotificationIcons.collectAsStateWithLifecycle()
     val hideSystemInfo by viewModel.hideSystemInfo.collectAsStateWithLifecycle()
     val hideClock by viewModel.hideClock.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
+    val permissionDot by viewModel.permissionDotEnabled.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
 
     // Returning from the Shizuku app is the one moment the state reliably changes without a binder
@@ -153,6 +158,15 @@ internal fun ShizukuScreen(
             checked = ready && silenceAlerts,
             onCheckedChange = viewModel::setSilenceSystemAlerts,
             enabled = ready,
+        )
+
+        SettingsToggleNavCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.permission_dot_title),
+            description = stringResource(R.string.permission_dot_desc),
+            checked = ready && permissionDot,
+            onCheckedChange = viewModel::setPermissionDotEnabled,
+            onClick = onOpenPermissionDot,
         )
     }
 }

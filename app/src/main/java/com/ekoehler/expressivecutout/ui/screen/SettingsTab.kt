@@ -95,6 +95,7 @@ fun SettingsTab(
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
     onOpenShizuku: () -> Unit,
+    onOpenPermissionDot: () -> Unit,
 ) {
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     // Deeper routes slide in from the right; stepping back slides in from the left, so the
@@ -142,14 +143,15 @@ fun SettingsTab(
                 AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
-            SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding)
+            SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding, onOpenPermissionDot)
+            SettingsRoute.PermissionDot -> PermissionDotScreen(viewModel, contentPadding)
         }
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku }
+enum class SettingsRoute { List, SizePosition, EventIcons, EventDetail, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -162,6 +164,7 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
+        SettingsRoute.PermissionDot -> SettingsRoute.Shizuku
         else -> SettingsRoute.List
     }
 
@@ -170,7 +173,7 @@ val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
         SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty -> 2
+        SettingsRoute.EventDetail, SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot -> 2
         else -> 1
     }
 

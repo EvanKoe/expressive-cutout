@@ -159,10 +159,13 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.system.PermissionUsage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -319,6 +322,11 @@ fun DynamicIsland(
     centerThemedIcons: Boolean = false,
     vibrateOnTap: Boolean = true,
     hapticsOnPop: Boolean = false,
+    permissionDotsEnabled: Boolean = false,
+    permissionUsage: PermissionUsage = PermissionUsage(),
+    permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
+    permissionDotColors: PermissionDotColors = PermissionDotColors(),
+    permissionDotsVertical: Boolean = false,
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -479,8 +487,32 @@ fun DynamicIsland(
         else -> spec
     }
 
+    // The dots belong on the collapsed pill only: the expanded card keeps its top clear for the
+    // camera, the call cutout already fills its trailing edge with the hang-up button, and the
+    // stuck-to-camera pill is barely wider than its own icon.
+    // Mounted for as long as the feature is on rather than only while something is in use, so each
+    // dot fades in and out with its own resource instead of appearing the instant the row exists.
+    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera
+    val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
+    // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring —
+    // has anything for the dots to collide with. Everything else has empty pill there, so the dots
+    // fit as they are and the pill is left at the width the user chose.
+    //
+    // Read from [event] rather than [shownEvent]: the latter keeps the last event so the pill can
+    // fade out gracefully, and a width that outlived its tile would leave the pill grown for good.
+    val hasTrailingContent = event?.let { it.timer != null || it.progressData != null } == true
+
+    // Room for dots beside that content: the pill grows to the right by this much and the content is
+    // inset by the same amount, so the content doesn't move and the dots sit in the new space.
+    val collapsedTrailingInsetDp = if (showPermissionDots && !permissionDotsOnLeft && hasTrailingContent) {
+        permissionDotTrailingInsetDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0
+    }
+
     val width by animateDpAsState(
-        if (isStickToCamera) collapsed.heightDp.dp else (displayWidthDp * dims.widthPercent / 100f).dp,
+        if (isStickToCamera) collapsed.heightDp.dp
+        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp,
         spec, label = "islandWidth"
     )
 
@@ -490,7 +522,12 @@ fun DynamicIsland(
     )
 
     val cornerRadius = (collapsed.heightDp / 2f).dp
-    val offsetX by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetXDp.dp, spec, label = "islandOffsetX")
+    // Half the extra width, so the pill grows on its trailing edge only and its leading edge — where
+    // the tile's icon sits — stays put.
+    val offsetX by animateDpAsState(
+        if (isStickToCamera) 0.dp else dims.offsetXDp.dp + (collapsedTrailingInsetDp / 2f).dp,
+        spec, label = "islandOffsetX"
+    )
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
     val topLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
     val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
@@ -766,9 +803,43 @@ fun DynamicIsland(
                                         onHeightMeasured = { assistantContentHeightDp = it },
                                     )
                                 } else {
-                                    CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                                    CollapsedContent(
+                                        event = e,
+                                        heightDp = collapsed.heightDp,
+                                        isStickToCamera = isStickToCamera,
+                                        trailingInsetDp = collapsedTrailingInsetDp,
+                                    )
                                 }
                             }
+                        }
+                    }
+
+                    // Microphone / camera / location dots
+                    if (showPermissionDots) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            PermissionDotRow(
+                                usage = permissionUsage,
+                                colors = permissionDotColors,
+                                heightDp = collapsed.heightDp,
+                                vertical = permissionDotsVertical,
+                                modifier = Modifier
+                                    .align(
+                                        if (permissionDotsOnLeft) Alignment.CenterStart
+                                        else Alignment.CenterEnd
+                                    )
+                                    .padding(
+                                        start = if (permissionDotsOnLeft) {
+                                            permissionDotStartInsetDp(collapsed.heightDp).dp
+                                        } else {
+                                            0.dp
+                                        },
+                                        end = if (permissionDotsOnLeft) {
+                                            0.dp
+                                        } else {
+                                            permissionDotEndInsetDp(collapsed.heightDp).dp
+                                        },
+                                    ),
+                            )
                         }
                     }
                 }
@@ -917,9 +988,18 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
 /**
  * The collapsed pill's contents: the badge, the label, and whatever the live tiles want to put
  * beside them. Sized to [heightDp] so it fits the user's own geometry.
+ *
+ * @param trailingInsetDp extra room to leave on the trailing edge, so whatever the caller draws
+ *   there — today the permission dots — isn't overlapped by the timer's remaining time or the
+ *   progress ring.
  */
 @Composable
-private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera: Boolean = false) {
+private fun CollapsedContent(
+    event: IslandEvent,
+    heightDp: Int,
+    isStickToCamera: Boolean = false,
+    trailingInsetDp: Int = 0,
+) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val onCall by OnCallBus.state.collectAsStateWithLifecycle()
@@ -965,14 +1045,16 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.24f).dp),
+                        .padding(
+                            end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp,
+                        ),
                 )
             }
         }
         event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
             val indicatorModifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = (heightDp * 0.24f).dp)
+                .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
                 .size((heightDp * 0.5f).dp)
             val strokeWidth = (heightDp * 0.06f).dp
             if (progress.isIndeterminate) {
