@@ -51,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -77,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -98,6 +101,11 @@ internal fun AppearanceScreen(
     val haptics = LocalHapticFeedback.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
+    var strokeOpacity by remember(appearance.strokeOpacity) { mutableStateOf(appearance.strokeOpacity) }
+
+    LaunchedEffect(Unit) {
+        IslandPreviewBus.setExpandedPreview(false)
+    }
 
     Column(
         modifier = Modifier
@@ -123,30 +131,54 @@ internal fun AppearanceScreen(
         )
 
         AnimatedVisibility(visible = appearance.strokeEnabled) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    AdjustableSlider(
-                        label = stringResource(R.string.appearance_stroke_width),
-                        valueText = "${strokeWidth.roundToInt()} dp",
-                        value = strokeWidth,
-                        valueRange = AppearanceSettings.MIN_STROKE_WIDTH_DP.toFloat()..
-                            AppearanceSettings.MAX_STROKE_WIDTH_DP.toFloat(),
-                        step = 1f,
-                        onValueChange = { strokeWidth = it },
-                        onCommit = { viewModel.setStrokeWidth(strokeWidth.roundToInt()) },
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AdjustableSlider(
+                            label = stringResource(R.string.appearance_stroke_width),
+                            valueText = "${strokeWidth.roundToInt()} dp",
+                            value = strokeWidth,
+                            valueRange = AppearanceSettings.MIN_STROKE_WIDTH_DP.toFloat()..
+                                AppearanceSettings.MAX_STROKE_WIDTH_DP.toFloat(),
+                            step = 1f,
+                            onValueChange = { strokeWidth = it },
+                            onCommit = { viewModel.setStrokeWidth(strokeWidth.roundToInt()) },
+                        )
+
+                        AdjustableSlider(
+                            label = stringResource(R.string.appearance_stroke_opacity),
+                            valueText = "${(strokeOpacity * 100).roundToInt()}%",
+                            value = strokeOpacity,
+                            valueRange = 0f..1f,
+                            step = 0.05f,
+                            onValueChange = { strokeOpacity = it },
+                            onCommit = { viewModel.setStrokeOpacity(strokeOpacity) },
+                        )
+                    }
                 }
+                ColorPickerCard(
+                    label = stringResource(R.string.appearance_stroke_color),
+                    selected = appearance.strokeColor,
+                    onSelect = { it?.let(viewModel::setStrokeColor) },
+                    allowAppIcon = true,
+                )
             }
-            ColorPickerCard(
-                label = stringResource(R.string.appearance_stroke_color),
-                selected = appearance.strokeColor,
-                onSelect = { it?.let(viewModel::setStrokeColor) },
-            )
         }
+
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_text_color),
+            selected = appearance.textColor,
+            onSelect = viewModel::setTextColor,
+            defaultLabel = stringResource(R.string.appearance_text_color_auto),
+            allowAppIcon = true,
+        )
 
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
@@ -266,6 +298,7 @@ internal fun ColorSwatch(
     selected: Boolean,
     onClick: () -> Unit,
     badge: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    badgePainter: androidx.compose.ui.graphics.painter.Painter? = null,
     badgeDescription: String? = null,
 ) {
     val ring = MaterialTheme.colorScheme.primary
@@ -298,7 +331,14 @@ internal fun ColorSwatch(
     ) {
         // Contrast the marks against the swatch itself.
         val markColor = if (color.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
-        if (badge != null) {
+        if (badgePainter != null) {
+            Icon(
+                painter = badgePainter,
+                contentDescription = badgeDescription,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(20.dp),
+            )
+        } else if (badge != null) {
             Icon(
                 imageVector = badge,
                 contentDescription = badgeDescription,

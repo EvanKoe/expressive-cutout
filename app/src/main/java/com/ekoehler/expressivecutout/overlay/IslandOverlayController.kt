@@ -276,6 +276,7 @@ class IslandOverlayController(private val context: Context) {
             label = context.getString(R.string.preview_label),
             detail = context.getString(R.string.preview_detail),
             accent = Color(0xFF60A5FA),
+            appColor = Color(0xFF60A5FA),
         )
     }
 
