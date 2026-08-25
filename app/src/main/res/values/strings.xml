@@ -561,4 +561,7 @@
     <string name="behaviour_alertOnNotif_title">Vibrate/rings on notification</string>
     <string name="behaviour_alertOnNotif_desc">Vibrates or rings when a notification arrives, based on the device ringing mode. This is useful if you disabled Android heads-up notifications</string>
     <string name="statusbar_preview_time">2:34</string>
+    <string name="test_progress_complete_title">Download complete</string>
+    <string name="test_progress_complete_text">Download finished successfully.</string>
+    <string name="progress_status_complete">Download complete</string>
 </resources>
