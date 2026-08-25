@@ -52,26 +52,26 @@ class SystemEventPayloadTest {
         val wiredPayload = SystemEventPayload(
             type = SystemEventType.ADB_CONNECTED,
             title = "USB debugging connected",
-            subtitle = "Connected to host workstation",
+            subtitle = "Host authorized",
             collapsedBadgeText = "USB",
-            secondaryLines = listOf("Mode: Wired USB ADB", "RSA key authorized"),
             actionIntentAction = "android.settings.APPLICATION_DEVELOPMENT_SETTINGS",
         )
         val wiredSignal = CutoutSignal.System(wiredPayload)
         assertEquals(SystemEventType.ADB_CONNECTED, wiredSignal.type)
         assertEquals("USB", wiredSignal.payload.collapsedBadgeText)
+        assertEquals("Host authorized", wiredSignal.payload.subtitle)
 
         val wirelessPayload = SystemEventPayload(
             type = SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
             title = "Wireless debugging connected",
-            subtitle = "Workstation-Desktop",
+            subtitle = "Network: Pixel_5GHz",
             collapsedBadgeText = "Wi‑Fi",
-            secondaryLines = listOf("Mode: Wireless ADB", "IP: 192.168.1.150:5555"),
             actionIntentAction = "android.settings.APPLICATION_DEVELOPMENT_SETTINGS",
         )
         val wirelessSignal = CutoutSignal.System(wirelessPayload)
         assertEquals(SystemEventType.WIRELESS_DEBUGGING_CONNECTED, wirelessSignal.type)
         assertEquals("Wi‑Fi", wirelessSignal.payload.collapsedBadgeText)
+        assertEquals("Network: Pixel_5GHz", wirelessSignal.payload.subtitle)
     }
 
     @Test
@@ -79,22 +79,21 @@ class SystemEventPayloadTest {
         val fullPayload = SystemEventPayload(
             type = SystemEventType.CHARGING_COMPLETE,
             title = "Fully charged",
-            subtitle = "100% • Fully charged",
+            subtitle = "100% • Ready to unplug",
             collapsedBadgeText = "100%",
-            secondaryLines = listOf("Battery fully charged", "Ready to unplug"),
             actionIntentAction = "android.intent.action.POWER_USAGE_SUMMARY",
         )
         val fullSignal = CutoutSignal.System(fullPayload)
         assertEquals(SystemEventType.CHARGING_COMPLETE, fullSignal.type)
         assertEquals(100, fullSignal.batteryLevel)
         assertEquals("100%", fullSignal.payload.collapsedBadgeText)
+        assertEquals("100% • Ready to unplug", fullSignal.payload.subtitle)
 
         val cappedPayload = SystemEventPayload(
             type = SystemEventType.CHARGING_COMPLETE,
             title = "Charge limit reached",
             subtitle = "80% • Limit reached",
             collapsedBadgeText = "80%",
-            secondaryLines = listOf("Charging optimization active", "Limit: 80%"),
             actionIntentAction = "android.intent.action.POWER_USAGE_SUMMARY",
         )
         val cappedSignal = CutoutSignal.System(cappedPayload)
@@ -102,5 +101,6 @@ class SystemEventPayloadTest {
         assertEquals(80, cappedSignal.batteryLevel)
         assertEquals("80%", cappedSignal.payload.collapsedBadgeText)
         assertEquals("Charge limit reached", cappedSignal.payload.title)
+        assertEquals("80% • Limit reached", cappedSignal.payload.subtitle)
     }
 }

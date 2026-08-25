@@ -397,9 +397,8 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.CHARGING_COMPLETE -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_charging_complete),
-        subtitle = "100% • Fully charged",
+        subtitle = "100% • Ready to unplug",
         collapsedBadgeText = "100%",
-        secondaryLines = listOf("Battery fully charged", "Ready to unplug"),
         actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
     )
     SystemEventType.BATTERY_LOW -> SystemEventPayload(
@@ -413,7 +412,6 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
         type = type,
         title = context.getString(R.string.event_wifi_connected),
         subtitle = "Pixel_5GHz",
-        secondaryLines = listOf("IP: 192.168.1.100", "5 GHz • Signal strong"),
         actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
     )
     SystemEventType.WIFI_DISCONNECTED -> SystemEventPayload(
@@ -462,21 +460,19 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
         type = type,
         title = context.getString(R.string.event_vpn_connected),
         subtitle = "Secure tunnel active",
-        secondaryLines = listOf("Protocol: WireGuard"),
         actionIntentAction = Settings.ACTION_VPN_SETTINGS,
     )
     SystemEventType.VPN_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_vpn_disconnected),
-        subtitle = "Disconnected",
+        subtitle = "Tunnel closed",
         actionIntentAction = Settings.ACTION_VPN_SETTINGS,
     )
     SystemEventType.ADB_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_adb_connected),
-        subtitle = "MacBook Pro (M3 Max)",
+        subtitle = "Host authorized",
         collapsedBadgeText = "USB",
-        secondaryLines = listOf("Mode: Wired USB ADB", "RSA key authorized"),
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.ADB_DISCONNECTED -> SystemEventPayload(
@@ -489,9 +485,8 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.WIRELESS_DEBUGGING_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_wireless_debugging_connected),
-        subtitle = "Workstation-Desktop",
+        subtitle = "Network: Pixel_5GHz",
         collapsedBadgeText = "Wi‑Fi",
-        secondaryLines = listOf("Mode: Wireless ADB", "IP: 192.168.1.150:5555", "Paired device active"),
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED -> SystemEventPayload(
@@ -516,21 +511,19 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.HOTSPOT_ENABLED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_hotspot_enabled),
-        subtitle = "Tethering active",
-        collapsedBadgeText = "2 devs",
-        secondaryLines = listOf("2 devices connected", "5.2 GB shared"),
+        subtitle = "Tethering ready",
         actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
     )
     SystemEventType.HOTSPOT_DISABLED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_hotspot_disabled),
-        subtitle = "Tethering turned off",
+        subtitle = "Tethering off",
         actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
     )
     SystemEventType.RINGER_NORMAL -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_ringer_normal),
-        subtitle = "Ring & alerts active",
+        subtitle = "Calls & alerts active",
         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
     )
     SystemEventType.RINGER_VIBRATE -> SystemEventPayload(

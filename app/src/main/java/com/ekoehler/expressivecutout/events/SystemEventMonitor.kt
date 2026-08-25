@@ -87,7 +87,7 @@ class SystemEventMonitor(
                     isFullyChargedState = false
                     val level = getBatteryLevel(context)
                     val plug = getBatteryPlugType(context)
-                    val subtitle = if (plug != null) "$level% • $plug" else "$level% charged"
+                    val subtitle = if (plug != null) "$level% • $plug" else "$level%"
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.CHARGING_STARTED,
@@ -168,14 +168,12 @@ class SystemEventMonitor(
                     val adb = intent.getBooleanExtra(EXTRA_ADB, false)
                     if (connected && adb && !isAdbConnected) {
                         isAdbConnected = true
-                        val secondary = listOf("Mode: Wired USB ADB", "RSA key authorized")
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.ADB_CONNECTED,
                                 title = context.getString(R.string.event_adb_connected),
-                                subtitle = "Connected to host workstation",
+                                subtitle = "Host authorized",
                                 collapsedBadgeText = "USB",
-                                secondaryLines = secondary,
                                 actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                             ),
                         )
@@ -236,7 +234,7 @@ class SystemEventMonitor(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_ENABLED,
                                 title = context.getString(R.string.event_hotspot_enabled),
-                                subtitle = "Tethering active",
+                                subtitle = "Tethering ready",
                                 actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
                             ),
                         )
@@ -245,7 +243,7 @@ class SystemEventMonitor(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_DISABLED,
                                 title = context.getString(R.string.event_hotspot_disabled),
-                                subtitle = "Tethering turned off",
+                                subtitle = "Tethering off",
                                 actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
                             ),
                         )
@@ -361,7 +359,7 @@ class SystemEventMonitor(
                 SystemEventPayload(
                     type = SystemEventType.VPN_DISCONNECTED,
                     title = context.getString(R.string.event_vpn_disconnected),
-                    subtitle = "Disconnected",
+                    subtitle = "Tunnel closed",
                     actionIntentAction = Settings.ACTION_VPN_SETTINGS,
                 ),
             )
@@ -438,15 +436,14 @@ class SystemEventMonitor(
 
         if (enabled && !isWirelessAdbConnected) {
             isWirelessAdbConnected = true
-            val ssid = getWifiSsid(context) ?: "Local network"
-            val secondary = listOf("Mode: Wireless ADB", "Network: $ssid")
+            val ssid = getWifiSsid(context)
+            val subtitle = if (ssid != null) "Network: $ssid" else "Active"
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
                     title = context.getString(R.string.event_wireless_debugging_connected),
-                    subtitle = "Wireless ADB active",
+                    subtitle = subtitle,
                     collapsedBadgeText = "Wi‑Fi",
-                    secondaryLines = secondary,
                     actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                 ),
             )
@@ -677,12 +674,7 @@ class SystemEventMonitor(
                 val subtitle = if (isCapped) {
                     "$level% • Limit reached"
                 } else {
-                    "$level% • Fully charged"
-                }
-                val secondaryLines = if (isCapped) {
-                    listOf("Charging optimization active", "Limit: $cap%")
-                } else {
-                    listOf("Battery fully charged", "Ready to unplug")
+                    "$level% • Ready to unplug"
                 }
                 emit(
                     SystemEventPayload(
@@ -690,7 +682,6 @@ class SystemEventMonitor(
                         title = title,
                         subtitle = subtitle,
                         collapsedBadgeText = "$level%",
-                        secondaryLines = secondaryLines,
                         actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
                     ),
                 )
