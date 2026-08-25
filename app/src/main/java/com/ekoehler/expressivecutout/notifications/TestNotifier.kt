@@ -288,10 +288,22 @@ object TestNotifier {
         progressJob = scope.launch {
             var current = 0
             while (true) {
+                val isDone = current >= PROGRESS_MAX
+                val displayTitle = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_title)
+                } else {
+                    title
+                }
+                val displayText = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_text)
+                } else {
+                    text
+                }
+
                 val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_island)
-                    .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentTitle(displayTitle)
+                    .setContentText(displayText)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setOnlyAlertOnce(true)
                     .setProgress(PROGRESS_MAX, current, false)
@@ -309,8 +321,8 @@ object TestNotifier {
                 IslandEventBus.emit(
                     CutoutSignal.Notification(
                         packageName = appContext.packageName,
-                        title = title,
-                        text = text,
+                        title = displayTitle,
+                        text = displayText,
                         appName = appName,
                         postTimeMs = postTimeMs,
                         key = PROGRESS_KEY,
@@ -319,7 +331,7 @@ object TestNotifier {
                             max = PROGRESS_MAX,
                             current = current,
                             isIndeterminate = false,
-                            title = title,
+                            title = displayTitle,
                         ),
                     ),
                 )
