@@ -1339,85 +1339,6 @@ private fun CollapsedProgressIndicator(
 }
 
 /**
- * A linear progress indicator rendered under the notification text when expanded. Transitions
- * into a completed status row with a checkmark when progress reaches 100%.
- */
-@Composable
-private fun ExpandedProgressIndicator(
-    progress: ProgressData,
-    modifier: Modifier = Modifier,
-) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
-
-    if (progress.isIndeterminate) {
-        LinearProgressIndicator(
-            modifier = modifier.requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp),
-            color = primaryColor,
-            trackColor = primaryContainer,
-            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
-        )
-        return
-    }
-
-    val fraction = if (progress.max <= 0) 0f
-        else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
-    val animatedFraction by animateFloatAsState(
-        targetValue = fraction,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "notificationProgress",
-    )
-
-    val isComplete = progress.isComplete || (fraction >= 1f && progress.max > 0)
-
-    val completeAlpha by animateFloatAsState(
-        targetValue = if (isComplete) 1f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "expandedProgressComplete",
-    )
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        // Progress bar track
-        LinearProgressIndicator(
-            progress = { animatedFraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp),
-            color = primaryColor,
-            trackColor = if (isComplete) primaryColor.copy(alpha = 0.2f) else primaryContainer,
-            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
-        )
-
-        // Completion status row with check mark
-        if (isComplete && completeAlpha > 0f) {
-            Row(
-                modifier = Modifier
-                    .graphicsLayer { alpha = completeAlpha }
-                    .padding(top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = primaryColor,
-                    modifier = Modifier.size(14.dp),
-                )
-                Text(
-                    text = stringResource(R.string.progress_status_complete),
-                    color = primaryColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-    }
-}
-
-/**
  * A pulsing status dot on the trailing edge of the island that radiates animated expanding rings
  * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
  */
@@ -1892,14 +1813,39 @@ private fun ExpandedContent(
 
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
-                    AnimatedVisibility(visible = progressData != null) {
+                    AnimatedVisibility(visible = progressData != null && !progressData.isComplete) {
+                        // Material's default indicator is a 4dp hairline at a fixed 240dp width,
+                        // which reads as a stray line on the island. Span the text column and set
+                        // the thickness explicitly — the bar derives its stroke from this height.
+                        // requiredHeight, not height: the latter coerces into whatever the column
+                        // has left over, which is what let a tight card flatten the bar.
+                        val barModifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = PROGRESS_BAR_TOP_GAP_DP.dp)
+                            .requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp)
                         lastProgressData?.let { p ->
-                            ExpandedProgressIndicator(
-                                progress = p,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = PROGRESS_BAR_TOP_GAP_DP.dp),
-                            )
+                            if (p.isIndeterminate) {
+                                LinearProgressIndicator(
+                                    modifier = barModifier,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            } else {
+                                val fraction = if (p.max <= 0) 0f
+                                    else (p.current.toFloat() / p.max).coerceIn(0f, 1f)
+                                val animatedFraction by animateFloatAsState(
+                                    targetValue = fraction,
+                                    label = "notificationProgress",
+                                )
+                                LinearProgressIndicator(
+                                    progress = { animatedFraction },
+                                    modifier = barModifier,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primaryContainer,
+                                    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                )
+                            }
                         }
                     }
                 }

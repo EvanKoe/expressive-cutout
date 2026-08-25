@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.notifications
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -256,6 +257,8 @@ object TestNotifier {
                     text
                 }
 
+                val contentIntent = if (isDone) downloadsIntent(appContext) else null
+
                 val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_island)
                     .setContentTitle(displayTitle)
@@ -264,6 +267,9 @@ object TestNotifier {
                     .setOnlyAlertOnce(true)
                     .setProgress(PROGRESS_MAX, current, false)
                     .setTimeoutAfter(TIMEOUT_MS)
+                    .apply {
+                        if (contentIntent != null) setContentIntent(contentIntent)
+                    }
                     .build()
 
                 if (canPost(appContext)) {
@@ -276,6 +282,7 @@ object TestNotifier {
                         title = displayTitle,
                         text = displayText,
                         key = PROGRESS_KEY,
+                        contentIntent = contentIntent,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(
                             max = PROGRESS_MAX,
@@ -291,6 +298,18 @@ object TestNotifier {
                 current = (current + PROGRESS_STEP).coerceAtMost(PROGRESS_MAX)
             }
         }
+    }
+
+    /** A [PendingIntent] that opens the device's downloads view when the download finishes. */
+    private fun downloadsIntent(context: Context): PendingIntent {
+        val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getActivity(context, 10, intent, flags)
     }
 
     /**
