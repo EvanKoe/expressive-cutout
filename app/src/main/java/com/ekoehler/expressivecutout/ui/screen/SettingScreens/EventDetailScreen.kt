@@ -1,6 +1,8 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -51,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -172,7 +175,7 @@ internal fun EventDetailScreen(
                         )
                     }
                     FilledTonalButton(
-                        onClick = { IslandEventBus.emit(CutoutSignal.System(type)) },
+                        onClick = { IslandEventBus.emit(CutoutSignal.System(previewPayloadFor(context, type))) },
                     ) {
                         Icon(imageVector = Icons.Rounded.PlayArrow, contentDescription = null)
                         Text(
@@ -373,4 +376,148 @@ internal fun IconChooserSheet(
             }
         }
     }
+}
+
+/** Creates sample metadata for previewing how [type] renders with full payload details in the island. */
+private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEventPayload = when (type) {
+    SystemEventType.CHARGING_STARTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_charging_started),
+        subtitle = "85% • Fast charging",
+        collapsedBadgeText = "85%",
+        actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
+    )
+    SystemEventType.CHARGING_STOPPED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_charging_stopped),
+        subtitle = "85% remaining",
+        collapsedBadgeText = "85%",
+        actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
+    )
+    SystemEventType.BATTERY_LOW -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_battery_low),
+        subtitle = "15% • Connect charger",
+        collapsedBadgeText = "15%",
+        actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
+    )
+    SystemEventType.WIFI_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_wifi_connected),
+        subtitle = "Pixel_5GHz",
+        secondaryLines = listOf("IP: 192.168.1.100", "5 GHz • Signal strong"),
+        actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
+    )
+    SystemEventType.WIFI_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_wifi_disconnected),
+        subtitle = "Disconnected",
+        actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
+    )
+    SystemEventType.HEADPHONES_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_headphones_connected),
+        subtitle = "Pixel Buds Pro",
+        actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
+    )
+    SystemEventType.HEADPHONES_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_headphones_disconnected),
+        subtitle = "Audio routed to speaker",
+        actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
+    )
+    SystemEventType.USB_MOUNTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_usb_mounted),
+        subtitle = "SanDisk Ultra USB 3.0",
+        actionIntentAction = Settings.ACTION_SETTINGS,
+    )
+    SystemEventType.USB_UNMOUNTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_usb_unmounted),
+        subtitle = "Device disconnected",
+        actionIntentAction = Settings.ACTION_SETTINGS,
+    )
+    SystemEventType.DEVICE_LOCKED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_device_locked),
+        subtitle = "Device secured",
+        actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
+    )
+    SystemEventType.DEVICE_UNLOCKED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_device_unlocked),
+        subtitle = "Device unlocked",
+        actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
+    )
+    SystemEventType.VPN_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_vpn_connected),
+        subtitle = "Secure tunnel active",
+        secondaryLines = listOf("Protocol: WireGuard"),
+        actionIntentAction = Settings.ACTION_VPN_SETTINGS,
+    )
+    SystemEventType.VPN_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_vpn_disconnected),
+        subtitle = "Disconnected",
+        actionIntentAction = Settings.ACTION_VPN_SETTINGS,
+    )
+    SystemEventType.ADB_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_adb_connected),
+        subtitle = "ADB session active",
+        secondaryLines = listOf("RSA key authorized"),
+        actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+    )
+    SystemEventType.ADB_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_adb_disconnected),
+        subtitle = "ADB session closed",
+        actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+    )
+    SystemEventType.BLUETOOTH_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_bluetooth_connected),
+        subtitle = "Logitech MX Master 3S",
+        actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
+    )
+    SystemEventType.BLUETOOTH_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_bluetooth_disconnected),
+        subtitle = "Device disconnected",
+        actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
+    )
+    SystemEventType.HOTSPOT_ENABLED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_hotspot_enabled),
+        subtitle = "Tethering active",
+        collapsedBadgeText = "2 devs",
+        secondaryLines = listOf("2 devices connected", "5.2 GB shared"),
+        actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
+    )
+    SystemEventType.HOTSPOT_DISABLED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_hotspot_disabled),
+        subtitle = "Tethering turned off",
+        actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
+    )
+    SystemEventType.RINGER_NORMAL -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_ringer_normal),
+        subtitle = "Ring & alerts active",
+        actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
+    )
+    SystemEventType.RINGER_VIBRATE -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_ringer_vibrate),
+        subtitle = "Calls and alerts will vibrate",
+        actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
+    )
+    SystemEventType.RINGER_SILENT -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_ringer_silent),
+        subtitle = "Calls and alerts muted",
+        actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
+    )
 }

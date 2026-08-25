@@ -5,16 +5,26 @@ import android.app.RemoteInput
 import android.graphics.drawable.Icon
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Adb
 import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.BluetoothConnected
+import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.HeadsetOff
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.PowerOff
 import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.VpnKey
+import androidx.compose.material.icons.rounded.VpnKeyOff
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.WifiOff
+import androidx.compose.material.icons.rounded.WifiTethering
+import androidx.compose.material.icons.rounded.WifiTetheringOff
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.service.ProgressData
@@ -78,9 +88,19 @@ sealed interface CutoutSignal {
 
     /** A device-level event occurred. */
     data class System(
-        val type: SystemEventType,
-        val batteryLevel: Int? = null,
-    ) : CutoutSignal
+        val payload: SystemEventPayload,
+    ) : CutoutSignal {
+        val type: SystemEventType get() = payload.type
+        val batteryLevel: Int? get() = payload.collapsedBadgeText?.removeSuffix("%")?.toIntOrNull()
+
+        /** Backward-compatible constructor for callers emitting (type, batteryLevel). */
+        constructor(type: SystemEventType, batteryLevel: Int? = null) : this(
+            SystemEventPayload(
+                type = type,
+                collapsedBadgeText = batteryLevel?.let { "$it%" },
+            ),
+        )
+    }
 
     /** Media started playing on the device (surfaced from any app's media session). */
     data class Music(
@@ -156,4 +176,15 @@ enum class SystemEventType(
     USB_UNMOUNTED(Icons.Rounded.Usb, R.string.event_usb_unmounted, 0xFFF87171),
     DEVICE_LOCKED(Icons.Rounded.Lock, R.string.event_device_locked, 0xFFFACC15),
     DEVICE_UNLOCKED(Icons.Rounded.LockOpen, R.string.event_device_unlocked, 0xFFFACC15),
+    VPN_CONNECTED(Icons.Rounded.VpnKey, R.string.event_vpn_connected, 0xFF38BDF8),
+    VPN_DISCONNECTED(Icons.Rounded.VpnKeyOff, R.string.event_vpn_disconnected, 0xFFF87171),
+    ADB_CONNECTED(Icons.Rounded.Adb, R.string.event_adb_connected, 0xFF4ADE80),
+    ADB_DISCONNECTED(Icons.Rounded.Adb, R.string.event_adb_disconnected, 0xFFF87171),
+    BLUETOOTH_CONNECTED(Icons.Rounded.BluetoothConnected, R.string.event_bluetooth_connected, 0xFF38BDF8),
+    BLUETOOTH_DISCONNECTED(Icons.Rounded.BluetoothDisabled, R.string.event_bluetooth_disconnected, 0xFFF87171),
+    HOTSPOT_ENABLED(Icons.Rounded.WifiTethering, R.string.event_hotspot_enabled, 0xFF4ADE80),
+    HOTSPOT_DISABLED(Icons.Rounded.WifiTetheringOff, R.string.event_hotspot_disabled, 0xFFF87171),
+    RINGER_NORMAL(Icons.Rounded.VolumeUp, R.string.event_ringer_normal, 0xFF4ADE80),
+    RINGER_VIBRATE(Icons.Rounded.Vibration, R.string.event_ringer_vibrate, 0xFFFACC15),
+    RINGER_SILENT(Icons.Rounded.VolumeOff, R.string.event_ringer_silent, 0xFFF87171),
 }

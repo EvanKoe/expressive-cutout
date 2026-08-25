@@ -152,6 +152,12 @@ data class IslandEvent(
     val trailingText: String? = null,
     /** Color for [trailingText]. Null falls back to theme content color. */
     val trailingTextColor: Color? = null,
+    /** Additional multi-line detail strings rendered in the expanded island below [detail]. */
+    val secondaryLines: List<String> = emptyList(),
+    /** System Settings activity action to launch when the expanded island is tapped. */
+    val actionIntentAction: String? = null,
+    /** Optional URI data to attach to [actionIntentAction]. */
+    val actionIntentUri: String? = null,
 )
 
 /** Which parts of the assistant tile to render (display text, max height). */
