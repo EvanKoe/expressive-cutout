@@ -478,7 +478,7 @@ class IconResolver(private val context: Context) {
         } else {
             null
         }
-        val trailingTextColor = if (isBatteryEvent || payload.collapsedBadgeText != null) {
+        val trailingTextColor = if (isBatteryEvent) {
             batteryTextColorFor(type)
         } else {
             null
