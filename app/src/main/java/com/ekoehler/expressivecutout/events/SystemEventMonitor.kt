@@ -57,6 +57,9 @@ class SystemEventMonitor(
     private var isLowBatteryState = false
 
     @Volatile
+    private var isFullyChargedState = false
+
+    @Volatile
     private var isDeviceCurrentlyLocked = false
 
     @Volatile
@@ -81,6 +84,7 @@ class SystemEventMonitor(
             when (intent.action) {
                 Intent.ACTION_POWER_CONNECTED -> {
                     isLowBatteryState = false
+                    isFullyChargedState = false
                     val level = getBatteryLevel(context)
                     val plug = getBatteryPlugType(context)
                     val subtitle = if (plug != null) "$level% • $plug" else "$level% charged"
@@ -95,6 +99,7 @@ class SystemEventMonitor(
                     )
                 }
                 Intent.ACTION_POWER_DISCONNECTED -> {
+                    isFullyChargedState = false
                     val level = getBatteryLevel(context)
                     emit(
                         SystemEventPayload(
@@ -105,6 +110,9 @@ class SystemEventMonitor(
                             actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
                         ),
                     )
+                }
+                Intent.ACTION_BATTERY_CHANGED -> {
+                    handleBatteryChanged(intent)
                 }
                 Intent.ACTION_BATTERY_LOW -> {
                     if (!isLowBatteryState) {
@@ -365,6 +373,25 @@ class SystemEventMonitor(
      * from. Paired with [stop].
      */
     fun start() {
+        val initialStatus = ContextCompat.registerReceiver(
+            context,
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        val initialRawLevel = initialStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val initialScale = initialStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+        val initialLevel = if (initialScale > 0 && initialRawLevel >= 0) (initialRawLevel * 100 / initialScale) else 0
+        val initialPlugged = initialStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        val initialBatteryStatus = initialStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val initialCap = getBatteryChargeCap(context)
+
+        // Seed state so an already-full battery on service start does not fire a spurious event
+        isFullyChargedState = initialPlugged > 0 && (
+            initialBatteryStatus == BatteryManager.BATTERY_STATUS_FULL ||
+                initialLevel >= initialCap
+        )
+
         // These are all protected system broadcasts, so the receiver is exported.
         ContextCompat.registerReceiver(
             context,
@@ -575,12 +602,113 @@ class SystemEventMonitor(
         .build()
 
     /**
+     * Resolves the device's battery charging cap percentage based on OEM charging optimization
+     * settings (e.g. Pixel 80% limit, Samsung Protect Battery).
+     */
+    internal fun getBatteryChargeCap(context: Context): Int {
+        val cr = context.contentResolver
+
+        val pixelMode = runCatching {
+            Settings.Secure.getInt(cr, KEY_PIXEL_CHARGE_OPT_MODE, -1).takeIf { it != -1 }
+                ?: Settings.Global.getInt(cr, KEY_PIXEL_CHARGE_OPT_MODE, -1)
+        }.getOrDefault(-1)
+        if (pixelMode == PIXEL_CHARGE_OPT_MODE_LIMIT_80) {
+            return CHARGE_CAP_80
+        }
+
+        val samsungProtect = runCatching {
+            Settings.Global.getInt(cr, KEY_SAMSUNG_PROTECT_BATTERY, 0)
+        }.getOrDefault(0)
+        if (samsungProtect == 1) {
+            val customThreshold = runCatching {
+                Settings.Global.getInt(cr, KEY_SAMSUNG_BATTERY_THRESHOLD, -1)
+            }.getOrDefault(-1)
+            return if (customThreshold in 50..95) customThreshold else CHARGE_CAP_80
+        }
+
+        val genericLimit = runCatching {
+            Settings.System.getInt(cr, KEY_GENERIC_CHARGE_LIMIT, -1).takeIf { it != -1 }
+                ?: Settings.Secure.getInt(cr, KEY_GENERIC_CHARGE_LIMIT, -1)
+        }.getOrDefault(-1)
+        if (genericLimit in 50..95) {
+            return genericLimit
+        }
+
+        return 100
+    }
+
+    /**
+     * Handles battery status and level updates, emitting [SystemEventType.CHARGING_COMPLETE] when
+     * the battery reaches 100% or the configured charging optimization cap.
+     */
+    private fun handleBatteryChanged(intent: Intent) {
+        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+        val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        val isPlugged = plugged == BatteryManager.BATTERY_PLUGGED_AC ||
+            plugged == BatteryManager.BATTERY_PLUGGED_USB ||
+            plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
+
+        if (!isPlugged) {
+            isFullyChargedState = false
+            return
+        }
+
+        val level = if (scale > 0 && rawLevel >= 0) (rawLevel * 100 / scale) else getBatteryLevel(context)
+        val cap = getBatteryChargeCap(context)
+
+        val isStatusFull = status == BatteryManager.BATTERY_STATUS_FULL
+        val isCapReached = (cap < 100 && level >= cap) || (cap == 100 && level >= 100)
+        val isChargingStoppedAtCap = isCapReached && (
+            status == BatteryManager.BATTERY_STATUS_NOT_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL ||
+                status == BatteryManager.BATTERY_STATUS_CHARGING
+        )
+        val isComplete = isStatusFull || isChargingStoppedAtCap
+
+        if (isComplete) {
+            if (!isFullyChargedState) {
+                isFullyChargedState = true
+                val isCapped = cap < 100 && level <= cap + 1
+                val title = context.getString(
+                    if (isCapped) R.string.event_charging_limit_reached else R.string.event_charging_complete,
+                )
+                val subtitle = if (isCapped) {
+                    "$level% • Limit reached"
+                } else {
+                    "$level% • Fully charged"
+                }
+                val secondaryLines = if (isCapped) {
+                    listOf("Charging optimization active", "Limit: $cap%")
+                } else {
+                    listOf("Battery fully charged", "Ready to unplug")
+                }
+                emit(
+                    SystemEventPayload(
+                        type = SystemEventType.CHARGING_COMPLETE,
+                        title = title,
+                        subtitle = subtitle,
+                        collapsedBadgeText = "$level%",
+                        secondaryLines = secondaryLines,
+                        actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
+                    ),
+                )
+            }
+        } else if (level < cap - 2) {
+            // Drop charged latch if capacity dips below the target threshold while connected
+            isFullyChargedState = false
+        }
+    }
+
+    /**
      * The set of system broadcasts the pill reacts to, kept in one place so [start] and the
      * manifest can't drift apart.
      */
     private fun buildIntentFilter() = IntentFilter().apply {
         addAction(Intent.ACTION_POWER_CONNECTED)
         addAction(Intent.ACTION_POWER_DISCONNECTED)
+        addAction(Intent.ACTION_BATTERY_CHANGED)
         addAction(Intent.ACTION_BATTERY_LOW)
         addAction(Intent.ACTION_BATTERY_OKAY)
         addAction(Intent.ACTION_SCREEN_OFF)
@@ -613,6 +741,12 @@ class SystemEventMonitor(
         const val EXTRA_WIFI_AP_STATE = "wifi_state"
         const val WIFI_AP_STATE_DISABLED = 11
         const val WIFI_AP_STATE_ENABLED = 13
+        const val KEY_PIXEL_CHARGE_OPT_MODE = "charge_optimization_mode"
+        const val PIXEL_CHARGE_OPT_MODE_LIMIT_80 = 2
+        const val CHARGE_CAP_80 = 80
+        const val KEY_SAMSUNG_PROTECT_BATTERY = "protect_battery"
+        const val KEY_SAMSUNG_BATTERY_THRESHOLD = "battery_protection_threshold"
+        const val KEY_GENERIC_CHARGE_LIMIT = "battery_charge_limit"
 
         val HEADPHONE_TYPES = setOf(
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES,

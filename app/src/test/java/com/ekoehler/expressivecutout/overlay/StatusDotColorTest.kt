@@ -44,6 +44,7 @@ class StatusDotColorTest {
 
         // Battery events show numeric percentage instead of flashing status dot
         assertNull(IconResolver.statusDotColorFor(SystemEventType.CHARGING_STARTED))
+        assertNull(IconResolver.statusDotColorFor(SystemEventType.CHARGING_COMPLETE))
         assertNull(IconResolver.statusDotColorFor(SystemEventType.BATTERY_LOW))
     }
 
@@ -53,6 +54,7 @@ class StatusDotColorTest {
         val warningColor = Color(0xFFFACC15)
 
         assertEquals(successColor, IconResolver.batteryTextColorFor(SystemEventType.CHARGING_STARTED))
+        assertEquals(successColor, IconResolver.batteryTextColorFor(SystemEventType.CHARGING_COMPLETE))
         assertEquals(warningColor, IconResolver.batteryTextColorFor(SystemEventType.BATTERY_LOW))
     }
 }

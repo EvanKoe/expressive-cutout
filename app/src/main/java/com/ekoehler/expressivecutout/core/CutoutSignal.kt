@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Adb
 import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.BatteryFull
 import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Headphones
@@ -165,6 +166,7 @@ enum class SystemEventType(
 ) {
     CHARGING_STARTED(Icons.Rounded.BatteryChargingFull, R.string.event_charging_started, 0xFF4ADE80),
     CHARGING_STOPPED(Icons.Rounded.PowerOff, R.string.event_charging_stopped, 0xFFF87171),
+    CHARGING_COMPLETE(Icons.Rounded.BatteryFull, R.string.event_charging_complete, 0xFF4ADE80),
     BATTERY_LOW(Icons.Rounded.BatteryAlert, R.string.event_battery_low, 0xFFF87171),
     WIFI_CONNECTED(Icons.Rounded.Wifi, R.string.event_wifi_connected, 0xFF4ADE80),
     WIFI_DISCONNECTED(Icons.Rounded.WifiOff, R.string.event_wifi_disconnected, 0xFFF87171),

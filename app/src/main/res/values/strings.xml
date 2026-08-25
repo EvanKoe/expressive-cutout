@@ -7,6 +7,8 @@
     <!-- System event labels shown inside the island -->
     <string name="event_charging_started">Charging</string>
     <string name="event_charging_stopped">Unplugged</string>
+    <string name="event_charging_complete">Fully charged</string>
+    <string name="event_charging_limit_reached">Charge limit reached</string>
     <string name="event_battery_low">Battery low</string>
     <string name="event_wifi_connected">Wi‑Fi connected</string>
     <string name="event_wifi_disconnected">Wi‑Fi lost</string>

@@ -412,8 +412,9 @@ class IconResolver(private val context: Context) {
             ?: payload.vectorIconName?.let { MaterialIconCatalog.iconFor(it)?.let(IslandIcon::Vector) }
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
-        
-        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED || type == SystemEventType.BATTERY_LOW
+        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED ||
+            type == SystemEventType.BATTERY_LOW ||
+            type == SystemEventType.CHARGING_COMPLETE
         val trailingText = payload.collapsedBadgeText ?: if (isBatteryEvent) {
             val level = getBatteryPercentage(context).coerceIn(0, 100)
             "$level%"
@@ -464,6 +465,7 @@ class IconResolver(private val context: Context) {
 
         fun statusDotColorFor(type: SystemEventType): Color? = when (type) {
             SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE,
             SystemEventType.BATTERY_LOW -> null
             SystemEventType.WIFI_CONNECTED,
             SystemEventType.HEADPHONES_CONNECTED,
@@ -489,17 +491,15 @@ class IconResolver(private val context: Context) {
             SystemEventType.RINGER_SILENT -> STATUS_COLOR_DANGER
         }
 
-        /**
-         * Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'
-         * notifications localise to the device language, but English covers the common case); the
-         * phrases avoid false hits like "send" that a bare "end" would catch.
-         */
+        /** Returns the semantic accent used for battery percentage text. */
         fun batteryTextColorFor(type: SystemEventType): Color = when (type) {
-            SystemEventType.CHARGING_STARTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE -> STATUS_COLOR_SUCCESS
             SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
             else -> STATUS_COLOR_SUCCESS
         }
 
+        /** Reads the current battery percentage, falling back to a full value when unavailable. */
         fun getBatteryPercentage(context: Context): Int {
             val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
             val capacity = batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -515,6 +515,7 @@ class IconResolver(private val context: Context) {
             }
             return 100
         }
+        /** Lower-cased substrings that mark a call's end or decline action. */
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
 
         /**
