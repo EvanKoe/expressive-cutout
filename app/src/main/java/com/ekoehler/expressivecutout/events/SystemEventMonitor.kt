@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.events
 
 import android.app.KeyguardManager
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -122,9 +123,7 @@ class SystemEventMonitor(
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
                     val device = getUsbDevice(intent)
-                    val name = device?.productName?.takeIf { it.isNotBlank() }
-                        ?: device?.deviceName
-                        ?: "Accessory connected"
+                    val name = device?.productName?.takeIf { it.isNotBlank() } ?: "Accessory connected"
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.USB_MOUNTED,
@@ -171,29 +170,40 @@ class SystemEventMonitor(
                 }
                 BluetoothDevice.ACTION_ACL_CONNECTED -> {
                     val device = getBluetoothDevice(intent)
-                    val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
-                        ?: "Bluetooth accessory"
-                    emit(
-                        SystemEventPayload(
-                            type = SystemEventType.BLUETOOTH_CONNECTED,
-                            title = context.getString(R.string.event_bluetooth_connected),
-                            subtitle = name,
-                            actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
-                        ),
-                    )
+                    // Audio headsets/earbuds are handled separately with rich metadata by AudioDeviceCallback
+                    val isAudio = runCatching {
+                        device?.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO
+                    }.getOrDefault(false)
+                    if (!isAudio) {
+                        val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
+                            ?: "Bluetooth accessory"
+                        emit(
+                            SystemEventPayload(
+                                type = SystemEventType.BLUETOOTH_CONNECTED,
+                                title = context.getString(R.string.event_bluetooth_connected),
+                                subtitle = name,
+                                actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
+                            ),
+                        )
+                    }
                 }
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                     val device = getBluetoothDevice(intent)
-                    val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
-                        ?: "Device disconnected"
-                    emit(
-                        SystemEventPayload(
-                            type = SystemEventType.BLUETOOTH_DISCONNECTED,
-                            title = context.getString(R.string.event_bluetooth_disconnected),
-                            subtitle = name,
-                            actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
-                        ),
-                    )
+                    val isAudio = runCatching {
+                        device?.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO
+                    }.getOrDefault(false)
+                    if (!isAudio) {
+                        val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
+                            ?: "Device disconnected"
+                        emit(
+                            SystemEventPayload(
+                                type = SystemEventType.BLUETOOTH_DISCONNECTED,
+                                title = context.getString(R.string.event_bluetooth_disconnected),
+                                subtitle = name,
+                                actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
+                            ),
+                        )
+                    }
                 }
                 ACTION_WIFI_AP_STATE_CHANGED -> {
                     val state = intent.getIntExtra(EXTRA_WIFI_AP_STATE, 0)
@@ -393,14 +403,7 @@ class SystemEventMonitor(
             // Screen turned on and the device is already unlocked (e.g. fingerprint on power button or no lock).
             isDeviceCurrentlyLocked = false
             stopLockPolling()
-            emit(
-                SystemEventPayload(
-                    type = SystemEventType.DEVICE_UNLOCKED,
-                    title = context.getString(R.string.event_device_unlocked),
-                    subtitle = "Device unlocked",
-                    actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
-                ),
-            )
+            emitUnlocked()
         }
     }
 
@@ -408,14 +411,7 @@ class SystemEventMonitor(
         stopLockPolling()
         if (isDeviceCurrentlyLocked) {
             isDeviceCurrentlyLocked = false
-            emit(
-                SystemEventPayload(
-                    type = SystemEventType.DEVICE_UNLOCKED,
-                    title = context.getString(R.string.event_device_unlocked),
-                    subtitle = "Device unlocked",
-                    actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
-                ),
-            )
+            emitUnlocked()
         }
     }
 
@@ -428,14 +424,7 @@ class SystemEventMonitor(
                 if (!locked) {
                     if (isDeviceCurrentlyLocked) {
                         isDeviceCurrentlyLocked = false
-                        emit(
-                            SystemEventPayload(
-                                type = SystemEventType.DEVICE_UNLOCKED,
-                                title = context.getString(R.string.event_device_unlocked),
-                                subtitle = "Device unlocked",
-                                actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
-                            ),
-                        )
+                        emitUnlocked()
                     }
                     break
                 }
@@ -448,9 +437,21 @@ class SystemEventMonitor(
         lockPollingJob = null
     }
 
+    private fun emitUnlocked() {
+        emit(
+            SystemEventPayload(
+                type = SystemEventType.DEVICE_UNLOCKED,
+                title = context.getString(R.string.event_device_unlocked),
+                subtitle = "Device unlocked",
+                actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
+            ),
+        )
+    }
+
     private fun emit(payload: SystemEventPayload) =
         IslandEventBus.emit(CutoutSignal.System(payload))
 
+    /** Reads the current battery capacity (0..100) using [BatteryManager]. */
     private fun getBatteryLevel(context: Context): Int {
         val batteryManager = context.getSystemService<BatteryManager>()
         val capacity = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -471,6 +472,7 @@ class SystemEventMonitor(
         return 100
     }
 
+    /** Resolves the charging source label (Fast charging / Wireless / USB) from the sticky battery broadcast. */
     private fun getBatteryPlugType(context: Context): String? = runCatching {
         val status = ContextCompat.registerReceiver(
             context,
@@ -486,6 +488,7 @@ class SystemEventMonitor(
         }
     }.getOrNull()
 
+    /** Safely extracts the active Wi-Fi network's SSID when available and permitted. */
     private fun getWifiSsid(context: Context): String? = runCatching {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val info = wifiManager?.connectionInfo
@@ -493,6 +496,7 @@ class SystemEventMonitor(
         if (ssid == null || ssid == "<unknown ssid>" || ssid.isBlank()) null else ssid
     }.getOrNull()
 
+    /** Safely extracts the attached [UsbDevice] from [intent] across Android SDK versions. */
     @Suppress("DEPRECATION")
     private fun getUsbDevice(intent: Intent): UsbDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
@@ -500,12 +504,19 @@ class SystemEventMonitor(
         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
     }
 
+    /** Safely extracts the connected [BluetoothDevice] from [intent] across Android SDK versions. */
     @Suppress("DEPRECATION")
     private fun getBluetoothDevice(intent: Intent): BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
     } else {
         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
     }
+
+    /** Builds the [NetworkRequest] matching active VPN connections. */
+    private fun vpnRequest() = NetworkRequest.Builder()
+        .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+        .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+        .build()
 
     /**
      * The set of system broadcasts the pill reacts to, kept in one place so [start] and the
@@ -528,13 +539,9 @@ class SystemEventMonitor(
         addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
     }
 
+    /** Builds the [NetworkRequest] matching active Wi-Fi connections. */
     private fun wifiRequest() = NetworkRequest.Builder()
         .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-        .build()
-
-    private fun vpnRequest() = NetworkRequest.Builder()
-        .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
-        .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         .build()
 
     private val AudioDeviceInfo.isHeadphone: Boolean

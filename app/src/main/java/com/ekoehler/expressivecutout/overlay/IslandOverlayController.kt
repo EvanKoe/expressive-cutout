@@ -1980,7 +1980,7 @@ class IslandOverlayController(private val context: Context) {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(launchIntent)
-            }
+            }.onFailure { Log.w(TAG, "Failed to launch settings action", it) }
         }
     }
 
