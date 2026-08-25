@@ -6,10 +6,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import com.airbnb.lottie.compose.LottieConstants
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -108,8 +110,7 @@ class IconResolver(private val context: Context) {
                 dynamicEventColorOpacity,
             )
             is CutoutSignal.System -> resolveSystem(
-                signal.type,
-                signal.batteryLevel,
+                signal.payload,
                 customIcons,
                 dynamicEventColor,
                 dynamicEventColorRole,
@@ -386,8 +387,7 @@ class IconResolver(private val context: Context) {
     }
 
     private fun resolveSystem(
-        type: SystemEventType,
-        batteryLevel: Int?,
+        payload: SystemEventPayload,
         customIcons: Map<SystemEventType, IconSource>,
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
@@ -396,6 +396,7 @@ class IconResolver(private val context: Context) {
         animatedIconLoop: Map<SystemEventType, Boolean>,
         eventColorOverrides: Map<SystemEventType, CutoutColor>,
     ): IslandEvent {
+        val type = payload.type
         // A user override always wins; otherwise events with an animation (charging / unlock) use it
         // when the "Animated icon" toggle is on — looping per the "Loop" toggle — and every other
         // event (or a disabled animation) falls back to the static default glyph.
@@ -407,26 +408,33 @@ class IconResolver(private val context: Context) {
             },
         )
         val icon = customIcons[type]?.toIslandIconOrNull()
+            ?: payload.iconBitmap?.let { IslandIcon.Raster(it.asImageBitmap()) }
+            ?: payload.vectorIconName?.let { MaterialIconCatalog.iconFor(it)?.let(IslandIcon::Vector) }
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
         
         val isBatteryEvent = type == SystemEventType.CHARGING_STARTED || type == SystemEventType.BATTERY_LOW
-        val trailingText = if (isBatteryEvent) {
-            val level = (batteryLevel ?: getBatteryPercentage(context)).coerceIn(0, 100)
+        val trailingText = payload.collapsedBadgeText ?: if (isBatteryEvent) {
+            val level = getBatteryPercentage(context).coerceIn(0, 100)
             "$level%"
         } else {
             null
         }
-        val trailingTextColor = if (isBatteryEvent) {
+        val trailingTextColor = if (isBatteryEvent || payload.collapsedBadgeText != null) {
             batteryTextColorFor(type)
         } else {
             null
         }
-        val statusColor = if (isBatteryEvent) null else statusDotColorFor(type)
+        val statusColor = if (trailingText != null) null else statusDotColorFor(type)
+
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
-            label = context.getString(type.labelRes),
+            label = payload.title ?: context.getString(type.labelRes),
+            detail = payload.subtitle,
+            secondaryLines = payload.secondaryLines,
+            actionIntentAction = payload.actionIntentAction,
+            actionIntentUri = payload.actionIntentUri,
             accent = Color(type.accent),
             useThemeColor = dynamicEventColor,
             themeColorRole = dynamicEventColorRole,
@@ -457,15 +465,26 @@ class IconResolver(private val context: Context) {
         fun statusDotColorFor(type: SystemEventType): Color? = when (type) {
             SystemEventType.CHARGING_STARTED,
             SystemEventType.BATTERY_LOW -> null
-            SystemEventType.WIFI_CONNECTED -> STATUS_COLOR_SUCCESS
-            SystemEventType.HEADPHONES_CONNECTED -> STATUS_COLOR_SUCCESS
-            SystemEventType.USB_MOUNTED -> STATUS_COLOR_SUCCESS
-            SystemEventType.DEVICE_LOCKED -> STATUS_COLOR_WARNING
-            SystemEventType.DEVICE_UNLOCKED -> STATUS_COLOR_WARNING
-            SystemEventType.CHARGING_STOPPED -> STATUS_COLOR_DANGER
-            SystemEventType.WIFI_DISCONNECTED -> STATUS_COLOR_DANGER
-            SystemEventType.HEADPHONES_DISCONNECTED -> STATUS_COLOR_DANGER
-            SystemEventType.USB_UNMOUNTED -> STATUS_COLOR_DANGER
+            SystemEventType.WIFI_CONNECTED,
+            SystemEventType.HEADPHONES_CONNECTED,
+            SystemEventType.USB_MOUNTED,
+            SystemEventType.VPN_CONNECTED,
+            SystemEventType.ADB_CONNECTED,
+            SystemEventType.BLUETOOTH_CONNECTED,
+            SystemEventType.HOTSPOT_ENABLED,
+            SystemEventType.RINGER_NORMAL -> STATUS_COLOR_SUCCESS
+            SystemEventType.DEVICE_LOCKED,
+            SystemEventType.DEVICE_UNLOCKED,
+            SystemEventType.RINGER_VIBRATE -> STATUS_COLOR_WARNING
+            SystemEventType.CHARGING_STOPPED,
+            SystemEventType.WIFI_DISCONNECTED,
+            SystemEventType.HEADPHONES_DISCONNECTED,
+            SystemEventType.USB_UNMOUNTED,
+            SystemEventType.VPN_DISCONNECTED,
+            SystemEventType.ADB_DISCONNECTED,
+            SystemEventType.BLUETOOTH_DISCONNECTED,
+            SystemEventType.HOTSPOT_DISABLED,
+            SystemEventType.RINGER_SILENT -> STATUS_COLOR_DANGER
         }
 
         /**

@@ -16,6 +16,17 @@
     <string name="event_usb_unmounted">USB removed</string>
     <string name="event_device_locked">Locked</string>
     <string name="event_device_unlocked">Unlocked</string>
+    <string name="event_vpn_connected">VPN connected</string>
+    <string name="event_vpn_disconnected">VPN disconnected</string>
+    <string name="event_adb_connected">USB debugging connected</string>
+    <string name="event_adb_disconnected">USB debugging disconnected</string>
+    <string name="event_bluetooth_connected">Bluetooth connected</string>
+    <string name="event_bluetooth_disconnected">Bluetooth disconnected</string>
+    <string name="event_hotspot_enabled">Hotspot active</string>
+    <string name="event_hotspot_disabled">Hotspot disabled</string>
+    <string name="event_ringer_normal">Sound on</string>
+    <string name="event_ringer_vibrate">Vibrate</string>
+    <string name="event_ringer_silent">Silent</string>
 
     <!-- Dynamic tile labels shown inside the island -->
     <string name="tile_music">Music</string>

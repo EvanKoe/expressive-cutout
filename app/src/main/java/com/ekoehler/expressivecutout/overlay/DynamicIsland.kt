@@ -705,15 +705,17 @@ fun DynamicIsland(
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
 
+                                    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
+
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
-                                        if (shownEvent.contentIntent != null) onActivate()
+                                        if (canActivate) onActivate()
                                         return@detectTapGestures
                                     }
 
-                                    // Tap to open the app
-                                    if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
+                                    // Tap to open the app or settings
+                                    if ((isExpanded || forcedExpanded == false) && canActivate) {
                                         tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
@@ -1672,6 +1674,22 @@ private fun ExpandedContent(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (event.secondaryLines.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            event.secondaryLines.forEach { line ->
+                                Text(
+                                    text = line,
+                                    color = LocalContentColor.current.copy(alpha = 0.70f),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
 
                     var lastProgressData by remember { mutableStateOf(progressData) }

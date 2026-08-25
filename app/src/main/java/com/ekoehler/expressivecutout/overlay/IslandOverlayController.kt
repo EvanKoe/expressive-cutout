@@ -12,6 +12,7 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -1962,6 +1963,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onActivate() {
         val event = currentEvent.value
         val intent = event?.contentIntent
+        val action = event?.actionIntentAction
         if (isPinnedLiveTile()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
@@ -1969,7 +1971,17 @@ class IslandOverlayController(private val context: Context) {
         }
         event?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
-        intent?.let(::sendPendingIntent)
+        if (intent != null) {
+            sendPendingIntent(intent)
+        } else if (action != null) {
+            runCatching {
+                val launchIntent = Intent(action).apply {
+                    event.actionIntentUri?.let { data = Uri.parse(it) }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(launchIntent)
+            }
+        }
     }
 
     /**
