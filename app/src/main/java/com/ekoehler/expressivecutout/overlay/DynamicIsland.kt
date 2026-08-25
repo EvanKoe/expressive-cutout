@@ -1130,33 +1130,12 @@ private fun CollapsedContent(
             }
         }
         event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
-            val indicatorModifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
-                .size((heightDp * 0.5f).dp)
-            val strokeWidth = (heightDp * 0.06f).dp
-            if (progress.isIndeterminate) {
-                CircularProgressIndicator(
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
-                )
-            } else {
-                val fraction = if (progress.max <= 0) 0f
-                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
-                val animatedFraction by animateFloatAsState(
-                    targetValue = fraction,
-                    label = "collapsedProgress",
-                )
-                CircularProgressIndicator(
-                    progress = { animatedFraction },
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
-                )
-            }
+            CollapsedProgressIndicator(
+                progress = progress,
+                heightDp = heightDp,
+                trailingInsetDp = trailingInsetDp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
         }
         // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
         if (event.timer == null && event.progressData == null && !isStickToCamera) {
@@ -1180,6 +1159,146 @@ private fun CollapsedContent(
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * 0.20f).dp),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
+ * 100% while in progress, and upon completion seamlessly fills in, bounces in a checkmark, and
+ * emits an expanding radiating pulse wave.
+ */
+@Composable
+private fun CollapsedProgressIndicator(
+    progress: ProgressData,
+    heightDp: Int,
+    trailingInsetDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val indicatorSize = (heightDp * 0.5f).dp
+    val strokeWidth = (heightDp * 0.06f).dp
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+
+    val indicatorModifier = modifier
+        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
+
+    if (progress.isIndeterminate) {
+        CircularProgressIndicator(
+            modifier = indicatorModifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = primaryContainer,
+            strokeWidth = strokeWidth,
+        )
+        return
+    }
+
+    val fraction = if (progress.max <= 0) 0f
+        else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "collapsedProgress",
+    )
+
+    val isComplete = progress.isComplete || (fraction >= 1f && progress.max > 0)
+
+    val fillScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "progressCompleteFill",
+    )
+
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "progressCompleteCheckmark",
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "completedProgressPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseScale",
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isComplete) 0.65f else 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseAlpha",
+    )
+
+    Box(
+        modifier = indicatorModifier.size(indicatorSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse wave upon download completion
+        if (isComplete && pulseAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        alpha = pulseAlpha
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+            )
+        }
+
+        // Circular progress ring
+        CircularProgressIndicator(
+            progress = { animatedFraction },
+            modifier = Modifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = if (isComplete) primaryColor.copy(alpha = 0.2f) else primaryContainer,
+            strokeWidth = strokeWidth,
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        )
+
+        // Seamless inner fill disc
+        if (fillScale > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = fillScale
+                        scaleY = fillScale
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Check mark icon
+                if (checkmarkScale > 0f) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = onPrimaryColor,
+                        modifier = Modifier
+                            .size(indicatorSize * 0.65f)
+                            .graphicsLayer {
+                                scaleX = checkmarkScale
+                                scaleY = checkmarkScale
+                            },
+                    )
+                }
             }
         }
     }
