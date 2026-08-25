@@ -986,17 +986,19 @@ private fun IslandSurface(
         tonalElevation = 0.dp,
         border = border,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxSize().background(normalBrush))
-            if (progress > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = progress }
-                        .background(expandedBrush),
-                )
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize().background(normalBrush))
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = progress }
+                            .background(expandedBrush),
+                    )
+                }
+                content()
             }
-            content()
         }
     }
 }
@@ -1534,12 +1536,6 @@ private fun ExpandedContent(
         showTimestamp = appearance.showTimestamp,
     )
 
-    val contentFade by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = motion?.fade() ?: tween(180),
-        label = "expandedContentFade",
-    )
-
     val innerWidth = if (targetWidthDp != null && targetWidthDp > 36) (targetWidthDp - 36).dp else null
 
     // Content sits below the top margin, leaving the top clear of the camera hole.
@@ -1548,8 +1544,7 @@ private fun ExpandedContent(
             .fillMaxWidth()
             .wrapContentHeight(align = Alignment.Top, unbounded = true)
             .wrapContentWidth(unbounded = true, align = Alignment.Start)
-            .padding(horizontal = 18.dp)
-            .graphicsLayer { alpha = contentFade },
+            .padding(horizontal = 18.dp),
     ) {
         Column(
             modifier = Modifier
@@ -1564,11 +1559,8 @@ private fun ExpandedContent(
                 },
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
-            // Weighted so the action / reply row below claims its full height first and the header
-            // takes what is left: when the card is too short for both, the text ellipsises rather
-            // than the buttons shrinking.
             Row(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -1592,13 +1584,9 @@ private fun ExpandedContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // The only flexible child: the title above and the progress bar below are
-                    // measured at their full size first, so a card too short for all three cuts
-                    // the body text down (and ellipsises it) rather than shaving the bar.
                     event.detail?.let { detail ->
                         Text(
                             text = detail,
-                            modifier = Modifier.weight(1f, fill = false),
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
                             maxLines = if (appearance.showFullNotificationText) 20 else 1,
