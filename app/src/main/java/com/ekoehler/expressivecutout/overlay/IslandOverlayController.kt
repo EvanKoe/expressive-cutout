@@ -1388,6 +1388,10 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
             // Skip anything posted by an app the user muted on the Apps screen.
             if (signal.sourcePackage() in disabledApps) return@collect
+            // Skip silent notifications when configured to ignore them.
+            if (signal is CutoutSignal.Notification && behaviourState.value.ignoreSilentNotifications && signal.isSilent) {
+                return@collect
+            }
 
             if (signal is CutoutSignal.Assistant && !signal.active) {
                 assistantActive = false

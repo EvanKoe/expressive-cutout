@@ -379,6 +379,8 @@
     <string name="behaviour_disappear_desc">When the island shrinks it disappears entirely, instead of returning to the normal cutout.</string>
     <string name="behaviour_notif_auto_expand">Auto-expand notifications</string>
     <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
+    <string name="behaviour_ignore_silent_notif">Ignore silent notifications</string>
+    <string name="behaviour_ignore_silent_notif_desc">Don\'t show a cutout bubble for notifications marked as silent</string>
     <string name="behaviour_action_buttons">Show action buttons</string>
     <string name="behaviour_action_buttons_desc">Show a notification\'s action buttons in the expanded cutout. Adds a little height so they clear the camera.</string>
     <string name="behaviour_shrink_swipe_up">Shrink on swipe up</string>

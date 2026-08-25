@@ -47,7 +47,8 @@ sealed interface CutoutSignal {
          * a valid notification, and the fallback when [largeIcon] is null.
          */
         val smallIcon: Icon? = null,
-        val progressData: ProgressData? = null
+        val progressData: ProgressData? = null,
+        val isSilent: Boolean = false,
     ) : CutoutSignal {
 
         /**
