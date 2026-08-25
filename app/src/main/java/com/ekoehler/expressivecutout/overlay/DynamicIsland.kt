@@ -946,17 +946,19 @@ private fun IslandSurface(
         tonalElevation = 0.dp,
         border = border,
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(currentBaseColor)) {
-            Box(modifier = Modifier.fillMaxSize().background(normalBrush))
-            if (progress > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = progress }
-                        .background(expandedBrush),
-                )
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            Box(modifier = Modifier.fillMaxSize().background(currentBaseColor)) {
+                Box(modifier = Modifier.fillMaxSize().background(normalBrush))
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = progress }
+                            .background(expandedBrush),
+                    )
+                }
+                content()
             }
-            content()
         }
     }
 }
