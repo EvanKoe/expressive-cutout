@@ -394,6 +394,14 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
         collapsedBadgeText = "85%",
         actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
     )
+    SystemEventType.CHARGING_COMPLETE -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_charging_complete),
+        subtitle = "100% • Fully charged",
+        collapsedBadgeText = "100%",
+        secondaryLines = listOf("Battery fully charged", "Ready to unplug"),
+        actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
+    )
     SystemEventType.BATTERY_LOW -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_battery_low),

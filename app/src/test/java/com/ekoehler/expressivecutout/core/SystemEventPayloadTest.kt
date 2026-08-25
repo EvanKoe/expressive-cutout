@@ -73,4 +73,34 @@ class SystemEventPayloadTest {
         assertEquals(SystemEventType.WIRELESS_DEBUGGING_CONNECTED, wirelessSignal.type)
         assertEquals("Wi‑Fi", wirelessSignal.payload.collapsedBadgeText)
     }
+
+    @Test
+    fun testChargingCompletePayloads() {
+        val fullPayload = SystemEventPayload(
+            type = SystemEventType.CHARGING_COMPLETE,
+            title = "Fully charged",
+            subtitle = "100% • Fully charged",
+            collapsedBadgeText = "100%",
+            secondaryLines = listOf("Battery fully charged", "Ready to unplug"),
+            actionIntentAction = "android.intent.action.POWER_USAGE_SUMMARY",
+        )
+        val fullSignal = CutoutSignal.System(fullPayload)
+        assertEquals(SystemEventType.CHARGING_COMPLETE, fullSignal.type)
+        assertEquals(100, fullSignal.batteryLevel)
+        assertEquals("100%", fullSignal.payload.collapsedBadgeText)
+
+        val cappedPayload = SystemEventPayload(
+            type = SystemEventType.CHARGING_COMPLETE,
+            title = "Charge limit reached",
+            subtitle = "80% • Limit reached",
+            collapsedBadgeText = "80%",
+            secondaryLines = listOf("Charging optimization active", "Limit: 80%"),
+            actionIntentAction = "android.intent.action.POWER_USAGE_SUMMARY",
+        )
+        val cappedSignal = CutoutSignal.System(cappedPayload)
+        assertEquals(SystemEventType.CHARGING_COMPLETE, cappedSignal.type)
+        assertEquals(80, cappedSignal.batteryLevel)
+        assertEquals("80%", cappedSignal.payload.collapsedBadgeText)
+        assertEquals("Charge limit reached", cappedSignal.payload.title)
+    }
 }

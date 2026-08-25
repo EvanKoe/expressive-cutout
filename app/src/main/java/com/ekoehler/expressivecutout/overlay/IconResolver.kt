@@ -471,7 +471,9 @@ class IconResolver(private val context: Context) {
             ?: context.getString(R.string.app_name)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
 
-        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED || type == SystemEventType.BATTERY_LOW
+        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED ||
+            type == SystemEventType.BATTERY_LOW ||
+            type == SystemEventType.CHARGING_COMPLETE
         val trailingText = payload.collapsedBadgeText ?: if (isBatteryEvent) {
             val level = getBatteryPercentage(context).coerceIn(0, 100)
             "$level%"
@@ -524,6 +526,7 @@ class IconResolver(private val context: Context) {
 
         fun statusDotColorFor(type: SystemEventType): Color? = when (type) {
             SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE,
             SystemEventType.BATTERY_LOW -> null
             SystemEventType.WIFI_CONNECTED,
             SystemEventType.HEADPHONES_CONNECTED,
@@ -550,7 +553,8 @@ class IconResolver(private val context: Context) {
         }
 
         fun batteryTextColorFor(type: SystemEventType): Color = when (type) {
-            SystemEventType.CHARGING_STARTED -> STATUS_COLOR_SUCCESS
+            SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE -> STATUS_COLOR_SUCCESS
             SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
             else -> STATUS_COLOR_SUCCESS
         }

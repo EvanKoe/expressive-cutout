@@ -7,7 +7,9 @@ import androidx.compose.material.icons.rounded.Anchor
 import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.BatteryFull
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Call
@@ -81,6 +83,7 @@ object MaterialIconCatalog {
         MaterialIconOption("thumb_up", Icons.Rounded.ThumbUp),
         MaterialIconOption("bolt", Icons.Rounded.Bolt),
         MaterialIconOption("battery_charging", Icons.Rounded.BatteryChargingFull),
+        MaterialIconOption("battery_full", Icons.Rounded.BatteryFull),
         MaterialIconOption("notifications", Icons.Rounded.Notifications),
         MaterialIconOption("alarm", Icons.Rounded.Alarm),
         MaterialIconOption("access_time", Icons.Rounded.AccessTime),
