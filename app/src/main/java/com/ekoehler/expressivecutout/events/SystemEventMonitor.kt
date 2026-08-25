@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.database.ContentObserver
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.media.AudioDeviceCallback
@@ -19,6 +20,8 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -60,9 +63,18 @@ class SystemEventMonitor(
     private var isAdbConnected = false
 
     @Volatile
+    private var isWirelessAdbConnected = false
+
+    @Volatile
     private var lastRingerMode = -1
 
     private var lockPollingJob: Job? = null
+
+    private val adbWifiObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            checkWirelessAdbState()
+        }
+    }
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -148,11 +160,14 @@ class SystemEventMonitor(
                     val adb = intent.getBooleanExtra(EXTRA_ADB, false)
                     if (connected && adb && !isAdbConnected) {
                         isAdbConnected = true
+                        val secondary = listOf("Mode: Wired USB ADB", "RSA key authorized")
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.ADB_CONNECTED,
                                 title = context.getString(R.string.event_adb_connected),
-                                subtitle = "ADB session active",
+                                subtitle = "Connected to host workstation",
+                                collapsedBadgeText = "USB",
+                                secondaryLines = secondary,
                                 actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                             ),
                         )
@@ -162,7 +177,8 @@ class SystemEventMonitor(
                             SystemEventPayload(
                                 type = SystemEventType.ADB_DISCONNECTED,
                                 title = context.getString(R.string.event_adb_disconnected),
-                                subtitle = "ADB session closed",
+                                subtitle = "Session closed",
+                                collapsedBadgeText = "USB",
                                 actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                             ),
                         )
@@ -360,6 +376,11 @@ class SystemEventMonitor(
         connectivityManager?.registerNetworkCallback(wifiRequest(), wifiCallback)
         connectivityManager?.registerNetworkCallback(vpnRequest(), vpnCallback)
 
+        runCatching {
+            val uri = Settings.Global.getUriFor(GLOBAL_ADB_WIFI_ENABLED)
+            context.contentResolver.registerContentObserver(uri, false, adbWifiObserver)
+        }
+
         if (keyguardManager?.isDeviceLocked == true) {
             isDeviceCurrentlyLocked = true
             startLockPolling()
@@ -376,9 +397,44 @@ class SystemEventMonitor(
         stopLockPolling()
         scope.cancel()
         runCatching { context.unregisterReceiver(broadcastReceiver) }
+        runCatching { context.contentResolver.unregisterContentObserver(adbWifiObserver) }
         audioManager?.unregisterAudioDeviceCallback(audioDeviceCallback)
         connectivityManager?.unregisterNetworkCallback(wifiCallback)
         connectivityManager?.unregisterNetworkCallback(vpnCallback)
+    }
+
+    /** Checks wireless ADB setting and emits connect / disconnect events accordingly. */
+    private fun checkWirelessAdbState() {
+        val enabled = runCatching {
+            Settings.Global.getInt(context.contentResolver, GLOBAL_ADB_WIFI_ENABLED, 0) == 1
+        }.getOrDefault(false)
+
+        if (enabled && !isWirelessAdbConnected) {
+            isWirelessAdbConnected = true
+            val ssid = getWifiSsid(context) ?: "Local network"
+            val secondary = listOf("Mode: Wireless ADB", "Network: $ssid")
+            emit(
+                SystemEventPayload(
+                    type = SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
+                    title = context.getString(R.string.event_wireless_debugging_connected),
+                    subtitle = "Wireless ADB active",
+                    collapsedBadgeText = "Wi‑Fi",
+                    secondaryLines = secondary,
+                    actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+                ),
+            )
+        } else if (!enabled && isWirelessAdbConnected) {
+            isWirelessAdbConnected = false
+            emit(
+                SystemEventPayload(
+                    type = SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED,
+                    title = context.getString(R.string.event_wireless_debugging_disconnected),
+                    subtitle = "Wireless session closed",
+                    collapsedBadgeText = "Wi‑Fi",
+                    actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+                ),
+            )
+        }
     }
 
     private fun onScreenOff() {
@@ -549,6 +605,7 @@ class SystemEventMonitor(
 
     private companion object {
         const val LOCK_POLL_INTERVAL_MS = 150L
+        const val GLOBAL_ADB_WIFI_ENABLED = "adb_wifi_enabled"
         const val ACTION_USB_STATE = "android.hardware.usb.action.USB_STATE"
         const val ACTION_WIFI_AP_STATE_CHANGED = "android.net.wifi.WIFI_AP_STATE_CHANGED"
         const val EXTRA_CONNECTED = "connected"

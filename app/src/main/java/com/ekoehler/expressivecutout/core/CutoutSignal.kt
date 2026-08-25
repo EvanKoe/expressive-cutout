@@ -180,6 +180,8 @@ enum class SystemEventType(
     VPN_DISCONNECTED(Icons.Rounded.VpnKeyOff, R.string.event_vpn_disconnected, 0xFFF87171),
     ADB_CONNECTED(Icons.Rounded.Adb, R.string.event_adb_connected, 0xFF4ADE80),
     ADB_DISCONNECTED(Icons.Rounded.Adb, R.string.event_adb_disconnected, 0xFFF87171),
+    WIRELESS_DEBUGGING_CONNECTED(Icons.Rounded.Adb, R.string.event_wireless_debugging_connected, 0xFF38BDF8),
+    WIRELESS_DEBUGGING_DISCONNECTED(Icons.Rounded.Adb, R.string.event_wireless_debugging_disconnected, 0xFFF87171),
     BLUETOOTH_CONNECTED(Icons.Rounded.BluetoothConnected, R.string.event_bluetooth_connected, 0xFF38BDF8),
     BLUETOOTH_DISCONNECTED(Icons.Rounded.BluetoothDisabled, R.string.event_bluetooth_disconnected, 0xFFF87171),
     HOTSPOT_ENABLED(Icons.Rounded.WifiTethering, R.string.event_hotspot_enabled, 0xFF4ADE80),

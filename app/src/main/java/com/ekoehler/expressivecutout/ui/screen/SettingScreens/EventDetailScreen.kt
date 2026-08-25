@@ -466,14 +466,31 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.ADB_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_adb_connected),
-        subtitle = "ADB session active",
-        secondaryLines = listOf("RSA key authorized"),
+        subtitle = "MacBook Pro (M3 Max)",
+        collapsedBadgeText = "USB",
+        secondaryLines = listOf("Mode: Wired USB ADB", "RSA key authorized"),
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.ADB_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_adb_disconnected),
-        subtitle = "ADB session closed",
+        subtitle = "Session closed",
+        collapsedBadgeText = "USB",
+        actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+    )
+    SystemEventType.WIRELESS_DEBUGGING_CONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_wireless_debugging_connected),
+        subtitle = "Workstation-Desktop",
+        collapsedBadgeText = "Wi‑Fi",
+        secondaryLines = listOf("Mode: Wireless ADB", "IP: 192.168.1.150:5555", "Paired device active"),
+        actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+    )
+    SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED -> SystemEventPayload(
+        type = type,
+        title = context.getString(R.string.event_wireless_debugging_disconnected),
+        subtitle = "Wireless session closed",
+        collapsedBadgeText = "Wi‑Fi",
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.BLUETOOTH_CONNECTED -> SystemEventPayload(

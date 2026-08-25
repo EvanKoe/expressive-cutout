@@ -46,4 +46,31 @@ class SystemEventPayloadTest {
         assertEquals(2, signal.payload.secondaryLines.size)
         assertEquals("android.settings.WIRELESS_SETTINGS", signal.payload.actionIntentAction)
     }
+
+    @Test
+    fun testWiredAndWirelessAdbPayloads() {
+        val wiredPayload = SystemEventPayload(
+            type = SystemEventType.ADB_CONNECTED,
+            title = "USB debugging connected",
+            subtitle = "Connected to host workstation",
+            collapsedBadgeText = "USB",
+            secondaryLines = listOf("Mode: Wired USB ADB", "RSA key authorized"),
+            actionIntentAction = "android.settings.APPLICATION_DEVELOPMENT_SETTINGS",
+        )
+        val wiredSignal = CutoutSignal.System(wiredPayload)
+        assertEquals(SystemEventType.ADB_CONNECTED, wiredSignal.type)
+        assertEquals("USB", wiredSignal.payload.collapsedBadgeText)
+
+        val wirelessPayload = SystemEventPayload(
+            type = SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
+            title = "Wireless debugging connected",
+            subtitle = "Workstation-Desktop",
+            collapsedBadgeText = "Wi‑Fi",
+            secondaryLines = listOf("Mode: Wireless ADB", "IP: 192.168.1.150:5555"),
+            actionIntentAction = "android.settings.APPLICATION_DEVELOPMENT_SETTINGS",
+        )
+        val wirelessSignal = CutoutSignal.System(wirelessPayload)
+        assertEquals(SystemEventType.WIRELESS_DEBUGGING_CONNECTED, wirelessSignal.type)
+        assertEquals("Wi‑Fi", wirelessSignal.payload.collapsedBadgeText)
+    }
 }
