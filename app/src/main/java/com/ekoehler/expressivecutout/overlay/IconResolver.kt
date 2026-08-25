@@ -470,6 +470,7 @@ class IconResolver(private val context: Context) {
             SystemEventType.USB_MOUNTED,
             SystemEventType.VPN_CONNECTED,
             SystemEventType.ADB_CONNECTED,
+            SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
             SystemEventType.BLUETOOTH_CONNECTED,
             SystemEventType.HOTSPOT_ENABLED,
             SystemEventType.RINGER_NORMAL -> STATUS_COLOR_SUCCESS
@@ -482,6 +483,7 @@ class IconResolver(private val context: Context) {
             SystemEventType.USB_UNMOUNTED,
             SystemEventType.VPN_DISCONNECTED,
             SystemEventType.ADB_DISCONNECTED,
+            SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED,
             SystemEventType.BLUETOOTH_DISCONNECTED,
             SystemEventType.HOTSPOT_DISABLED,
             SystemEventType.RINGER_SILENT -> STATUS_COLOR_DANGER

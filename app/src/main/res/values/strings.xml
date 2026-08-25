@@ -20,6 +20,8 @@
     <string name="event_vpn_disconnected">VPN disconnected</string>
     <string name="event_adb_connected">USB debugging connected</string>
     <string name="event_adb_disconnected">USB debugging disconnected</string>
+    <string name="event_wireless_debugging_connected">Wireless debugging connected</string>
+    <string name="event_wireless_debugging_disconnected">Wireless debugging disconnected</string>
     <string name="event_bluetooth_connected">Bluetooth connected</string>
     <string name="event_bluetooth_disconnected">Bluetooth disconnected</string>
     <string name="event_hotspot_enabled">Hotspot active</string>
