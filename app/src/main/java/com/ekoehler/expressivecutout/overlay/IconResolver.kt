@@ -92,32 +92,48 @@ class IconResolver(private val context: Context) {
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
         eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
         preferDynamicIconColor: Boolean = false,
-    ): IslandEvent = when (signal) {
-        is CutoutSignal.Notification -> resolveNotification(
-            signal,
-            dynamicEventColor,
-            dynamicEventColorRole,
-            dynamicEventColorOpacity,
-            preferDynamicIconColor,
-        )
-        is CutoutSignal.System -> resolveSystem(
-            signal.type,
-            customIcons,
-            dynamicEventColor,
-            dynamicEventColorRole,
-            dynamicEventColorOpacity,
-            animatedIconEnabled,
-            animatedIconLoop,
-            eventColorOverrides,
-        )
-        is CutoutSignal.Music -> resolveMusic(signal, musicSettings)
-        is CutoutSignal.Call -> resolveCall(signal, phoneSettings)
-        is CutoutSignal.Timer -> resolveTimer(signal, timerSettings)
-        is CutoutSignal.Assistant -> resolveAssistant(signal, assistantSettings)
+    ): IslandEvent {
+        val packageName = when (signal) {
+            is CutoutSignal.Notification -> signal.packageName
+            is CutoutSignal.Music -> signal.packageName
+            is CutoutSignal.Call -> signal.packageName
+            is CutoutSignal.Timer -> signal.packageName
+            is CutoutSignal.Assistant -> signal.packageName
+            is CutoutSignal.System -> null
+        }
+        val appColor = packageName?.let { AppIconColorExtractor.extractAppColor(context, it) }
+
+        return when (signal) {
+            is CutoutSignal.Notification -> resolveNotification(
+                signal,
+                signal.packageName,
+                appColor,
+                dynamicEventColor,
+                dynamicEventColorRole,
+                dynamicEventColorOpacity,
+                preferDynamicIconColor,
+            )
+            is CutoutSignal.System -> resolveSystem(
+                signal.type,
+                customIcons,
+                dynamicEventColor,
+                dynamicEventColorRole,
+                dynamicEventColorOpacity,
+                animatedIconEnabled,
+                animatedIconLoop,
+                eventColorOverrides,
+            )
+            is CutoutSignal.Music -> resolveMusic(signal, signal.packageName, appColor, musicSettings)
+            is CutoutSignal.Call -> resolveCall(signal, signal.packageName, appColor, phoneSettings)
+            is CutoutSignal.Timer -> resolveTimer(signal, signal.packageName, appColor, timerSettings)
+            is CutoutSignal.Assistant -> resolveAssistant(signal, signal.packageName, appColor, assistantSettings)
+        }
     }
 
     private fun resolveNotification(
         signal: CutoutSignal.Notification,
+        packageName: String,
+        appColor: Color?,
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
         dynamicEventColorOpacity: Float,
@@ -149,6 +165,8 @@ class IconResolver(private val context: Context) {
             contentIntent = signal.contentIntent,
             notificationKey = signal.key,
             progressData = signal.progressData,
+            packageName = packageName,
+            appColor = appColor,
             actions = signal.actions.map { action ->
                 IslandAction(
                     label = action.title,
@@ -199,7 +217,12 @@ class IconResolver(private val context: Context) {
     /**
      * Turns a music signal into a renderable event, choosing between album art and the note glyph.
      */
-    private fun resolveMusic(signal: CutoutSignal.Music, settings: MusicTileSettings): IslandEvent {
+    private fun resolveMusic(
+        signal: CutoutSignal.Music,
+        packageName: String,
+        appColor: Color?,
+        settings: MusicTileSettings,
+    ): IslandEvent {
         // The collapsed pill normally shows album art; the note glyph stands in when the session
         // carries none (or the user turned art off). Deliberately not the player's launcher icon:
         // resolving that would mean asking the system which apps are installed.
@@ -218,6 +241,8 @@ class IconResolver(private val context: Context) {
             appName = appName,
             postTimeMs = postTimeMs,
             accent = Color(DynamicTile.MUSIC.accent),
+            packageName = packageName,
+            appColor = appColor,
             contentIntent = signal.contentIntent,
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
@@ -236,7 +261,12 @@ class IconResolver(private val context: Context) {
      * Turns a call signal into a renderable event. The caller photo is not resolved here; it
      * arrives live on [OnCallBus] instead.
      */
-    private fun resolveCall(signal: CutoutSignal.Call, settings: PhoneTileSettings): IslandEvent {
+    private fun resolveCall(
+        signal: CutoutSignal.Call,
+        packageName: String,
+        appColor: Color?,
+        settings: PhoneTileSettings,
+    ): IslandEvent {
         // The live contact photo comes from OnCallBus; this icon is only the no-photo fallback, so a
         // person avatar reads as "a contact" (the Google-dialer default look) better than a handset.
         val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
@@ -250,6 +280,8 @@ class IconResolver(private val context: Context) {
             appName = appName,
             postTimeMs = postTimeMs,
             accent = Color(DynamicTile.PHONE.accent),
+            packageName = packageName,
+            appColor = appColor,
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the
@@ -292,7 +324,12 @@ class IconResolver(private val context: Context) {
      * Turns a timer signal into a renderable event, falling back to the tile's own label when the
      * clock app names none.
      */
-    private fun resolveTimer(signal: CutoutSignal.Timer, settings: TimerTileSettings): IslandEvent {
+    private fun resolveTimer(
+        signal: CutoutSignal.Timer,
+        packageName: String,
+        appColor: Color?,
+        settings: TimerTileSettings,
+    ): IslandEvent {
         val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
             ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
             ?: context.getString(DynamicTile.TIMER.labelRes)
@@ -305,6 +342,8 @@ class IconResolver(private val context: Context) {
             appName = appName,
             postTimeMs = postTimeMs,
             accent = Color(DynamicTile.TIMER.accent),
+            packageName = packageName,
+            appColor = appColor,
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
             // Deliberately no notificationKey: a swipe should hide the pill, never cancel the clock's
@@ -322,7 +361,12 @@ class IconResolver(private val context: Context) {
      * Turns an assistant signal into a renderable event, preferring the spoken title over the body
      * text.
      */
-    private fun resolveAssistant(signal: CutoutSignal.Assistant, settings: AssistantTileSettings): IslandEvent {
+    private fun resolveAssistant(
+        signal: CutoutSignal.Assistant,
+        packageName: String,
+        appColor: Color?,
+        settings: AssistantTileSettings,
+    ): IslandEvent {
         val defaultLabel = context.getString(DynamicTile.ASSISTANT.labelRes)
         val rawTitle = signal.title?.takeIf { it.isNotBlank() }
         val rawText = signal.text?.takeIf { it.isNotBlank() }
@@ -358,6 +402,8 @@ class IconResolver(private val context: Context) {
             appName = appName,
             postTimeMs = postTimeMs,
             accent = Color(DynamicTile.ASSISTANT.accent),
+            packageName = packageName,
+            appColor = appColor,
             iconContainerColor = settings.iconContainerColor,
             contentIntent = signal.contentIntent,
             initiallyExpanded = settings.displayAnswerInCutout,

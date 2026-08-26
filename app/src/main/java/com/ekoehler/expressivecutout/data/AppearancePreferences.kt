@@ -6,12 +6,14 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 import org.json.JSONObject
 
 /** Backing store for every appearance setting: fills, strokes, icons and action buttons. */
@@ -28,7 +30,9 @@ data class AppearanceSettings(
     val shadowEnabled: Boolean = DEFAULT_SHADOW_ENABLED,
     val strokeEnabled: Boolean = DEFAULT_STROKE_ENABLED,
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
+    val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
+    val textColor: CutoutColor? = DEFAULT_TEXT_COLOR,
     val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
     val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
     val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
@@ -51,6 +55,7 @@ data class AppearanceSettings(
         const val DEFAULT_STROKE_WIDTH_DP = 2
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
+        const val DEFAULT_STROKE_OPACITY = 1f
         const val DEFAULT_SHOW_SOURCE_APP_NAME = true
         const val DEFAULT_SHOW_TIMESTAMP = true
         const val DEFAULT_SHOW_FULL_NOTIFICATION_TEXT = false
@@ -59,6 +64,8 @@ data class AppearanceSettings(
         /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
+        /** null means automatic high-contrast text color based on background luminance. */
+        val DEFAULT_TEXT_COLOR: CutoutColor? = null
 
         /**
          * null keeps the historical reply-button look: the send button matches the notification's
@@ -92,7 +99,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeEnabled = prefs[STROKE_ENABLED] ?: AppearanceSettings.DEFAULT_STROKE_ENABLED,
             strokeWidthDp = (prefs[STROKE_WIDTH] ?: AppearanceSettings.DEFAULT_STROKE_WIDTH_DP)
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
+            strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
+            textColor = CutoutColor.deserialize(prefs[TEXT_COLOR]),
             showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
             showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
             showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT] ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
@@ -127,7 +136,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("shadowEnabled", s.shadowEnabled)
             put("strokeEnabled", s.strokeEnabled)
             put("strokeWidthDp", s.strokeWidthDp)
+            put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
+            put("textColor", s.textColor?.serialize() ?: JSONObject.NULL)
             put("showSourceAppName", s.showSourceAppName)
             put("showTimestamp", s.showTimestamp)
             put("showFullNotificationText", s.showFullNotificationText)
@@ -158,9 +169,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("strokeEnabled")) it[STROKE_ENABLED] = obj.getBoolean("strokeEnabled")
             if (obj.has("strokeWidthDp")) it[STROKE_WIDTH] = obj.getInt("strokeWidthDp")
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP)
+            if (obj.has("strokeOpacity")) it[STROKE_OPACITY] = obj.getDouble("strokeOpacity").toFloat().coerceIn(0f, 1f)
             if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
+            it.applyNullableColor(obj, "textColor", TEXT_COLOR)
             if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
             if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
             if (obj.has("showFullNotificationText")) it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
@@ -223,8 +236,17 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    suspend fun setStrokeOpacity(opacity: Float) = context.appearanceDataStore.edit {
+        it[STROKE_OPACITY] = opacity.coerceIn(0f, 1f)
+    }
+
     suspend fun setStrokeColor(color: CutoutColor) = context.appearanceDataStore.edit {
         it[STROKE_COLOR] = color.serialize()
+    }
+
+    /** A null [color] clears the override, restoring automatic contrast-based text color. */
+    suspend fun setTextColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
     }
 
     suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
@@ -301,7 +323,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
+        val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
+        val TEXT_COLOR = stringPreferencesKey("text_color")
         val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
         val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
         val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
