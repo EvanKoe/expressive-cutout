@@ -52,7 +52,9 @@ data class SelectableOption<T>(
  * description. The selected row fills with the theme's secondary container so it reads as chosen in
  * both light and dark dynamic-colour schemes; [onSelectionChange] fires with the tapped option's
  * value. Rows already tapped don't re-emit, and the whole group is exposed as one radio group to
- * accessibility services. Pass [shape] to slot the card into a grouped settings list.
+ * accessibility services. Clear [isFirst] / [isLast] to tighten the matching outer corners so the
+ * card stacks into a grouped settings list, and pass [header] to sit extra content — a preview, say
+ * — between the title and the rows.
  */
 @Composable
 fun <T> OptionSelectionCard(
@@ -61,14 +63,16 @@ fun <T> OptionSelectionCard(
     selectedValue: T?,
     onSelectionChange: (T) -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(32.dp),
+    isFirst: Boolean = true,
+    isLast: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.surface,
     enabled: Boolean = true,
+    header: (@Composable () -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = shape,
+        shape = cardShape(isFirst = isFirst, isLast = isLast),
         color = containerColor,
     ) {
         Column(
@@ -86,6 +90,7 @@ fun <T> OptionSelectionCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             )
+            header?.invoke()
             Column(
                 modifier = Modifier.selectableGroup(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -109,6 +114,14 @@ fun <T> OptionSelectionCard(
         }
     }
 }
+
+/** Grouped-list card shape: the outer corners round only where the card ends the group. */
+private fun cardShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
+    topStart = if (isFirst) 32.dp else 4.dp,
+    topEnd = if (isFirst) 32.dp else 4.dp,
+    bottomStart = if (isLast) 32.dp else 4.dp,
+    bottomEnd = if (isLast) 32.dp else 4.dp,
+)
 
 /** Grouped-list row shape: the group's outer corners round, the ones between rows stay tight. */
 private fun optionShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(

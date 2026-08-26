@@ -3,14 +3,12 @@ package com.ekoehler.expressivecutout.ui.screen
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,7 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,7 +59,75 @@ import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import kotlin.math.roundToInt
+
+/** Label and supporting line shown for each chip style in its options card. */
+private val ActionButtonStyle.titleRes: Int
+    get() = when (this) {
+        ActionButtonStyle.EXPRESSIVE_TONAL -> R.string.style_expressive_tonal_title
+        ActionButtonStyle.EXPRESSIVE_FILLED -> R.string.style_expressive_filled_title
+        ActionButtonStyle.MATERIAL_YOU -> R.string.style_material_you_title
+        ActionButtonStyle.OUTLINED -> R.string.style_outlined_title
+    }
+
+private val ActionButtonStyle.descriptionRes: Int
+    get() = when (this) {
+        ActionButtonStyle.EXPRESSIVE_TONAL -> R.string.style_expressive_tonal_desc
+        ActionButtonStyle.EXPRESSIVE_FILLED -> R.string.style_expressive_filled_desc
+        ActionButtonStyle.MATERIAL_YOU -> R.string.style_material_you_desc
+        ActionButtonStyle.OUTLINED -> R.string.style_outlined_desc
+    }
+
+/** Label and supporting line shown for each chip alignment in its options card. */
+private val ActionButtonAlignment.titleRes: Int
+    get() = when (this) {
+        ActionButtonAlignment.LEFT -> R.string.action_buttons_align_left_title
+        ActionButtonAlignment.CENTER -> R.string.action_buttons_align_center_title
+        ActionButtonAlignment.RIGHT -> R.string.action_buttons_align_right_title
+        ActionButtonAlignment.FULL -> R.string.action_buttons_align_full_title
+    }
+
+private val ActionButtonAlignment.descriptionRes: Int
+    get() = when (this) {
+        ActionButtonAlignment.LEFT -> R.string.action_buttons_align_left_desc
+        ActionButtonAlignment.CENTER -> R.string.action_buttons_align_center_desc
+        ActionButtonAlignment.RIGHT -> R.string.action_buttons_align_right_desc
+        ActionButtonAlignment.FULL -> R.string.action_buttons_align_full_desc
+    }
+
+/** Label and supporting line shown for each reply-field style in its options card. */
+private val ReplyInputStyle.titleRes: Int
+    get() = when (this) {
+        ReplyInputStyle.EXPRESSIVE -> R.string.input_expressive_title
+        ReplyInputStyle.MATERIAL_YOU -> R.string.input_material_you_title
+        ReplyInputStyle.MATERIAL_2 -> R.string.input_material_2_title
+        ReplyInputStyle.SEGMENTED -> R.string.input_segmented_title
+    }
+
+private val ReplyInputStyle.descriptionRes: Int
+    get() = when (this) {
+        ReplyInputStyle.EXPRESSIVE -> R.string.input_expressive_desc
+        ReplyInputStyle.MATERIAL_YOU -> R.string.input_material_you_desc
+        ReplyInputStyle.MATERIAL_2 -> R.string.input_material_2_desc
+        ReplyInputStyle.SEGMENTED -> R.string.input_segmented_desc
+    }
+
+/** Label and supporting line shown for each "Sent" confirmation position in its options card. */
+private val SentAlignment.titleRes: Int
+    get() = when (this) {
+        SentAlignment.LEFT -> R.string.action_buttons_align_left_title
+        SentAlignment.CENTER -> R.string.action_buttons_align_center_title
+        SentAlignment.RIGHT -> R.string.action_buttons_align_right_title
+    }
+
+private val SentAlignment.descriptionRes: Int
+    get() = when (this) {
+        SentAlignment.LEFT -> R.string.action_buttons_sent_left_desc
+        SentAlignment.CENTER -> R.string.action_buttons_sent_center_desc
+        SentAlignment.RIGHT -> R.string.action_buttons_sent_right_desc
+    }
 
 /** Accent used by the preview event, matching the accent shown on the sibling settings screens. */
 private val PREVIEW_ACCENT = Color(0xFF60A5FA)
@@ -183,36 +248,18 @@ internal fun ButtonScreen(
         )
 
         // --- Chip style ---
-        OptionGroupCard(title = stringResource(R.string.action_buttons_style_title)) {
-            ButtonStyleOption(
-                title = stringResource(R.string.style_expressive_tonal_title),
-                description = stringResource(R.string.style_expressive_tonal_desc),
-                style = ActionButtonStyle.EXPRESSIVE_TONAL,
-                selected = appearance.actionButtonStyle,
-                onSelect = viewModel::setActionButtonStyle,
-            )
-            ButtonStyleOption(
-                title = stringResource(R.string.style_expressive_filled_title),
-                description = stringResource(R.string.style_expressive_filled_desc),
-                style = ActionButtonStyle.EXPRESSIVE_FILLED,
-                selected = appearance.actionButtonStyle,
-                onSelect = viewModel::setActionButtonStyle,
-            )
-            ButtonStyleOption(
-                title = stringResource(R.string.style_material_you_title),
-                description = stringResource(R.string.style_material_you_desc),
-                style = ActionButtonStyle.MATERIAL_YOU,
-                selected = appearance.actionButtonStyle,
-                onSelect = viewModel::setActionButtonStyle,
-            )
-            ButtonStyleOption(
-                title = stringResource(R.string.style_outlined_title),
-                description = stringResource(R.string.style_outlined_desc),
-                style = ActionButtonStyle.OUTLINED,
-                selected = appearance.actionButtonStyle,
-                onSelect = viewModel::setActionButtonStyle,
-            )
-        }
+        OptionSelectionCard(
+            title = stringResource(R.string.action_buttons_style_title),
+            options = ActionButtonStyle.entries.map { style ->
+                SelectableOption(
+                    value = style,
+                    title = stringResource(style.titleRes),
+                    description = stringResource(style.descriptionRes),
+                )
+            },
+            selectedValue = appearance.actionButtonStyle,
+            onSelectionChange = viewModel::setActionButtonStyle,
+        )
 
         // --- Chip colour (dynamic roles, custom, presets) ---
         // A null selection follows the notification's own accent (the historical default).
@@ -245,74 +292,39 @@ internal fun ButtonScreen(
         }
 
         // --- Chip alignment ---
-        OptionGroupCard(title = stringResource(R.string.action_buttons_alignment_title)) {
-            AlignmentOption(
-                title = stringResource(R.string.action_buttons_align_left_title),
-                description = stringResource(R.string.action_buttons_align_left_desc),
-                alignment = ActionButtonAlignment.LEFT,
-                selected = appearance.actionButtonAlignment,
-                onSelect = viewModel::setActionButtonAlignment,
-            )
-            AlignmentOption(
-                title = stringResource(R.string.action_buttons_align_center_title),
-                description = stringResource(R.string.action_buttons_align_center_desc),
-                alignment = ActionButtonAlignment.CENTER,
-                selected = appearance.actionButtonAlignment,
-                onSelect = viewModel::setActionButtonAlignment,
-            )
-            AlignmentOption(
-                title = stringResource(R.string.action_buttons_align_right_title),
-                description = stringResource(R.string.action_buttons_align_right_desc),
-                alignment = ActionButtonAlignment.RIGHT,
-                selected = appearance.actionButtonAlignment,
-                onSelect = viewModel::setActionButtonAlignment,
-            )
-            AlignmentOption(
-                title = stringResource(R.string.action_buttons_align_full_title),
-                description = stringResource(R.string.action_buttons_align_full_desc),
-                alignment = ActionButtonAlignment.FULL,
-                selected = appearance.actionButtonAlignment,
-                onSelect = viewModel::setActionButtonAlignment,
-            )
-        }
+        OptionSelectionCard(
+            title = stringResource(R.string.action_buttons_alignment_title),
+            options = ActionButtonAlignment.entries.map { alignment ->
+                SelectableOption(
+                    value = alignment,
+                    title = stringResource(alignment.titleRes),
+                    description = stringResource(alignment.descriptionRes),
+                )
+            },
+            selectedValue = appearance.actionButtonAlignment,
+            onSelectionChange = viewModel::setActionButtonAlignment,
+        )
 
         // --- Reply field style ---
-        OptionGroupCard(title = stringResource(R.string.action_buttons_input_style_title)) {
-            ReplyInputPreview(
-                inputStyle = appearance.replyInputStyle,
-                cancelOnLeft = appearance.cancelButtonOnLeft,
-                heightDp = buttonHeight.roundToInt(),
-            )
-            Spacer(Modifier.height(4.dp))
-            ReplyStyleOption(
-                title = stringResource(R.string.input_expressive_title),
-                description = stringResource(R.string.input_expressive_desc),
-                style = ReplyInputStyle.EXPRESSIVE,
-                selected = appearance.replyInputStyle,
-                onSelect = viewModel::setReplyInputStyle,
-            )
-            ReplyStyleOption(
-                title = stringResource(R.string.input_material_you_title),
-                description = stringResource(R.string.input_material_you_desc),
-                style = ReplyInputStyle.MATERIAL_YOU,
-                selected = appearance.replyInputStyle,
-                onSelect = viewModel::setReplyInputStyle,
-            )
-            ReplyStyleOption(
-                title = stringResource(R.string.input_material_2_title),
-                description = stringResource(R.string.input_material_2_desc),
-                style = ReplyInputStyle.MATERIAL_2,
-                selected = appearance.replyInputStyle,
-                onSelect = viewModel::setReplyInputStyle,
-            )
-            ReplyStyleOption(
-                title = stringResource(R.string.input_segmented_title),
-                description = stringResource(R.string.input_segmented_desc),
-                style = ReplyInputStyle.SEGMENTED,
-                selected = appearance.replyInputStyle,
-                onSelect = viewModel::setReplyInputStyle,
-            )
-        }
+        OptionSelectionCard(
+            title = stringResource(R.string.action_buttons_input_style_title),
+            options = ReplyInputStyle.entries.map { style ->
+                SelectableOption(
+                    value = style,
+                    title = stringResource(style.titleRes),
+                    description = stringResource(style.descriptionRes),
+                )
+            },
+            selectedValue = appearance.replyInputStyle,
+            onSelectionChange = viewModel::setReplyInputStyle,
+            header = {
+                ReplyInputPreview(
+                    inputStyle = appearance.replyInputStyle,
+                    cancelOnLeft = appearance.cancelButtonOnLeft,
+                    heightDp = buttonHeight.roundToInt(),
+                )
+            },
+        )
 
         // --- Cancel button placement ---
         SettingsToggleCard(
@@ -324,29 +336,18 @@ internal fun ButtonScreen(
         )
 
         // --- "Sent" confirmation placement ---
-        OptionGroupCard(title = stringResource(R.string.action_buttons_sent_alignment_title)) {
-            SentAlignmentOption(
-                title = stringResource(R.string.action_buttons_align_left_title),
-                description = stringResource(R.string.action_buttons_sent_left_desc),
-                alignment = SentAlignment.LEFT,
-                selected = appearance.sentAlignment,
-                onSelect = viewModel::setSentAlignment,
-            )
-            SentAlignmentOption(
-                title = stringResource(R.string.action_buttons_align_center_title),
-                description = stringResource(R.string.action_buttons_sent_center_desc),
-                alignment = SentAlignment.CENTER,
-                selected = appearance.sentAlignment,
-                onSelect = viewModel::setSentAlignment,
-            )
-            SentAlignmentOption(
-                title = stringResource(R.string.action_buttons_align_right_title),
-                description = stringResource(R.string.action_buttons_sent_right_desc),
-                alignment = SentAlignment.RIGHT,
-                selected = appearance.sentAlignment,
-                onSelect = viewModel::setSentAlignment,
-            )
-        }
+        OptionSelectionCard(
+            title = stringResource(R.string.action_buttons_sent_alignment_title),
+            options = SentAlignment.entries.map { alignment ->
+                SelectableOption(
+                    value = alignment,
+                    title = stringResource(alignment.titleRes),
+                    description = stringResource(alignment.descriptionRes),
+                )
+            },
+            selectedValue = appearance.sentAlignment,
+            onSelectionChange = viewModel::setSentAlignment,
+        )
 
         // --- Send / cancel reply-button colours ---
         // Their colours default to the notification's accent (send) and a neutral tint (cancel);
@@ -365,113 +366,6 @@ internal fun ButtonScreen(
             defaultLabel = stringResource(R.string.cd_color_default_neutral),
             defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-/** A titled surface card that stacks a set of selectable option rows. */
-@Composable
-private fun OptionGroupCard(
-    title: String,
-    content: @Composable () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun ButtonStyleOption(
-    title: String,
-    description: String,
-    style: ActionButtonStyle,
-    selected: ActionButtonStyle,
-    onSelect: (ActionButtonStyle) -> Unit,
-) = OptionRow(
-    title = title,
-    description = description,
-    selected = style == selected,
-    onClick = { onSelect(style) },
-)
-
-@Composable
-private fun AlignmentOption(
-    title: String,
-    description: String,
-    alignment: ActionButtonAlignment,
-    selected: ActionButtonAlignment,
-    onSelect: (ActionButtonAlignment) -> Unit,
-) = OptionRow(
-    title = title,
-    description = description,
-    selected = alignment == selected,
-    onClick = { onSelect(alignment) },
-)
-
-@Composable
-private fun SentAlignmentOption(
-    title: String,
-    description: String,
-    alignment: SentAlignment,
-    selected: SentAlignment,
-    onSelect: (SentAlignment) -> Unit,
-) = OptionRow(
-    title = title,
-    description = description,
-    selected = alignment == selected,
-    onClick = { onSelect(alignment) },
-)
-
-@Composable
-private fun ReplyStyleOption(
-    title: String,
-    description: String,
-    style: ReplyInputStyle,
-    selected: ReplyInputStyle,
-    onSelect: (ReplyInputStyle) -> Unit,
-) = OptionRow(
-    title = title,
-    description = description,
-    selected = style == selected,
-    onClick = { onSelect(style) },
-)
-
-/** A single-choice row: title, supporting text and a trailing radio, the whole row tappable. */
-@Composable
-private fun OptionRow(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        RadioButton(selected = selected, onClick = onClick)
     }
 }
 
