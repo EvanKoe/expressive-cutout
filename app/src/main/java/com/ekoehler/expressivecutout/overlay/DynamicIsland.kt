@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -468,6 +469,16 @@ fun DynamicIsland(
         )
     }
 
+    // The normal cutout's icon pops in whenever a new event takes the pill over. What counts as
+    // "new" is deliberately not the event id: a live tile re-resolves on every refresh (a media
+    // progress tick, a timer second) and gets a fresh id each time, which would re-pop constantly.
+    // A notification's key survives its own updates, and a tile's label survives its lifetime.
+    val iconPop = remember { Animatable(1f) }
+    val iconPopKey = event?.let { it.notificationKey ?: it.label }
+    LaunchedEffect(iconPopKey) {
+        if (iconPopKey != null) motion.popIn(iconPop)
+    }
+
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
             tapExpanded = false
@@ -810,6 +821,7 @@ fun DynamicIsland(
                                         heightDp = collapsed.heightDp,
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
+                                        iconPop = iconPop,
                                     )
                                 }
                             }
@@ -1008,6 +1020,10 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
  * @param trailingInsetDp extra room to leave on the trailing edge, so whatever the caller draws
  *   there — today the permission dots — isn't overlapped by the timer's remaining time or the
  *   progress ring.
+ * @param iconPop scale for the badge's arrival pop, driven by the caller. Hoisted rather than owned
+ *   here because the collapsed content re-enters composition every time the island collapses back
+ *   from expanded, which would otherwise re-fire the pop on a collapse. Null (the settings preview)
+ *   leaves the badge at rest.
  */
 @Composable
 private fun CollapsedContent(
@@ -1015,6 +1031,7 @@ private fun CollapsedContent(
     heightDp: Int,
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
+    iconPop: Animatable<Float, AnimationVector1D>? = null,
 ) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
@@ -1024,11 +1041,24 @@ private fun CollapsedContent(
     val badgeSize = (heightDp * 0.72f).dp
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Scaled after the padding so the pop grows the badge about its own centre instead of
+        // dragging it in from the pill's edge, and read inside the layer block so each frame redraws
+        // without recomposing the pill.
         val placement = Modifier
             .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
             .padding(
                 start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
                 bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+            )
+            .then(
+                if (iconPop != null) {
+                    Modifier.graphicsLayer {
+                        scaleX = iconPop.value
+                        scaleY = iconPop.value
+                    }
+                } else {
+                    Modifier
+                }
             )
         when {
             albumArt != null -> AlbumArt(
