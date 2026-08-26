@@ -1,5 +1,11 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.Manifest
+import android.graphics.Paint
+import android.os.Build
+import android.text.Layout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,14 +20,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.rounded.PhoneCallback
+import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.CallReceived
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsNone
+import androidx.compose.material.icons.rounded.PhoneCallback
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,22 +54,64 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.notifications.TestCaller
+import com.ekoehler.expressivecutout.notifications.TestNotifier
 import com.ekoehler.expressivecutout.permissions.Permissions
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
 
 /**
  * "Permissions" destination: surfaces the notification, overlay (accessibility) and
  * battery-optimisation grants, re-reading live status on every resume so returning from a
- * system settings screen instantly reflects the change.
+ * system settings screen instantly reflects the change. Also offers a test notification.
  */
 @Composable
 fun PermissionsTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
     val status = rememberPermissionStatus()
+    val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
+
+    // Shizuku can be started while we're backgrounded, and returning here is the natural moment to
+    // notice, so re-read on resume alongside the grants rememberPermissionStatus already refreshes.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) ShizukuState.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Android 13+ gates posting behind a runtime permission; grant then run the pending post.
+    var pendingPost by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val postPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) pendingPost?.invoke() }
+
+    fun postWithPermission(send: () -> Unit) {
+        if (TestNotifier.canPost(context)) {
+            send()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pendingPost = send
+            postPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    fun onTestNotification() = postWithPermission { TestNotifier.send(context) }
+
+    fun onTestPlainNotification() = postWithPermission { TestNotifier.sendPlain(context) }
+
+    fun onTestMultilineNotification() = postWithPermission { TestNotifier.sendMultiline(context) }
+
+    fun onTestProgressNotification() = postWithPermission { TestNotifier.sendProgress(context) }
 
     Column(
         modifier = Modifier
@@ -67,7 +126,7 @@ fun PermissionsTab(contentPadding: PaddingValues) {
 
         Column(
             modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             PermissionCard(
                 icon = Icons.Rounded.Notifications,
@@ -90,6 +149,107 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 granted = status.batteryIgnored,
                 onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
             )
+            // Optional, so it's deliberately outside status.allEssentialGranted — a missing Shizuku
+            // must never stop the "All set" card from showing. Shizuku dies on every reboot, and
+            // this is where people already come to check why something stopped working.
+            PermissionCard(
+                icon = Icons.Rounded.Terminal,
+                title = stringResource(R.string.perm_shizuku_title),
+                description = stringResource(R.string.perm_shizuku_desc),
+                granted = shizuku == ShizukuStatus.READY,
+                onClick = {
+                    if (shizuku == ShizukuStatus.PERMISSION_REQUIRED) ShizukuState.requestPermission()
+                    else Permissions.openShizuku(context)
+                },
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.perm_testing_title),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .clip(shape = RoundedCornerShape(24.dp)),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Send a test notification
+            TestCard(
+                icon = Icons.Rounded.NotificationsActive,
+                title = stringResource(R.string.action_send_test),
+                onClick = ::onTestNotification,
+            )
+
+            // Send a test notification carrying no action buttons
+            TestCard(
+                icon = Icons.Rounded.NotificationsNone,
+                title = stringResource(R.string.action_send_test_plain),
+                onClick = ::onTestPlainNotification,
+            )
+
+            // Send a multi-line test notification with action buttons
+            TestCard(
+                icon = Icons.AutoMirrored.Rounded.Subject,
+                title = stringResource(R.string.action_send_test_multiline),
+                onClick = ::onTestMultilineNotification,
+            )
+
+            // Send a test progress notification
+            TestCard(
+                icon = Icons.Rounded.Downloading,
+                title = stringResource(R.string.action_send_test_progress),
+                onClick = ::onTestProgressNotification,
+            )
+
+            // Test a running call
+            TestCard(
+                icon = Icons.Rounded.Call,
+                title = stringResource(R.string.action_send_test_call),
+                onClick = { TestCaller.toggle(context, TestCaller.Kind.CONNECTED) },
+            )
+
+            // Test an incoming call
+            TestCard(
+                icon = Icons.AutoMirrored.Rounded.PhoneCallback,
+                title = stringResource(R.string.action_send_test_incoming_call),
+                onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TestCard(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
@@ -101,7 +261,7 @@ private fun PermissionCard(
     description: String,
     granted: Boolean,
     onClick: () -> Unit,
-    isCheckButton: Boolean = true,
+    isCheckButton: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -152,11 +312,14 @@ private fun PermissionCard(
     }
 }
 
+/**
+ * Replaces the permission list once everything is granted, so a fully set-up app doesn't show a
+ * wall of ticks.
+ */
 @Composable
 private fun AllSetCard() {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
             .clip(shape = RoundedCornerShape(24.dp)),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -191,6 +354,10 @@ private fun AllSetCard() {
     }
 }
 
+/**
+ * A snapshot of every grant the island needs, re-read on resume because the user can revoke any of
+ * them in system settings while the app is open.
+ */
 private data class PermissionStatus(
     val notifications: Boolean,
     val accessibility: Boolean,

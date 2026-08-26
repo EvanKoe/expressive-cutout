@@ -212,6 +212,38 @@ internal fun AppearanceScreen(
             allowAppIcon = true,
         )
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_app_name_title),
+            description = stringResource(R.string.appearance_show_app_name_desc),
+            checked = appearance.showSourceAppName,
+            onCheckedChange = viewModel::setShowSourceAppName,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_timestamp_title),
+            description = stringResource(R.string.appearance_show_timestamp_desc),
+            checked = appearance.showTimestamp,
+            onCheckedChange = viewModel::setShowTimestamp,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_full_notification_text_title),
+            description = stringResource(R.string.appearance_show_full_notification_text_desc),
+            checked = appearance.showFullNotificationText,
+            onCheckedChange = viewModel::setShowFullNotificationText,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
+            description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
+            checked = appearance.preferDynamicIconColor,
+            onCheckedChange = viewModel::setPreferDynamicIconColor,
+        )
+
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
         BackgroundCard(onClick = {

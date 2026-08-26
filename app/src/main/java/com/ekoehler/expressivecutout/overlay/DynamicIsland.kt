@@ -1744,7 +1744,7 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
-            collapsedHeightDp = collapsedHeightDp,
+            collapsedHeightDp = topMarginDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
@@ -1781,7 +1781,7 @@ private fun ExpandedContent(
                         onHeightMeasured?.invoke(hDp)
                     }
                 },
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2437,16 +2437,12 @@ private fun MediaExpandedContent(
         showTimestamp = appearance.showTimestamp,
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the transport controls keep their height and the track text gives way.
@@ -3100,16 +3096,12 @@ private fun TimerExpandedContent(
         showTimestamp = appearance.showTimestamp,
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.
@@ -3180,7 +3172,7 @@ private fun AssistantExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    collapsedHeightDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {

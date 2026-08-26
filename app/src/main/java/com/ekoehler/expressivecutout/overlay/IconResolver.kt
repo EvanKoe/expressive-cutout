@@ -470,7 +470,6 @@ class IconResolver(private val context: Context) {
         val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
             ?: context.getString(R.string.app_name)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
-
         val isBatteryEvent = type == SystemEventType.CHARGING_STARTED ||
             type == SystemEventType.BATTERY_LOW ||
             type == SystemEventType.CHARGING_COMPLETE
