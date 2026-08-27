@@ -1455,9 +1455,40 @@ class IslandOverlayController(private val context: Context) {
         if (stale) clearSatellite()
     }
 
-    /** The live tile parked in the bubble (pinned, so carrying no deadline), or null. */
-    private fun pinnedSatellite(): IslandEvent? =
-        satelliteEvent.value?.takeIf { satelliteDeadlineMs == null }
+    /**
+     * Moves whatever is in the bubble into the pill, always collapsed, and reports whether it did.
+     *
+     * The pill being replaced may have been expanded — the user swiping an open notification away is
+     * the common case — and the promoted event must not inherit that. It is a normal cutout: a
+     * notification or a dynamic tile, either way collapsed. Left to the new event's id alone the
+     * composable can carry the open state over, so the collapse is asked for explicitly.
+     *
+     * A transient carries its own remaining time across rather than getting a fresh lease, and one
+     * whose time already ran out while it sat in the bubble is dropped instead of being promoted for
+     * a frame. A live tile has no deadline and stays pinned.
+     */
+    private fun promoteSatelliteCollapsed(): Boolean {
+        val bubble = satelliteEvent.value ?: return false
+        val deadline = satelliteDeadlineMs
+        val expired = deadline != null && deadline <= System.currentTimeMillis()
+        clearSatellite()
+        if (expired) return false
+        forcedExpanded.value = null
+        expanded = false
+        currentSystemEventType = null
+        currentEvent.value = bubble.copy(initiallyExpanded = false)
+        currentDeadlineMs = deadline
+        collapseTrigger.value = System.currentTimeMillis()
+        if (deadline != null) {
+            dismissJob = scope.launch {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                dismissIsland()
+            }
+        }
+        syncWindowSize()
+        return true
+    }
 
     /**
      * Swaps the bubble into the pill on tap. The promoted event's dismiss timer restarts - the tap is
@@ -1941,15 +1972,9 @@ class IslandOverlayController(private val context: Context) {
         dismissJob?.cancel()
         forcedExpanded.value = null
         expanded = false
-        // A tile parked in the bubble is already visible, so slide it straight into the pill - the
-        // usual return delay would read as a stutter here rather than a hand-off.
-        pinnedSatellite()?.let { bubble ->
-            clearSatellite()
-            currentDeadlineMs = null
-            currentEvent.value = bubble
-            syncWindowSize()
-            return
-        }
+        // Whatever is parked in the bubble is already visible, so slide it into the pill rather than
+        // clearing the island and waiting out the usual return delay, which would read as a stutter.
+        if (promoteSatelliteCollapsed()) return
         val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
         syncWindowSize()
@@ -2078,24 +2103,19 @@ class IslandOverlayController(private val context: Context) {
         currentDeadlineMs = System.currentTimeMillis() + seconds * 1_000L
         dismissJob = scope.launch {
             delay(seconds * 1_000L)
+            // Return to the pinned preview if settings is still open.
+            if (previewPinned) {
+                expanded = previewExpanded
+                forcedExpanded.value = previewExpanded
+                currentEvent.value = previewEvent
+                syncWindowSize()
+                return@launch
+            }
+            // Whatever is parked in the bubble is already on screen, so promote that copy rather
+            // than letting livePillToReturnTo resolve a second one.
+            if (promoteSatelliteCollapsed()) return@launch
             val livePill = livePillToReturnTo()
-            // A tile parked in the bubble is already on screen, so promote that copy rather than
-            // letting livePillToReturnTo resolve a second one.
-            val fromBubble = pinnedSatellite()
             when {
-                // Return to the pinned preview if settings is still open.
-                previewPinned -> {
-                    expanded = previewExpanded
-                    forcedExpanded.value = previewExpanded
-                    currentEvent.value = previewEvent
-                }
-                fromBubble != null -> {
-                    expanded = false
-                    forcedExpanded.value = null
-                    currentDeadlineMs = null
-                    clearSatellite()
-                    currentEvent.value = fromBubble
-                }
                 // A live tile outlived an interrupting event — fall back to its pill, collapsed.
                 livePill != null -> {
                     expanded = false
