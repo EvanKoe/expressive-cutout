@@ -542,6 +542,9 @@ class IslandOverlayController(private val context: Context) {
     fun onOrientationChanged(orientation: Int) {
         val rotation = currentDisplayRotation()
         if (orientation == currentOrientation && rotation == currentRotation) return
+        // The split is portrait-only, so a bubble must not survive the rotation: landscape gives it no
+        // reserved width and no touchable region, which would leave it drawn but dead.
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) clearSatellite()
         val view = composeView
         // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
         if (view == null || overlayHidden) {
