@@ -486,6 +486,11 @@
     <string name="changelog_fixes">Bug fixes</string>
     <string name="profile_permissions_title">Permission details</string>
     <string name="profile_permissions_subtitle">What each permission is for, and what it is not</string>
+    <string name="behaviour_split_island">Split the island</string>
+    <string name="behaviour_split_island_desc">When something new arrives, the event it replaces stays visible in a small bubble beside the pill instead of disappearing. Tap the bubble to bring it back to the front.</string>
+    <string name="behaviour_satellite_position">Secondary bubble</string>
+    <string name="satellite_position_left">Left</string>
+    <string name="satellite_position_right">Right</string>
     <string name="profile_testing_title">Testing triggers</string>
     <string name="profile_testing_subtitle">Try your dynamic island</string>
     <string name="permission_details_optional">Optional</string>
