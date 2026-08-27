@@ -32,6 +32,7 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
@@ -221,6 +222,25 @@ internal fun BehaviourScreen(
                     onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
                 )
             }
+        }
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_split_island),
+            description = stringResource(R.string.behaviour_split_island_desc),
+            checked = behaviour.splitIslandEnabled,
+            onCheckedChange = viewModel::setSplitIslandEnabled,
+        )
+        AnimatedVisibility(visible = behaviour.splitIslandEnabled) {
+            BehaviourSegmentedRow(
+                shape = groupedShape(isFirst = false, isLast = false),
+                label = stringResource(R.string.behaviour_satellite_position),
+                options = listOf(
+                    stringResource(R.string.satellite_position_left),
+                    stringResource(R.string.satellite_position_right),
+                ),
+                selectedIndex = behaviour.satellitePosition.ordinal,
+                onSelect = { viewModel.setSatellitePosition(SatellitePosition.entries[it]) },
+            )
         }
         SettingsToggleNavCard(
             shape = groupedShape(isFirst = false, isLast = false),

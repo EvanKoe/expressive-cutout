@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Downloading
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.PhoneCallback
@@ -97,6 +98,12 @@ fun TestingScreen(contentPadding: PaddingValues) {
                 icon = Icons.Rounded.NotificationsNone,
                 title = stringResource(R.string.action_send_test_plain),
                 onClick = { postWithPermission { TestNotifier.sendPlain(context) } },
+            )
+
+            TestCard(
+                icon = Icons.Rounded.Layers,
+                title = stringResource(R.string.action_send_test_double),
+                onClick = { postWithPermission { TestNotifier.sendPair(context) } },
             )
 
             TestCard(
