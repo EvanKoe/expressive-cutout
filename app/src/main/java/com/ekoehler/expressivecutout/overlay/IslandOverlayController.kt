@@ -192,6 +192,13 @@ class IslandOverlayController(private val context: Context) {
      */
     private var currentDeadlineMs: Long? = null
     private var satelliteDeadlineMs: Long? = null
+
+    /**
+     * Set while the pill is showing an event tapped out of the bubble. The two slots are swapped
+     * for the duration so the expanded cutout acts on a real [currentEvent], and swapped back when
+     * it collapses — the bubble is hidden while expanded, so the user never sees them move.
+     */
+    private var restoreSlotsOnCollapse = false
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
     private val forcedExpanded = MutableStateFlow<Boolean?>(null)
     private val behaviourState = MutableStateFlow(BehaviourSettings())
@@ -1415,17 +1422,38 @@ class IslandOverlayController(private val context: Context) {
             clearSatellite()
             return
         }
+        parkInSatellite(displaced, deadlineMs)
+        syncWindowSize()
+    }
+
+    /**
+     * Puts [event] in the bubble with [deadlineMs] as its own expiry, arming the job that empties the
+     * bubble when it comes due. A null deadline is a pinned live tile: no timer, it leaves when its
+     * bus says so.
+     */
+    private fun parkInSatellite(event: IslandEvent, deadlineMs: Long?) {
         satelliteDismissJob?.cancel()
-        satelliteEvent.value = displaced
+        satelliteEvent.value = event
         satelliteDeadlineMs = deadlineMs
         if (deadlineMs != null) {
             satelliteDismissJob = scope.launch {
                 val remaining = deadlineMs - System.currentTimeMillis()
                 if (remaining > 0) delay(remaining)
-                if (satelliteEvent.value?.id == displaced.id) clearSatellite()
+                if (satelliteEvent.value?.id == event.id) clearSatellite()
             }
         }
-        syncWindowSize()
+    }
+
+    /** Arms the pill's auto-dismiss for an already-known [deadlineMs], or pins it when that is null. */
+    private fun armPillDismiss(deadlineMs: Long?) {
+        dismissJob?.cancel()
+        currentDeadlineMs = deadlineMs
+        if (deadlineMs == null) return
+        dismissJob = scope.launch {
+            val remaining = deadlineMs - System.currentTimeMillis()
+            if (remaining > 0) delay(remaining)
+            dismissIsland()
+        }
     }
 
     /** Empties the bubble and stops whatever was going to empty it. */
@@ -1468,6 +1496,7 @@ class IslandOverlayController(private val context: Context) {
      * a frame. A live tile has no deadline and stays pinned.
      */
     private fun promoteSatelliteCollapsed(): Boolean {
+        restoreSlotsOnCollapse = false
         val bubble = satelliteEvent.value ?: return false
         val deadline = satelliteDeadlineMs
         val expired = deadline != null && deadline <= System.currentTimeMillis()
@@ -1491,20 +1520,61 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Swaps the bubble into the pill on tap. The promoted event's dismiss timer restarts - the tap is
-     * an explicit statement of interest - and whatever it displaces takes its place in the bubble.
+     * Opens the bubble's event on tap, since the tap is a request to read the thing rather than to
+     * reorder the island.
+     *
+     * The two slots are swapped for the duration rather than the tapped event merely being drawn
+     * expanded, so every action, reply and dismiss inside the expanded cutout acts on a real
+     * [currentEvent] and there is no second notion of "which event is open". The bubble is hidden
+     * while expanded, so the swap is never seen, and [restoreSlots] puts both back on collapse —
+     * from the user's side neither one ever moved, and neither is lost.
      */
     private fun onSatellitePromote() {
         val bubble = satelliteEvent.value ?: return
+        // An app the user set to "Normal only" has no expanded state to open, so a tap opens the app
+        // instead, exactly as it would on the pill, and the island is left alone.
+        if (bubble.normalOnly) {
+            bubble.contentIntent?.let { sendPendingIntent(it) }
+            return
+        }
+        val bubbleDeadline = satelliteDeadlineMs
         val pill = currentEvent.value
         val pillDeadline = currentDeadlineMs
-        clearSatellite()
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteDeadlineMs = null
+        forcedExpanded.value = null
+        currentSystemEventType = null
+        expanded = true
+        currentEvent.value = bubble.copy(initiallyExpanded = true)
+        armPillDismiss(bubbleDeadline)
+        if (pill != null && satelliteAllowed(pill, bubble)) {
+            parkInSatellite(pill.copy(initiallyExpanded = false), pillDeadline)
+            restoreSlotsOnCollapse = true
+        }
+        syncWindowSize()
+    }
+
+    /**
+     * Undoes the swap [onSatellitePromote] made: the event that was expanded goes back to the bubble,
+     * the one it displaced back to the pill, each keeping the deadline it still had.
+     */
+    private fun restoreSlots() {
+        val opened = currentEvent.value
+        val parked = satelliteEvent.value
+        if (opened == null || parked == null) return
+        val openedDeadline = currentDeadlineMs
+        val parkedDeadline = satelliteDeadlineMs
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteDeadlineMs = null
         forcedExpanded.value = null
         expanded = false
         currentSystemEventType = null
-        currentEvent.value = bubble
-        scheduleDismiss()
-        if (pill != null) demoteToSatellite(pill, bubble, pillDeadline)
+        currentEvent.value = parked.copy(initiallyExpanded = false)
+        armPillDismiss(parkedDeadline)
+        parkInSatellite(opened.copy(initiallyExpanded = false), openedDeadline)
+        collapseTrigger.value = System.currentTimeMillis()
         syncWindowSize()
     }
 
@@ -1729,6 +1799,7 @@ class IslandOverlayController(private val context: Context) {
             // pinned live tile stays visible rather than disappearing until livePillToReturnTo
             // brings it back. Cleared straight after: scheduleDismiss re-arms it below for a
             // transient, and the pinned branches leave it null.
+            restoreSlotsOnCollapse = false
             demoteToSatellite(existing, resolvedEvent, currentDeadlineMs)
             currentDeadlineMs = null
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
@@ -1815,6 +1886,19 @@ class IslandOverlayController(private val context: Context) {
         }
         val wasExpanded = expanded
         expanded = targetExpanded
+        // An event tapped out of the bubble borrowed the pill for as long as it was open; give it back.
+        if (!targetExpanded && restoreSlotsOnCollapse) {
+            restoreSlotsOnCollapse = false
+            if (behaviourState.value.expandedDisappearOnShrink) {
+                // The user asked for an expanded cutout to vanish on shrink rather than settle back,
+                // so hand the island to what it displaced instead of returning it to the bubble.
+                dismissJob?.cancel()
+                promoteSatelliteCollapsed()
+            } else {
+                restoreSlots()
+            }
+            return
+        }
         syncWindowSize()
         when {
             targetExpanded -> dismissJob?.cancel()
@@ -1970,6 +2054,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun dismissIsland() {
         dismissJob?.cancel()
+        restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
         // Whatever is parked in the bubble is already visible, so slide it into the pill rather than
