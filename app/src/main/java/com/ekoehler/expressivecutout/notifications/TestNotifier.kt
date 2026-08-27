@@ -37,6 +37,13 @@ object TestNotifier {
     const val NOTIFICATION_ID = 4711
     const val PROGRESS_NOTIFICATION_ID = 4712
     const val PLAIN_NOTIFICATION_ID = 4713
+    const val SECOND_NOTIFICATION_ID = 4714
+
+    /**
+     * Beat between the two notifications [sendPair] posts. Short enough that the first is still on
+     * the island when the second lands, which is the whole point of the pair.
+     */
+    private const val PAIR_GAP_MS = 2_000L
 
     /** The notification auto-dismisses after this long so the test never lingers. */
     private const val TIMEOUT_MS = 15_000L
@@ -48,6 +55,7 @@ object TestNotifier {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
+    private var pairJob: Job? = null
 
     /** True once a notification can actually be posted (Android 13+ gates this at runtime). */
     fun canPost(context: Context): Boolean =
@@ -161,6 +169,56 @@ object TestNotifier {
                 title = title,
                 text = text,
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts one test notification and, [PAIR_GAP_MS] later, a second and distinct one — the sequence
+     * the split island needs to be seen: the first should hand the pill over and drop back into the
+     * satellite bubble rather than disappearing. Re-tapping restarts the pair.
+     */
+    fun sendPair(context: Context) {
+        val appContext = context.applicationContext
+        pairJob?.cancel()
+        pairJob = scope.launch {
+            send(appContext)
+            delay(PAIR_GAP_MS)
+            sendSecond(appContext)
+        }
+    }
+
+    /**
+     * The follow-up half of [sendPair]: its own id, title and text, so the island sees a genuinely
+     * different event rather than an update of the first one.
+     */
+    @SuppressLint("MissingPermission")
+    private fun sendSecond(context: Context) {
+        ensureChannel(context)
+
+        val title = context.getString(R.string.test_second_notification_title)
+        val text = context.getString(R.string.test_second_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island_split)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(SECOND_NOTIFICATION_ID, notification)
+        }
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island_split),
             ),
         )
     }

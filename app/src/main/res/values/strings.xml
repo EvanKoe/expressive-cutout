@@ -491,6 +491,9 @@
     <string name="behaviour_satellite_position">Secondary bubble</string>
     <string name="satellite_position_left">Left</string>
     <string name="satellite_position_right">Right</string>
+    <string name="action_send_test_double">Send two test notifications</string>
+    <string name="test_second_notification_title">Second test notification</string>
+    <string name="test_second_notification_text">Arrived while the first was still showing — the first should move to the bubble.</string>
     <string name="profile_testing_title">Testing triggers</string>
     <string name="profile_testing_subtitle">Try your dynamic island</string>
     <string name="permission_details_optional">Optional</string>
