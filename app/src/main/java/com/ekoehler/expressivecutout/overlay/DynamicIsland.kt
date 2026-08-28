@@ -12,8 +12,10 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -745,15 +747,17 @@ fun DynamicIsland(
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
 
+                                    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
+
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
-                                        if (shownEvent.contentIntent != null) onActivate()
+                                        if (canActivate) onActivate()
                                         return@detectTapGestures
                                     }
 
-                                    // Tap to open the app
-                                    if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
+                                    // Tap to open the app or settings
+                                    if ((isExpanded || forcedExpanded == false) && canActivate) {
                                         tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
@@ -1206,34 +1210,233 @@ private fun CollapsedContent(
             }
         }
         event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
-            val indicatorModifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
-                .size((heightDp * 0.5f).dp)
-            val strokeWidth = (heightDp * 0.06f).dp
-            if (progress.isIndeterminate) {
-                CircularProgressIndicator(
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
+            CollapsedProgressIndicator(
+                progress = progress,
+                heightDp = heightDp,
+                trailingInsetDp = trailingInsetDp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+        // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
+        if (event.timer == null && event.progressData == null && !isStickToCamera) {
+            if (event.trailingText != null) {
+                Text(
+                    text = event.trailingText,
+                    color = event.colorOverride?.resolve() ?: event.trailingTextColor ?: LocalContentColor.current,
+                    fontSize = (heightDp * 0.34f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
                 )
-            } else {
-                val fraction = if (progress.max <= 0) 0f
-                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
-                val animatedFraction by animateFloatAsState(
-                    targetValue = fraction,
-                    label = "collapsedProgress",
-                )
-                CircularProgressIndicator(
-                    progress = { animatedFraction },
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
+            } else if (event.statusDotColor != null) {
+                RadiatingStatusDot(
+                    color = event.statusDotColor,
+                    sizeDp = (heightDp * 0.18f).dp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
                 )
             }
         }
+    }
+}
+
+/**
+ * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
+ * 100% while in progress, and upon completion seamlessly fills in, bounces in a checkmark, and
+ * emits an expanding radiating pulse wave.
+ */
+@Composable
+private fun CollapsedProgressIndicator(
+    progress: ProgressData,
+    heightDp: Int,
+    trailingInsetDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val indicatorSize = (heightDp * 0.5f).dp
+    val strokeWidth = (heightDp * 0.06f).dp
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+
+    val indicatorModifier = modifier
+        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
+
+    if (progress.isIndeterminate) {
+        CircularProgressIndicator(
+            modifier = indicatorModifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = primaryContainer,
+            strokeWidth = strokeWidth,
+        )
+        return
+    }
+
+    val fraction = if (progress.max <= 0) 0f
+        else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "collapsedProgress",
+    )
+
+    val isComplete = progress.isComplete || (fraction >= 1f && progress.max > 0)
+
+    val fillScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "progressCompleteFill",
+    )
+
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "progressCompleteCheckmark",
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "completedProgressPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseScale",
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isComplete) 0.65f else 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseAlpha",
+    )
+
+    Box(
+        modifier = indicatorModifier.size(indicatorSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse wave upon download completion
+        if (isComplete && pulseAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        alpha = pulseAlpha
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+            )
+        }
+
+        // Circular progress ring
+        CircularProgressIndicator(
+            progress = { animatedFraction },
+            modifier = Modifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = if (isComplete) primaryColor.copy(alpha = 0.2f) else primaryContainer,
+            strokeWidth = strokeWidth,
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        )
+
+        // Seamless inner fill disc
+        if (fillScale > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = fillScale
+                        scaleY = fillScale
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Check mark icon
+                if (checkmarkScale > 0f) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = onPrimaryColor,
+                        modifier = Modifier
+                            .size(indicatorSize * 0.65f)
+                            .graphicsLayer {
+                                scaleX = checkmarkScale
+                                scaleY = checkmarkScale
+                            },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A pulsing status dot on the trailing edge of the island that radiates animated expanding rings
+ * in the semantic status colour (e.g. green for Connected, red for Danger, yellow for Warning, blue for Neutral).
+ */
+@Composable
+private fun RadiatingStatusDot(
+    color: Color,
+    sizeDp: Dp = 8.dp,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "radiatingStatus")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveScale",
+    )
+    val waveAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveAlpha",
+    )
+
+    Box(
+        modifier = modifier.size(sizeDp * 2.5f),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse ring
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .graphicsLayer {
+                    scaleX = waveScale
+                    scaleY = waveScale
+                    alpha = waveAlpha
+                }
+                .clip(CircleShape)
+                .background(color),
+        )
+        // Solid center core dot
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(CircleShape)
+                .background(color),
+        )
     }
 }
 
@@ -1691,10 +1894,26 @@ private fun ExpandedContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    if (event.secondaryLines.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            event.secondaryLines.forEach { line ->
+                                Text(
+                                    text = line,
+                                    color = LocalContentColor.current.copy(alpha = 0.70f),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
 
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
-                    AnimatedVisibility(visible = progressData != null) {
+                    AnimatedVisibility(visible = progressData != null && !progressData.isComplete) {
                         // Material's default indicator is a 4dp hairline at a fixed 240dp width,
                         // which reads as a stray line on the island. Span the text column and set
                         // the thickness explicitly — the bar derives its stroke from this height.

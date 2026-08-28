@@ -37,14 +37,18 @@ import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 
 /**
- * This is a progress data class to store progress notification extra data
+ * Holds progress metadata extracted from a notification's extras.
  */
 data class ProgressData(
     val max: Int = 0,
     val current: Int = 0,
     val isIndeterminate: Boolean = false,
-    val title: String? = null
-)
+    val title: String? = null,
+) {
+    /** True when this progress has reached its maximum and is not indeterminate. */
+    val isComplete: Boolean
+        get() = !isIndeterminate && max > 0 && current >= max
+}
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
