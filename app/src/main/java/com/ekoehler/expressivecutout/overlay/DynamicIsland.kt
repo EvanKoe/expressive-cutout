@@ -988,10 +988,15 @@ fun IslandPreview(
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
+    var measuredHeightDp by remember(event.id, expanded, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(heightDp)
+    }
+    val effectiveHeightDp = if (expanded) maxOf(heightDp, measuredHeightDp) else heightDp
     val eventPrimaryColor = event.primaryColor()
     IslandSurface(
-        modifier = Modifier.size(width, heightDp.dp),
+        modifier = Modifier.size(width, effectiveHeightDp.dp),
         shape = cornerShape(
             topLeft = cornerTopLeftDp.dp,
             topRight = cornerTopRightDp.dp,
@@ -1017,6 +1022,10 @@ fun IslandPreview(
                 onStartReply = {},
                 onCancelReply = {},
                 onSendReply = {},
+                onHeightMeasured = { measured ->
+                    measuredHeightDp = measured
+                    onHeightMeasured?.invoke(measured)
+                },
             )
         } else {
             CollapsedContent(event, heightDp)
@@ -2004,6 +2013,7 @@ private fun ActionChip(
     modifier: Modifier = Modifier,
     interaction: MutableInteractionSource = remember { MutableInteractionSource() },
     animatePress: Boolean = true,
+    horizontalPaddingDp: Int = 18,
 ) {
     val shape = when (style) {
         ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
@@ -2044,7 +2054,7 @@ private fun ActionChip(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 22.dp),
+                modifier = Modifier.padding(horizontal = horizontalPaddingDp.dp),
             )
         }
     }
@@ -2092,6 +2102,7 @@ private fun ActionChipRow(
     // every chip on each composition so the number of composable calls stays constant.
     val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
     val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+    val chipPadding = if (actions.size >= 3) 12 else 18
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp, alignment.toHorizontal()),
@@ -2113,7 +2124,7 @@ private fun ActionChipRow(
                     Modifier.weight(weight)
                 }
                 full -> Modifier.weight(1f)
-                else -> Modifier
+                else -> Modifier.weight(1f, fill = false)
             }
             ActionChip(
                 action = action,
@@ -2126,6 +2137,7 @@ private fun ActionChipRow(
                 // When redistributing, the give-and-take of widths IS the press animation, so the
                 // chip must not also expand itself in place.
                 animatePress = !redistribute,
+                horizontalPaddingDp = chipPadding,
             )
         }
     }
