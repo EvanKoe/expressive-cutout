@@ -56,6 +56,7 @@ import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
+import com.ekoehler.expressivecutout.overlay.calculateExpandedNotificationHeightDp
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
@@ -184,10 +185,14 @@ internal fun ButtonScreen(
     }
     val cutout = rememberTopCutout()
     val expanded = layout.expanded
-    // Mirror the real island: it grows by the chip row's height so the chips clear the camera hole —
+    // Mirror the real island: it grows by the chip row's height and top margin so the chips clear the camera hole —
     // but only when the chips are actually shown, matching the toggle below.
-    val previewHeightDp = expanded.heightDp +
-        if (behaviour.showActionButtons) expandedActionsExtraDp(buttonHeight.roundToInt()) else 0
+    val previewHeightDp = calculateExpandedNotificationHeightDp(
+        baseExpandedHeightDp = expanded.heightDp,
+        topMarginDp = expanded.topMarginDp,
+        buttonHeightDp = buttonHeight.roundToInt(),
+        hasActions = behaviour.showActionButtons,
+    )
 
     Column(
         modifier = Modifier
