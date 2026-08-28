@@ -45,6 +45,7 @@ data class AppearanceSettings(
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
     val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
     val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
+    val pageTransitionStyle: PageTransitionStyle = DEFAULT_PAGE_TRANSITION_STYLE,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -78,6 +79,7 @@ data class AppearanceSettings(
         const val DEFAULT_CANCEL_ON_LEFT = false
         /** The confirmation historically hugged the leading edge. */
         val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
+        val DEFAULT_PAGE_TRANSITION_STYLE = PageTransitionStyle.FADE
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
@@ -118,6 +120,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
                 ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
             showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT]
                 ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
+            pageTransitionStyle = PageTransitionStyle.entries.firstOrNull {
+                it.name == prefs[PAGE_TRANSITION_STYLE]
+            } ?: AppearanceSettings.DEFAULT_PAGE_TRANSITION_STYLE,
         )
     }
 
@@ -143,6 +148,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
             put("showFullNotificationText", s.showFullNotificationText)
+            put("pageTransitionStyle", s.pageTransitionStyle.name)
         }.toString()
     }
 
@@ -189,6 +195,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             }
             if (obj.has("showFullNotificationText")) {
                 it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
+            }
+            if (obj.has("pageTransitionStyle")) {
+                PageTransitionStyle.entries.firstOrNull { it.name == obj.optString("pageTransitionStyle") }
+                    ?.let { style -> it[PAGE_TRANSITION_STYLE] = style.name }
             }
         }
     }
@@ -295,6 +305,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[SHOW_FULL_NOTIFICATION_TEXT] = enabled
     }
 
+    /** Persists the page transition style used by in-app navigation. */
+    suspend fun setPageTransitionStyle(style: PageTransitionStyle) = context.appearanceDataStore.edit {
+        it[PAGE_TRANSITION_STYLE] = style.name
+    }
+
     private companion object {
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
@@ -318,5 +333,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
         val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
         val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
+        val PAGE_TRANSITION_STYLE = stringPreferencesKey("page_transition_style")
     }
 }

@@ -137,6 +137,25 @@ data class IslandEvent(
     val packageName: String? = null,
     /** The primary branding color extracted from the posting app's default launcher icon, if any. */
     val appColor: Color? = null,
+    /**
+     * Trailing status indicator dot color (e.g. green for success/connected, red for danger/disconnected,
+     * yellow for warning, blue for neutral/lock). When non-null, a pulsing/radiating dot is rendered
+     * on the trailing edge of the collapsed island.
+     */
+    val statusDotColor: Color? = null,
+    /**
+     * Trailing status text (e.g. battery percentage "85%") shown on the trailing edge of the collapsed
+     * island instead of a status dot.
+     */
+    val trailingText: String? = null,
+    /** Color for [trailingText]. Null falls back to theme content color. */
+    val trailingTextColor: Color? = null,
+    /** Additional multi-line detail strings rendered in the expanded island below [detail]. */
+    val secondaryLines: List<String> = emptyList(),
+    /** System Settings activity action to launch when the expanded island is tapped. */
+    val actionIntentAction: String? = null,
+    /** Optional URI data to attach to [actionIntentAction]. */
+    val actionIntentUri: String? = null,
 )
 
 /** Which parts of the assistant tile to render (display text, max height). */

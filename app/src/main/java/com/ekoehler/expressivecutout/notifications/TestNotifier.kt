@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.notifications
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -17,6 +18,8 @@ import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.SystemEventPayload
+import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -325,14 +328,31 @@ object TestNotifier {
         progressJob = scope.launch {
             var current = 0
             while (true) {
+                val isDone = current >= PROGRESS_MAX
+                val displayTitle = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_title)
+                } else {
+                    title
+                }
+                val displayText = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_text)
+                } else {
+                    text
+                }
+
+                val contentIntent = if (isDone) downloadsIntent(appContext) else null
+
                 val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_island)
-                    .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentTitle(displayTitle)
+                    .setContentText(displayText)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setOnlyAlertOnce(true)
                     .setProgress(PROGRESS_MAX, current, false)
                     .setTimeoutAfter(TIMEOUT_MS)
+                    .apply {
+                        if (contentIntent != null) setContentIntent(contentIntent)
+                    }
                     .build()
 
                 if (canPost(appContext)) {
@@ -342,15 +362,16 @@ object TestNotifier {
                 IslandEventBus.emit(
                     CutoutSignal.Notification(
                         packageName = appContext.packageName,
-                        title = title,
-                        text = text,
+                        title = displayTitle,
+                        text = displayText,
                         key = PROGRESS_KEY,
+                        contentIntent = contentIntent,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(
                             max = PROGRESS_MAX,
                             current = current,
                             isIndeterminate = false,
-                            title = title,
+                            title = displayTitle,
                         ),
                     ),
                 )
@@ -360,6 +381,35 @@ object TestNotifier {
                 current = (current + PROGRESS_STEP).coerceAtMost(PROGRESS_MAX)
             }
         }
+    }
+
+    /** A [PendingIntent] that opens the device's downloads view when the download finishes. */
+    private fun downloadsIntent(context: Context): PendingIntent {
+        val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getActivity(context, 10, intent, flags)
+    }
+
+    /**
+     * Emits a system event so the status dot and cutout reaction can be tested immediately.
+     */
+    fun sendSystemEvent(
+        type: SystemEventType,
+        batteryLevel: Int? = null,
+    ) {
+        IslandEventBus.emit(CutoutSignal.System(type, batteryLevel))
+    }
+
+    /**
+     * Emits a rich system event payload for test previews.
+     */
+    fun sendSystemEvent(payload: SystemEventPayload) {
+        IslandEventBus.emit(CutoutSignal.System(payload))
     }
 
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */

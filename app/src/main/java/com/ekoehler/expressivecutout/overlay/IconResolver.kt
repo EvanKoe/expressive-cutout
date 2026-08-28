@@ -6,10 +6,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import com.airbnb.lottie.compose.LottieConstants
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
@@ -108,7 +110,7 @@ class IconResolver(private val context: Context) {
                 dynamicEventColorOpacity,
             )
             is CutoutSignal.System -> resolveSystem(
-                signal.type,
+                signal.payload,
                 customIcons,
                 dynamicEventColor,
                 dynamicEventColorRole,
@@ -385,7 +387,7 @@ class IconResolver(private val context: Context) {
     }
 
     private fun resolveSystem(
-        type: SystemEventType,
+        payload: SystemEventPayload,
         customIcons: Map<SystemEventType, IconSource>,
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
@@ -394,6 +396,7 @@ class IconResolver(private val context: Context) {
         animatedIconLoop: Map<SystemEventType, Boolean>,
         eventColorOverrides: Map<SystemEventType, CutoutColor>,
     ): IslandEvent {
+        val type = payload.type
         // A user override always wins; otherwise events with an animation (charging / unlock) use it
         // when the "Animated icon" toggle is on — looping per the "Loop" toggle — and every other
         // event (or a disabled animation) falls back to the static default glyph.
@@ -405,17 +408,42 @@ class IconResolver(private val context: Context) {
             },
         )
         val icon = customIcons[type]?.toIslandIconOrNull()
+            ?: payload.iconBitmap?.let { IslandIcon.Raster(it.asImageBitmap()) }
+            ?: payload.vectorIconName?.let { MaterialIconCatalog.iconFor(it)?.let(IslandIcon::Vector) }
             ?: animated
             ?: IslandIcon.Vector(type.defaultIcon)
+        val isBatteryEvent = type == SystemEventType.CHARGING_STARTED ||
+            type == SystemEventType.BATTERY_LOW ||
+            type == SystemEventType.CHARGING_COMPLETE
+        val trailingText = payload.collapsedBadgeText ?: if (isBatteryEvent) {
+            val level = getBatteryPercentage(context).coerceIn(0, 100)
+            "$level%"
+        } else {
+            null
+        }
+        val trailingTextColor = if (isBatteryEvent) {
+            batteryTextColorFor(type)
+        } else {
+            null
+        }
+        val statusColor = if (trailingText != null) null else statusDotColorFor(type)
+
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
-            label = context.getString(type.labelRes),
+            label = payload.title ?: context.getString(type.labelRes),
+            detail = payload.subtitle,
+            secondaryLines = payload.secondaryLines,
+            actionIntentAction = payload.actionIntentAction,
+            actionIntentUri = payload.actionIntentUri,
             accent = Color(type.accent),
             useThemeColor = dynamicEventColor,
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
             colorOverride = eventColorOverrides[type],
+            statusDotColor = statusColor,
+            trailingText = trailingText,
+            trailingTextColor = trailingTextColor,
         )
     }
 
@@ -428,14 +456,66 @@ class IconResolver(private val context: Context) {
             MaterialIconCatalog.iconFor(iconName)?.let(IslandIcon::Vector)
     }
 
-    private companion object {
+    internal companion object {
         val NOTIFICATION_ACCENT = Color(0xFF38BDF8)
+        val STATUS_COLOR_SUCCESS = Color(0xFF4ADE80)
+        val STATUS_COLOR_WARNING = Color(0xFFFACC15)
+        val STATUS_COLOR_DANGER = Color(0xFFF87171)
+        val STATUS_COLOR_NEUTRAL = Color(0xFF60A5FA)
 
-        /**
-         * Lower-cased substrings that mark a call's end/decline action. English-led (most dialers'
-         * notifications localise to the device language, but English covers the common case); the
-         * phrases avoid false hits like "send" that a bare "end" would catch.
-         */
+        fun statusDotColorFor(type: SystemEventType): Color? = when (type) {
+            SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE,
+            SystemEventType.BATTERY_LOW -> null
+            SystemEventType.WIFI_CONNECTED,
+            SystemEventType.HEADPHONES_CONNECTED,
+            SystemEventType.USB_MOUNTED,
+            SystemEventType.VPN_CONNECTED,
+            SystemEventType.ADB_CONNECTED,
+            SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
+            SystemEventType.BLUETOOTH_CONNECTED,
+            SystemEventType.HOTSPOT_ENABLED,
+            SystemEventType.RINGER_NORMAL -> STATUS_COLOR_SUCCESS
+            SystemEventType.DEVICE_LOCKED,
+            SystemEventType.DEVICE_UNLOCKED,
+            SystemEventType.RINGER_VIBRATE -> STATUS_COLOR_WARNING
+            SystemEventType.CHARGING_STOPPED,
+            SystemEventType.WIFI_DISCONNECTED,
+            SystemEventType.HEADPHONES_DISCONNECTED,
+            SystemEventType.USB_UNMOUNTED,
+            SystemEventType.VPN_DISCONNECTED,
+            SystemEventType.ADB_DISCONNECTED,
+            SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED,
+            SystemEventType.BLUETOOTH_DISCONNECTED,
+            SystemEventType.HOTSPOT_DISABLED,
+            SystemEventType.RINGER_SILENT -> STATUS_COLOR_DANGER
+        }
+
+        /** Returns the semantic accent used for battery percentage text. */
+        fun batteryTextColorFor(type: SystemEventType): Color = when (type) {
+            SystemEventType.CHARGING_STARTED,
+            SystemEventType.CHARGING_COMPLETE -> STATUS_COLOR_SUCCESS
+            SystemEventType.BATTERY_LOW -> STATUS_COLOR_WARNING
+            else -> STATUS_COLOR_SUCCESS
+        }
+
+        /** Reads the current battery percentage, falling back to a full value when unavailable. */
+        fun getBatteryPercentage(context: Context): Int {
+            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+            val capacity = batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            if (capacity != null && capacity in 0..100) {
+                return capacity
+            }
+            val intentFilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, intentFilter)
+            val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level >= 0 && scale > 0) {
+                return (level * 100 / scale)
+            }
+            return 100
+        }
+        /** Lower-cased substrings that mark a call's end or decline action. */
         val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
 
         /**

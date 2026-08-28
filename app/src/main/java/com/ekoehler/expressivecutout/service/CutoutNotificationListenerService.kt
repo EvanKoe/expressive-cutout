@@ -42,8 +42,12 @@ data class ProgressData(
     val max: Int = 0,
     val current: Int = 0,
     val isIndeterminate: Boolean = false,
-    val title: String? = null
-)
+    val title: String? = null,
+) {
+    /** True when this progress has reached its maximum and is not indeterminate. */
+    val isComplete: Boolean
+        get() = !isIndeterminate && max > 0 && current >= max
+}
 
 /**
  * Mirrors freshly posted notifications onto the island. It keeps only the posting package,
