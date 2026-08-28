@@ -23,6 +23,12 @@ enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER }
 enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
 
 /**
+ * Which side of the primary pill the satellite bubble sits on when the island is split. The primary
+ * pill always keeps its camera-anchored centre, so only the bubble moves.
+ */
+enum class SatellitePosition { LEFT, RIGHT }
+
+/**
  * Which cutout state swipe-to-dismiss applies to. Ordered to match the settings selector
  * (Expanded / Both / Normal) so the ordinal doubles as the segment index.
  */
@@ -105,6 +111,8 @@ data class BehaviourSettings(
     val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS,
     val displayWhileDnd: Boolean = DEFAULT_DISPLAY_WHILE_DND,
     val alertOnNotification: Boolean = DEFAULT_ALERT_ON_NOTIFICATION,
+    val splitIslandEnabled: Boolean = DEFAULT_SPLIT_ISLAND_ENABLED,
+    val satellitePosition: SatellitePosition = DEFAULT_SATELLITE_POSITION,
 ) {
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
@@ -130,6 +138,8 @@ data class BehaviourSettings(
         const val DEFAULT_SWIPE_TO_DISMISS = true
         val DEFAULT_SWIPE_DISMISS_DIRECTION = SwipeDismissDirection.BOTH
         val DEFAULT_SWIPE_DISMISS_TARGET = SwipeDismissTarget.BOTH
+        const val DEFAULT_SPLIT_ISLAND_ENABLED = true
+        val DEFAULT_SATELLITE_POSITION = SatellitePosition.RIGHT
         const val MIN_ANIMATION_DURATION_MS = 0
         const val MAX_ANIMATION_DURATION_MS = 1000
         const val MIN_NORMAL_SECONDS = 1
@@ -219,7 +229,12 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             /** If enabled, notification cutout appears even when Do not disturb is enabled */
             displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND,
             /** If enabled, the island rings/vibrates itself when a new notification surfaces */
-            alertOnNotification = prefs[ALERT_ON_NOTIFICATION] ?: BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION
+            alertOnNotification = prefs[ALERT_ON_NOTIFICATION] ?: BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION,
+            /** If enabled, a displaced event stays visible in a satellite bubble beside the pill */
+            splitIslandEnabled = prefs[SPLIT_ISLAND_ENABLED] ?: BehaviourSettings.DEFAULT_SPLIT_ISLAND_ENABLED,
+            satellitePosition = prefs[SATELLITE_POSITION]
+                ?.let { runCatching { SatellitePosition.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_SATELLITE_POSITION,
         )
     }
 
@@ -263,6 +278,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("dismissNotifications", s.dismissNotifications)
             put("displayWhileDnd", s.displayWhileDnd)
             put("alertOnNotification", s.alertOnNotification)
+            put("splitIslandEnabled", s.splitIslandEnabled)
+            put("satellitePosition", s.satellitePosition.name)
         }.toString()
     }
 
@@ -302,6 +319,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("swipeToDismiss")) it[SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
             parseEnum<SwipeDismissDirection>(obj, "swipeDismissDirection")?.let { d -> it[SWIPE_DISMISS_DIRECTION] = d.name }
             parseEnum<SwipeDismissTarget>(obj, "swipeDismissTarget")?.let { t -> it[SWIPE_DISMISS_TARGET] = t.name }
+            if (obj.has("splitIslandEnabled")) it[SPLIT_ISLAND_ENABLED] = obj.getBoolean("splitIslandEnabled")
+            parseEnum<SatellitePosition>(obj, "satellitePosition")?.let { p -> it[SATELLITE_POSITION] = p.name }
             if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
             if (obj.has("showsWhenEmptyShowIcon")) it[SHOWS_WHEN_EMPTY_SHOW_ICON] = obj.getBoolean("showsWhenEmptyShowIcon")
             if (obj.has("showsWhenEmptyIcon")) {
@@ -463,6 +482,14 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SWIPE_DISMISS_TARGET] = target.name
     }
 
+    suspend fun setSplitIslandEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SPLIT_ISLAND_ENABLED] = enabled
+    }
+
+    suspend fun setSatellitePosition(position: SatellitePosition) = context.behaviourDataStore.edit {
+        it[SATELLITE_POSITION] = position.name
+    }
+
     suspend fun setShowsWhenEmpty(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
@@ -579,5 +606,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
         val DISPLAY_WHILE_DND = booleanPreferencesKey("display_while_dnd")
         val ALERT_ON_NOTIFICATION = booleanPreferencesKey("alert_on_notification")
+        val SPLIT_ISLAND_ENABLED = booleanPreferencesKey("split_island_enabled")
+        val SATELLITE_POSITION = stringPreferencesKey("satellite_position")
     }
 }

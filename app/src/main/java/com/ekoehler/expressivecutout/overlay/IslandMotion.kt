@@ -100,6 +100,24 @@ internal class IslandMotion(
         }
     }
 
+    /**
+     * Pops a freshly arrived icon into the normal cutout: it starts at [POP_IN_START_SCALE] and
+     * springs up to rest, overshooting slightly. When an event lands on a cutout that is already on
+     * screen — the resting "shows when empty" pill, or one notification replacing another — neither
+     * the reveal nor the size transition runs, so this is the only thing marking the arrival.
+     *
+     * Snaps to the start scale itself, so a second arrival mid-animation restarts the pop instead of
+     * springing on from wherever the previous one had got to.
+     */
+    suspend fun popIn(scale: Animatable<Float, AnimationVector1D>) {
+        scale.snapTo(POP_IN_START_SCALE)
+        scale.animateTo(
+            targetValue = REST_SCALE,
+            animationSpec = if (expressive) spatialSpec(speed, bounce, visibilityThreshold = 0.0005f)
+            else tween(durationMillis = scaled(POP_IN_MS), easing = EaseInOutEasing),
+        )
+    }
+
     /** Alpha / colour motion: critically damped (no overshoot), so fades never over-brighten. */
     fun fade(): AnimationSpec<Float> =
         if (expressive) effectsSpec(speed)
@@ -136,6 +154,16 @@ internal class IslandMotion(
          * step with POP_DAMPING — it is only correct for that value.
          */
         private const val POP_PEAK_RATIO = 0.5216f
+
+        /**
+         * Where [popIn] starts from. The badge is small enough on the pill that the growth has to be
+         * a good half of its resting size to register at all; the spring's overshoot scales with that
+         * travel too, so a lower start buys a taller pop at both ends of the arc.
+         */
+        private const val POP_IN_START_SCALE = 0.55f
+
+        /** [popIn]'s length under [AnimationStyle.EASE_IN_OUT], which has no spring to settle. */
+        private const val POP_IN_MS = 200
 
         /**
          * A spatial spring based on the Material 3 expressive MotionScheme tokens: [speed] sets the

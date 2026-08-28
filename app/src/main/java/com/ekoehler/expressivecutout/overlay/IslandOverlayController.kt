@@ -54,6 +54,7 @@ import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.GlobalAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
@@ -175,6 +176,29 @@ class IslandOverlayController(private val context: Context) {
     private val displayHeightDp: Int = (displayHeightPx / density).toInt()
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
+
+    /**
+     * The event parked in the satellite bubble beside the pill, or null when the island is whole.
+     * Holds whatever [currentEvent] displaced, so a pinned live tile stays visible instead of
+     * vanishing until [livePillToReturnTo] brings it back. Capacity is exactly one.
+     */
+    private val satelliteEvent = MutableStateFlow<IslandEvent?>(null)
+    private var satelliteDismissJob: Job? = null
+
+    /**
+     * When the pill's / bubble's auto-dismiss is due, or null while that slot is pinned (a live
+     * tile). Carried across a demotion so a notification pushed into the bubble expires on its
+     * original schedule rather than getting a fresh lease.
+     */
+    private var currentDeadlineMs: Long? = null
+    private var satelliteDeadlineMs: Long? = null
+
+    /**
+     * Set while the pill is showing an event tapped out of the bubble. The two slots are swapped
+     * for the duration so the expanded cutout acts on a real [currentEvent], and swapped back when
+     * it collapses — the bubble is hidden while expanded, so the user never sees them move.
+     */
+    private var restoreSlotsOnCollapse = false
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
     private val forcedExpanded = MutableStateFlow<Boolean?>(null)
     private val behaviourState = MutableStateFlow(BehaviourSettings())
@@ -350,6 +374,7 @@ class IslandOverlayController(private val context: Context) {
      * the system would otherwise keep holding on the island's behalf.
      */
     fun stop() {
+        satelliteDismissJob?.cancel()
         // The island is going away with a pill still up, so nothing is left to mirror the
         // notification it was standing in for — hand it back to the panel before the collector that
         // would normally notice dies with the scope.
@@ -529,6 +554,9 @@ class IslandOverlayController(private val context: Context) {
     fun onOrientationChanged(orientation: Int) {
         val rotation = currentDisplayRotation()
         if (orientation == currentOrientation && rotation == currentRotation) return
+        // The split is portrait-only, so a bubble must not survive the rotation: landscape gives it no
+        // reserved width and no touchable region, which would leave it drawn but dead.
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) clearSatellite()
         val view = composeView
         // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
         if (view == null || overlayHidden) {
@@ -597,6 +625,7 @@ class IslandOverlayController(private val context: Context) {
             setContent {
                 val collapse by collapseTrigger.collectAsStateWithLifecycle()
                 val event by currentEvent.collectAsStateWithLifecycle()
+                val satellite by satelliteEvent.collectAsStateWithLifecycle()
                 val layout by layoutState.collectAsStateWithLifecycle()
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
@@ -660,6 +689,9 @@ class IslandOverlayController(private val context: Context) {
                         permissionDotPosition = permissionDotPosition,
                         permissionDotColors = permissionDotColors,
                         permissionDotsVertical = permissionDotVertical,
+                        satellite = satellite,
+                        satellitePosition = behaviour.satellitePosition,
+                        onSatelliteClick = ::onSatellitePromote,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
@@ -822,6 +854,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeNowPlaying() = scope.launch {
         NowPlayingBus.state.collect { now ->
             musicPlaying = now?.isPlaying == true
+            pruneSatellite()
             // Once the session ends there's nothing to return to.
             if (now == null) lastMusicEvent = null
             // Playback starting/stopping (or switching apps) can change whether the player is the
@@ -946,6 +979,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeOnCall() = scope.launch {
         OnCallBus.state.collect { call ->
             callActive = call != null
+            pruneSatellite()
             if (call == null) {
                 lastCallEvent = null
                 phoneAppHidden = false
@@ -969,6 +1003,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeRunningTimer() = scope.launch {
         RunningTimerBus.state.collect { timer ->
             timerActive = timer != null
+            pruneSatellite()
             if (timer == null) lastTimerEvent = null
             // Only steer the timer pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.timer == null) return@collect
@@ -1020,7 +1055,10 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
-            setTouchable(!previewPinned && (event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)))
+            setTouchable(
+                !previewPinned && (event != null || satelliteEvent.value != null ||
+                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
+            )
         }
     }
 
@@ -1152,7 +1190,11 @@ class IslandOverlayController(private val context: Context) {
                         val info = args?.getOrNull(0)
                         if (info != null) {
                             setTouchableInsets.invoke(info, touchableInsetsRegion)
-                            (touchableRegionField.get(info) as Region).set(pillTouchRect(view.width, view.height))
+                            val region = touchableRegionField.get(info) as Region
+                            region.setEmpty()
+                            for (rect in touchRects(view.width, view.height)) {
+                                region.op(rect, Region.Op.UNION)
+                            }
                         }
                         null
                     }
@@ -1165,6 +1207,54 @@ class IslandOverlayController(private val context: Context) {
             addListener.invoke(view.viewTreeObserver, proxy)
             insetsListener = proxy
         }.onFailure { Log.w(TAG, "Touchable region unavailable; overlay stays fully touchable", it) }
+    }
+
+    /**
+     * Every rectangle that should accept touches: the pill, plus the satellite bubble when one is up.
+     * A union rather than one bounding box, so the gap between them keeps falling through to the app
+     * underneath instead of swallowing a shade pull.
+     */
+    private fun touchRects(viewWidth: Int, viewHeight: Int): List<Rect> {
+        val pill = pillTouchRect(viewWidth, viewHeight)
+        val satellite = satelliteTouchRect(viewWidth, viewHeight)
+        return if (satellite == null) listOf(pill) else listOf(pill, satellite)
+    }
+
+    /**
+     * The satellite bubble's rectangle in the window's own coordinates, or null when no bubble is up.
+     * Mirrors the offsets [DynamicIsland] places it at - the pill's centre, out past half the pill's
+     * width plus the gap - so what is tappable is exactly what is drawn.
+     */
+    private fun satelliteTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
+        if (satelliteEvent.value == null) return null
+        if (expanded) return null
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) return null
+        val collapsed = layoutState.value.collapsed
+        val dims = effectiveDims(layoutState.value, expanded = false)
+        val diameterPx = (collapsed.heightDp * density).toInt()
+        val gapPx = (SATELLITE_GAP_DP * density).toInt()
+        val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
+        val splitPx = (satelliteSplitDp() * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
+        val margin = (TOUCH_MARGIN_DP * density).toInt()
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            satelliteShiftPx(splitPx)
+        val step = pillWidthPx / 2 + gapPx + diameterPx / 2
+        val satelliteCenterX = if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) {
+            centerX - step
+        } else {
+            centerX + step
+        }
+        val topPx = (collapsed.offsetYDp * density).toInt()
+        val bottomPx = topPx + diameterPx
+        return Rect(
+            (satelliteCenterX - diameterPx / 2 - margin).coerceAtLeast(0),
+            (topPx - margin).coerceAtLeast(0),
+            (satelliteCenterX + diameterPx / 2 + margin).coerceAtMost(viewWidth),
+            (bottomPx + margin).coerceAtMost(if (viewHeight > 0) viewHeight else bottomPx + margin),
+        )
     }
 
     /**
@@ -1181,10 +1271,13 @@ class IslandOverlayController(private val context: Context) {
         val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = currentHeightBonusDp(expanded)
         val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx
+        val splitPx = (satelliteSplitDp() * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        // The pill grows to the right for the dots, so its centre moves with it.
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2
+        // The pill grows to the right for the dots, so its centre moves with it; a bubble beside it
+        // pushes the centre the other way by half of the width it gave up.
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            satelliteShiftPx(splitPx)
         val topPx = (dims.offsetYDp * density).toInt()
         val bottomPx = ((dims.offsetYDp + dims.heightDp + bonusDp) * density).toInt()
         return Rect(
@@ -1266,6 +1359,229 @@ class IslandOverlayController(private val context: Context) {
             layoutState.value.collapsed.heightDp,
             permissionDotVerticalState.value,
         )
+    }
+
+    /**
+     * How much width the collapsed pill gives up to the bubble beside it — the bubble's diameter (the
+     * pill's own height, so it reads as a circle of the same scale) plus the gap. The pair keeps the
+     * normal cutout's total width rather than growing past it, so the overlay window never has to
+     * change size for a split: nothing to re-centre, and the pill can't slide off the camera.
+     *
+     * Mirrors what [DynamicIsland] draws, so the touchable region tracks the shrunken pill.
+     */
+    private fun satelliteSplitDp(): Int {
+        if (satelliteEvent.value == null) return 0
+        if (expanded) return 0
+        if (currentEvent.value?.call != null) return 0
+        if (isLandscapeSplitSuppressed()) return 0
+        return layoutState.value.collapsed.heightDp + SATELLITE_GAP_DP
+    }
+
+    /** Which way the pill's centre steps to make room: away from the side the bubble takes. */
+    private fun satelliteShiftPx(splitPx: Int): Int =
+        if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) splitPx / 2 else -splitPx / 2
+
+    /** The split is portrait-only for now: landscape has its own camera-anchored geometry. */
+    private fun isLandscapeSplitSuppressed(): Boolean =
+        orientationState.value == Configuration.ORIENTATION_LANDSCAPE
+
+    /**
+     * Whether the pill is wide enough to give a bubble's worth of width away and still be a pill.
+     * Derived from the real geometry rather than a hard-coded width percentage, so a user on a narrow
+     * cutout loses the bubble exactly when the split would start to look degenerate. Two floors: what
+     * it gives up (or the remainder stops reaching across the camera hole) and twice its own height
+     * (or the "pill" collapses towards a circle of its own).
+     */
+    private fun satelliteFitsWidth(): Boolean {
+        val collapsed = layoutState.value.collapsed
+        val splitDp = collapsed.heightDp + SATELLITE_GAP_DP
+        val pillDp = displayWidthDp.value * (collapsed.widthPercent / 100f) - splitDp
+        return pillDp >= splitDp && pillDp >= collapsed.heightDp * 2
+    }
+
+    /**
+     * Whether [displaced] may be parked in the bubble as [incoming] takes the pill. Every
+     * suppression lives here so the rule set is in one place: a call owns the whole cutout and must
+     * never be demoted, the assistant tile's height is a fraction of the screen, and the same
+     * notification must never occupy both slots.
+     */
+    private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
+        if (!behaviourState.value.splitIslandEnabled) return false
+        if (isLandscapeSplitSuppressed()) return false
+        if (displaced.call != null || incoming.call != null) return false
+        if (displaced.assistant != null || incoming.assistant != null) return false
+        if (isTwoRowCall()) return false
+        val key = displaced.notificationKey
+        if (key != null && key == incoming.notificationKey) return false
+        if (displaced.id == incoming.id) return false
+        if (!satelliteFitsWidth()) return false
+        return true
+    }
+
+    /**
+     * Parks [displaced] in the bubble as [incoming] takes the pill, or clears the bubble when the
+     * hand-off isn't allowed. A pinned live tile arrives with a null [deadlineMs] and so persists for
+     * as long as its bus says it is live; a transient keeps the deadline it already had.
+     */
+    private fun demoteToSatellite(displaced: IslandEvent?, incoming: IslandEvent, deadlineMs: Long?) {
+        if (displaced == null || !satelliteAllowed(displaced, incoming)) {
+            clearSatellite()
+            return
+        }
+        parkInSatellite(displaced, deadlineMs)
+        syncWindowSize()
+    }
+
+    /**
+     * Puts [event] in the bubble with [deadlineMs] as its own expiry, arming the job that empties the
+     * bubble when it comes due. A null deadline is a pinned live tile: no timer, it leaves when its
+     * bus says so.
+     */
+    private fun parkInSatellite(event: IslandEvent, deadlineMs: Long?) {
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = event
+        satelliteDeadlineMs = deadlineMs
+        if (deadlineMs != null) {
+            satelliteDismissJob = scope.launch {
+                val remaining = deadlineMs - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                if (satelliteEvent.value?.id == event.id) clearSatellite()
+            }
+        }
+    }
+
+    /** Arms the pill's auto-dismiss for an already-known [deadlineMs], or pins it when that is null. */
+    private fun armPillDismiss(deadlineMs: Long?) {
+        dismissJob?.cancel()
+        currentDeadlineMs = deadlineMs
+        if (deadlineMs == null) return
+        dismissJob = scope.launch {
+            val remaining = deadlineMs - System.currentTimeMillis()
+            if (remaining > 0) delay(remaining)
+            dismissIsland()
+        }
+    }
+
+    /** Empties the bubble and stops whatever was going to empty it. */
+    private fun clearSatellite() {
+        satelliteDismissJob?.cancel()
+        satelliteDismissJob = null
+        satelliteDeadlineMs = null
+        if (satelliteEvent.value != null) {
+            satelliteEvent.value = null
+            syncWindowSize()
+        }
+    }
+
+    /**
+     * Drops a parked live tile from the bubble once its own bus stops reporting it live - the bubble
+     * has no timer of its own in that case, so without this the tile would sit there for good.
+     */
+    private fun pruneSatellite() {
+        val bubble = satelliteEvent.value ?: return
+        val stale = when {
+            bubble.media != null -> !musicPlaying
+            bubble.call != null -> !callActive
+            bubble.timer != null -> !timerActive
+            bubble.assistant != null -> !assistantActive
+            else -> false
+        }
+        if (stale) clearSatellite()
+    }
+
+    /**
+     * Moves whatever is in the bubble into the pill, always collapsed, and reports whether it did.
+     *
+     * The pill being replaced may have been expanded — the user swiping an open notification away is
+     * the common case — and the promoted event must not inherit that. It is a normal cutout: a
+     * notification or a dynamic tile, either way collapsed. Left to the new event's id alone the
+     * composable can carry the open state over, so the collapse is asked for explicitly.
+     *
+     * A transient carries its own remaining time across rather than getting a fresh lease, and one
+     * whose time already ran out while it sat in the bubble is dropped instead of being promoted for
+     * a frame. A live tile has no deadline and stays pinned.
+     */
+    private fun promoteSatelliteCollapsed(): Boolean {
+        restoreSlotsOnCollapse = false
+        val bubble = satelliteEvent.value ?: return false
+        val deadline = satelliteDeadlineMs
+        val expired = deadline != null && deadline <= System.currentTimeMillis()
+        clearSatellite()
+        if (expired) return false
+        forcedExpanded.value = null
+        expanded = false
+        currentSystemEventType = null
+        currentEvent.value = bubble.copy(initiallyExpanded = false)
+        currentDeadlineMs = deadline
+        collapseTrigger.value = System.currentTimeMillis()
+        if (deadline != null) {
+            dismissJob = scope.launch {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                dismissIsland()
+            }
+        }
+        syncWindowSize()
+        return true
+    }
+
+    /**
+     * Opens the bubble's event on tap, since the tap is a request to read the thing rather than to
+     * reorder the island.
+     *
+     * The two slots are swapped for the duration rather than the tapped event merely being drawn
+     * expanded, so every action, reply and dismiss inside the expanded cutout acts on a real
+     * [currentEvent] and there is no second notion of "which event is open". The bubble is hidden
+     * while expanded, so the swap is never seen, and [restoreSlots] puts both back on collapse —
+     * from the user's side neither one ever moved, and neither is lost.
+     */
+    private fun onSatellitePromote() {
+        val bubble = satelliteEvent.value ?: return
+        // An app the user set to "Normal only" has no expanded state to open, so a tap opens the app
+        // instead, exactly as it would on the pill, and the island is left alone.
+        if (bubble.normalOnly) {
+            bubble.contentIntent?.let { sendPendingIntent(it) }
+            return
+        }
+        val bubbleDeadline = satelliteDeadlineMs
+        val pill = currentEvent.value
+        val pillDeadline = currentDeadlineMs
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteDeadlineMs = null
+        forcedExpanded.value = null
+        currentSystemEventType = null
+        expanded = true
+        currentEvent.value = bubble.copy(initiallyExpanded = true)
+        armPillDismiss(bubbleDeadline)
+        if (pill != null && satelliteAllowed(pill, bubble)) {
+            parkInSatellite(pill.copy(initiallyExpanded = false), pillDeadline)
+            restoreSlotsOnCollapse = true
+        }
+        syncWindowSize()
+    }
+
+    /**
+     * Undoes the swap [onSatellitePromote] made: the event that was expanded goes back to the bubble,
+     * the one it displaced back to the pill, each keeping the deadline it still had.
+     */
+    private fun restoreSlots() {
+        val opened = currentEvent.value
+        val parked = satelliteEvent.value
+        if (opened == null || parked == null) return
+        val openedDeadline = currentDeadlineMs
+        val parkedDeadline = satelliteDeadlineMs
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteDeadlineMs = null
+        forcedExpanded.value = null
+        expanded = false
+        currentSystemEventType = null
+        currentEvent.value = parked.copy(initiallyExpanded = false)
+        armPillDismiss(parkedDeadline)
+        parkInSatellite(opened.copy(initiallyExpanded = false), openedDeadline)
+        collapseTrigger.value = System.currentTimeMillis()
+        syncWindowSize()
     }
 
     /**
@@ -1500,6 +1816,13 @@ class IslandOverlayController(private val context: Context) {
                 return@collect
             }
 
+            // Park whatever the pill is losing in the bubble, carrying its own deadline over, so a
+            // pinned live tile stays visible rather than disappearing until livePillToReturnTo
+            // brings it back. Cleared straight after: scheduleDismiss re-arms it below for a
+            // transient, and the pinned branches leave it null.
+            restoreSlotsOnCollapse = false
+            demoteToSatellite(existing, resolvedEvent, currentDeadlineMs)
+            currentDeadlineMs = null
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = if (isNoExpandLandscape) false else null
@@ -1584,6 +1907,19 @@ class IslandOverlayController(private val context: Context) {
         }
         val wasExpanded = expanded
         expanded = targetExpanded
+        // An event tapped out of the bubble borrowed the pill for as long as it was open; give it back.
+        if (!targetExpanded && restoreSlotsOnCollapse) {
+            restoreSlotsOnCollapse = false
+            if (behaviourState.value.expandedDisappearOnShrink) {
+                // The user asked for an expanded cutout to vanish on shrink rather than settle back,
+                // so hand the island to what it displaced instead of returning it to the bubble.
+                dismissJob?.cancel()
+                promoteSatelliteCollapsed()
+            } else {
+                restoreSlots()
+            }
+            return
+        }
         syncWindowSize()
         when {
             targetExpanded -> dismissJob?.cancel()
@@ -1739,8 +2075,12 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun dismissIsland() {
         dismissJob?.cancel()
+        restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
+        // Whatever is parked in the bubble is already visible, so slide it into the pill rather than
+        // clearing the island and waiting out the usual return delay, which would read as a stutter.
+        if (promoteSatelliteCollapsed()) return
         val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
         syncWindowSize()
@@ -1766,8 +2106,12 @@ class IslandOverlayController(private val context: Context) {
     private fun livePillToReturnTo(): IslandEvent? =
         callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo() ?: lockPillToReturnTo()
 
-    /** True while the shown event is itself a live tile (so we never "return" on top of one). */
-    private fun showingLiveTile(): Boolean = currentEvent.value?.let {
+    /** True while a live pill occupies either slot (so we never "return" on top of one). */
+    private fun showingLiveTile(): Boolean =
+        isLiveTileEvent(currentEvent.value) || isLiveTileEvent(satelliteEvent.value)
+
+    /** Whether [event] is one of the live tiles, in whichever slot it happens to sit. */
+    private fun isLiveTileEvent(event: IslandEvent?): Boolean = event?.let {
         it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id)
     } == true
 
@@ -1856,21 +2200,28 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun scheduleDismiss() {
         dismissJob?.cancel()
+        currentDeadlineMs = null
         // Never time out a live cutout while it's active — it stays until playback / the call stops.
         if (isPinnedLiveTile()) return
         // A system event with its own duration override wins; everything else uses the global normal.
         val seconds = currentSystemEventType?.let { eventDurations[it] }
             ?: behaviourState.value.normalDurationSeconds
+        currentDeadlineMs = System.currentTimeMillis() + seconds * 1_000L
         dismissJob = scope.launch {
             delay(seconds * 1_000L)
+            // Return to the pinned preview if settings is still open.
+            if (previewPinned) {
+                expanded = previewExpanded
+                forcedExpanded.value = previewExpanded
+                currentEvent.value = previewEvent
+                syncWindowSize()
+                return@launch
+            }
+            // Whatever is parked in the bubble is already on screen, so promote that copy rather
+            // than letting livePillToReturnTo resolve a second one.
+            if (promoteSatelliteCollapsed()) return@launch
             val livePill = livePillToReturnTo()
             when {
-                // Return to the pinned preview if settings is still open.
-                previewPinned -> {
-                    expanded = previewExpanded
-                    forcedExpanded.value = previewExpanded
-                    currentEvent.value = previewEvent
-                }
                 // A live tile outlived an interrupting event — fall back to its pill, collapsed.
                 livePill != null -> {
                     expanded = false
@@ -2017,6 +2368,7 @@ class IslandOverlayController(private val context: Context) {
          * scale stay tappable — kept small so the shade-pull area beside the pill stays free.
          */
         const val TOUCH_MARGIN_DP = 12
+
 
         /**
          * Hold the (larger) expanded window size until the pill has finished its ~220ms collapse

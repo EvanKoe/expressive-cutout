@@ -17,12 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Card
@@ -60,8 +62,8 @@ private data class PermissionDoc(
 
 /**
  * Every permission the app declares, in the order the user meets them during setup, ending with
- * the quiet one (network state) that is granted automatically and never prompts. This list is the
- * whole manifest — if a permission is added there, it belongs here too.
+ * the quiet ones — network state and package visibility — that are granted automatically and never
+ * prompt. This list is the whole manifest — if an entry is added there, it belongs here too.
  */
 private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
     PermissionDoc(
@@ -76,6 +78,9 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "Let you reply inline, or trigger an action, and pass that straight back to the app that posted it",
             "Dismiss the real notification when you swipe the island away",
             "Detect an ongoing or incoming call, and the system countdown behind a timer notification",
+            "Read what is playing for the music tile — track, artist, album art and playback state — " +
+                "and send your previous, play, pause and next taps back to the player. Android ties " +
+                "this to the same grant, so it is this permission that makes the music tile work",
         ),
     ),
     PermissionDoc(
@@ -93,15 +98,21 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
         title = "Accessibility service",
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
         summary = "Android only lets an accessibility service draw a window that survives above " +
-            "other apps and the lockscreen. That window is the island — the service is used as a " +
-            "drawing surface. It reads no screen content: the one event it listens for tells it " +
-            "only the name of the app in front, never anything shown on screen.",
+            "other apps and the lockscreen. That window is the island, so the service is mostly " +
+            "used as a drawing surface. It can read screen content, and does so for exactly one " +
+            "feature: the assistant tile. For every other app it takes the package name and " +
+            "nothing else. Anything read is drawn on the island and dropped — never written to " +
+            "disk, never logged, and with no internet permission it cannot leave the device.",
         uses = listOf(
             "Draw the island over the camera cutout, above whatever app is in the foreground",
             "Keep it there across app switches, and tear it down while the device is locked if you asked for that",
             "Receive your taps and swipes on the island itself",
             "Read the name of the app in the foreground — its package name only, no screen content — " +
                 "so the music tile can hide itself while the app playing the music is open",
+            "Read the answer text out of an assistant window, so the assistant tile can show it on " +
+                "the island. This is the only screen content read, and only for apps recognised " +
+                "as an assistant by their package name — Assistant, Gemini, Bixby, Alexa, " +
+                "ChatGPT, Copilot and the like",
         ),
     ),
     PermissionDoc(
@@ -130,6 +141,26 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
         optional = true,
     ),
     PermissionDoc(
+        icon = Icons.Rounded.Terminal,
+        title = "Shizuku access",
+        manifestName = "moe.shizuku.manager.permission.API_V23",
+        summary = "Optional, and only used by two features that Android reserves for the shell " +
+            "user. Shizuku is a separate app you install and start yourself; it holds those shell " +
+            "privileges and lends them to apps you approve, one at a time, in its own interface. " +
+            "Without it those two features are simply unavailable — everything else works as " +
+            "normal. The app talks to Shizuku only while you have one of them switched on.",
+        uses = listOf(
+            "Hide the system status bar's notification icons, alerts and clock, so the island is " +
+                "the only thing reporting notifications. This needs STATUS_BAR, which an ordinary " +
+                "app cannot hold",
+            "Read which apps are using the microphone, camera or location right now, so the island " +
+                "can draw the privacy dots. This needs GET_APP_OPS_STATS, which an ordinary app " +
+                "cannot hold. The dot says only that something is in use, never which app, and " +
+                "the check runs only while the feature is switched on",
+        ),
+        optional = true,
+    ),
+    PermissionDoc(
         icon = Icons.Rounded.Wifi,
         title = "Network state",
         manifestName = "ACCESS_NETWORK_STATE",
@@ -138,6 +169,21 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "access, and cannot see networks you are not connected to.",
         uses = listOf(
             "Show the Wi-Fi connect and disconnect event on the island, with the network name",
+        ),
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.Apps,
+        title = "App list visibility",
+        manifestName = "<queries>",
+        summary = "Not a permission you grant, but a manifest entry, so it is listed here too. On " +
+            "Android 11 and later an app sees no other app unless it declares what it needs to " +
+            "see. This one asks for apps that have a launcher icon — the ones in your app drawer. " +
+            "It is deliberately not QUERY_ALL_PACKAGES: apps without a launcher icon stay " +
+            "invisible, and the list is read on screen and never stored or sent.",
+        uses = listOf(
+            "List your apps on the Apps screen, so you can allow or mute each one's notifications",
+            "Look up an app's icon to colour the island from it",
+            "Check whether Shizuku is installed, to tell \"not installed\" apart from \"not running\"",
         ),
     ),
 )

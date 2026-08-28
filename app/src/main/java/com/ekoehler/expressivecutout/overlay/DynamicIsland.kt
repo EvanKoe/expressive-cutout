@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -163,6 +164,7 @@ import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
@@ -359,6 +361,10 @@ fun DynamicIsland(
     permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
     permissionDotColors: PermissionDotColors = PermissionDotColors(),
     permissionDotsVertical: Boolean = false,
+    /** The event the pill displaced, shown in a bubble beside it, or null when the island is whole. */
+    satellite: IslandEvent? = null,
+    satellitePosition: SatellitePosition = SatellitePosition.RIGHT,
+    onSatelliteClick: () -> Unit = {},
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
@@ -509,6 +515,16 @@ fun DynamicIsland(
         )
     }
 
+    // The normal cutout's icon pops in whenever a new event takes the pill over. What counts as
+    // "new" is deliberately not the event id: a live tile re-resolves on every refresh (a media
+    // progress tick, a timer second) and gets a fresh id each time, which would re-pop constantly.
+    // A notification's key survives its own updates, and a tile's label survives its lifetime.
+    val iconPop = remember { Animatable(1f) }
+    val iconPopKey = event?.let { it.notificationKey ?: it.label }
+    LaunchedEffect(iconPopKey) {
+        if (iconPopKey != null) motion.popIn(iconPop)
+    }
+
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
             tapExpanded = false
@@ -552,9 +568,24 @@ fun DynamicIsland(
         0
     }
 
+    // With a bubble up, the pair shares the normal cutout's width rather than growing past it: the
+    // pill gives up the bubble's diameter plus the gap, and the two together still span exactly the
+    // width the user chose. Both the width and the offset below animate, so the pill visibly makes
+    // room rather than jumping.
+    val satelliteSharing = satellite != null && !isExpanded && !isCall && !isStickToCamera
+    val satelliteSplitDp = if (satelliteSharing) collapsed.heightDp + SATELLITE_GAP_DP else 0
+    // The pair stays centred on the span the pill had to itself, so the pill's own centre steps away
+    // from the side the bubble takes by half of what it gave up.
+    val satelliteShiftDp = when {
+        !satelliteSharing -> 0f
+        satellitePosition == SatellitePosition.LEFT -> satelliteSplitDp / 2f
+        else -> -satelliteSplitDp / 2f
+    }
+
     val width by animateDpAsState(
         if (isStickToCamera) collapsed.heightDp.dp
-        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp,
+        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp -
+            satelliteSplitDp.dp,
         spec, label = "islandWidth"
     )
 
@@ -567,7 +598,8 @@ fun DynamicIsland(
     // Half the extra width, so the pill grows on its trailing edge only and its leading edge — where
     // the tile's icon sits — stays put.
     val offsetX by animateDpAsState(
-        if (isStickToCamera) 0.dp else dims.offsetXDp.dp + (collapsedTrailingInsetDp / 2f).dp,
+        if (isStickToCamera) 0.dp
+        else dims.offsetXDp.dp + (collapsedTrailingInsetDp / 2f).dp + satelliteShiftDp.dp,
         spec, label = "islandOffsetX"
     )
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
@@ -589,6 +621,20 @@ fun DynamicIsland(
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
+
+    // The bubble is hidden whenever the expanded card is up (it would claim the same room), during a
+    // call (the call cutout fills its own trailing edge) and when stuck to the camera. Kept in a
+    // remembered slot like the pill's own event so it can animate out after being cleared.
+    var lastSatellite by remember { mutableStateOf<IslandEvent?>(null) }
+    if (satellite != null) lastSatellite = satellite
+    val satelliteShown = satelliteSharing && present
+    val satelliteReveal = remember { Animatable(0f) }
+    LaunchedEffect(satelliteShown) {
+        satelliteReveal.animateTo(
+            targetValue = if (satelliteShown) 1f else 0f,
+            animationSpec = motion.float(baseMs = if (satelliteShown) 320 else 200),
+        )
+    }
 
     val haptic = LocalHapticFeedback.current
 
@@ -854,6 +900,7 @@ fun DynamicIsland(
                                         heightDp = collapsed.heightDp,
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
+                                        iconPop = iconPop,
                                     )
                                 }
                             }
@@ -889,6 +936,33 @@ fun DynamicIsland(
                         }
                     }
                 }
+            }
+        }
+
+        // Placed as a sibling of the pill rather than wrapping both in a Row: the pill keeps its own
+        // centred, camera-anchored offset, so it can never slide off the cutout as a bubble appears
+        // or leaves. The bubble tracks the pill's animated width instead, staying glued to its edge.
+        lastSatellite?.takeIf { satelliteReveal.value > 0.01f }?.let { bubble ->
+            val diameterDp = collapsed.heightDp
+            val step = revealWidth / 2 + SATELLITE_GAP_DP.dp + (diameterDp / 2).dp
+            val satelliteOffsetX =
+                if (satellitePosition == SatellitePosition.LEFT) offsetX - step else offsetX + step
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(x = satelliteOffsetX, y = offsetY),
+            ) {
+                SatelliteBubble(
+                    event = bubble,
+                    diameterDp = diameterDp,
+                    appearance = appearance,
+                    onClick = onSatelliteClick,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = satelliteReveal.value
+                        scaleY = satelliteReveal.value
+                        alpha = satelliteReveal.value
+                    },
+                )
             }
         }
     }
@@ -952,7 +1026,7 @@ fun IslandPreview(
  * different colours (or gradients) the background morphs in lockstep with the size animation.
  */
 @Composable
-private fun IslandSurface(
+internal fun IslandSurface(
     modifier: Modifier,
     shape: Shape,
     appearance: AppearanceSettings,
@@ -1030,7 +1104,7 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
  * on package so a stale cover is never drawn over a different player's track.
  */
 @Composable
-private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
+internal fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
     val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
     if (event.media?.showAlbumArt != true) return null
     return nowPlaying?.albumArt
@@ -1043,7 +1117,7 @@ private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitma
  * settings screen offers as its default swatch.
  */
 @Composable
-private fun albumArtStrokeFor(event: IslandEvent): Color? =
+internal fun albumArtStrokeFor(event: IslandEvent): Color? =
     event.media?.takeIf { it.albumArtStroke }
         ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
 
@@ -1054,6 +1128,10 @@ private fun albumArtStrokeFor(event: IslandEvent): Color? =
  * @param trailingInsetDp extra room to leave on the trailing edge, so whatever the caller draws
  *   there — today the permission dots — isn't overlapped by the timer's remaining time or the
  *   progress ring.
+ * @param iconPop scale for the badge's arrival pop, driven by the caller. Hoisted rather than owned
+ *   here because the collapsed content re-enters composition every time the island collapses back
+ *   from expanded, which would otherwise re-fire the pop on a collapse. Null (the settings preview)
+ *   leaves the badge at rest.
  */
 @Composable
 private fun CollapsedContent(
@@ -1061,6 +1139,7 @@ private fun CollapsedContent(
     heightDp: Int,
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
+    iconPop: Animatable<Float, AnimationVector1D>? = null,
 ) {
     // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
@@ -1070,11 +1149,24 @@ private fun CollapsedContent(
     val badgeSize = (heightDp * 0.72f).dp
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Scaled after the padding so the pop grows the badge about its own centre instead of
+        // dragging it in from the pill's edge, and read inside the layer block so each frame redraws
+        // without recomposing the pill.
         val placement = Modifier
             .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
             .padding(
                 start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
                 bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+            )
+            .then(
+                if (iconPop != null) {
+                    Modifier.graphicsLayer {
+                        scaleX = iconPop.value
+                        scaleY = iconPop.value
+                    }
+                } else {
+                    Modifier
+                }
             )
         when {
             albumArt != null -> AlbumArt(
@@ -3058,7 +3150,7 @@ private fun formatCallDuration(totalSeconds: Long): String {
 
 /** The caller's contact photo, cropped to a circle. Mirrors [AlbumArt] without the spin. */
 @Composable
-private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
+internal fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
     androidx.compose.foundation.Image(
         bitmap = bitmap,
         contentDescription = null,
@@ -3081,7 +3173,7 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
  * perfectly round, scaling down as one piece when there isn't room for the full [size].
  */
 @Composable
-private fun AlbumArt(
+internal fun AlbumArt(
     bitmap: ImageBitmap,
     size: Dp,
     modifier: Modifier = Modifier,
@@ -3144,7 +3236,7 @@ private fun albumArtShape(rotate: Boolean, size: Dp) =
     if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
 
 @Composable
-private fun IconBadge(
+internal fun IconBadge(
     event: IslandEvent,
     badgeSize: Dp,
     iconSize: Dp,

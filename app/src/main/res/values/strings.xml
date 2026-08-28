@@ -51,7 +51,6 @@
     <string name="settings_notif_stalled_title">Notification access needs a restart</string>
     <string name="settings_notif_stalled">Still granted, but Android stopped the listener — usually after an app update. Turn it off and on again to bring the dynamic tiles back</string>
     <string name="perm_battery_desc">Keeps the island reliable in the background.</string>
-    <string name="perm_testing_title">For testing purpose</string>
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
@@ -501,8 +500,18 @@
     <string name="changelog_fixes">Bug fixes</string>
     <string name="profile_permissions_title">Permission details</string>
     <string name="profile_permissions_subtitle">What each permission is for, and what it is not</string>
+    <string name="behaviour_split_island">Split the island</string>
+    <string name="behaviour_split_island_desc">When something new arrives, the event it replaces stays visible in a small bubble beside the pill instead of disappearing. Tap the bubble to bring it back to the front.</string>
+    <string name="behaviour_satellite_position">Secondary bubble</string>
+    <string name="satellite_position_left">Left</string>
+    <string name="satellite_position_right">Right</string>
+    <string name="action_send_test_double">Send two test notifications</string>
+    <string name="test_second_notification_title">Second test notification</string>
+    <string name="test_second_notification_text">Arrived while the first was still showing — the first should move to the bubble.</string>
+    <string name="profile_testing_title">Testing triggers</string>
+    <string name="profile_testing_subtitle">Try your dynamic island</string>
     <string name="permission_details_optional">Optional</string>
-    <string name="permission_details_intro">Expressive Cutout draws an island over your screen, so it asks for a few sensitive-looking permissions. Here is exactly what each one is used for — the list below is the whole manifest, nothing is left out. Everything happens on your device: the app has no internet permission at all, so nothing can be uploaded, there is no analytics or tracking of any kind, and it never asks Android which apps you have installed.</string>
+    <string name="permission_details_intro">Expressive Cutout draws an island over your screen, so it asks for a few sensitive-looking permissions. Here is exactly what each one is used for — the list below is the whole manifest, nothing is left out. Everything happens on your device: the app has no internet permission at all, so nothing can be uploaded, and there is no analytics or tracking of any kind.</string>
     <string name="permission_details_uses">What it is used for</string>
     <string name="permission_details_footer_title">Check it yourself</string>
     <string name="permission_details_footer">The app is fully open source. Every permission above is declared in the manifest, and you can read the code that uses it on GitHub — including the fact that no network calls are ever made.</string>

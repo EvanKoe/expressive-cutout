@@ -74,7 +74,11 @@ DISCLAIMER: This app was made as a project to learn Jetpack Compose. I used AI t
 | **Music tile** | Now-playing title and artist · album art on the collapsed island, optionally spinning while playback runs and stopping when paused · previous / play-pause / next controls on the expanded island |
 | **Phone tile** | Live ongoing call with the caller's name, contact photo and running duration · the dialer's own call actions, such as Hang up · incoming-call view with the caller's number and answer / decline buttons, opening the in-call screen on tap · optional taller two-row incoming layout with full-width buttons |
 | **Timer tile** | Mirrors the running countdown from your clock app, including Android 16+ live-update timers · the clock app's real buttons and labels, such as Add 1 min and Reset · Pause flips to Resume live |
+| **Assistant tile** | Shows your voice assistant's spoken answer on the island instead of letting it fall into the music tile · a cap on how much of the screen height the answer may fill · static or animated sparkles icon |
 | **System events** | Charging started and stopped · battery low · Wi-Fi connected and lost · headphones in and out · USB connected and removed · device unlocked |
+| **Privacy dots** *(Shizuku)* | Marks the cutout while an app is using the camera (green), the microphone (red) or your location (blue) · each dot switched on its own, with its own colour · dots on the left or right, in a row or stacked in a column |
+| **Status bar** *(Shizuku)* | Hide the system status bar's notification icons, so only the island reports them · hide the battery, Wi-Fi and signal icons · hide the clock · silence system alerts at the source, so sounds, vibration and heads-up pop-ups are muted and only the island alerts you |
+| **Per-app control** | Turn an app off and nothing it posts reaches the cutout, neither notifications nor media · keep an app on the normal island and never the expanded one · searchable app list |
 | **Per-event customisation** | Pick any icon from the full Material icon library, with a search filter · animated icons with an optional loop · per-event colour override · per-event on-screen duration · one Material You colour for every event at once |
 | **Size & position** | Independent width and height for the normal and expanded island · corner radius set for all corners, top / bottom, or each corner on its own · vertical and horizontal position · live preview with a light / dark background toggle · reset to default |
 | **Appearance** | Solid or gradient background, separately for the normal and expanded island, with direction and opacity · soft shadow · outline stroke with its own width and colour · Material You, preset or custom hex colours everywhere · light, dark or system app theme |
@@ -88,12 +92,15 @@ DISCLAIMER: This app was made as a project to learn Jetpack Compose. I used AI t
 
 ## Permissions
 
-Your data privacy matters. The app only requests the absolute minimum permissions required to function. Plus, it has no INTERNET access permission, which means nothing is sent on the Internet: no analytics, no usage data, no notification content stored anywhere. Everything stays on your phone. Always. Here are the required permissions:
-- Notification access: to display your notifications in the dynamic island,
+Your data privacy matters. The app only requests the absolute minimum permissions required to function. Plus, it has no INTERNET access permission, which means nothing is sent on the Internet: no analytics, no usage data, no notification content stored anywhere. Everything stays on your phone. Always. This list is the whole manifest, and every entry is explained at greater length in the app, on the Permission details screen. Here are the permissions:
+- Notification access: to display your notifications in the dynamic island. Android ties media access to the same grant, so this is also what lets the music tile show what is playing and control it,
 - Accessibility service: to display over other apps. It may also read screen content, but only to make features work: it reads which app is in the foreground (so a tile can hide while you are in that app), and it reads answer text from assistant apps so the assistant tile can show you the answer. That is all it looks at — every other app is a package name and nothing more. Whatever is read is drawn on the island and immediately dropped: it is never written to storage, never logged, and — since the app has no internet permission — cannot be sent anywhere,  
+- Vibration: for haptic feedback in the app and on the cutout,  
 - Ignore battery optimisation (optional): to make sure battery optimisation does not kill the app,  
 - Post notification (optional): for testing purpose,  
-- Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it
+- Shizuku (optional): only for the two features Android reserves for the shell user — hiding the system status bar icons, and reading which apps are using the microphone, camera or location for the privacy dots. Shizuku is a separate app you install and start yourself, and you approve this app in its interface. Without it, those two features are unavailable and everything else works as normal,  
+- Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it,  
+- App list visibility (`<queries>`, not a permission you grant): on Android 11+ an app sees no other app unless it says what it needs to see. This one asks for apps that have a launcher icon, so the Apps screen can list them for the per-app switches, an app's icon can colour the island, and the app can tell whether Shizuku is installed. It is deliberately not `QUERY_ALL_PACKAGES`
 
 ## Special thanks
 
