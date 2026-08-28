@@ -1314,17 +1314,24 @@ class IslandOverlayController(private val context: Context) {
             val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
             return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
         }
+        val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
             // The empty pill's expanded "center" (no event) claims room for its shortcut row.
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
                 CENTER_SHORTCUTS_EXTRA_DP
-            expanded && previewPinned -> expandedActionsBonusDp()
-            expanded -> if (appearanceState.value.showFullNotificationText) {
+            expanded && previewPinned -> {
                 val maxCutoutDp = (displayHeightDp * 70 / 100)
-                maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
-            } else {
-                expandedActionsBonusDp()
+                maxOf(expandedActionsBonusDp() + topMarginExtra + EXPANDED_NOTIFICATION_EXTRA_DP, maxCutoutDp - layoutState.value.expanded.heightDp)
+            }
+            expanded -> {
+                val maxCutoutDp = (displayHeightDp * 70 / 100)
+                val notificationExtra = if (appearanceState.value.showFullNotificationText) {
+                    maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+                } else {
+                    expandedActionsBonusDp()
+                }
+                notificationExtra + topMarginExtra + EXPANDED_NOTIFICATION_EXTRA_DP
             }
             isTwoRowCall() -> callIncomingExtraDp()
             else -> 0
