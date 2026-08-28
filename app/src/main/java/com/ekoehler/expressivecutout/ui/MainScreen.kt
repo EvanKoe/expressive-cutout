@@ -9,10 +9,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -104,6 +101,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     val selectedEvent = selectedEventName?.let { name -> SystemEventType.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
     val current = tabs[selectedIndex]
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
 
@@ -209,7 +207,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 AnimatedContent(
                     targetState = current,
                     transitionSpec = {
-                        slideInHorizontally(tween(220, delayMillis = 90)) togetherWith slideOutHorizontally(tween(90))
+                        pageTransition(appearance.pageTransitionStyle)
                     },
                     label = "homeTab",
                 ) { tab ->

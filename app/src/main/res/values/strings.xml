@@ -31,6 +31,28 @@
     <string name="event_ringer_normal">Sound on</string>
     <string name="event_ringer_vibrate">Vibrate</string>
     <string name="event_ringer_silent">Silent</string>
+    <string name="event_group_charging">Charging and battery</string>
+    <string name="event_group_wifi">Wi-Fi</string>
+    <string name="event_group_headphones">Headphones</string>
+    <string name="event_group_usb">USB</string>
+    <string name="event_group_lock">Device lock</string>
+    <string name="event_group_vpn">VPN</string>
+    <string name="event_group_adb">USB debugging</string>
+    <string name="event_group_wireless_debugging">Wireless debugging</string>
+    <string name="event_group_bluetooth">Bluetooth</string>
+    <string name="event_group_hotspot">Hotspot</string>
+    <string name="event_group_ringer">Ringer mode</string>
+    <string name="event_group_charging_desc">Show charging and battery changes on the island.</string>
+    <string name="event_group_wifi_desc">Show when your Wi-Fi connection changes.</string>
+    <string name="event_group_headphones_desc">Show when headphones connect or disconnect.</string>
+    <string name="event_group_usb_desc">Show USB connection changes.</string>
+    <string name="event_group_lock_desc">Show when your device locks or unlocks.</string>
+    <string name="event_group_vpn_desc">Show when your VPN connection changes.</string>
+    <string name="event_group_adb_desc">Show USB debugging connection changes.</string>
+    <string name="event_group_wireless_debugging_desc">Show wireless debugging connection changes.</string>
+    <string name="event_group_bluetooth_desc">Show Bluetooth connection changes.</string>
+    <string name="event_group_hotspot_desc">Show when your hotspot turns on or off.</string>
+    <string name="event_group_ringer_desc">Show changes to your ringer mode.</string>
 
     <!-- Dynamic tile labels shown inside the island -->
     <string name="tile_music">Music</string>
@@ -207,6 +229,10 @@
     <string name="appearance_section_title">Appearance</string>
     <string name="appearance_shadow_title">Shadow</string>
     <string name="appearance_shadow_desc">Cast a soft shadow beneath the island.</string>
+    <string name="appearance_page_transition_title">Page transition</string>
+    <string name="appearance_page_transition_desc">Choose how tabs and settings pages change.</string>
+    <string name="appearance_page_transition_fade">Fade</string>
+    <string name="appearance_page_transition_slide">Slide</string>
     <string name="appearance_stroke_title">Stroke</string>
     <string name="appearance_stroke_desc">Draw an outline around the island.</string>
     <string name="appearance_stroke_width">Stroke width</string>

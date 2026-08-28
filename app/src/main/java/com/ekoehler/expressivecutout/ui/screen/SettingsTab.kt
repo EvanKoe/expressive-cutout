@@ -3,12 +3,6 @@ package com.ekoehler.expressivecutout.ui.screen
 import android.graphics.Color
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +53,7 @@ import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.pageTransition
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 
 /**
@@ -93,6 +89,7 @@ fun SettingsTab(
     onOpenShizuku: () -> Unit,
     onOpenPermissionDot: () -> Unit,
 ) {
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isPreviewRoute = route == SettingsRoute.SizePosition ||
@@ -126,15 +123,12 @@ fun SettingsTab(
         }
     }
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
-    // Deeper routes slide in from the right; stepping back slides in from the left, so the
-    // motion mirrors the predictive-back peek.
     AnimatedContent(
         targetState = route,
         transitionSpec = {
             val forward = targetState.depth >= initialState.depth
             val dir = if (forward) 1 else -1
-            (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
-                (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
+            pageTransition(appearance.pageTransitionStyle, dir)
         },
         label = "settingsRoute",
     ) { current ->

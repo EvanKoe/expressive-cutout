@@ -3,12 +3,6 @@ package com.ekoehler.expressivecutout.ui.screen
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +60,8 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.pageTransition
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 
@@ -86,13 +83,12 @@ fun ProfileTab(
     onExportSettings: () -> Unit,
     onImportSettings: () -> Unit,
 ) {
-    // Same motion as the Settings tab: deeper routes slide in from the right, back from the left.
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     AnimatedContent(
         targetState = route,
         transitionSpec = {
             val dir = if (targetState != ProfileRoute.List) 1 else -1
-            (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
-                (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
+            pageTransition(appearance.pageTransitionStyle, dir)
         },
         label = "profileRoute",
     ) { current ->

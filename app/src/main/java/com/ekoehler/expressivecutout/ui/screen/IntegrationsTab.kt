@@ -1,12 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -25,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.pageTransition
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** The screens reachable from the Integrations tab. */
 enum class IntegrationsRoute { List, EventIcons, EventDetail }
@@ -56,13 +53,13 @@ fun IntegrationsTab(
     onOpenEventIcons: () -> Unit,
     onOpenEvent: (SystemEventType) -> Unit,
 ) {
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     AnimatedContent(
         targetState = route,
         transitionSpec = {
             val forward = targetState.depth >= initialState.depth
             val dir = if (forward) 1 else -1
-            (slideInHorizontally(tween(300)) { w -> dir * w } + fadeIn(tween(300))) togetherWith
-                (slideOutHorizontally(tween(300)) { w -> -dir * w } + fadeOut(tween(300)))
+            pageTransition(appearance.pageTransitionStyle, dir)
         },
         label = "integrationsRoute",
     ) { current ->
