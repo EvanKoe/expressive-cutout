@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +30,6 @@ import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
@@ -47,9 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
@@ -60,11 +56,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
-import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
-import java.nio.file.WatchEvent
 
 /**
  * TESTING ONLY — flip to true to force both "needs a restart" cards visible even when the grants
@@ -86,10 +80,7 @@ fun SettingsTab(
     contentPadding: PaddingValues,
     route: SettingsRoute,
     selectedTile: DynamicTile?,
-    selectedEvent: SystemEventType?,
     onOpenSizePosition: () -> Unit,
-    onOpenEventIcons: () -> Unit,
-    onOpenEvent: (SystemEventType) -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenTile: (DynamicTile) -> Unit,
     onOpenApps: () -> Unit,
@@ -155,7 +146,6 @@ fun SettingsTab(
                     cutoutEnabled = behaviour.cutoutEnabled,
                     onCutoutEnabledChange = viewModel::setCutoutEnabled,
                     onOpenSizePosition = onOpenSizePosition,
-                    onOpenEventIcons = onOpenEventIcons,
                     onOpenDynamicTiles = onOpenDynamicTiles,
                     onOpenApps = onOpenApps,
                     onOpenBehaviour = onOpenBehaviour,
@@ -166,9 +156,6 @@ fun SettingsTab(
             }
 
             SettingsRoute.SizePosition -> SizePositionScreen(viewModel, contentPadding)
-            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding, onOpenEvent)
-            SettingsRoute.EventDetail ->
-                selectedEvent?.let { EventDetailScreen(it, viewModel, contentPadding) }
             SettingsRoute.DynamicTiles -> DynamicTilesScreen(viewModel, contentPadding, onOpenTile)
             SettingsRoute.Apps -> AppsScreen(viewModel, contentPadding)
             SettingsRoute.DynamicTileDetail ->
@@ -199,7 +186,6 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.Background, SettingsRoute.ActionButtons ->
             SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
-        SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
         SettingsRoute.PermissionDot -> SettingsRoute.Shizuku
         else -> SettingsRoute.List
@@ -220,7 +206,6 @@ private fun SettingsList(
     cutoutEnabled: Boolean,
     onCutoutEnabledChange: (Boolean) -> Unit,
     onOpenSizePosition: () -> Unit,
-    onOpenEventIcons: () -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenBehaviour: () -> Unit,
@@ -338,17 +323,11 @@ private fun SettingsList(
             )
         }
 
-        // Events and tiles that trigger the cutout
+        // Dynamic tiles that trigger the cutout
         Column(
             modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            SettingsListItem(
-                icon = Icons.Rounded.Notifications,
-                title = stringResource(R.string.section_icons_title),
-                subtitle = stringResource(R.string.settings_icons_subtitle),
-                onClick = onOpenEventIcons,
-            )
             SettingsListItem(
                 icon = Icons.Rounded.GridView,
                 title = stringResource(R.string.dynamic_tiles_title),
@@ -395,64 +374,6 @@ private fun CutoutEnableCard(
             }
             Spacer(Modifier.width(12.dp))
             Switch(checked = enabled, onCheckedChange = onEnabledChange, enabled = canEdit)
-        }
-    }
-}
-
-@Composable
-internal fun SettingsListItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    bgColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
-    fgColor: androidx.compose.ui.graphics.Color? = null,
-    hapticsOnClick: Boolean = true
-) {
-    val haptics = LocalHapticFeedback.current
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = {
-                if (hapticsOnClick) {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-
-                onClick()
-            }),
-        shape = RoundedCornerShape(4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = bgColor
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Spacer(Modifier.width(12.dp))
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(24.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
