@@ -236,7 +236,6 @@ object TestNotifier {
     }
 
     /**
-<<<<<<< HEAD
      * Posts a test notification carrying no actions at all, and mirrors it onto the island. The
      * counterpart to [send]: the expanded cutout then renders only the header row, which is the
      * layout where the title has the least room and can ride up under the camera hole. Its text is
@@ -251,7 +250,35 @@ object TestNotifier {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_island)
-=======
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(PLAIN_NOTIFICATION_ID, notification)
+        }
+
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
      * Posts one test notification and, [PAIR_GAP_MS] later, a second and distinct one — the sequence
      * the split island needs to be seen: the first should hand the pill over and drop back into the
      * satellite bubble rather than disappearing. Re-tapping restarts the pair.
@@ -279,7 +306,6 @@ object TestNotifier {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_island_split)
->>>>>>> multi-line-notification-fix
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -289,31 +315,21 @@ object TestNotifier {
             .build()
 
         if (canPost(context)) {
-<<<<<<< HEAD
-            NotificationManagerCompat.from(context).notify(PLAIN_NOTIFICATION_ID, notification)
+            NotificationManagerCompat.from(context).notify(SECOND_NOTIFICATION_ID, notification)
         }
 
         val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
             ?: context.getString(R.string.app_name)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
 
-=======
-            NotificationManagerCompat.from(context).notify(SECOND_NOTIFICATION_ID, notification)
-        }
-
->>>>>>> multi-line-notification-fix
         IslandEventBus.emit(
             CutoutSignal.Notification(
                 packageName = context.packageName,
                 title = title,
                 text = text,
-<<<<<<< HEAD
                 appName = appName,
                 postTimeMs = postTimeMs,
-                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
-=======
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island_split),
->>>>>>> multi-line-notification-fix
             ),
         )
     }

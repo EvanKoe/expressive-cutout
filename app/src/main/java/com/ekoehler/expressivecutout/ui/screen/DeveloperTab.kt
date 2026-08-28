@@ -81,7 +81,7 @@ fun DeveloperTab(contentPadding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = stringResource(R.string.perm_testing_title),
+            text = stringResource(R.string.profile_testing_title),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
