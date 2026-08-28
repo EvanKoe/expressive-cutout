@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,13 +19,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PhoneCallback
 import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Downloading
-import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.NotificationsNone
-import androidx.compose.material.icons.rounded.PhoneCallback
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -39,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
@@ -47,11 +48,10 @@ import com.ekoehler.expressivecutout.notifications.TestCaller
 import com.ekoehler.expressivecutout.notifications.TestNotifier
 
 /**
- * "Testing triggers" destination: fires each kind of island content on demand, so the current
- * layout and animation settings can be seen without waiting for a real notification or call.
+ * "Developer Testing" destination: houses triggers to test notifications, calls, and progress events.
  */
 @Composable
-fun TestingScreen(contentPadding: PaddingValues) {
+fun DeveloperTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
 
     // Android 13+ gates posting behind a runtime permission; grant then run the pending post.
@@ -69,6 +69,10 @@ fun TestingScreen(contentPadding: PaddingValues) {
         }
     }
 
+    fun onTestNotification() = postWithPermission { TestNotifier.send(context) }
+    fun onTestMultilineNotification() = postWithPermission { TestNotifier.sendMultiline(context) }
+    fun onTestProgressNotification() = postWithPermission { TestNotifier.sendProgress(context) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -77,10 +81,9 @@ fun TestingScreen(contentPadding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = stringResource(R.string.profile_testing_subtitle),
+            text = stringResource(R.string.profile_testing_title),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp),
         )
 
         Column(
@@ -92,47 +95,25 @@ fun TestingScreen(contentPadding: PaddingValues) {
             TestCard(
                 icon = Icons.Rounded.NotificationsActive,
                 title = stringResource(R.string.action_send_test),
-                onClick = { postWithPermission { TestNotifier.send(context) } },
+                onClick = ::onTestNotification,
             )
-
-            TestCard(
-                icon = Icons.Rounded.NotificationsActive,
-                title = stringResource(R.string.action_send_test_multiline),
-                onClick = { postWithPermission { TestNotifier.sendMultiline(context) } },
-            )
-
-            TestCard(
-                icon = Icons.Rounded.NotificationsNone,
-                title = stringResource(R.string.action_send_test_plain),
-                onClick = { postWithPermission { TestNotifier.sendPlain(context) } },
-            )
-
             TestCard(
                 icon = Icons.AutoMirrored.Rounded.Subject,
                 title = stringResource(R.string.action_send_test_multiline),
-                onClick = { postWithPermission { TestNotifier.sendMultiline(context) } },
+                onClick = ::onTestMultilineNotification,
             )
-
-            TestCard(
-                icon = Icons.Rounded.Layers,
-                title = stringResource(R.string.action_send_test_double),
-                onClick = { postWithPermission { TestNotifier.sendPair(context) } },
-            )
-
             TestCard(
                 icon = Icons.Rounded.Downloading,
                 title = stringResource(R.string.action_send_test_progress),
-                onClick = { postWithPermission { TestNotifier.sendProgress(context) } },
+                onClick = ::onTestProgressNotification,
             )
-
             TestCard(
                 icon = Icons.Rounded.Call,
                 title = stringResource(R.string.action_send_test_call),
                 onClick = { TestCaller.toggle(context, TestCaller.Kind.CONNECTED) },
             )
-
             TestCard(
-                icon = Icons.Rounded.PhoneCallback,
+                icon = Icons.AutoMirrored.Rounded.PhoneCallback,
                 title = stringResource(R.string.action_send_test_incoming_call),
                 onClick = { TestCaller.toggle(context, TestCaller.Kind.INCOMING) },
             )
@@ -140,20 +121,24 @@ fun TestingScreen(contentPadding: PaddingValues) {
     }
 }
 
-/** One trigger in the list: an icon, its label, and the action it fires on tap. */
 @Composable
 private fun TestCard(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            },
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
-        onClick = onClick,
     ) {
         Row(
             modifier = Modifier

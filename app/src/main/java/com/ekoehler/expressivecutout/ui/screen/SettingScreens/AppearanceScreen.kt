@@ -205,6 +205,38 @@ internal fun AppearanceScreen(
             }
         }
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_app_name_title),
+            description = stringResource(R.string.appearance_show_app_name_desc),
+            checked = appearance.showSourceAppName,
+            onCheckedChange = viewModel::setShowSourceAppName,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_timestamp_title),
+            description = stringResource(R.string.appearance_show_timestamp_desc),
+            checked = appearance.showTimestamp,
+            onCheckedChange = viewModel::setShowTimestamp,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_full_notification_text_title),
+            description = stringResource(R.string.appearance_show_full_notification_text_desc),
+            checked = appearance.showFullNotificationText,
+            onCheckedChange = viewModel::setShowFullNotificationText,
+        )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
+            description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
+            checked = appearance.preferDynamicIconColor,
+            onCheckedChange = viewModel::setPreferDynamicIconColor,
+        )
+
         ColorPickerCard(
             label = stringResource(R.string.appearance_text_color),
             selected = appearance.textColor,

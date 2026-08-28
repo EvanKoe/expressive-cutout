@@ -32,11 +32,12 @@ import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
+import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 
 /**
- * This is a progress data class to store progress notification extra data
+ * Holds progress metadata extracted from a notification's extras.
  */
 data class ProgressData(
     val max: Int = 0,
@@ -559,6 +560,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
+        val appName = NotificationHeaderResolver.resolveAppName(this, notification.packageName)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(notification.postTime)
 
         // A notification the island already finished with, coming back on the same content: drop it
         // rather than re-popping to fight whatever replaced it. Progress notifications are exempt —
@@ -572,6 +575,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             packageName = notification.packageName,
             title = title,
             text = text,
+            appName = appName,
+            postTimeMs = postTimeMs,
             key = notification.key,
             contentIntent = notification.notification.contentIntent,
             actions = notification.notification.surfaceableActions(),

@@ -301,6 +301,8 @@ class IslandOverlayController(private val context: Context) {
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
             label = context.getString(R.string.preview_label),
             detail = context.getString(R.string.preview_detail),
+            appName = context.getString(R.string.app_name),
+            postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
             appColor = Color(0xFF60A5FA),
         )
@@ -453,18 +455,19 @@ class IslandOverlayController(private val context: Context) {
         if (!behaviourState.value.cutoutEnabled || eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return
         val lockedSignal = CutoutSignal.System(SystemEventType.DEVICE_LOCKED)
         val resolved = resolver.resolve(
-            lockedSignal,
-            customIcons,
-            musicSettings,
-            phoneSettings,
-            timerSettings,
-            assistantSettings,
-            eventDynamicColor,
-            eventDynamicColorRole,
-            eventDynamicColorOpacity,
-            eventAnimatedIcons,
-            eventAnimatedIconLoops,
-            eventColors,
+            signal = lockedSignal,
+            customIcons = customIcons,
+            musicSettings = musicSettings,
+            phoneSettings = phoneSettings,
+            timerSettings = timerSettings,
+            assistantSettings = assistantSettings,
+            dynamicEventColor = eventDynamicColor,
+            dynamicEventColorRole = eventDynamicColorRole,
+            dynamicEventColorOpacity = eventDynamicColorOpacity,
+            animatedIconEnabled = eventAnimatedIcons,
+            animatedIconLoop = eventAnimatedIconLoops,
+            eventColorOverrides = eventColors,
+            preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
         ).copy(initiallyExpanded = false, normalOnly = false)
         isDeviceLocked = true
         lastLockEvent = resolved
@@ -486,6 +489,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = previewExpanded
                 expanded = previewExpanded
                 currentEvent.value = previewEvent
+                setTouchable(false)
             }
             callActive && lastCallEvent != null -> {
                 dismissJob?.cancel()
@@ -510,8 +514,10 @@ class IslandOverlayController(private val context: Context) {
             }
             savedEventBeforeHide != null -> {
                 dismissJob?.cancel()
+                expanded = savedEventBeforeHide?.initiallyExpanded ?: false
                 currentEvent.value = savedEventBeforeHide
                 savedEventBeforeHide = null
+                syncWindowSize()
                 scheduleDismiss()
             }
         }
@@ -1048,12 +1054,13 @@ class IslandOverlayController(private val context: Context) {
      * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
      * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
      * unaffected; the pill's own footprint does stop passing touches through.
+     * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
             setTouchable(
-                event != null || satelliteEvent.value != null ||
-                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled),
+                !previewPinned && (event != null || satelliteEvent.value != null ||
+                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
             )
         }
     }
@@ -1638,6 +1645,7 @@ class IslandOverlayController(private val context: Context) {
             val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
             return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
         }
+        val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
             // The empty pill's expanded "center" (no event) claims room for its shortcut row.
             expanded && event == null &&
@@ -1705,6 +1713,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
+                setTouchable(!pinned && (currentEvent.value != null || (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)))
                 syncWindowSize()
             }
     }
@@ -1808,18 +1817,19 @@ class IslandOverlayController(private val context: Context) {
             val autoExpand = if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
 
             val resolvedEvent = resolver.resolve(
-                signal,
-                customIcons,
-                musicSettings,
-                phoneSettings,
-                timerSettings,
-                assistantSettings,
-                eventDynamicColor,
-                eventDynamicColorRole,
-                eventDynamicColorOpacity,
-                eventAnimatedIcons,
-                eventAnimatedIconLoops,
-                eventColors,
+                signal = signal,
+                customIcons = customIcons,
+                musicSettings = musicSettings,
+                phoneSettings = phoneSettings,
+                timerSettings = timerSettings,
+                assistantSettings = assistantSettings,
+                dynamicEventColor = eventDynamicColor,
+                dynamicEventColorRole = eventDynamicColorRole,
+                dynamicEventColorOpacity = eventDynamicColorOpacity,
+                animatedIconEnabled = eventAnimatedIcons,
+                animatedIconLoop = eventAnimatedIconLoops,
+                eventColorOverrides = eventColors,
+                preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
             ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
 
             if (overlayHidden) {
