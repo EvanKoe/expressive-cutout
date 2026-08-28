@@ -54,6 +54,7 @@ import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
@@ -654,6 +655,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSwipeDismissTarget(target: SwipeDismissTarget) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissTarget(target)
+    }
+
+    fun setSplitIslandEnabled(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setSplitIslandEnabled(enabled)
+    }
+
+    fun setSatellitePosition(position: SatellitePosition) = viewModelScope.launch {
+        behaviourPreferences.setSatellitePosition(position)
     }
 
     fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {

@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
@@ -68,7 +69,7 @@ import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 
 /** The screens reachable from the Profile tab. Hoisted to MainScreen, like [SettingsRoute]. */
-enum class ProfileRoute { List, Changelog, PermissionDetails }
+enum class ProfileRoute { List, Changelog, PermissionDetails, Testing }
 
 /**
  * "Profile" destination: the app-wide theme choice, the version (which opens the changelog) and
@@ -81,6 +82,7 @@ fun ProfileTab(
     route: ProfileRoute,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onOpenTesting: () -> Unit,
     onExportSettings: () -> Unit,
     onImportSettings: () -> Unit,
 ) {
@@ -100,11 +102,13 @@ fun ProfileTab(
                 contentPadding = contentPadding,
                 onOpenChangelog = onOpenChangelog,
                 onOpenPermissionDetails = onOpenPermissionDetails,
+                onOpenTesting = onOpenTesting,
                 onExportSettings = onExportSettings,
                 onImportSettings = onImportSettings,
             )
             ProfileRoute.Changelog -> ChangelogScreen(contentPadding)
             ProfileRoute.PermissionDetails -> PermissionDetailsScreen(contentPadding)
+            ProfileRoute.Testing -> TestingScreen(contentPadding)
         }
     }
 }
@@ -115,6 +119,7 @@ private fun ProfileList(
     contentPadding: PaddingValues,
     onOpenChangelog: () -> Unit,
     onOpenPermissionDetails: () -> Unit,
+    onOpenTesting: () -> Unit,
     onExportSettings: () -> Unit,
     onImportSettings: () -> Unit,
 ) {
@@ -158,6 +163,11 @@ private fun ProfileList(
         PermissionDetailsCard(onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onOpenPermissionDetails()
+        })
+
+        TestingCard(onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenTesting()
         })
 
         val githubProjectUrl = stringResource(R.string.profile_github_project_url)
@@ -427,6 +437,49 @@ private fun PermissionDetailsCard(onClick: () -> Unit) {
                 )
                 Text(
                     text = stringResource(R.string.profile_permissions_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** A clickable card that opens the on-demand island triggers in [TestingScreen]. */
+@Composable
+private fun TestingCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Science,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.profile_testing_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.profile_testing_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

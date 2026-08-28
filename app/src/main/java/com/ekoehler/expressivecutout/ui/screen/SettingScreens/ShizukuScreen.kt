@@ -56,6 +56,14 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import java.nio.file.WatchEvent
 
+/** Grouped-list item shape: rounded at the group's outer edges, tight between stacked items. */
+private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
+    topStart = if (isFirst) 24.dp else 4.dp,
+    topEnd = if (isFirst) 24.dp else 4.dp,
+    bottomStart = if (isLast) 24.dp else 4.dp,
+    bottomEnd = if (isLast) 24.dp else 4.dp,
+)
+
 /**
  * "Shizuku options" screen (reached from the settings list). Houses the tweaks that need shell
  * privileges we can't hold ourselves: hiding the system status bar's notification icons so the
@@ -115,41 +123,41 @@ internal fun ShizukuScreen(
 
         StatusBarPreview(hideIcons = hideIcons, hideSystem = hideSystemInfo, hideClock = hideClock)
 
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
-            title = stringResource(R.string.status_bar_hide_icons_title),
-            description = stringResource(R.string.status_bar_hide_icons_desc),
-            checked = ready && hideIcons,
-            onCheckedChange = viewModel::setHideNotificationIcons,
-            enabled = ready,
+        Text(
+            text = stringResource(R.string.status_bar_hide_icons_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        AnimatedVisibility(visible = ready && hideIcons) {
-            Text(
-                text = stringResource(R.string.status_bar_hide_icons_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SettingsToggleCard(
+                shape = groupedShape(isFirst = true, isLast = false),
+                title = stringResource(R.string.status_bar_hide_icons_title),
+                description = stringResource(R.string.status_bar_hide_icons_desc),
+                checked = ready && hideIcons,
+                onCheckedChange = viewModel::setHideNotificationIcons,
+                enabled = ready,
+            )
+
+            SettingsToggleCard(
+                shape = groupedShape(isFirst = false, isLast = false),
+                title = stringResource(R.string.status_bar_hide_system_info_title),
+                description = stringResource(R.string.status_bar_hide_system_info_desc),
+                checked = ready && hideSystemInfo,
+                onCheckedChange = viewModel::setHideSystemInfo,
+                enabled = ready,
+            )
+
+            SettingsToggleCard(
+                shape = groupedShape(isFirst = false, isLast = true),
+                title = stringResource(R.string.status_bar_hide_clock_title),
+                description = stringResource(R.string.status_bar_hide_clock_desc),
+                checked = ready && hideClock,
+                onCheckedChange = viewModel::setHideClock,
+                enabled = ready,
             )
         }
-
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
-            title = stringResource(R.string.status_bar_hide_system_info_title),
-            description = stringResource(R.string.status_bar_hide_system_info_desc),
-            checked = ready && hideSystemInfo,
-            onCheckedChange = viewModel::setHideSystemInfo,
-            enabled = ready,
-        )
-
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
-            title = stringResource(R.string.status_bar_hide_clock_title),
-            description = stringResource(R.string.status_bar_hide_clock_desc),
-            checked = ready && hideClock,
-            onCheckedChange = viewModel::setHideClock,
-            enabled = ready,
-        )
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),

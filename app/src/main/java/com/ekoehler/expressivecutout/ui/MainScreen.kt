@@ -261,6 +261,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             route = profileRoute,
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
                             onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
+                            onOpenTesting = { profileRoute = ProfileRoute.Testing },
                             onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) } },
                             onImportSettings = { importLauncher.launch(arrayOf("application/json")) },
                         )
@@ -308,6 +309,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 val title = when (current) {
                     HomeTab.Profile -> when (profileRoute) {
                         ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
+                        ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
                         else -> stringResource(R.string.profile_version)
                     }
                     HomeTab.Integrations -> when (integrationsRoute) {

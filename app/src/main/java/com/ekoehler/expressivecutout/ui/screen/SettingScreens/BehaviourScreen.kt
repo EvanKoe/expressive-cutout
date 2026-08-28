@@ -25,24 +25,21 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.RadioButton
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import kotlin.math.roundToInt
 
 /** Grouped-list item shape: large outer corners at the group ends, small between items. */
@@ -52,6 +49,24 @@ private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape
     bottomStart = if (isLast) 32.dp else 4.dp,
     bottomEnd = if (isLast) 32.dp else 4.dp,
 )
+
+/** Label shown for each landscape cutout mode in the options card. */
+private val HorizontalCutoutMode.titleRes: Int
+    get() = when (this) {
+        HorizontalCutoutMode.HIDDEN -> R.string.horizontal_cutout_hidden
+        HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only
+        HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera
+        HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center
+    }
+
+/** One-line explanation shown under each landscape cutout mode. */
+private val HorizontalCutoutMode.descriptionRes: Int
+    get() = when (this) {
+        HorizontalCutoutMode.HIDDEN -> R.string.horizontal_cutout_hidden_desc
+        HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only_desc
+        HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera_desc
+        HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center_desc
+    }
 
 @Composable
 internal fun BehaviourScreen(
@@ -76,6 +91,19 @@ internal fun BehaviourScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        OptionSelectionCard(
+            modifier = Modifier.padding(bottom = 8.dp),
+            title = stringResource(R.string.behaviour_horizontal_cutout),
+            options = HorizontalCutoutMode.entries.map { mode ->
+                SelectableOption(
+                    value = mode,
+                    title = stringResource(mode.titleRes),
+                    description = stringResource(mode.descriptionRes),
+                )
+            },
+            selectedValue = behaviour.horizontalCutoutMode,
+            onSelectionChange = viewModel::setHorizontalCutoutMode,
+        )
         // Grouped list: the first item's top corners and the last item's bottom corners round.
         SettingsToggleCard(
             shape = groupedShape(isFirst = true, isLast = false),
@@ -83,32 +111,6 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_hide_lockscreen_desc),
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
-        )
-        BehaviourRadioGroupCard(
-            shape = groupedShape(isFirst = false, isLast = false),
-            title = stringResource(R.string.behaviour_horizontal_cutout),
-            options = listOf(
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_hidden),
-                    description = stringResource(R.string.horizontal_cutout_hidden_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_normal_only),
-                    description = stringResource(R.string.horizontal_cutout_normal_only_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_stick_to_camera),
-                    description = stringResource(R.string.horizontal_cutout_stick_to_camera_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_center),
-                    description = stringResource(R.string.horizontal_cutout_center_desc),
-                ),
-            ),
-            selectedIndex = behaviour.horizontalCutoutMode.ordinal,
-            onSelect = { index ->
-                viewModel.setHorizontalCutoutMode(HorizontalCutoutMode.entries[index])
-            },
         )
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
@@ -221,6 +223,25 @@ internal fun BehaviourScreen(
                 )
             }
         }
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_split_island),
+            description = stringResource(R.string.behaviour_split_island_desc),
+            checked = behaviour.splitIslandEnabled,
+            onCheckedChange = viewModel::setSplitIslandEnabled,
+        )
+        AnimatedVisibility(visible = behaviour.splitIslandEnabled) {
+            BehaviourSegmentedRow(
+                shape = groupedShape(isFirst = false, isLast = false),
+                label = stringResource(R.string.behaviour_satellite_position),
+                options = listOf(
+                    stringResource(R.string.satellite_position_left),
+                    stringResource(R.string.satellite_position_right),
+                ),
+                selectedIndex = behaviour.satellitePosition.ordinal,
+                onSelect = { viewModel.setSatellitePosition(SatellitePosition.entries[it]) },
+            )
+        }
         SettingsToggleNavCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_empty_pill),
@@ -313,58 +334,3 @@ private fun BehaviourSliderRow(
         }
     }
 }
-
-/** One choice in a radio group: its title and the line of explanation under it. */
-private data class RadioOption(
-    val title: String,
-    val description: String,
-)
-
-@Composable
-private fun BehaviourRadioGroupCard(
-    shape: Shape,
-    title: String,
-    options: List<RadioOption>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                options.forEachIndexed { index, option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(index) }
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = option.title, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                text = option.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        RadioButton(
-                            selected = (index == selectedIndex),
-                            onClick = { onSelect(index) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
