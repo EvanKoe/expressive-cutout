@@ -1627,7 +1627,14 @@ class IslandOverlayController(private val context: Context) {
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
                 CENTER_SHORTCUTS_EXTRA_DP
-            expanded -> expandedActionsBonusDp()
+            expanded -> {
+                val maxCutoutDp = (displayHeightDp * 70 / 100)
+                if (appearanceState.value.showFullNotificationText) {
+                    maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+                } else {
+                    expandedActionsBonusDp()
+                }
+            }
             isTwoRowCall() -> callIncomingExtraDp()
             else -> 0
         }

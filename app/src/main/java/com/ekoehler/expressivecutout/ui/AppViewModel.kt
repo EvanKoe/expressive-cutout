@@ -875,6 +875,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setSentAlignment(alignment)
     }
 
+    fun setShowFullNotificationText(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowFullNotificationText(enabled)
+    }
+
     fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowProgress(enabled)
     }

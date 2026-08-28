@@ -44,6 +44,7 @@ data class AppearanceSettings(
     val replyInputStyle: ReplyInputStyle = DEFAULT_REPLY_INPUT_STYLE,
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
     val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
+    val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -52,6 +53,7 @@ data class AppearanceSettings(
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
         const val DEFAULT_STROKE_OPACITY = 1f
+        const val DEFAULT_SHOW_FULL_NOTIFICATION_TEXT = true
 
         /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -114,6 +116,8 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             cancelButtonOnLeft = prefs[CANCEL_ON_LEFT] ?: AppearanceSettings.DEFAULT_CANCEL_ON_LEFT,
             sentAlignment = SentAlignment.deserialize(prefs[SENT_ALIGNMENT])
                 ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
+            showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT]
+                ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
         )
     }
 
@@ -138,6 +142,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("replyInputStyle", s.replyInputStyle.name)
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
+            put("showFullNotificationText", s.showFullNotificationText)
         }.toString()
     }
 
@@ -181,6 +186,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("cancelButtonOnLeft")) it[CANCEL_ON_LEFT] = obj.getBoolean("cancelButtonOnLeft")
             if (obj.has("sentAlignment")) {
                 SentAlignment.deserialize(obj.optString("sentAlignment"))?.let { a -> it[SENT_ALIGNMENT] = a.name }
+            }
+            if (obj.has("showFullNotificationText")) {
+                it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
             }
         }
     }
@@ -283,6 +291,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[SENT_ALIGNMENT] = alignment.name
     }
 
+    suspend fun setShowFullNotificationText(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_FULL_NOTIFICATION_TEXT] = enabled
+    }
+
     private companion object {
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
@@ -305,5 +317,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val REPLY_INPUT_STYLE = stringPreferencesKey("reply_input_style")
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
         val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
+        val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
     }
 }

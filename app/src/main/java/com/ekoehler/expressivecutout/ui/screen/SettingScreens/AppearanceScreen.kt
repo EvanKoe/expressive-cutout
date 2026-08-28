@@ -180,6 +180,14 @@ internal fun AppearanceScreen(
             allowAppIcon = true,
         )
 
+        SettingsToggleCard(
+            shape = RoundedCornerShape(24.dp),
+            title = stringResource(R.string.appearance_show_full_notification_text_title),
+            description = stringResource(R.string.appearance_show_full_notification_text_desc),
+            checked = appearance.showFullNotificationText,
+            onCheckedChange = viewModel::setShowFullNotificationText,
+        )
+
         // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
         // and gradients, one per state).
         BackgroundCard(onClick = {
