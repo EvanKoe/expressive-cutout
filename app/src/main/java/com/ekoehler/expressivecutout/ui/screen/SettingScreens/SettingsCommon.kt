@@ -30,7 +30,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -301,9 +304,13 @@ internal fun IslandPreviewPanel(
     showActions: Boolean = true,
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
+    var dynamicHeightDp by remember(expanded, event.id, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(heightDp)
+    }
+    val effectiveIslandHeightDp = if (expanded) maxOf(heightDp, dynamicHeightDp) else heightDp
     val cutoutOutline = Color.White.copy(alpha = 0.28f)
     // Grow the panel so the island (at its offset) always fits without clipping.
-    val panelHeight = (offsetYDp + heightDp + 32).coerceIn(150, 340).dp
+    val panelHeight = (offsetYDp + effectiveIslandHeightDp + 32).coerceIn(150, 420).dp
 
     BoxWithConstraints(
         modifier = Modifier
@@ -344,7 +351,7 @@ internal fun IslandPreviewPanel(
             IslandPreview(
                 event = event,
                 width = islandWidth,
-                heightDp = heightDp,
+                heightDp = effectiveIslandHeightDp,
                 cornerTopLeftDp = cornerTopLeftDp,
                 cornerTopRightDp = cornerTopRightDp,
                 cornerBottomLeftDp = cornerBottomLeftDp,
@@ -354,6 +361,7 @@ internal fun IslandPreviewPanel(
                 appearance = appearance,
                 showActions = showActions,
                 collapsedHeightDp = collapsedHeightDp,
+                onHeightMeasured = { dynamicHeightDp = it },
             )
         }
     }
