@@ -201,7 +201,7 @@ class IconResolver(private val context: Context) {
                 null
             }
             if (monochrome != null) {
-                return IslandIcon.Raster(monochrome.toBitmap().asImageBitmap(), tint = true)
+                return IslandIcon.Raster(monochrome.toImageBitmap(), tint = true)
             }
             smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
             appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }

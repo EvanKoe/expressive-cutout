@@ -47,7 +47,6 @@ data class AppearanceSettings(
     val replyInputStyle: ReplyInputStyle = DEFAULT_REPLY_INPUT_STYLE,
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
     val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
-    val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
     val pageTransitionStyle: PageTransitionStyle = DEFAULT_PAGE_TRANSITION_STYLE,
 ) {
     companion object {
@@ -57,7 +56,10 @@ data class AppearanceSettings(
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
         const val DEFAULT_STROKE_OPACITY = 1f
+        const val DEFAULT_SHOW_SOURCE_APP_NAME = true
+        const val DEFAULT_SHOW_TIMESTAMP = true
         const val DEFAULT_SHOW_FULL_NOTIFICATION_TEXT = true
+        const val DEFAULT_PREFER_DYNAMIC_ICON_COLOR = false
 
         /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -125,8 +127,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             cancelButtonOnLeft = prefs[CANCEL_ON_LEFT] ?: AppearanceSettings.DEFAULT_CANCEL_ON_LEFT,
             sentAlignment = SentAlignment.deserialize(prefs[SENT_ALIGNMENT])
                 ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
-            showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT]
-                ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
             pageTransitionStyle = PageTransitionStyle.entries.firstOrNull {
                 it.name == prefs[PAGE_TRANSITION_STYLE]
             } ?: AppearanceSettings.DEFAULT_PAGE_TRANSITION_STYLE,
@@ -158,7 +158,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("replyInputStyle", s.replyInputStyle.name)
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
-            put("showFullNotificationText", s.showFullNotificationText)
             put("pageTransitionStyle", s.pageTransitionStyle.name)
         }.toString()
     }
@@ -332,10 +331,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[SENT_ALIGNMENT] = alignment.name
     }
 
-    suspend fun setShowFullNotificationText(enabled: Boolean) = context.appearanceDataStore.edit {
-        it[SHOW_FULL_NOTIFICATION_TEXT] = enabled
-    }
-
     /** Persists the page transition style used by in-app navigation. */
     suspend fun setPageTransitionStyle(style: PageTransitionStyle) = context.appearanceDataStore.edit {
         it[PAGE_TRANSITION_STYLE] = style.name
@@ -367,7 +362,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val REPLY_INPUT_STYLE = stringPreferencesKey("reply_input_style")
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
         val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
-        val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
         val PAGE_TRANSITION_STYLE = stringPreferencesKey("page_transition_style")
     }
 }

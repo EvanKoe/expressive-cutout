@@ -597,7 +597,7 @@ fun DynamicIsland(
         emptyPill -> 0
         isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
             val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
-            val fitHeightDp = if (expandedContentHeightDp > 0) expandedContentHeightDp else 110
+            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
             val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
@@ -1958,6 +1958,13 @@ private fun ExpandedContent(
         return
     }
     val density = LocalDensity.current
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
     val contentAlpha = if (expandProgress >= 1f) 1f else ((expandProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
     val contentWidthModifier = if (targetWidthDp > 36) {
         Modifier.width((targetWidthDp - 36).dp)
@@ -2626,6 +2633,7 @@ private fun ReplySendButton(
 @Composable
 private fun MediaExpandedContent(
     event: IslandEvent,
+    appearance: AppearanceSettings,
     buttonHeightDp: Int,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
 ) {
