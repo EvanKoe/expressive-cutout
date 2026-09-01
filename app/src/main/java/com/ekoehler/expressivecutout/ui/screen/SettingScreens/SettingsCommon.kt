@@ -30,18 +30,25 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
@@ -290,15 +297,20 @@ internal fun IslandPreviewPanel(
     cornerBottomRightDp: Int,
     offsetXDp: Int,
     offsetYDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     event: IslandEvent,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
 ) {
+    var dynamicHeightDp by remember(expanded, event.id, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(heightDp)
+    }
+    val effectiveIslandHeightDp = if (expanded) maxOf(heightDp, dynamicHeightDp) else heightDp
     val cutoutOutline = Color.White.copy(alpha = 0.28f)
     // Grow the panel so the island (at its offset) always fits without clipping.
-    val panelHeight = (offsetYDp + heightDp + 32).coerceIn(150, 340).dp
+    val panelHeight = (offsetYDp + effectiveIslandHeightDp + 32).coerceIn(150, 420).dp
 
     BoxWithConstraints(
         modifier = Modifier
@@ -339,15 +351,17 @@ internal fun IslandPreviewPanel(
             IslandPreview(
                 event = event,
                 width = islandWidth,
-                heightDp = heightDp,
+                heightDp = effectiveIslandHeightDp,
                 cornerTopLeftDp = cornerTopLeftDp,
                 cornerTopRightDp = cornerTopRightDp,
                 cornerBottomLeftDp = cornerBottomLeftDp,
                 cornerBottomRightDp = cornerBottomRightDp,
+                topMarginDp = topMarginDp,
                 expanded = expanded,
                 appearance = appearance,
                 showActions = showActions,
                 collapsedHeightDp = collapsedHeightDp,
+                onHeightMeasured = { dynamicHeightDp = it },
             )
         }
     }
@@ -379,6 +393,64 @@ internal fun rememberTopCutout(): TopCutout? {
             )
         } else {
             null
+        }
+    }
+}
+
+@Composable
+internal fun SettingsListItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    bgColor: Color = MaterialTheme.colorScheme.surface,
+    fgColor: Color? = null,
+    hapticsOnClick: Boolean = true,
+) {
+    val haptics = LocalHapticFeedback.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = {
+                if (hapticsOnClick) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+
+                onClick()
+            }),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = bgColor,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

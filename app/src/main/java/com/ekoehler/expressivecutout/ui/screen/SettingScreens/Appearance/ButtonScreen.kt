@@ -56,6 +56,7 @@ import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
+import com.ekoehler.expressivecutout.overlay.calculateExpandedNotificationHeightDp
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
@@ -157,11 +158,12 @@ internal fun ButtonScreen(
     val previewAppearance = appearance.copy(actionButtonHeightDp = buttonHeight.roundToInt())
 
     val context = LocalContext.current
+    val previewAppName = stringResource(R.string.app_name)
     val previewLabel = stringResource(R.string.preview_label)
     val previewDetail = stringResource(R.string.preview_detail)
     val replyLabel = stringResource(R.string.action_buttons_preview_reply)
     val archiveLabel = stringResource(R.string.action_buttons_preview_archive)
-    val previewEvent = remember(previewLabel, previewDetail, replyLabel, archiveLabel) {
+    val previewEvent = remember(previewAppName, previewLabel, previewDetail, replyLabel, archiveLabel) {
         // A harmless, never-fired intent so the preview chips have the PendingIntent they require.
         val noop = PendingIntent.getActivity(
             context, 0, Intent(),
@@ -172,6 +174,8 @@ internal fun ButtonScreen(
             icon = IslandIcon.Vector(Icons.Rounded.Notifications),
             label = previewLabel,
             detail = previewDetail,
+            appName = previewAppName,
+            postTimeMs = System.currentTimeMillis(),
             accent = PREVIEW_ACCENT,
             actions = listOf(
                 IslandAction(label = replyLabel, intent = noop),
@@ -181,10 +185,14 @@ internal fun ButtonScreen(
     }
     val cutout = rememberTopCutout()
     val expanded = layout.expanded
-    // Mirror the real island: it grows by the chip row's height so the chips clear the camera hole —
+    // Mirror the real island: it grows by the chip row's height and top margin so the chips clear the camera hole —
     // but only when the chips are actually shown, matching the toggle below.
-    val previewHeightDp = expanded.heightDp +
-        if (behaviour.showActionButtons) expandedActionsExtraDp(buttonHeight.roundToInt()) else 0
+    val previewHeightDp = calculateExpandedNotificationHeightDp(
+        baseExpandedHeightDp = expanded.heightDp,
+        topMarginDp = expanded.topMarginDp,
+        buttonHeightDp = buttonHeight.roundToInt(),
+        hasActions = behaviour.showActionButtons,
+    )
 
     Column(
         modifier = Modifier
@@ -222,6 +230,7 @@ internal fun ButtonScreen(
             cornerBottomRightDp = expanded.cornerBottomRightDp,
             offsetXDp = expanded.offsetXDp,
             offsetYDp = expanded.offsetYDp,
+            topMarginDp = expanded.topMarginDp,
             expanded = true,
             event = previewEvent,
             appearance = previewAppearance,

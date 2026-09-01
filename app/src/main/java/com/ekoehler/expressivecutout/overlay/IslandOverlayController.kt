@@ -12,6 +12,7 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -184,6 +185,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private val satelliteEvent = MutableStateFlow<IslandEvent?>(null)
     private var satelliteDismissJob: Job? = null
+    private var satelliteSystemEventType: SystemEventType? = null
 
     /**
      * When the pill's / bubble's auto-dismiss is due, or null while that slot is pinned (a live
@@ -299,6 +301,8 @@ class IslandOverlayController(private val context: Context) {
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
             label = context.getString(R.string.preview_label),
             detail = context.getString(R.string.preview_detail),
+            appName = context.getString(R.string.app_name),
+            postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
             appColor = Color(0xFF60A5FA),
         )
@@ -451,18 +455,19 @@ class IslandOverlayController(private val context: Context) {
         if (!behaviourState.value.cutoutEnabled || eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return
         val lockedSignal = CutoutSignal.System(SystemEventType.DEVICE_LOCKED)
         val resolved = resolver.resolve(
-            lockedSignal,
-            customIcons,
-            musicSettings,
-            phoneSettings,
-            timerSettings,
-            assistantSettings,
-            eventDynamicColor,
-            eventDynamicColorRole,
-            eventDynamicColorOpacity,
-            eventAnimatedIcons,
-            eventAnimatedIconLoops,
-            eventColors,
+            signal = lockedSignal,
+            customIcons = customIcons,
+            musicSettings = musicSettings,
+            phoneSettings = phoneSettings,
+            timerSettings = timerSettings,
+            assistantSettings = assistantSettings,
+            dynamicEventColor = eventDynamicColor,
+            dynamicEventColorRole = eventDynamicColorRole,
+            dynamicEventColorOpacity = eventDynamicColorOpacity,
+            animatedIconEnabled = eventAnimatedIcons,
+            animatedIconLoop = eventAnimatedIconLoops,
+            eventColorOverrides = eventColors,
+            preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
         ).copy(initiallyExpanded = false, normalOnly = false)
         isDeviceLocked = true
         lastLockEvent = resolved
@@ -484,6 +489,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = previewExpanded
                 expanded = previewExpanded
                 currentEvent.value = previewEvent
+                setTouchable(false)
             }
             callActive && lastCallEvent != null -> {
                 dismissJob?.cancel()
@@ -508,8 +514,10 @@ class IslandOverlayController(private val context: Context) {
             }
             savedEventBeforeHide != null -> {
                 dismissJob?.cancel()
+                expanded = savedEventBeforeHide?.initiallyExpanded ?: false
                 currentEvent.value = savedEventBeforeHide
                 savedEventBeforeHide = null
+                syncWindowSize()
                 scheduleDismiss()
             }
         }
@@ -1046,12 +1054,13 @@ class IslandOverlayController(private val context: Context) {
      * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
      * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
      * unaffected; the pill's own footprint does stop passing touches through.
+     * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
         combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
             setTouchable(
-                event != null || satelliteEvent.value != null ||
-                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled),
+                !previewPinned && (event != null || satelliteEvent.value != null ||
+                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
             )
         }
     }
@@ -1441,7 +1450,7 @@ class IslandOverlayController(private val context: Context) {
             clearSatellite()
             return
         }
-        parkInSatellite(displaced, deadlineMs)
+        parkInSatellite(displaced, deadlineMs, currentSystemEventType)
         syncWindowSize()
     }
 
@@ -1450,9 +1459,14 @@ class IslandOverlayController(private val context: Context) {
      * bubble when it comes due. A null deadline is a pinned live tile: no timer, it leaves when its
      * bus says so.
      */
-    private fun parkInSatellite(event: IslandEvent, deadlineMs: Long?) {
+    private fun parkInSatellite(
+        event: IslandEvent,
+        deadlineMs: Long?,
+        systemEventType: SystemEventType? = null,
+    ) {
         satelliteDismissJob?.cancel()
         satelliteEvent.value = event
+        satelliteSystemEventType = systemEventType
         satelliteDeadlineMs = deadlineMs
         if (deadlineMs != null) {
             satelliteDismissJob = scope.launch {
@@ -1480,6 +1494,7 @@ class IslandOverlayController(private val context: Context) {
         satelliteDismissJob?.cancel()
         satelliteDismissJob = null
         satelliteDeadlineMs = null
+        satelliteSystemEventType = null
         if (satelliteEvent.value != null) {
             satelliteEvent.value = null
             syncWindowSize()
@@ -1518,12 +1533,13 @@ class IslandOverlayController(private val context: Context) {
         restoreSlotsOnCollapse = false
         val bubble = satelliteEvent.value ?: return false
         val deadline = satelliteDeadlineMs
+        val bubbleSystemEventType = satelliteSystemEventType
         val expired = deadline != null && deadline <= System.currentTimeMillis()
         clearSatellite()
         if (expired) return false
         forcedExpanded.value = null
         expanded = false
-        currentSystemEventType = null
+        currentSystemEventType = bubbleSystemEventType
         currentEvent.value = bubble.copy(initiallyExpanded = false)
         currentDeadlineMs = deadline
         collapseTrigger.value = System.currentTimeMillis()
@@ -1557,10 +1573,13 @@ class IslandOverlayController(private val context: Context) {
             return
         }
         val bubbleDeadline = satelliteDeadlineMs
+        val bubbleSystemEventType = satelliteSystemEventType
         val pill = currentEvent.value
         val pillDeadline = currentDeadlineMs
+        val pillSystemEventType = currentSystemEventType
         satelliteDismissJob?.cancel()
         satelliteEvent.value = null
+        satelliteSystemEventType = null
         satelliteDeadlineMs = null
         forcedExpanded.value = null
         currentSystemEventType = null
@@ -1568,9 +1587,10 @@ class IslandOverlayController(private val context: Context) {
         currentEvent.value = bubble.copy(initiallyExpanded = true)
         armPillDismiss(bubbleDeadline)
         if (pill != null && satelliteAllowed(pill, bubble)) {
-            parkInSatellite(pill.copy(initiallyExpanded = false), pillDeadline)
+            parkInSatellite(pill.copy(initiallyExpanded = false), pillDeadline, pillSystemEventType)
             restoreSlotsOnCollapse = true
         }
+        currentSystemEventType = bubbleSystemEventType
         syncWindowSize()
     }
 
@@ -1584,15 +1604,18 @@ class IslandOverlayController(private val context: Context) {
         if (opened == null || parked == null) return
         val openedDeadline = currentDeadlineMs
         val parkedDeadline = satelliteDeadlineMs
+        val openedSystemEventType = currentSystemEventType
+        val parkedSystemEventType = satelliteSystemEventType
         satelliteDismissJob?.cancel()
         satelliteEvent.value = null
+        satelliteSystemEventType = null
         satelliteDeadlineMs = null
         forcedExpanded.value = null
         expanded = false
-        currentSystemEventType = null
+        currentSystemEventType = parkedSystemEventType
         currentEvent.value = parked.copy(initiallyExpanded = false)
         armPillDismiss(parkedDeadline)
-        parkInSatellite(opened.copy(initiallyExpanded = false), openedDeadline)
+        parkInSatellite(opened.copy(initiallyExpanded = false), openedDeadline, openedSystemEventType)
         collapseTrigger.value = System.currentTimeMillis()
         syncWindowSize()
     }
@@ -1641,12 +1664,20 @@ class IslandOverlayController(private val context: Context) {
             val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
             return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
         }
+        val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
             // The empty pill's expanded "center" (no event) claims room for its shortcut row.
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
                 CENTER_SHORTCUTS_EXTRA_DP
-            expanded -> expandedActionsBonusDp()
+            expanded -> {
+                val maxCutoutDp = (displayHeightDp * 70 / 100)
+                if (appearanceState.value.showFullNotificationText) {
+                    maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+                } else {
+                    expandedActionsBonusDp()
+                }
+            }
             isTwoRowCall() -> callIncomingExtraDp()
             else -> 0
         }
@@ -1701,9 +1732,57 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
+                setTouchable(!pinned && (currentEvent.value != null || (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)))
                 syncWindowSize()
             }
     }
+
+    /**
+     * Replaces an existing same-family system event in its current slot without demoting it.
+     */
+    private fun replaceSystemEventIfNeeded(
+        type: SystemEventType,
+        event: IslandEvent,
+    ): Boolean {
+        val transition = replaceSystemEventInSlots(
+            slots = SystemEventSlots(
+                primary = currentEvent.value,
+                primaryType = currentSystemEventType,
+                satellite = satelliteEvent.value,
+                satelliteType = satelliteSystemEventType,
+            ),
+            incomingType = type,
+            incoming = event,
+        )
+        if (!transition.handled) return false
+
+        currentEvent.value = transition.slots.primary
+        currentSystemEventType = transition.slots.primaryType
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = transition.slots.satellite
+        satelliteSystemEventType = transition.slots.satelliteType
+        satelliteDeadlineMs = if (transition.slots.satelliteType == type) {
+            systemEventDeadline(type)
+        } else {
+            satelliteDeadlineMs
+        }
+        if (satelliteEvent.value != null && satelliteDeadlineMs != null) {
+            val deadline = satelliteDeadlineMs ?: return true
+            satelliteDismissJob = scope.launch {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                if (satelliteEvent.value?.id == transition.slots.satellite?.id) clearSatellite()
+            }
+        }
+        scheduleDismiss()
+        syncWindowSize()
+        return true
+    }
+
+    /** Calculates the expiry time for a transient system event. */
+    private fun systemEventDeadline(type: SystemEventType): Long =
+        System.currentTimeMillis() +
+            (eventDurations[type] ?: behaviourState.value.normalDurationSeconds) * 1_000L
 
     /**
      * The single consumer of [IslandEventBus]: turns each signal into a pill or a live tile,
@@ -1757,18 +1836,19 @@ class IslandOverlayController(private val context: Context) {
             val autoExpand = if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
 
             val resolvedEvent = resolver.resolve(
-                signal,
-                customIcons,
-                musicSettings,
-                phoneSettings,
-                timerSettings,
-                assistantSettings,
-                eventDynamicColor,
-                eventDynamicColorRole,
-                eventDynamicColorOpacity,
-                eventAnimatedIcons,
-                eventAnimatedIconLoops,
-                eventColors,
+                signal = signal,
+                customIcons = customIcons,
+                musicSettings = musicSettings,
+                phoneSettings = phoneSettings,
+                timerSettings = timerSettings,
+                assistantSettings = assistantSettings,
+                dynamicEventColor = eventDynamicColor,
+                dynamicEventColorRole = eventDynamicColorRole,
+                dynamicEventColorOpacity = eventDynamicColorOpacity,
+                animatedIconEnabled = eventAnimatedIcons,
+                animatedIconLoop = eventAnimatedIconLoops,
+                eventColorOverrides = eventColors,
+                preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
             ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
 
             if (overlayHidden) {
@@ -1803,6 +1883,12 @@ class IslandOverlayController(private val context: Context) {
             }
 
             if (!behaviourState.value.cutoutEnabled) return@collect
+
+            if (signal is CutoutSignal.System &&
+                replaceSystemEventIfNeeded(signal.type, resolvedEvent)
+            ) {
+                return@collect
+            }
 
             val existing = currentEvent.value
             if (signal is CutoutSignal.Notification && signal.key != null &&
@@ -1981,6 +2067,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onActivate() {
         val event = currentEvent.value
         val intent = event?.contentIntent
+        val action = event?.actionIntentAction
         if (isPinnedLiveTile()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
@@ -1988,7 +2075,17 @@ class IslandOverlayController(private val context: Context) {
         }
         event?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
-        intent?.let(::sendPendingIntent)
+        if (intent != null) {
+            sendPendingIntent(intent)
+        } else if (action != null) {
+            runCatching {
+                val launchIntent = Intent(action).apply {
+                    event.actionIntentUri?.let { data = Uri.parse(it) }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(launchIntent)
+            }.onFailure { Log.w(TAG, "Failed to launch settings action", it) }
+        }
     }
 
     /**

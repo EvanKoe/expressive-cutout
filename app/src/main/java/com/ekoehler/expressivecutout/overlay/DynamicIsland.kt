@@ -12,8 +12,10 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -43,6 +45,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -108,7 +111,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
@@ -239,6 +244,36 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+ * Calculates the total target height for an expanded notification card.
+ * Ensures the height is at least the base expanded height (plus any action button extra height
+ * and top margin offset beyond the default), and automatically adjusts upward if the measured
+ * content height requires more space, so action buttons and multi-line text are never squished.
+ */
+internal fun calculateExpandedNotificationHeightDp(
+    baseExpandedHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    measuredContentHeightDp: Int = 0,
+    buttonHeightDp: Int = 0,
+    hasActions: Boolean = false,
+    maxHeightLimitDp: Int = Int.MAX_VALUE,
+): Int {
+    val baseExtra = if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
+    val topMarginExtra = maxOf(0, topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
+    val baseHeight = baseExpandedHeightDp + baseExtra + topMarginExtra
+    if (measuredContentHeightDp > 0) {
+        return maxOf(baseHeight, measuredContentHeightDp).coerceAtMost(maxHeightLimitDp)
+    }
+    return baseHeight
+}
+
+/**
+ * A safe upper bound on the extra height an expanded notification can claim below the base
+ * expanded cutout for multi-line text and action buttons. The controller reserves this for the
+ * overlay window and touchable region so they never clip the taller layout.
+ */
+internal const val EXPANDED_NOTIFICATION_EXTRA_DP = 160
+
+/**
  * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
  */
 private const val MEDIA_PROGRESS_HEIGHT_DP = 4
@@ -250,6 +285,66 @@ private const val MEDIA_PROGRESS_HEIGHT_DP = 4
  * the bar, drawn after it, paints over the artist line.
  */
 internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
+
+/**
+ * Bottom inset under the action chips (or the text column when there are none). Kept equal to the
+ * expanded notification column's bottom padding so measured inner height converts back to island height.
+ */
+internal const val EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP = 18
+
+/**
+ * Island height from the inner expanded column (icon/text + chips), plus the camera band and bottom
+ * padding. [measuredInnerHeightDp] must not include those insets — that is what
+ * [onGloballyPositioned] reports when padding sits outside the callback.
+ *
+ * When nothing has been measured yet, falls back to the configured expanded height plus a chip row
+ * if [hasActions] so the first frame is not shorter than the chips.
+ */
+internal fun calculateExpandedNotificationHeightDp(
+    baseExpandedHeightDp: Int,
+    topMarginDp: Int = 36,
+    measuredInnerHeightDp: Int = 0,
+    buttonHeightDp: Int = 0,
+    hasActions: Boolean = false,
+    maxHeightLimitDp: Int = Int.MAX_VALUE,
+    bottomPaddingDp: Int = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP,
+): Int {
+    if (measuredInnerHeightDp <= 0) {
+        val fallback = baseExpandedHeightDp + if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
+        return fallback.coerceAtMost(maxHeightLimitDp)
+    }
+    return (topMarginDp + measuredInnerHeightDp + bottomPaddingDp)
+        .coerceAtLeast(baseExpandedHeightDp)
+        .coerceAtMost(maxHeightLimitDp)
+}
+
+/**
+ * Estimates the total height needed to display an expanded notification given its text components,
+ * actions, and progress state, providing a smooth precomputed height target before expansion.
+ */
+internal fun estimateNotificationContentHeightDp(
+    topMarginDp: Int,
+    titleLines: Int = 1,
+    detailLines: Int = 1,
+    secondaryLinesCount: Int = 0,
+    hasHeader: Boolean = false,
+    hasActions: Boolean = false,
+    buttonHeightDp: Int = 44,
+    hasProgress: Boolean = false,
+    bottomPaddingDp: Int = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP,
+): Int {
+    val headerHeight = if (hasHeader) 16 else 0
+    val titleHeight = maxOf(1, titleLines) * 24
+    val detailHeight = maxOf(0, detailLines) * 20
+    val secondaryHeight = if (secondaryLinesCount > 0) secondaryLinesCount * 20 else 0
+    val progressHeight = if (hasProgress) (PROGRESS_BAR_HEIGHT_DP + PROGRESS_BAR_TOP_GAP_DP) else 0
+    val textBlockHeight = headerHeight + titleHeight + detailHeight + secondaryHeight + progressHeight
+
+    val contentRowHeight = maxOf(44, textBlockHeight)
+    val actionsHeight = if (hasActions) (ACTIONS_ROW_SPACING_DP + buttonHeightDp) else 0
+
+    return topMarginDp + contentRowHeight + actionsHeight + bottomPaddingDp
+}
 
 /**
  * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
@@ -433,8 +528,63 @@ fun DynamicIsland(
     }
 
     var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
+    var expandedNotificationHeightDp by remember(shownEvent?.id) { mutableStateOf(0) }
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
+
+    val textMeasurer = rememberTextMeasurer()
+    val textDensity = LocalDensity.current
+    val precomputedNotificationHeightDp = remember(
+        shownEvent?.id,
+        shownEvent?.label,
+        shownEvent?.detail,
+        shownEvent?.progressData,
+        shownEvent?.actions,
+        showActions,
+        appearance.showFullNotificationText,
+        appearance.actionButtonHeightDp,
+        displayWidthDp,
+        expanded.widthPercent,
+    ) {
+        val e = shownEvent ?: return@remember 0
+        if (e.media != null || e.timer != null || e.call != null || e.assistant != null) return@remember 0
+
+        val availableWidthDp = displayWidthDp * expanded.widthPercent / 100 - 36
+        val textWidthDp = maxOf(100, availableWidthDp - 44 - 14)
+        val textWidthPx = with(textDensity) { textWidthDp.dp.roundToPx() }
+
+        val titleMeasured = textMeasurer.measure(
+            text = e.label,
+            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+            constraints = Constraints(maxWidth = textWidthPx),
+            maxLines = 1,
+        )
+        val titleHeightDp = with(textDensity) { titleMeasured.size.height.toDp().value.roundToInt() }
+
+        val detailMaxLines = if (appearance.showFullNotificationText) 20 else 2
+        val detailHeightDp = if (e.detail.isNullOrEmpty()) {
+            0
+        } else {
+            val measured = textMeasurer.measure(
+                text = e.detail,
+                style = TextStyle(fontSize = 12.sp),
+                constraints = Constraints(maxWidth = textWidthPx),
+                maxLines = detailMaxLines,
+            )
+            with(textDensity) { measured.size.height.toDp().value.roundToInt() }
+        }
+
+        val progressHeightDp = if (e.progressData != null) (PROGRESS_BAR_HEIGHT_DP + PROGRESS_BAR_TOP_GAP_DP) else 0
+        val textColumnHeightDp = titleHeightDp + detailHeightDp + progressHeightDp
+        val contentRowHeightDp = maxOf(44, textColumnHeightDp)
+        val notificationHasActions = showActions && e.actions.isNotEmpty()
+        val actionsHeightDp = if (notificationHasActions) {
+            ACTIONS_ROW_SPACING_DP + appearance.actionButtonHeightDp
+        } else {
+            0
+        }
+        contentRowHeightDp + actionsHeightDp
+    }
 
     val heightBonus = when {
         emptyPill && isExpanded -> {
@@ -451,14 +601,26 @@ fun DynamicIsland(
             val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
             (targetHeightDp - dims.heightDp)
         }
-        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions ||
-            hasMediaProgress) -> {
-            val controlsExtra = if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
-                expandedActionsExtraDp(appearance.actionButtonHeightDp)
-            } else {
-                0
-            }
+        isExpanded && shownEvent?.media != null -> {
+            val controlsExtra = if (hasMediaControls) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
             controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
+        }
+        isExpanded && shownEvent?.timer != null ->
+            if (hasTimerActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+        isExpanded && (hasCallActions || callTwoRow) ->
+            if (hasCallActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+        isExpanded -> {
+            val maxCutoutHeightDp = (screenHeightDp * 0.70f).toInt()
+            val innerHeightDp = maxOf(precomputedNotificationHeightDp, expandedNotificationHeightDp)
+            val targetHeightDp = calculateExpandedNotificationHeightDp(
+                baseExpandedHeightDp = dims.heightDp,
+                topMarginDp = expanded.topMarginDp,
+                measuredInnerHeightDp = innerHeightDp,
+                buttonHeightDp = appearance.actionButtonHeightDp,
+                hasActions = hasActions,
+                maxHeightLimitDp = maxCutoutHeightDp,
+            )
+            targetHeightDp - dims.heightDp
         }
         callTwoRow -> callIncomingExtraDp()
         else -> 0
@@ -497,9 +659,10 @@ fun DynamicIsland(
 
     val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
+    val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
     val heightSpec: AnimationSpec<Dp> = when {
         reveal.value == 0f || snapGeometry -> snap()
-        isAssistantAnswer -> motion.dpSmooth()
+        isDynamicHeight -> motion.dpSmooth()
         else -> spec
     }
 
@@ -514,9 +677,9 @@ fun DynamicIsland(
     // has anything for the dots to collide with. Everything else has empty pill there, so the dots
     // fit as they are and the pill is left at the width the user chose.
     //
-    // Read from [event] rather than [shownEvent]: the latter keeps the last event so the pill can
-    // fade out gracefully, and a width that outlived its tile would leave the pill grown for good.
-    val hasTrailingContent = event?.let { it.timer != null || it.progressData != null } == true
+    // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
+    // or fading out, but clears it for the resting empty pill.
+    val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let { it.timer != null || it.progressData != null } == true
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.
@@ -703,15 +866,17 @@ fun DynamicIsland(
                                     // While typing a reply, ignore taps on the surface itself.
                                     if (replying) return@detectTapGestures
 
+                                    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
+
                                     // The phone tile is normal-only, so a tap never toggles it open;
                                     // instead it opens the dialer's in-call screen (its content intent).
                                     if (isNormalOnly) {
-                                        if (shownEvent.contentIntent != null) onActivate()
+                                        if (canActivate) onActivate()
                                         return@detectTapGestures
                                     }
 
-                                    // Tap to open the app
-                                    if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
+                                    // Tap to open the app or settings
+                                    if ((isExpanded || forcedExpanded == false) && canActivate) {
                                         tapExpanded = false
                                         onActivate()
                                     } else if (forcedExpanded == null) {
@@ -824,13 +989,15 @@ fun DynamicIsland(
                         } else {
                             shownEvent?.let { e ->
                                 if (e.call != null) {
-                                    CallNormalContent(event = e, onAction = onAction)
+                                    CallNormalContent(event = e, appearance = appearance, onAction = onAction)
                                 } else if (showExpanded) {
                                     ExpandedContent(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
-                                        collapsedHeightDp = collapsed.heightDp,
+                                        targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
+                                        expandProgress = expandProgress,
+                                        topMarginDp = expanded.topMarginDp,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -848,7 +1015,10 @@ fun DynamicIsland(
                                             replyingTo = null
                                         },
                                         onDismiss = onDismiss,
-                                        onHeightMeasured = { assistantContentHeightDp = it },
+                                        onHeightMeasured = { hDp ->
+                                            if (e.assistant != null) assistantContentHeightDp = hDp
+                                            else expandedNotificationHeightDp = hDp
+                                        },
                                     )
                                 } else {
                                     CollapsedContent(
@@ -935,14 +1105,20 @@ fun IslandPreview(
     cornerTopRightDp: Int,
     cornerBottomLeftDp: Int,
     cornerBottomRightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
+    var measuredHeightDp by remember(event.id, expanded, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(heightDp)
+    }
+    val effectiveHeightDp = if (expanded) maxOf(heightDp, measuredHeightDp) else heightDp
     val eventPrimaryColor = event.primaryColor()
     IslandSurface(
-        modifier = Modifier.size(width, heightDp.dp),
+        modifier = Modifier.size(width, effectiveHeightDp.dp),
         shape = cornerShape(
             topLeft = cornerTopLeftDp.dp,
             topRight = cornerTopRightDp.dp,
@@ -960,13 +1136,17 @@ fun IslandPreview(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
-                collapsedHeightDp = collapsedHeightDp,
+                topMarginDp = topMarginDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
                 onStartReply = {},
                 onCancelReply = {},
                 onSendReply = {},
+                onHeightMeasured = { measured ->
+                    measuredHeightDp = measured
+                    onHeightMeasured?.invoke(measured)
+                },
             )
         } else {
             CollapsedContent(event, heightDp)
@@ -1197,34 +1377,233 @@ private fun CollapsedContent(
             }
         }
         event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
-            val indicatorModifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
-                .size((heightDp * 0.5f).dp)
-            val strokeWidth = (heightDp * 0.06f).dp
-            if (progress.isIndeterminate) {
-                CircularProgressIndicator(
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
+            CollapsedProgressIndicator(
+                progress = progress,
+                heightDp = heightDp,
+                trailingInsetDp = trailingInsetDp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+        // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
+        if (event.timer == null && event.progressData == null && !isStickToCamera) {
+            if (event.trailingText != null) {
+                Text(
+                    text = event.trailingText,
+                    color = event.colorOverride?.resolve() ?: event.trailingTextColor ?: LocalContentColor.current,
+                    fontSize = (heightDp * 0.34f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
                 )
-            } else {
-                val fraction = if (progress.max <= 0) 0f
-                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
-                val animatedFraction by animateFloatAsState(
-                    targetValue = fraction,
-                    label = "collapsedProgress",
-                )
-                CircularProgressIndicator(
-                    progress = { animatedFraction },
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
+            } else if (event.statusDotColor != null) {
+                RadiatingStatusDot(
+                    color = event.statusDotColor,
+                    sizeDp = (heightDp * 0.18f).dp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * 0.20f).dp),
                 )
             }
         }
+    }
+}
+
+/**
+ * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
+ * 100% while in progress, and upon completion seamlessly fills in, bounces in a checkmark, and
+ * emits an expanding radiating pulse wave.
+ */
+@Composable
+private fun CollapsedProgressIndicator(
+    progress: ProgressData,
+    heightDp: Int,
+    trailingInsetDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val indicatorSize = (heightDp * 0.5f).dp
+    val strokeWidth = (heightDp * 0.06f).dp
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+
+    val indicatorModifier = modifier
+        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
+
+    if (progress.isIndeterminate) {
+        CircularProgressIndicator(
+            modifier = indicatorModifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = primaryContainer,
+            strokeWidth = strokeWidth,
+        )
+        return
+    }
+
+    val fraction = if (progress.max <= 0) 0f
+        else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "collapsedProgress",
+    )
+
+    val isComplete = progress.isComplete || (fraction >= 1f && progress.max > 0)
+
+    val fillScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "progressCompleteFill",
+    )
+
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "progressCompleteCheckmark",
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "completedProgressPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseScale",
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isComplete) 0.65f else 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseAlpha",
+    )
+
+    Box(
+        modifier = indicatorModifier.size(indicatorSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse wave upon download completion
+        if (isComplete && pulseAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        alpha = pulseAlpha
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+            )
+        }
+
+        // Circular progress ring
+        CircularProgressIndicator(
+            progress = { animatedFraction },
+            modifier = Modifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = if (isComplete) primaryColor.copy(alpha = 0.2f) else primaryContainer,
+            strokeWidth = strokeWidth,
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        )
+
+        // Seamless inner fill disc
+        if (fillScale > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = fillScale
+                        scaleY = fillScale
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Check mark icon
+                if (checkmarkScale > 0f) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = onPrimaryColor,
+                        modifier = Modifier
+                            .size(indicatorSize * 0.65f)
+                            .graphicsLayer {
+                                scaleX = checkmarkScale
+                                scaleY = checkmarkScale
+                            },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A pulsing status dot on the trailing edge of the island that radiates animated expanding rings
+ * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
+ */
+@Composable
+private fun RadiatingStatusDot(
+    color: Color,
+    sizeDp: Dp = 8.dp,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "radiatingStatus")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveScale",
+    )
+    val waveAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveAlpha",
+    )
+
+    Box(
+        modifier = modifier.size(sizeDp * 2.5f),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse ring
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .graphicsLayer {
+                    scaleX = waveScale
+                    scaleY = waveScale
+                    alpha = waveAlpha
+                }
+                .clip(CircleShape)
+                .background(color),
+        )
+        // Solid center core dot
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(CircleShape)
+                .background(color),
+        )
     }
 }
 
@@ -1536,12 +1915,43 @@ private fun timerRemainingText(): String? {
     return formatCallDuration((remainingMs + 999L) / 1_000L)
 }
 
+/** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
+fun formatRelativeTime(postTimeMs: Long, nowMs: Long = System.currentTimeMillis()): String =
+    NotificationHeaderResolver.formatRelativeTime(postTimeMs, nowMs)
+
+/** Combines source app name and relative timestamp according to visibility settings. */
+fun formatNotificationHeader(
+    appName: String?,
+    relativeTime: String?,
+    showAppName: Boolean,
+    showTimestamp: Boolean,
+): String? = NotificationHeaderResolver.formatHeader(
+    appName = appName,
+    relativeTime = relativeTime,
+    showAppName = showAppName,
+    showTimestamp = showTimestamp,
+)
+
+@Composable
+fun rememberRelativeTime(postTimeMs: Long?): String? {
+    if (postTimeMs == null) return null
+    val relativeTime by produceState(initialValue = formatRelativeTime(postTimeMs), key1 = postTimeMs) {
+        while (true) {
+            delay(1_000L)
+            value = formatRelativeTime(postTimeMs)
+        }
+    }
+    return relativeTime
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    targetWidthDp: Int = 0,
+    expandProgress: Float = 1f,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -1556,8 +1966,9 @@ private fun ExpandedContent(
     if (event.media != null) {
         MediaExpandedContent(
             event = event,
+            appearance = appearance,
             buttonHeightDp = appearance.actionButtonHeightDp,
-            collapsedHeightDp = collapsedHeightDp,
+            topMarginDp = topMarginDp,
         )
         return
     }
@@ -1566,7 +1977,7 @@ private fun ExpandedContent(
         TimerExpandedContent(
             event = event,
             appearance = appearance,
-            collapsedHeightDp = collapsedHeightDp,
+            topMarginDp = topMarginDp,
             onAction = onAction,
         )
         return
@@ -1577,36 +1988,63 @@ private fun ExpandedContent(
             event = event,
             showActions = showActions,
             appearance = appearance,
-            collapsedHeightDp = collapsedHeightDp,
+            collapsedHeightDp = topMarginDp,
             onDismiss = onDismiss,
             onHeightMeasured = onHeightMeasured,
         )
         return
     }
-    // Content hugs the card's bottom edge, below a collapsed-pill-height band that keeps the camera
-    // hole clear. The band is a hard floor: a header tall enough to overrun the card (a two-line
-    // detail plus a progress bar) now spills past the bottom instead of riding up under the camera.
+    val density = LocalDensity.current
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
+    val contentAlpha = if (expandProgress >= 1f) 1f else ((expandProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
+    val contentWidthModifier = if (targetWidthDp > 36) {
+        Modifier.width((targetWidthDp - 36).dp)
+    } else {
+        Modifier.fillMaxWidth()
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+            .padding(horizontal = 18.dp)
+            .graphicsLayer { alpha = contentAlpha },
     ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = 16.dp),
+                .align(Alignment.TopStart)
+                .then(contentWidthModifier)
+                .wrapContentHeight(unbounded = true, align = Alignment.Top)
+                .padding(top = topMarginDp.dp, bottom = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP.dp)
+                .onGloballyPositioned { coordinates ->
+                    val hDp = with(density) { coordinates.size.height.toDp().value.roundToInt() }
+                    if (hDp > 0) {
+                        onHeightMeasured?.invoke(hDp)
+                    }
+                },
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
-            // Weighted so the action / reply row below claims its full height first and the header
-            // takes what is left: when the card is too short for both, the text ellipsises rather
-            // than the buttons shrinking.
             Row(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -1615,23 +2053,35 @@ private fun ExpandedContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // The only flexible child: the title above and the progress bar below are
-                    // measured at their full size first, so a card too short for all three cuts
-                    // the body text down (and ellipsises it) rather than shaving the bar.
                     event.detail?.let { detail ->
                         Text(
                             text = detail,
-                            modifier = Modifier.weight(1f, fill = false),
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
-                            maxLines = 2,
+                            maxLines = if (appearance.showFullNotificationText) 20 else 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (event.secondaryLines.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            event.secondaryLines.forEach { line ->
+                                Text(
+                                    text = line,
+                                    color = LocalContentColor.current.copy(alpha = 0.70f),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
 
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
-                    AnimatedVisibility(visible = progressData != null) {
+                    AnimatedVisibility(visible = progressData != null && !progressData.isComplete) {
                         // Material's default indicator is a 4dp hairline at a fixed 240dp width,
                         // which reads as a stray line on the island. Span the text column and set
                         // the thickness explicitly — the bar derives its stroke from this height.
@@ -1722,6 +2172,7 @@ private fun ActionChip(
     modifier: Modifier = Modifier,
     interaction: MutableInteractionSource = remember { MutableInteractionSource() },
     animatePress: Boolean = true,
+    horizontalPaddingDp: Int = 18,
 ) {
     val shape = when (style) {
         ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
@@ -1762,7 +2213,7 @@ private fun ActionChip(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 22.dp),
+                modifier = Modifier.padding(horizontal = horizontalPaddingDp.dp),
             )
         }
     }
@@ -1810,6 +2261,7 @@ private fun ActionChipRow(
     // every chip on each composition so the number of composable calls stays constant.
     val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
     val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+    val chipPadding = if (actions.size >= 3) 12 else 18
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp, alignment.toHorizontal()),
@@ -1831,7 +2283,7 @@ private fun ActionChipRow(
                     Modifier.weight(weight)
                 }
                 full -> Modifier.weight(1f)
-                else -> Modifier
+                else -> Modifier.weight(1f, fill = false)
             }
             ActionChip(
                 action = action,
@@ -1844,6 +2296,7 @@ private fun ActionChipRow(
                 // When redistributing, the give-and-take of widths IS the press animation, so the
                 // chip must not also expand itself in place.
                 animatePress = !redistribute,
+                horizontalPaddingDp = chipPadding,
             )
         }
     }
@@ -2215,19 +2668,32 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int, collapsedHeightDp: Int) {
+private fun MediaExpandedContent(
+    event: IslandEvent,
+    appearance: AppearanceSettings,
+    buttonHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val albumArt = albumArtFor(event, nowPlaying)
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+            .padding(start = 18.dp, end = 18.dp)
     ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the transport controls keep their height and the track text gives way.
@@ -2243,6 +2709,16 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int, collap
                     showCallPhoto = false,
                 )
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -2537,6 +3013,7 @@ internal fun callCutoutWidthPercent(
 @Composable
 private fun CallNormalContent(
     event: IslandEvent,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
@@ -2545,7 +3022,7 @@ private fun CallNormalContent(
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
     if (incoming && call.incomingExpandedLayout && hasActions) {
-        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, onAction = onAction)
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
     } else {
         CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
     }
@@ -2651,11 +3128,19 @@ private fun IncomingCallExpandedContent(
     event: IslandEvent,
     call: CallTileOptions,
     onCall: OnCall?,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val photo = onCall?.photo?.takeIf { call.showPhoto }
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
     val answer = event.actions.firstOrNull { it.answer }
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Column(
         modifier = Modifier
@@ -2679,15 +3164,26 @@ private fun IncomingCallExpandedContent(
             } else {
                 IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
             }
-            Text(
-                text = event.label,
-                modifier = Modifier.weight(1f),
-                color = LocalContentColor.current,
-                fontSize = CALL_NAME_SIZE_SP.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (headerText != null) {
+                    Text(
+                        text = headerText,
+                        color = event.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = CALL_NAME_SIZE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // A flexible gap pushes the button row down to the bottom edge.
         Spacer(modifier = Modifier.weight(1f))
@@ -2833,21 +3329,28 @@ private fun CallStatus(onCall: OnCall?) {
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
+            .padding(start = 18.dp, end = 18.dp)
     ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.
@@ -2858,6 +3361,16 @@ private fun TimerExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
                         text = timerRemainingText() ?: event.label,
@@ -2908,7 +3421,7 @@ private fun AssistantExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
-    collapsedHeightDp: Int,
+    collapsedHeightDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onDismiss: () -> Unit,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -2944,6 +3457,14 @@ private fun AssistantExpandedContent(
                     }
                 },
         ) {
+            val relativeTime = rememberRelativeTime(event.postTimeMs)
+            val headerText = formatNotificationHeader(
+                appName = event.appName,
+                relativeTime = relativeTime,
+                showAppName = appearance.showSourceAppName,
+                showTimestamp = appearance.showTimestamp,
+            )
+
             // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
             Row(
                 modifier = Modifier.widthIn(max = maxHeaderWidthDp),
@@ -2951,14 +3472,26 @@ private fun AssistantExpandedContent(
             ) {
                 IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    text = event.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = event.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             // Answer content text displayed below title header

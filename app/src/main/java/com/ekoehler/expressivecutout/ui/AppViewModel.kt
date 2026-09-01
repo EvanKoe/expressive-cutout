@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.core.stateFamily
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
@@ -50,6 +51,7 @@ import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
+import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
@@ -322,19 +324,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
-        preferences.setIcon(type, IconSource.Image(uri))
+        forEachState(type) { preferences.setIcon(it, IconSource.Image(uri)) }
     }
 
     fun setMaterialIcon(type: SystemEventType, iconName: String) = viewModelScope.launch {
-        preferences.setIcon(type, IconSource.Material(iconName))
+        forEachState(type) { preferences.setIcon(it, IconSource.Material(iconName)) }
     }
 
     fun resetIcon(type: SystemEventType) = viewModelScope.launch {
-        preferences.clearIcon(type)
+        forEachState(type) { preferences.clearIcon(it) }
     }
 
     fun setEventEnabled(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
-        eventPreferences.setEnabled(type, enabled)
+        forEachState(type) { eventPreferences.setEnabled(it, enabled) }
     }
 
     fun setEventDynamicColor(enabled: Boolean) = viewModelScope.launch {
@@ -358,19 +360,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setEventColor(type: SystemEventType, color: CutoutColor) = viewModelScope.launch {
-        eventPreferences.setColor(type, color)
+        forEachState(type) { eventPreferences.setColor(it, color) }
     }
 
     fun resetEventColor(type: SystemEventType) = viewModelScope.launch {
-        eventPreferences.clearColor(type)
+        forEachState(type) { eventPreferences.clearColor(it) }
     }
 
     fun setEventAnimatedIcon(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
-        eventPreferences.setAnimatedIcon(type, enabled)
+        forEachState(type) { eventPreferences.setAnimatedIcon(it, enabled) }
     }
 
     fun setEventAnimatedIconLoop(type: SystemEventType, loop: Boolean) = viewModelScope.launch {
-        eventPreferences.setAnimatedIconLoop(type, loop)
+        forEachState(type) { eventPreferences.setAnimatedIconLoop(it, loop) }
+    }
+
+    /** Applies a per-event setting to every state in the event's integration family. */
+    private suspend fun forEachState(
+        type: SystemEventType,
+        action: suspend (SystemEventType) -> Unit,
+    ) {
+        type.stateFamily.members.forEach { action(it) }
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {
@@ -669,6 +679,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setShadowEnabled(enabled)
     }
 
+    /** Saves the page transition style used by in-app navigation. */
+    fun setPageTransitionStyle(style: PageTransitionStyle) = viewModelScope.launch {
+        appearancePreferences.setPageTransitionStyle(style)
+    }
+
     /**
      * Whether the user wants the system status bar's notification icons hidden. Saved even while
      * Shizuku is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
@@ -813,6 +828,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setStrokeEnabled(enabled)
+    }
+
+    fun setShowSourceAppName(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowSourceAppName(enabled)
+    }
+
+    fun setShowTimestamp(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowTimestamp(enabled)
+    }
+
+    fun setShowFullNotificationText(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowFullNotificationText(enabled)
+    }
+
+    fun setPreferDynamicIconColor(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setPreferDynamicIconColor(enabled)
     }
 
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
