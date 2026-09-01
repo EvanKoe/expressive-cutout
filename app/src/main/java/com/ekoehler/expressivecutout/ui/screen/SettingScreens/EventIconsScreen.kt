@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -255,20 +256,18 @@ private fun EventFamilySheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.8f)
-                .padding(bottom = 24.dp),
+                .fillMaxHeight(0.8f),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(family.labelRes),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            Text(
+                text = stringResource(family.labelRes),
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 8.dp),
+            )
             ExpressivePillRow(
                 options = family.members.map { stringResource(it.tabLabelRes) },
                 selectedIndex = pagerState.currentPage,
@@ -285,7 +284,7 @@ private fun EventFamilySheet(
                     EventDetailScreen(
                         type = type,
                         viewModel = viewModel,
-                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 24.dp),
                     )
                 }
             }

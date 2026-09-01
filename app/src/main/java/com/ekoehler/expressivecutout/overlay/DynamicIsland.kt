@@ -3685,18 +3685,14 @@ internal fun IconBadge(
                 modifier = Modifier.size(iconSize),
             )
 
-            // Full-colour art fills the badge disc; a monochrome glyph (a notification's small
-            // icon) is drawn at glyph size in the badge's ink instead, like a vector icon.
+            // Art fills the badge disc, whether it keeps its own colours or a monochrome glyph
+            // (a notification's small icon) is recoloured to the badge's ink.
             is IslandIcon.Raster -> androidx.compose.foundation.Image(
                 bitmap = icon.bitmap,
                 contentDescription = null,
                 contentScale = if (icon.tint) ContentScale.Fit else ContentScale.Crop,
                 colorFilter = if (icon.tint) ColorFilter.tint(glyphColor) else null,
-                modifier = if (icon.tint) {
-                    Modifier.size(iconSize)
-                } else {
-                    Modifier.size(badgeSize * 0.78f).clip(CircleShape)
-                },
+                modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
             )
 
             is IslandIcon.Lottie -> {
