@@ -7,6 +7,8 @@
     <!-- System event labels shown inside the island -->
     <string name="event_charging_started">Charging</string>
     <string name="event_charging_stopped">Unplugged</string>
+    <string name="event_charging_complete">Fully charged</string>
+    <string name="event_charging_limit_reached">Charge limit reached</string>
     <string name="event_battery_low">Battery low</string>
     <string name="event_wifi_connected">Wi‑Fi connected</string>
     <string name="event_wifi_disconnected">Wi‑Fi lost</string>
@@ -16,6 +18,41 @@
     <string name="event_usb_unmounted">USB removed</string>
     <string name="event_device_locked">Locked</string>
     <string name="event_device_unlocked">Unlocked</string>
+    <string name="event_vpn_connected">VPN connected</string>
+    <string name="event_vpn_disconnected">VPN disconnected</string>
+    <string name="event_adb_connected">USB debugging connected</string>
+    <string name="event_adb_disconnected">USB debugging disconnected</string>
+    <string name="event_wireless_debugging_connected">Wireless debugging connected</string>
+    <string name="event_wireless_debugging_disconnected">Wireless debugging disconnected</string>
+    <string name="event_bluetooth_connected">Bluetooth connected</string>
+    <string name="event_bluetooth_disconnected">Bluetooth disconnected</string>
+    <string name="event_hotspot_enabled">Hotspot active</string>
+    <string name="event_hotspot_disabled">Hotspot disabled</string>
+    <string name="event_ringer_normal">Sound on</string>
+    <string name="event_ringer_vibrate">Vibrate</string>
+    <string name="event_ringer_silent">Silent</string>
+    <string name="event_group_charging">Charging and battery</string>
+    <string name="event_group_wifi">Wi-Fi</string>
+    <string name="event_group_headphones">Headphones</string>
+    <string name="event_group_usb">USB</string>
+    <string name="event_group_lock">Device lock</string>
+    <string name="event_group_vpn">VPN</string>
+    <string name="event_group_adb">USB debugging</string>
+    <string name="event_group_wireless_debugging">Wireless debugging</string>
+    <string name="event_group_bluetooth">Bluetooth</string>
+    <string name="event_group_hotspot">Hotspot</string>
+    <string name="event_group_ringer">Ringer mode</string>
+    <string name="event_group_charging_desc">Show charging and battery changes on the island.</string>
+    <string name="event_group_wifi_desc">Show when your Wi-Fi connection changes.</string>
+    <string name="event_group_headphones_desc">Show when headphones connect or disconnect.</string>
+    <string name="event_group_usb_desc">Show USB connection changes.</string>
+    <string name="event_group_lock_desc">Show when your device locks or unlocks.</string>
+    <string name="event_group_vpn_desc">Show when your VPN connection changes.</string>
+    <string name="event_group_adb_desc">Show USB debugging connection changes.</string>
+    <string name="event_group_wireless_debugging_desc">Show wireless debugging connection changes.</string>
+    <string name="event_group_bluetooth_desc">Show Bluetooth connection changes.</string>
+    <string name="event_group_hotspot_desc">Show when your hotspot turns on or off.</string>
+    <string name="event_group_ringer_desc">Show changes to your ringer mode.</string>
 
     <!-- Dynamic tile labels shown inside the island -->
     <string name="tile_music">Music</string>
@@ -54,21 +91,34 @@
     <string name="status_granted">Enabled</string>
     <string name="status_needed">Tap to enable</string>
     <string name="action_send_test">Send a test notification</string>
+    <string name="action_send_test_multiline">Send a multi-line test notification</string>
     <string name="action_send_test_progress">Send a test progress notification</string>
     <string name="action_send_test_plain">Send a test notification without buttons</string>
     <string name="test_notification_title">Test notification</string>
     <string name="test_notification_text">Expand the island and try the buttons below.</string>
+    <string name="test_multiline_notification_title">Multi-line message</string>
+    <string name="test_multiline_notification_text">This is a multi-line notification with multiple lines of content.\nExpand the island to test how action buttons and longer text adjust together smoothly without squishing.</string>
     <string name="test_plain_notification_title">Plain test notification</string>
     <string name="test_plain_notification_text">No action buttons, so the island shows only the header. Check the title clears the camera.</string>
-    <string name="test_progress_notification_title">Downloading file</string>
-    <string name="test_progress_notification_text">Watch the island track the progress.</string>
+    <string name="test_progress_notification_title">Downloading</string>
+    <string name="test_progress_notification_text">document_preview.pdf • 5.2 MB</string>
     <string name="test_notification_action_reply">Reply</string>
     <string name="test_notification_action_mark_read">Mark as read</string>
+    <string name="test_notification_action_archive">Archive</string>
     <string name="test_notification_reply_hint">Message</string>
     <string name="test_notification_reply_sent">Reply sent: %1$s</string>
     <string name="test_notification_marked_read">Marked as read</string>
+    <string name="test_notification_archived">Archived</string>
     <string name="action_send_test_call">Show a test call</string>
     <string name="action_send_test_incoming_call">Show an incoming test call</string>
+    <string name="action_send_test_wifi_connected">Test Wi‑Fi connected (Green dot)</string>
+    <string name="action_send_test_wifi_disconnected">Test Wi‑Fi disconnected (Red dot)</string>
+    <string name="action_send_test_battery_low">Test battery low (Yellow percentage)</string>
+    <string name="action_send_test_device_locked">Test device locked (Yellow dot)</string>
+    <string name="action_send_test_charging_started">Test charging started (Green percentage)</string>
+    <string name="action_send_test_charging_stopped">Test unplugged (Red dot)</string>
+    <string name="action_send_test_headphones_disconnected">Test headphones out (Red dot)</string>
+    <string name="action_send_test_usb_unmounted">Test USB removed (Red dot)</string>
     <string name="test_call_hang_up">Hang up</string>
     <string name="test_call_answer">Answer</string>
     <string name="test_call_decline">Decline</string>
@@ -97,6 +147,7 @@
     <string name="appearance_preview">Preview</string>
     <string name="appearance_width">Width</string>
     <string name="appearance_height">Height</string>
+    <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="corner_mode_all">All</string>
     <string name="corner_mode_split">Top / Bottom</string>
@@ -184,8 +235,20 @@
     <string name="appearance_section_title">Appearance</string>
     <string name="appearance_shadow_title">Shadow</string>
     <string name="appearance_shadow_desc">Cast a soft shadow beneath the island.</string>
+    <string name="appearance_page_transition_title">Page transition</string>
+    <string name="appearance_page_transition_desc">Choose how tabs and settings pages change.</string>
+    <string name="appearance_page_transition_fade">Fade</string>
+    <string name="appearance_page_transition_slide">Slide</string>
     <string name="appearance_stroke_title">Stroke</string>
     <string name="appearance_stroke_desc">Draw an outline around the island.</string>
+    <string name="appearance_show_app_name_title">Show source app name</string>
+    <string name="appearance_show_app_name_desc">Display the posting app\'s name in the expanded notification</string>
+    <string name="appearance_show_timestamp_title">Show timestamp</string>
+    <string name="appearance_show_timestamp_desc">Display when the notification arrived relative to now</string>
+    <string name="appearance_prefer_dynamic_icon_color_title">Prefer dynamic icon color</string>
+    <string name="appearance_prefer_dynamic_icon_color_desc">Use dynamic Material You app icon when available, or plain icon when off</string>
+    <string name="appearance_show_full_notification_text_title">Show full notification text</string>
+    <string name="appearance_show_full_notification_text_desc">Expand the island height dynamically to display all lines of notification text.</string>
     <string name="appearance_stroke_width">Stroke width</string>
     <string name="appearance_stroke_opacity">Stroke opacity</string>
     <string name="appearance_stroke_color">Stroke colour</string>
@@ -466,7 +529,12 @@
     <!-- Bottom navigation -->
     <string name="nav_settings">Settings</string>
     <string name="nav_permissions">Permissions</string>
+    <string name="nav_integrations">Integrations</string>
     <string name="nav_profile">Profile</string>
+
+    <!-- Integrations -->
+    <string name="integrations_title">Integrations</string>
+    <string name="integrations_system_events_title">System events</string>
 
     <!-- Shown on the island for a notification that carries neither a title nor any text. -->
     <string name="island_notification">Notification</string>
@@ -534,4 +602,6 @@
     <string name="behaviour_alertOnNotif_title">Vibrate/rings on notification</string>
     <string name="behaviour_alertOnNotif_desc">Vibrates or rings when a notification arrives, based on the device ringing mode. This is useful if you disabled Android heads-up notifications</string>
     <string name="statusbar_preview_time">2:34</string>
+    <string name="test_progress_complete_title">Download complete</string>
+    <string name="test_progress_complete_text">document_preview.pdf</string>
 </resources>

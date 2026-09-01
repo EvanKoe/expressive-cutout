@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.notifications
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -17,6 +18,9 @@ import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.SystemEventPayload
+import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +42,7 @@ object TestNotifier {
     const val PROGRESS_NOTIFICATION_ID = 4712
     const val PLAIN_NOTIFICATION_ID = 4713
     const val SECOND_NOTIFICATION_ID = 4714
+    const val MULTILINE_NOTIFICATION_ID = 4715
 
     /**
      * Beat between the two notifications [sendPair] posts. Short enough that the first is still on
@@ -103,6 +108,10 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         // Show it on the island immediately, regardless of the listener's self-filter, wiring the
         // same buttons so the user can try inline reply straight from the island.
         IslandEventBus.emit(
@@ -110,6 +119,8 @@ object TestNotifier {
                 packageName = context.packageName,
                 title = context.getString(R.string.test_notification_title),
                 text = context.getString(R.string.test_notification_text),
+                appName = appName,
+                postTimeMs = postTimeMs,
                 actions = listOf(
                     CutoutSignal.Notification.Action(
                         title = context.getString(R.string.test_notification_action_reply),
@@ -131,6 +142,94 @@ object TestNotifier {
                 ),
                 // The same glyph the posted notification carries, so the preview goes through the
                 // real "icon from the notification" path rather than the launcher-icon fallback.
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts a multi-line system notification with action buttons and mirrors it onto the island,
+     * allowing users to verify how multi-line text and action buttons expand together cleanly.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendMultiline(context: Context) {
+        ensureChannel(context)
+
+        val replyIntent = broadcast(context, requestCode = 3, TestReplyReceiver.ACTION_REPLY)
+        val markReadIntent = broadcast(context, requestCode = 4, TestReplyReceiver.ACTION_MARK_READ)
+        val archiveIntent = broadcast(context, requestCode = 5, TestReplyReceiver.ACTION_ARCHIVE)
+        val replyHint = context.getString(R.string.test_notification_reply_hint)
+
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_stat_island,
+            context.getString(R.string.test_notification_action_reply),
+            replyIntent,
+        ).addRemoteInput(
+            RemoteInput.Builder(TestReplyReceiver.KEY_REPLY).setLabel(replyHint).build(),
+        ).build()
+
+        val title = context.getString(R.string.test_multiline_notification_title)
+        val text = context.getString(R.string.test_multiline_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .addAction(replyAction)
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_mark_read),
+                markReadIntent,
+            )
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_archive),
+                archiveIntent,
+            )
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(MULTILINE_NOTIFICATION_ID, notification)
+        }
+
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
+                actions = listOf(
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_reply),
+                        intent = replyIntent,
+                        reply = CutoutSignal.Notification.ReplyInput(
+                            resultKey = TestReplyReceiver.KEY_REPLY,
+                            remoteInputs = listOf(
+                                PlatformRemoteInput.Builder(TestReplyReceiver.KEY_REPLY)
+                                    .setLabel(replyHint)
+                                    .build(),
+                            ),
+                            hint = replyHint,
+                        ),
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_mark_read),
+                        intent = markReadIntent,
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_archive),
+                        intent = archiveIntent,
+                    ),
+                ),
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )
@@ -163,11 +262,17 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(PLAIN_NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         IslandEventBus.emit(
             CutoutSignal.Notification(
                 packageName = context.packageName,
                 title = title,
                 text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
             ),
         )
@@ -213,11 +318,17 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(SECOND_NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         IslandEventBus.emit(
             CutoutSignal.Notification(
                 packageName = context.packageName,
                 title = title,
                 text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
                 smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island_split),
             ),
         )
@@ -242,32 +353,54 @@ object TestNotifier {
         progressJob = scope.launch {
             var current = 0
             while (true) {
+                val isDone = current >= PROGRESS_MAX
+                val displayTitle = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_title)
+                } else {
+                    title
+                }
+                val displayText = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_text)
+                } else {
+                    text
+                }
+
+                val contentIntent = if (isDone) downloadsIntent(appContext) else null
+
                 val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_island)
-                    .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentTitle(displayTitle)
+                    .setContentText(displayText)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setOnlyAlertOnce(true)
                     .setProgress(PROGRESS_MAX, current, false)
                     .setTimeoutAfter(TIMEOUT_MS)
+                    .apply {
+                        if (contentIntent != null) setContentIntent(contentIntent)
+                    }
                     .build()
 
                 if (canPost(appContext)) {
                     NotificationManagerCompat.from(appContext).notify(PROGRESS_NOTIFICATION_ID, notification)
                 }
 
+                val appName = NotificationHeaderResolver.resolveAppName(appContext, appContext.packageName)
+                    ?: appContext.getString(R.string.app_name)
+                val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
                 IslandEventBus.emit(
                     CutoutSignal.Notification(
                         packageName = appContext.packageName,
-                        title = title,
-                        text = text,
+                        title = displayTitle,
+                        text = displayText,
                         key = PROGRESS_KEY,
+                        contentIntent = contentIntent,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(
                             max = PROGRESS_MAX,
                             current = current,
                             isIndeterminate = false,
-                            title = title,
+                            title = displayTitle,
                         ),
                     ),
                 )
@@ -277,6 +410,35 @@ object TestNotifier {
                 current = (current + PROGRESS_STEP).coerceAtMost(PROGRESS_MAX)
             }
         }
+    }
+
+    /** A [PendingIntent] that opens the device's downloads view when the download finishes. */
+    private fun downloadsIntent(context: Context): PendingIntent {
+        val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getActivity(context, 10, intent, flags)
+    }
+
+    /**
+     * Emits a system event so the status dot and cutout reaction can be tested immediately.
+     */
+    fun sendSystemEvent(
+        type: SystemEventType,
+        batteryLevel: Int? = null,
+    ) {
+        IslandEventBus.emit(CutoutSignal.System(type, batteryLevel))
+    }
+
+    /**
+     * Emits a rich system event payload for test previews.
+     */
+    fun sendSystemEvent(payload: SystemEventPayload) {
+        IslandEventBus.emit(CutoutSignal.System(payload))
     }
 
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */

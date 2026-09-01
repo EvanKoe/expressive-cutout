@@ -16,6 +16,7 @@ data class IslandDimensions(
     val cornerTopRightDp: Int,
     val cornerBottomLeftDp: Int,
     val cornerBottomRightDp: Int,
+    val topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
 ) {
     companion object {
         const val MIN_WIDTH_PERCENT = 10
@@ -28,6 +29,9 @@ data class IslandDimensions(
         const val MAX_OFFSET_Y_DP = 400
         const val MIN_CORNER_DP = 0
         const val MAX_CORNER_DP = 110
+        const val MIN_TOP_MARGIN_DP = 0
+        const val MAX_TOP_MARGIN_DP = 100
+        const val DEFAULT_TOP_MARGIN_DP = 48
 
         fun of(
             widthPercent: Int,
@@ -38,6 +42,7 @@ data class IslandDimensions(
             cornerTopRightDp: Int,
             cornerBottomLeftDp: Int,
             cornerBottomRightDp: Int,
+            topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
         ) = IslandDimensions(
             widthPercent = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT),
             heightDp = heightDp.coerceIn(MIN_HEIGHT_DP, MAX_HEIGHT_DP),
@@ -47,6 +52,7 @@ data class IslandDimensions(
             cornerTopRightDp = cornerTopRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             cornerBottomLeftDp = cornerBottomLeftDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             cornerBottomRightDp = cornerBottomRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
+            topMarginDp = topMarginDp.coerceIn(MIN_TOP_MARGIN_DP, MAX_TOP_MARGIN_DP),
         )
     }
 }
@@ -70,6 +76,7 @@ fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): I
         cornerTopRightDp = CALL_CORNER_DP,
         cornerBottomLeftDp = CALL_CORNER_DP,
         cornerBottomRightDp = CALL_CORNER_DP,
+        topMarginDp = topMarginDp,
     )
 
 /** The call cutout's default width, and the most it will grow to when a caller name is long. */
@@ -99,6 +106,7 @@ data class IslandLayout(
             cornerTopRightDp = 17,
             cornerBottomLeftDp = 17,
             cornerBottomRightDp = 17,
+            topMarginDp = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
         )
         val DEFAULT_EXPANDED = IslandDimensions(
             widthPercent = 90,
@@ -109,6 +117,7 @@ data class IslandLayout(
             cornerTopRightDp = 30,
             cornerBottomLeftDp = 30,
             cornerBottomRightDp = 30,
+            topMarginDp = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
         )
 
         val DEFAULT = IslandLayout()
