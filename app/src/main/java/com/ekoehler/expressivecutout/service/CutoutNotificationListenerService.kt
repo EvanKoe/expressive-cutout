@@ -170,12 +170,27 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     /**
      * Publishes the listener and starts watching behaviour settings once the framework has bound
-     * it.
+     * it, then recovers the album cover of whatever is already playing.
      */
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
         observeBehaviour()
+        seedMediaArt()
+    }
+
+    /**
+     * Republishes the cover from the media notifications already on the panel. The framework only
+     * delivers [onNotificationPosted] for what is posted after a bind, so on every rebind — an app
+     * update, a service restart — a player that posted before it is never replayed. A player whose
+     * session carries no bitmap of its own (Spotify publishes a CDN URI) would then show the note
+     * glyph until it happened to post again, at the next track or play/pause.
+     *
+     * Oldest first, so the most recently posted media notification is the one left published.
+     */
+    private fun seedMediaArt() {
+        val active = runCatching { activeNotifications }.getOrNull() ?: return
+        active.sortedBy { it.postTime }.forEach { it.publishMediaArt() }
     }
 
     /**
