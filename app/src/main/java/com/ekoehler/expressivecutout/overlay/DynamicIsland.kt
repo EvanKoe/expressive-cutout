@@ -286,6 +286,22 @@ private const val MEDIA_PROGRESS_HEIGHT_DP = 4
  */
 internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
 
+/** The music tile's artwork/track row: the album badge's own size, which the text column matches. */
+private const val MEDIA_CONTENT_ROW_HEIGHT_DP = 44
+
+/** Bottom inset under the music tile's column, matching its layout's own bottom padding. */
+private const val MEDIA_EXPANDED_BOTTOM_PADDING_DP = 16
+
+/**
+ * The expanded music tile's base height, taken from its own content rather than the user's expanded
+ * height: the camera band, the artwork row, and the bottom inset. Its layout is a top-anchored column
+ * with no filler, so a taller card would strand the controls above dead space and a shorter one would
+ * squeeze them out of it entirely — hence the height knob is deliberately not applied here. The
+ * progress bar and transport controls are added on top of this by the usual height bonuses.
+ */
+internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP): Int =
+    topMarginDp + MEDIA_CONTENT_ROW_HEIGHT_DP + MEDIA_EXPANDED_BOTTOM_PADDING_DP
+
 /**
  * Bottom inset under the action chips (or the text column when there are none). Kept equal to the
  * expanded notification column's bottom padding so measured inner height converts back to island height.
@@ -523,6 +539,10 @@ fun DynamicIsland(
         emptyPill && !isExpanded -> collapsed
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
+        // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
+        // content — see [mediaExpandedBaseHeightDp].
+        isExpanded && shownEvent?.media != null ->
+            expanded.copy(heightDp = mediaExpandedBaseHeightDp(expanded.topMarginDp))
         isExpanded -> expanded
         else -> collapsed
     }

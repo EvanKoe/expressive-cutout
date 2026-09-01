@@ -1629,6 +1629,10 @@ class IslandOverlayController(private val context: Context) {
     private fun effectiveDims(layout: IslandLayout, expanded: Boolean): IslandDimensions {
         val event = currentEvent.value
         return when {
+            // The expanded music tile ignores the configured expanded height and sizes itself from
+            // its own content, so the window has to follow it rather than the layout.
+            expanded && event?.media != null ->
+                layout.expanded.copy(heightDp = mediaExpandedBaseHeightDp(layout.expanded.topMarginDp))
             expanded -> layout.expanded
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false
