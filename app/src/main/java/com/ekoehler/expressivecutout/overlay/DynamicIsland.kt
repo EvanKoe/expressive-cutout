@@ -286,6 +286,22 @@ private const val MEDIA_PROGRESS_HEIGHT_DP = 4
  */
 internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
 
+/** The music tile's artwork/track row: the album badge's own size, which the text column matches. */
+private const val MEDIA_CONTENT_ROW_HEIGHT_DP = 44
+
+/** Bottom inset under the music tile's column, matching its layout's own bottom padding. */
+private const val MEDIA_EXPANDED_BOTTOM_PADDING_DP = 16
+
+/**
+ * The expanded music tile's base height, taken from its own content rather than the user's expanded
+ * height: the camera band, the artwork row, and the bottom inset. Its layout is a top-anchored column
+ * with no filler, so a taller card would strand the controls above dead space and a shorter one would
+ * squeeze them out of it entirely — hence the height knob is deliberately not applied here. The
+ * progress bar and transport controls are added on top of this by the usual height bonuses.
+ */
+internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP): Int =
+    topMarginDp + MEDIA_CONTENT_ROW_HEIGHT_DP + MEDIA_EXPANDED_BOTTOM_PADDING_DP
+
 /**
  * Bottom inset under the action chips (or the text column when there are none). Kept equal to the
  * expanded notification column's bottom padding so measured inner height converts back to island height.
@@ -523,6 +539,10 @@ fun DynamicIsland(
         emptyPill && !isExpanded -> collapsed
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
+        // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
+        // content — see [mediaExpandedBaseHeightDp].
+        isExpanded && shownEvent?.media != null ->
+            expanded.copy(heightDp = mediaExpandedBaseHeightDp(expanded.topMarginDp))
         isExpanded -> expanded
         else -> collapsed
     }
@@ -1255,6 +1275,62 @@ internal fun albumArtStrokeFor(event: IslandEvent): Color? =
     event.media?.takeIf { it.albumArtStroke }
         ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
 
+/** The fraction of its container a badge takes, and the fraction the glyph inside it takes. */
+private const val BADGE_SIZE_FRACTION = 0.72f
+private const val BADGE_ICON_FRACTION = 0.46f
+
+/**
+ * The badge diameter for a container [containerDp] tall. Shared by every collapsed surface that
+ * draws one — the pill, the resting pill's glyph and the satellite bubble — so a badge is the same
+ * fraction of its container whichever one it sits in.
+ */
+internal fun badgeSizeFor(containerDp: Int): Dp = (containerDp * BADGE_SIZE_FRACTION).dp
+
+/** The glyph diameter to pair with [badgeSizeFor] for the same container. */
+internal fun badgeIconSizeFor(containerDp: Int): Dp = (containerDp * BADGE_ICON_FRACTION).dp
+
+/**
+ * The badge an event draws for itself: the music tile's cover, the phone tile's caller photo, or the
+ * event's icon. One place, so every surface showing an event — the collapsed pill, the satellite
+ * bubble, the expanded music layout — resolves its art and falls back identically.
+ *
+ * @param showCallPhoto false on a surface a call can never reach, which then skips subscribing to
+ *   [OnCallBus] altogether. The satellite bubble passes false: a call owns the whole cutout, so it
+ *   is never parked beside one (see the overlay controller's satelliteAllowed).
+ */
+@Composable
+internal fun EventBadge(
+    event: IslandEvent,
+    badgeSize: Dp,
+    iconSize: Dp,
+    modifier: Modifier = Modifier,
+    showCallPhoto: Boolean = true,
+) {
+    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val albumArt = albumArtFor(event, nowPlaying)
+    val callPhoto = if (showCallPhoto) {
+        val onCall = OnCallBus.state.collectAsStateWithLifecycle().value
+        event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
+    } else {
+        null
+    }
+
+    when {
+        albumArt != null -> AlbumArt(
+            bitmap = albumArt,
+            size = badgeSize,
+            modifier = modifier,
+            rotate = event.media?.rotateAlbumArt == true,
+            playing = nowPlaying?.isPlaying == true,
+            strokeColor = albumArtStrokeFor(event),
+        )
+
+        callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = modifier)
+
+        else -> IconBadge(event = event, badgeSize = badgeSize, iconSize = iconSize, modifier = modifier)
+    }
+}
+
 /**
  * The collapsed pill's contents: the badge, the label, and whatever the live tiles want to put
  * beside them. Sized to [heightDp] so it fits the user's own geometry.
@@ -1275,13 +1351,6 @@ private fun CollapsedContent(
     trailingInsetDp: Int = 0,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
 ) {
-    // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
-    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
-    val onCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val albumArt = albumArtFor(event, nowPlaying)
-    val callPhoto = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
-    val badgeSize = (heightDp * 0.72f).dp
-
     Box(modifier = Modifier.fillMaxSize()) {
         // Scaled after the padding so the pop grows the badge about its own centre instead of
         // dragging it in from the pill's edge, and read inside the layer block so each frame redraws
@@ -1302,25 +1371,13 @@ private fun CollapsedContent(
                     Modifier
                 }
             )
-        when {
-            albumArt != null -> AlbumArt(
-                bitmap = albumArt,
-                size = badgeSize,
-                modifier = placement,
-                rotate = event.media?.rotateAlbumArt == true,
-                playing = nowPlaying?.isPlaying == true,
-                strokeColor = albumArtStrokeFor(event),
-            )
-
-            callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = placement)
-
-            else -> IconBadge(
-                event = event,
-                badgeSize = badgeSize,
-                iconSize = (heightDp * 0.46f).dp,
-                modifier = placement,
-            )
-        }
+        // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
+        EventBadge(
+            event = event,
+            badgeSize = badgeSizeFor(heightDp),
+            iconSize = badgeIconSizeFor(heightDp),
+            modifier = placement,
+        )
         // The timer tile shows the remaining time on the trailing edge, opposite its icon.
         if (event.timer != null && !isStickToCamera) {
             timerRemainingText()?.let { remaining ->
@@ -1583,8 +1640,8 @@ private fun EmptyPillContent(
     isStickToCamera: Boolean = false,
 ) {
     val context = LocalContext.current
-    val badgeSize = (heightDp * 0.72f).dp
-    val iconSize = (heightDp * 0.46f).dp
+    val badgeSize = badgeSizeFor(heightDp)
+    val iconSize = badgeIconSizeFor(heightDp)
 
     val disc = containerColor?.resolve()
     val glyphColor = when {
@@ -2665,17 +2722,12 @@ private fun MediaExpandedContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                if (albumArt != null) {
-                    AlbumArt(
-                        bitmap = albumArt,
-                        size = 44.dp,
-                        rotate = event.media?.rotateAlbumArt == true,
-                        playing = nowPlaying?.isPlaying == true,
-                        strokeColor = albumArtStrokeFor(event),
-                    )
-                } else {
-                    IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
-                }
+                EventBadge(
+                    event = event,
+                    badgeSize = 44.dp,
+                    iconSize = 26.dp,
+                    showCallPhoto = false,
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     if (headerText != null) {
                         Text(
@@ -3653,18 +3705,14 @@ internal fun IconBadge(
                 modifier = Modifier.size(iconSize),
             )
 
-            // Full-colour art fills the badge disc; a monochrome glyph (a notification's small
-            // icon) is drawn at glyph size in the badge's ink instead, like a vector icon.
+            // Art fills the badge disc, whether it keeps its own colours or a monochrome glyph
+            // (a notification's small icon) is recoloured to the badge's ink.
             is IslandIcon.Raster -> androidx.compose.foundation.Image(
                 bitmap = icon.bitmap,
                 contentDescription = null,
                 contentScale = if (icon.tint) ContentScale.Fit else ContentScale.Crop,
                 colorFilter = if (icon.tint) ColorFilter.tint(glyphColor) else null,
-                modifier = if (icon.tint) {
-                    Modifier.size(iconSize)
-                } else {
-                    Modifier.size(badgeSize * 0.78f).clip(CircleShape)
-                },
+                modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
             )
 
             is IslandIcon.Lottie -> {

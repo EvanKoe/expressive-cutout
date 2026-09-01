@@ -39,6 +39,7 @@ import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.overlay.IslandMotion
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
@@ -64,6 +65,7 @@ internal fun AnimationScreen(
     contentPadding: PaddingValues,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var animationMs by remember(behaviour.animationDurationMs) {
         mutableStateOf(behaviour.animationDurationMs.toFloat())
     }
@@ -160,6 +162,20 @@ internal fun AnimationScreen(
             ),
             selectedIndex = behaviour.actionButtonAnimation.ordinal,
             onSelect = { viewModel.setActionButtonAnimation(ActionButtonAnimation.entries[it]) },
+        )
+
+        // In-app navigation motion. Unlike everything above it does not touch the island, so it
+        // sits last, in its own group.
+        AnimationSegmentedRow(
+            shape = groupedShape(isFirst = true, isLast = true),
+            label = stringResource(R.string.appearance_page_transition_title),
+            description = stringResource(R.string.appearance_page_transition_desc),
+            options = listOf(
+                stringResource(R.string.appearance_page_transition_fade),
+                stringResource(R.string.appearance_page_transition_slide),
+            ),
+            selectedIndex = PageTransitionStyle.entries.indexOf(appearance.pageTransitionStyle),
+            onSelect = { viewModel.setPageTransitionStyle(PageTransitionStyle.entries[it]) },
         )
     }
 }
@@ -262,6 +278,7 @@ private fun AnimationSegmentedRow(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    description: String? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -273,6 +290,13 @@ private fun AnimationSegmentedRow(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(text = label, style = MaterialTheme.typography.titleMedium)
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             ExpressiveSegmentedRow(
                 options = options,
                 selectedIndex = selectedIndex,

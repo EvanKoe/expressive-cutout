@@ -26,8 +26,10 @@ import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +59,9 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     /** The track last surfaced as a "show" signal, so we don't re-pop on every state tick. */
     private var lastShownKey: String? = null
+
+    /** The pending "show" emission, held for [SHOW_DEBOUNCE_MS] so a start settles into one pop. */
+    private var showJob: Job? = null
 
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
@@ -97,8 +102,15 @@ class MediaPlaybackMonitor(private val context: Context) {
         watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
         watched.clear()
         scope.coroutineContext.cancelChildren()
-        lastShownKey = null
+        clearPendingShow()
         NowPlayingBus.update(null)
+    }
+
+    /** Forgets the surfaced track and drops any pop still waiting to fire. */
+    private fun clearPendingShow() {
+        showJob?.cancel()
+        showJob = null
+        lastShownKey = null
     }
 
     /** Attach callbacks to newly active sessions and detach ones that have gone away. */
@@ -162,7 +174,7 @@ class MediaPlaybackMonitor(private val context: Context) {
         val primary = validControllers.firstOrNull { it.isPlaying } ?: validControllers.firstOrNull()
         if (primary == null) {
             NowPlayingBus.update(null)
-            lastShownKey = null
+            clearPendingShow()
             return
         }
 
@@ -184,7 +196,7 @@ class MediaPlaybackMonitor(private val context: Context) {
         if (isAssistantPackage(primary.packageName)) {
             // Assistant sessions are handled exclusively via NotificationListenerService
             NowPlayingBus.update(null)
-            lastShownKey = null
+            clearPendingShow()
             return
         }
 
@@ -204,20 +216,27 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         // Pop the island when a fresh track begins playing; reset when paused so a resume re-pops.
         if (!playing) {
-            lastShownKey = null
+            clearPendingShow()
             return
         }
         val key = "${primary.packageName}|$title|$artist"
-        if (key != lastShownKey) {
-            lastShownKey = key
-            IslandEventBus.emit(
-                CutoutSignal.Music(
-                    packageName = primary.packageName,
-                    title = title,
-                    artist = artist,
-                    contentIntent = primary.sessionActivity,
-                ),
-            )
+        if (key == lastShownKey) return
+        lastShownKey = key
+        // Held briefly rather than emitted here: players routinely report STATE_PLAYING a tick or two
+        // before publishing the track, so the same start arrives first as "no metadata" and then as
+        // the real title — two different keys, which read as two tracks starting and would leave the
+        // island showing the same tile twice. Waiting for the metadata to settle collapses that into
+        // one pop carrying the final track, while a genuine track change is still its own pop.
+        val signal = CutoutSignal.Music(
+            packageName = primary.packageName,
+            title = title,
+            artist = artist,
+            contentIntent = primary.sessionActivity,
+        )
+        showJob?.cancel()
+        showJob = scope.launch {
+            delay(SHOW_DEBOUNCE_MS)
+            IslandEventBus.emit(signal)
         }
     }
 
@@ -291,5 +310,12 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     private companion object {
         const val TAG = "MediaPlaybackMonitor"
+
+        /**
+         * How long a new track is held before it pops the island, letting a session that reports its
+         * playback state and its metadata in separate ticks settle into a single signal. Short enough
+         * that a real track change still feels immediate.
+         */
+        const val SHOW_DEBOUNCE_MS = 250L
     }
 }

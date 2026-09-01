@@ -1422,11 +1422,30 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Parks [displaced] in the bubble as [incoming] takes the pill, or clears the bubble when the
-     * hand-off isn't allowed. A pinned live tile arrives with a null [deadlineMs] and so persists for
-     * as long as its bus says it is live; a transient keeps the deadline it already had.
+     * Whether both events are the same live tile. A tile is a singleton — one media session, one
+     * timer, one call, one assistant — so a signal for one that is already up restates it rather than
+     * arriving as a second event to park beside itself. Compared on which tile field is set rather
+     * than on ids or notification keys: every resolve mints a fresh id, and the music and timer tiles
+     * deliberately carry no notification key, so neither of those catches a repeat.
+     */
+    private fun isSameTile(a: IslandEvent, b: IslandEvent): Boolean =
+        (a.media != null && b.media != null) ||
+            (a.timer != null && b.timer != null) ||
+            (a.call != null && b.call != null) ||
+            (a.assistant != null && b.assistant != null)
+
+    /**
+     * Parks [displaced] in the bubble as [incoming] takes the pill, leaves the bubble untouched when
+     * the two are the same tile, and clears it when the hand-off isn't allowed for any other reason.
+     * A pinned live tile arrives with a null [deadlineMs] and so persists for as long as its bus says
+     * it is live; a transient keeps the deadline it already had.
      */
     private fun demoteToSatellite(displaced: IslandEvent?, incoming: IslandEvent, deadlineMs: Long?) {
+        // The same live tile restating itself (metadata arriving late, a track change, a timer
+        // re-post) just replaces the pill: one tile must never hold both slots at once. The bubble is
+        // left as it is rather than cleared — whatever is parked there is an unrelated event, and this
+        // hand-off doesn't concern it.
+        if (displaced != null && isSameTile(displaced, incoming)) return
         if (displaced == null || !satelliteAllowed(displaced, incoming)) {
             clearSatellite()
             return
@@ -1610,6 +1629,10 @@ class IslandOverlayController(private val context: Context) {
     private fun effectiveDims(layout: IslandLayout, expanded: Boolean): IslandDimensions {
         val event = currentEvent.value
         return when {
+            // The expanded music tile ignores the configured expanded height and sizes itself from
+            // its own content, so the window has to follow it rather than the layout.
+            expanded && event?.media != null ->
+                layout.expanded.copy(heightDp = mediaExpandedBaseHeightDp(layout.expanded.topMarginDp))
             expanded -> layout.expanded
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false

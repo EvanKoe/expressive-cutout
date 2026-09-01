@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -140,51 +141,64 @@ private fun ProfileList(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         AppHeader()
 
         Spacer(Modifier.height(24.dp))
-
-        ThemeCard(
-            selected = theme,
-            onSelect = viewModel::setTheme
-        )
-
-        VersionCard(versionName = versionName, onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenChangelog()
-        })
-
-        PermissionDetailsCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenPermissionDetails()
-        })
-
-        TestingCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenTesting()
-        })
 
         val githubProjectUrl = stringResource(R.string.profile_github_project_url)
         val githubProfileUrl = stringResource(R.string.profile_github_url)
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
 
-        ExportSettingsCard(onExportSettings, onImportSettings)
+        VersionCard(versionName = versionName, shape = cardShape(first = true), onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenChangelog()
+        })
 
-        GitHubCard(onClick = {
+        ThemeCard(
+            selected = theme,
+            onSelect = viewModel::setTheme,
+            shape = cardShape(),
+        )
+
+        TestingCard(shape = cardShape(), onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenTesting()
+        })
+
+        ExportSettingsCard(cardShape(), onExportSettings, onImportSettings)
+
+        PermissionDetailsCard(shape = cardShape(), onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenPermissionDetails()
+        })
+
+        GitHubCard(shape = cardShape(), onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             openUrl(githubProjectUrl)
         })
 
         DevCard(
+            shape = cardShape(last = true),
             onOpenGitHub = { openUrl(githubProfileUrl) },
             onOpenCoffee = { openUrl(coffeeUrl) },
             onOpenLinkedIn = { openUrl(linkedInUrl) },
         )
     }
 }
+
+/**
+ * The corners of a card stacked in the profile list: tight (4.dp) where it meets a neighbour, round
+ * (24.dp) on the outer edges of the group, so the stack reads as one list rather than seven cards.
+ */
+private fun cardShape(first: Boolean = false, last: Boolean = false) = RoundedCornerShape(
+    topStart = if (first) 24.dp else 4.dp,
+    topEnd = if (first) 24.dp else 4.dp,
+    bottomStart = if (last) 24.dp else 4.dp,
+    bottomEnd = if (last) 24.dp else 4.dp,
+)
 
 /**
  * The app's identity at the top of the tab: the launcher icon, the app name and the tagline.
@@ -236,13 +250,14 @@ private fun AppHeader() {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DevCard(
+    shape: Shape,
     onOpenGitHub: () -> Unit,
     onOpenCoffee: () -> Unit,
     onOpenLinkedIn: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
@@ -312,10 +327,10 @@ private fun DevAvatar() {
 
 /** The app-wide theme choice: a title over the segmented selector, in a card of its own. */
 @Composable
-private fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
+private fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit, shape: Shape) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
@@ -343,7 +358,7 @@ private fun ThemeCard(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
  * ("0.1.0-beta") becomes the trailing badge instead of being spelled out in the big number.
  */
 @Composable
-private fun VersionCard(versionName: String, onClick: () -> Unit) {
+private fun VersionCard(versionName: String, shape: Shape, onClick: () -> Unit) {
     val number = versionName.substringBefore('-')
     val preRelease = versionName.contains('-')
 
@@ -351,7 +366,7 @@ private fun VersionCard(versionName: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -405,12 +420,12 @@ private fun VersionCard(versionName: String, onClick: () -> Unit) {
 
 /** A clickable card that opens the per-permission explanations in [PermissionDetailsScreen]. */
 @Composable
-private fun PermissionDetailsCard(onClick: () -> Unit) {
+private fun PermissionDetailsCard(shape: Shape, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -448,12 +463,12 @@ private fun PermissionDetailsCard(onClick: () -> Unit) {
 
 /** A clickable card that opens the on-demand island triggers in [TestingScreen]. */
 @Composable
-private fun TestingCard(onClick: () -> Unit) {
+private fun TestingCard(shape: Shape, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -491,12 +506,12 @@ private fun TestingCard(onClick: () -> Unit) {
 
 /** A clickable card that opens the project's GitHub repository in the browser. */
 @Composable
-private fun GitHubCard(onClick: () -> Unit) {
+private fun GitHubCard(shape: Shape, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -535,12 +550,13 @@ private fun GitHubCard(onClick: () -> Unit) {
 /** Export and import settings in a card */
 @Composable
 private fun ExportSettingsCard(
+    shape: Shape,
     onExportSettings: () -> Unit,
     onImportSettings: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(

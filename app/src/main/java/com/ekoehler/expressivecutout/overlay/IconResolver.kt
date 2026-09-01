@@ -180,21 +180,25 @@ class IconResolver(private val context: Context) {
     }
 
     /**
-     * Resolves the display icon for a notification based on [preferDynamicColor].
+     * Resolves the display icon for a notification. The notification's own artwork always wins over
+     * the posting app's launcher icon, which is only the fallback for a notification that carries
+     * neither a large icon nor a small glyph. [preferDynamicColor] then decides the flavour of each
+     * step rather than whether the app icon comes first.
      *
-     * When [preferDynamicColor] is true, dynamic/monochrome icons are preferred:
-     * 1. The app's monochrome adaptive icon layer (Android 13+), tinted with dynamic/accent color.
-     * 2. The notification's small status-bar glyph, tinted with dynamic/accent color.
+     * When [preferDynamicColor] is true, tintable monochrome art is preferred:
+     * 1. The notification's small status-bar glyph, tinted with dynamic/accent color.
+     * 2. The app's monochrome adaptive icon layer (Android 13+), tinted the same way.
      * 3. Plain/default app icon or large icon fallback.
      *
-     * When [preferDynamicColor] is false (default), plain/default app icons are always used:
-     * 1. The app's full-color launcher icon from the package manager.
-     * 2. The notification's large icon.
-     * 3. The small icon as fallback if no plain app icon or large icon is available.
+     * When [preferDynamicColor] is false (default), full-colour art is preferred:
+     * 1. The notification's large icon.
+     * 2. The notification's small glyph, drawn in the badge's ink.
+     * 3. The app's full-color launcher icon from the package manager.
      */
     private fun CutoutSignal.Notification.notificationIcon(preferDynamicColor: Boolean): IslandIcon? {
         val appDrawable = runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
         if (preferDynamicColor) {
+            smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
             val monochrome = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 (appDrawable as? AdaptiveIconDrawable)?.monochrome
             } else {
@@ -203,13 +207,12 @@ class IconResolver(private val context: Context) {
             if (monochrome != null) {
                 return IslandIcon.Raster(monochrome.toImageBitmap(), tint = true)
             }
-            smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
             appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }
             largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = false) }
         } else {
-            appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }
             largeIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = false) }
             smallIcon?.loadImageBitmapOrNull(context)?.let { return IslandIcon.Raster(it, tint = true) }
+            appDrawable?.let { return IslandIcon.Raster(it.toImageBitmap(), tint = false) }
         }
         return null
     }

@@ -96,12 +96,6 @@ fun TestingScreen(contentPadding: PaddingValues) {
             )
 
             TestCard(
-                icon = Icons.Rounded.NotificationsActive,
-                title = stringResource(R.string.action_send_test_multiline),
-                onClick = { postWithPermission { TestNotifier.sendMultiline(context) } },
-            )
-
-            TestCard(
                 icon = Icons.Rounded.NotificationsNone,
                 title = stringResource(R.string.action_send_test_plain),
                 onClick = { postWithPermission { TestNotifier.sendPlain(context) } },
