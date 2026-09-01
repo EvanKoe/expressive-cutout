@@ -1,5 +1,35 @@
 [
   {
+    "version": "0.2.0-beta",
+    "description": "Shizuku, adaptive colours and permission dots",
+    "features": [
+      "Automatically dismiss notifications once the island has shown them (best-effort — Android allows nothing better)",
+      "Display notifications while Do Not Disturb is on, tied to automatic dismissal",
+      "Shizuku implementation: hide notification heads-up, the clock, notification icons and system icons",
+      "Recent colours are saved in the colour picker",
+      "Haptics when the island pops",
+      "Click outside the island to close it (anuragdeshpande)",
+      "Persistent lock / unlock icons (anuragdeshpande)",
+      "Permission dots for location, camera and microphone",
+      "Adaptive colour for text, background, stroke and buttons (anuragdeshpande)",
+      "Option to ignore silent notifications (anuragdeshpande)",
+      "The expanded notification grows to fit multi-line text (anuragdeshpande)",
+      "Page transitions (anuragdeshpande)",
+      "More system events (anuragdeshpande)",
+      "Split mode",
+      "Contributing rules and coding style",
+      "@Stable and @Immutable refactor, so the island skips recomposition it doesn't need"
+    ],
+    "bugfixes": [
+      "Progress notifications",
+      "Notification loop for the same app",
+      "Stick to camera in horizontal mode",
+      "The music cover was not a circle",
+      "The custom expanded height no longer applies to the music tile, which sizes itself from its own content",
+      "The album cover comes back on its own after an app update, instead of waiting for the next track"
+    ]
+  },
+  {
     "version": "0.1.3-beta",
     "description": "Settings save, SWE and progress bar",
     "features": [
