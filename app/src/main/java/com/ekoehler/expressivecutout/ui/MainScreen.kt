@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Tune
@@ -58,8 +57,6 @@ import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.ui.components.BackNavBar
 import com.ekoehler.expressivecutout.ui.components.ExpressiveNavBar
 import com.ekoehler.expressivecutout.ui.components.NavBarItem
-import com.ekoehler.expressivecutout.ui.screen.IntegrationsRoute
-import com.ekoehler.expressivecutout.ui.screen.IntegrationsTab
 import com.ekoehler.expressivecutout.ui.screen.PermissionsTab
 import com.ekoehler.expressivecutout.ui.screen.ProfileRoute
 import com.ekoehler.expressivecutout.ui.screen.ProfileTab
@@ -80,7 +77,6 @@ private enum class HomeTab(
 ) {
     Settings(R.string.nav_settings, Icons.Rounded.Tune),
     Permissions(R.string.nav_permissions, Icons.Rounded.Shield),
-    Integrations(R.string.nav_integrations, Icons.Rounded.Extension),
     Profile(R.string.nav_profile, Icons.Rounded.Person),
 }
 
@@ -93,27 +89,25 @@ private enum class HomeTab(
 fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var settingsRoute by rememberSaveable { mutableStateOf(SettingsRoute.List) }
-    var integrationsRoute by rememberSaveable { mutableStateOf(IntegrationsRoute.List) }
     var profileRoute by rememberSaveable { mutableStateOf(ProfileRoute.List) }
     var selectedTileName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedTile = selectedTileName?.let { name -> DynamicTile.entries.firstOrNull { it.name == name } }
     var selectedEventName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedEvent = selectedEventName?.let { name -> SystemEventType.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
-    val current = tabs[selectedIndex]
+    // Guard a saved index from an older build that had more tabs than this one.
+    val current = tabs[selectedIndex.coerceIn(0, tabs.lastIndex)]
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
 
     // On a detail screen the bottom bar becomes a back pill instead of the tab bar.
     val inSubScreen = (current == HomeTab.Settings && settingsRoute != SettingsRoute.List) ||
-        (current == HomeTab.Integrations && integrationsRoute != IntegrationsRoute.List) ||
         (current == HomeTab.Profile && profileRoute != ProfileRoute.List)
 
     val navigateBack: () -> Unit = {
         when (current) {
             HomeTab.Profile -> profileRoute = ProfileRoute.List
-            HomeTab.Integrations -> integrationsRoute = integrationsRoute.parent
             else -> settingsRoute = settingsRoute.parent
         }
     }
@@ -217,6 +211,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             contentPadding = contentPadding,
                             route = settingsRoute,
                             selectedTile = selectedTile,
+                            selectedEvent = selectedEvent,
                             onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
                             onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
                             onOpenTile = { tile ->
@@ -232,21 +227,14 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
                             onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
                             onOpenPermissionDot = { settingsRoute = SettingsRoute.PermissionDot },
+                            onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
+                            onOpenEvent = { event ->
+                                selectedEventName = event.name
+                                settingsRoute = SettingsRoute.EventDetail
+                            },
                         )
 
                         HomeTab.Permissions -> PermissionsTab(contentPadding)
-
-                        HomeTab.Integrations -> IntegrationsTab(
-                            viewModel = viewModel,
-                            contentPadding = contentPadding,
-                            route = integrationsRoute,
-                            selectedEvent = selectedEvent,
-                            onOpenEventIcons = { integrationsRoute = IntegrationsRoute.EventIcons },
-                            onOpenEvent = { event ->
-                                selectedEventName = event.name
-                                integrationsRoute = IntegrationsRoute.EventDetail
-                            },
-                        )
 
                         HomeTab.Profile -> ProfileTab(
                             viewModel = viewModel,
@@ -305,11 +293,6 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
                         else -> stringResource(R.string.profile_version)
                     }
-                    HomeTab.Integrations -> when (integrationsRoute) {
-                        IntegrationsRoute.EventDetail ->
-                            selectedEvent?.let { stringResource(it.labelRes) } ?: stringResource(R.string.integrations_system_events_title)
-                        else -> stringResource(R.string.integrations_system_events_title)
-                    }
                     else -> when (settingsRoute) {
                         SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                         SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
@@ -324,6 +307,10 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
                         SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
                         SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
+                        SettingsRoute.EventIcons -> stringResource(R.string.integrations_system_events_title)
+                        SettingsRoute.EventDetail ->
+                            selectedEvent?.let { stringResource(it.labelRes) }
+                                ?: stringResource(R.string.integrations_system_events_title)
                         else -> stringResource(R.string.section_icons_title)
                     }
                 }

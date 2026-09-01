@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
@@ -159,6 +160,7 @@ internal fun EventDetailScreen(
                     Text(
                         text = stringResource(type.labelRes),
                         style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
                     )
                     Text(
                         text = sourceLabel,

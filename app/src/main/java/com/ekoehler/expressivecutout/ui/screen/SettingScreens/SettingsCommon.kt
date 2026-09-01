@@ -224,10 +224,12 @@ internal fun SettingsToggleCard(
 }
 
 /**
- * Like [SettingsToggleCard] but the title/description area is clickable — tapping it runs [onClick]
- * (typically to open a detail screen), while the trailing [Switch] still toggles independently.
+ * Like [SettingsToggleCard] but the whole card is clickable — tapping it runs [onClick] (typically
+ * to open a detail screen) and ripples across the full card, while the trailing [Switch] consumes
+ * its own taps and still toggles independently.
  * A chevron marks the row as navigable and a thin divider separates it from the switch, matching the
- * events / dynamic-tiles list rows.
+ * events / dynamic-tiles list rows. [leading] optionally draws content ahead of the title, such as
+ * an event's icon thumbnail.
  */
 @Composable
 internal fun SettingsToggleNavCard(
@@ -237,6 +239,7 @@ internal fun SettingsToggleNavCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     onClick: () -> Unit,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -246,16 +249,19 @@ internal fun SettingsToggleNavCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onClick)
                 .padding(vertical = 16.dp)
                 .padding(start = 16.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onClick),
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (leading != null) {
+                    leading()
+                    Spacer(Modifier.width(14.dp))
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = title, style = MaterialTheme.typography.titleMedium)
                     Text(
@@ -271,7 +277,7 @@ internal fun SettingsToggleNavCard(
                 )
             }
             Spacer(Modifier.width(12.dp))
-            // Thin divider between the (tappable) row and the switch, matching the events list.
+            // Thin divider between the title area and the switch, matching the events list.
             Box(
                 modifier = Modifier
                     .height(28.dp)

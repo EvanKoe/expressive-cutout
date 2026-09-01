@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
@@ -46,6 +47,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
+import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
@@ -72,6 +74,7 @@ fun SettingsTab(
     contentPadding: PaddingValues,
     route: SettingsRoute,
     selectedTile: DynamicTile?,
+    selectedEvent: SystemEventType?,
     onOpenSizePosition: () -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenTile: (DynamicTile) -> Unit,
@@ -84,6 +87,8 @@ fun SettingsTab(
     onOpenActionButtons: () -> Unit,
     onOpenShizuku: () -> Unit,
     onOpenPermissionDot: () -> Unit,
+    onOpenEventIcons: () -> Unit,
+    onOpenEvent: (SystemEventType) -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -142,6 +147,7 @@ fun SettingsTab(
                     onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
                     onOpenShizuku = onOpenShizuku,
+                    onOpenEventIcons = onOpenEventIcons,
                 )
             }
 
@@ -159,13 +165,16 @@ fun SettingsTab(
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
             SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding, onOpenPermissionDot)
             SettingsRoute.PermissionDot -> PermissionDotScreen(viewModel, contentPadding)
+            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding, onOpenEvent)
+            SettingsRoute.EventDetail ->
+                selectedEvent?.let { EventDetailScreen(it, viewModel, contentPadding) }
         }
     }
 }
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot, EventIcons, EventDetail }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -178,6 +187,7 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
         SettingsRoute.PermissionDot -> SettingsRoute.Shizuku
+        SettingsRoute.EventDetail -> SettingsRoute.EventIcons
         else -> SettingsRoute.List
     }
 
@@ -186,7 +196,7 @@ val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
         SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot -> 2
+        SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot, SettingsRoute.EventDetail -> 2
         else -> 1
     }
 
@@ -202,6 +212,7 @@ private fun SettingsList(
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenShizuku: () -> Unit,
+    onOpenEventIcons: () -> Unit,
 ) {
     val context = LocalContext.current
     // Re-reads on resume so returning from the system Accessibility settings updates immediately.
@@ -323,6 +334,12 @@ private fun SettingsList(
                 title = stringResource(R.string.dynamic_tiles_title),
                 subtitle = stringResource(R.string.settings_dynamic_tiles_subtitle),
                 onClick = onOpenDynamicTiles,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.Notifications,
+                title = stringResource(R.string.integrations_system_events_title),
+                subtitle = stringResource(R.string.settings_icons_subtitle),
+                onClick = onOpenEventIcons,
             )
             SettingsListItem(
                 icon = Icons.Rounded.Apps,

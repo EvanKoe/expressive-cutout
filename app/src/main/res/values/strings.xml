@@ -24,6 +24,8 @@
     <string name="event_adb_disconnected">USB debugging disconnected</string>
     <string name="event_wireless_debugging_connected">Wireless debugging connected</string>
     <string name="event_wireless_debugging_disconnected">Wireless debugging disconnected</string>
+    <string name="event_tab_connected">Connected</string>
+    <string name="event_tab_disconnected">Disconnected</string>
     <string name="event_bluetooth_connected">Bluetooth connected</string>
     <string name="event_bluetooth_disconnected">Bluetooth disconnected</string>
     <string name="event_hotspot_enabled">Hotspot active</string>
@@ -529,7 +531,6 @@
     <!-- Bottom navigation -->
     <string name="nav_settings">Settings</string>
     <string name="nav_permissions">Permissions</string>
-    <string name="nav_integrations">Integrations</string>
     <string name="nav_profile">Profile</string>
 
     <!-- Integrations -->

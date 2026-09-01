@@ -83,13 +83,11 @@ import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
-import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
 import kotlin.math.roundToInt
 
@@ -123,37 +121,6 @@ internal fun AppearanceScreen(
             checked = appearance.shadowEnabled,
             onCheckedChange = viewModel::setShadowEnabled,
         )
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.appearance_page_transition_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.appearance_page_transition_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ExpressiveSegmentedRow(
-                    options = listOf(
-                        stringResource(R.string.appearance_page_transition_fade),
-                        stringResource(R.string.appearance_page_transition_slide),
-                    ),
-                    selectedIndex = PageTransitionStyle.entries.indexOf(appearance.pageTransitionStyle),
-                    onSelect = { index ->
-                        viewModel.setPageTransitionStyle(PageTransitionStyle.entries[index])
-                    },
-                )
-            }
-        }
 
         SettingsToggleCard(
             shape = RoundedCornerShape(24.dp),
