@@ -389,6 +389,7 @@ internal fun ColorSwatch(
     ) {
         // Contrast the marks against the swatch itself.
         val markColor = if (color.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+
         if (badgePainter != null) {
             Icon(
                 painter = badgePainter,
@@ -425,6 +426,7 @@ internal fun CustomColorSwatch(
 ) {
     val ring = MaterialTheme.colorScheme.primary
     val edge = MaterialTheme.colorScheme.outlineVariant
+
     val rainbow = remember {
         Brush.sweepGradient(
             listOf(
@@ -434,6 +436,7 @@ internal fun CustomColorSwatch(
             ),
         )
     }
+
     Box(
         modifier = Modifier
             .size(44.dp)
@@ -450,7 +453,8 @@ internal fun CustomColorSwatch(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        val markColor = if ((selectedColor ?: Color.White).luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+        val markColor = if ((selectedColor ?: Color.Black).luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+
         Icon(
             imageVector = Icons.Rounded.Colorize,
             contentDescription = stringResource(R.string.cd_color_custom),

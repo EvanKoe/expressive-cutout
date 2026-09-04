@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -182,11 +184,12 @@ fun ColorPickerCard(
                     )
                 }
 
+                // App icon color
                 if (allowAppIcon) {
                     ColorSwatch(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         selected = selected is CutoutColor.AppIcon,
-                        badgePainter = painterResource(R.drawable.ic_play_store),
+                        badge = Icons.Rounded.Notifications,
                         badgeDescription = stringResource(R.string.cd_color_app_icon),
                         onClick = {
                             val currentFallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
@@ -195,6 +198,7 @@ fun ColorPickerCard(
                     )
                 }
 
+                // Dynamic colors
                 dynamicRoles.forEach { role ->
                     ColorSwatch(
                         color = CutoutColor.Dynamic(role).resolve(),
@@ -204,10 +208,14 @@ fun ColorPickerCard(
                         onClick = { onSelect(CutoutColor.Dynamic(role)) },
                     )
                 }
+
+                // Custom color (color picker with HEX)
                 CustomColorSwatch(
                     selectedColor = customArgb?.let { Color(it) },
                     onClick = { showPicker = true },
                 )
+
+                // Recent colors
                 recentColors.forEach { argb ->
                     ColorSwatch(
                         color = Color(argb),
@@ -215,6 +223,8 @@ fun ColorPickerCard(
                         onClick = { onSelect(CutoutColor.Solid(argb)) },
                     )
                 }
+
+                // Preset colors
                 presetColors.forEach { argb ->
                     ColorSwatch(
                         color = Color(argb),
@@ -224,6 +234,7 @@ fun ColorPickerCard(
                 }
             }
 
+            // App icon fallback selector
             AnimatedVisibility(visible = allowAppIcon && selected is CutoutColor.AppIcon) {
                 val fallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
                 AppColorFallbackRow(
@@ -232,6 +243,7 @@ fun ColorPickerCard(
                 )
             }
 
+            // Description
             val tooltipText = when {
                 selected == null -> stringResource(R.string.tooltip_default_reset)
                 selected is CutoutColor.AppIcon -> stringResource(R.string.tooltip_app_icon)
@@ -243,6 +255,7 @@ fun ColorPickerCard(
                 selected is CutoutColor.Solid -> stringResource(R.string.tooltip_preset_color)
                 else -> null
             }
+
             ColorSelectionTooltip(text = tooltipText)
         }
     }
