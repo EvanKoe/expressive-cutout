@@ -72,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -117,7 +118,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
-import com.ekoehler.expressivecutout.core.DynamicTile
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbnb.lottie.LottieProperty
@@ -129,14 +129,13 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import android.net.Uri
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
@@ -267,13 +266,6 @@ internal fun calculateExpandedNotificationHeightDp(
 }
 
 /**
- * A safe upper bound on the extra height an expanded notification can claim below the base
- * expanded cutout for multi-line text and action buttons. The controller reserves this for the
- * overlay window and touchable region so they never clip the taller layout.
- */
-internal const val EXPANDED_NOTIFICATION_EXTRA_DP = 160
-
-/**
  * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
  */
 private const val MEDIA_PROGRESS_HEIGHT_DP = 4
@@ -329,6 +321,7 @@ internal fun calculateExpandedNotificationHeightDp(
         val fallback = baseExpandedHeightDp + if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
         return fallback.coerceAtMost(maxHeightLimitDp)
     }
+
     return (topMarginDp + measuredInnerHeightDp + bottomPaddingDp)
         .coerceAtLeast(baseExpandedHeightDp)
         .coerceAtMost(maxHeightLimitDp)
@@ -393,6 +386,15 @@ internal fun SentAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
     SentAlignment.CENTER -> Alignment.CenterHorizontally
     SentAlignment.RIGHT -> Alignment.End
 }
+
+/**
+ * Which of the pill's three faces is showing, used as the cross-fade key for the island's content.
+ * Keying on [expanded] alone would swap an event for the resting empty pill in a single frame, so a
+ * music tile losing the cutout (playback ending, or the player app coming to the foreground with
+ * "Visible in player app" off) made its album cover vanish abruptly. Folding [emptyPill] into the
+ * key cross-dissolves that swap in both directions.
+ */
+private data class IslandContentKey(val emptyPill: Boolean, val expanded: Boolean)
 
 /**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
@@ -462,7 +464,8 @@ fun DynamicIsland(
     val emptyPill = event == null && showsWhenEmpty
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
-    var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    val tapExpandedState = remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    var tapExpanded by tapExpandedState
     var centerInteraction by remember { mutableStateOf(0) }
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
@@ -827,160 +830,60 @@ fun DynamicIsland(
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
                         }
-                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
-                            if (forcedExpanded == true) {
-                                return@pointerInput
-                            }
-
-                            detectTapGestures(
-                                onPress = {
-                                    if (replying) {
-                                        return@detectTapGestures
-                                    }
-
-                                    if (!isExpanded) {
-                                        scope.launch {
-                                            if (pressWidens) {
-                                                pressExpand.animateTo(1f, motion.boop())
-                                            } else {
-                                                // Empty cutout scale tap animation
-                                                boopScale.animateTo(0.96f, motion.boop())
-                                            }
-                                        }
-                                    }
-
-                                    tryAwaitRelease()
-
-                                    if (!isExpanded) {
-                                        scope.launch {
-                                            if (pressWidens) {
-                                                pressExpand.animateTo(0f, motion.boop())
-                                            } else {
-                                                boopScale.animateTo(1f, motion.boop())
-                                            }
-                                        }
-                                    }
-                                },
-                                onTap = {
-                                    if (vibrateOnTap) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-
-                                    if (emptyPill) {
-                                        // "Open center" expands the resting pill into the shortcut
-                                        // grid (a second tap toggles it closed); every other "On
-                                        // click" action (e.g. open an app) runs via onEmptyClick.
-                                        if (emptyOpensCenter) {
-                                            if (forcedExpanded == null) {
-                                                tapExpanded = !tapExpanded
-                                                if (tapExpanded) {
-                                                    scope.launch { motion.pop(boopScale, peak = 1.03f) }
-                                                }
-                                            }
-                                        } else {
-                                            onEmptyClick()
-                                        }
-                                        return@detectTapGestures
-                                    }
-
-                                    // While typing a reply, ignore taps on the surface itself.
-                                    if (replying) return@detectTapGestures
-
-                                    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
-
-                                    // The phone tile is normal-only, so a tap never toggles it open;
-                                    // instead it opens the dialer's in-call screen (its content intent).
-                                    if (isNormalOnly) {
-                                        if (canActivate) onActivate()
-                                        return@detectTapGestures
-                                    }
-
-                                    // Tap to open the app or settings
-                                    if ((isExpanded || forcedExpanded == false) && canActivate) {
-                                        tapExpanded = false
-                                        onActivate()
-                                    } else if (forcedExpanded == null) {
-                                        tapExpanded = !tapExpanded
-                                        if (isExpanded) {
-                                            scope.launch {
-                                                motion.pop(boopScale, peak = 1.02f)
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                        // Swipe up on the expanded island to shrink it back to the normal cutout.
-                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, emptyPill, shownEvent?.id) {
-                            // The resting empty cutout has no expanded state to shrink back from, so
-                            // don't install the detector at all — it would only swallow vertical drags.
-                            if (forcedExpanded != null || !shrinkOnSwipeUp || emptyPill) return@pointerInput
-                            val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
-                            var dragTotal = 0f
-                            detectVerticalDragGestures(
-                                onDragStart = { dragTotal = 0f },
-                                onDragEnd = {
-                                    if (isExpanded && !replying && dragTotal <= -threshold) {
-                                        tapExpanded = false
-                                    }
-                                },
-                            ) { change, dragAmount ->
-                                dragTotal += dragAmount
-                                change.consume()
-                            }
-                        }
-                        // Swipe sideways to dismiss the cutout (and, for a notification, clear it from
-                        // the system). Only the direction(s) and cutout state(s) the user allows let go.
-                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, emptyPill, shownEvent?.id) {
-                            val targetAllows = when (swipeDismissTarget) {
-                                SwipeDismissTarget.BOTH -> true
-                                SwipeDismissTarget.EXPANDED -> isExpanded
-                                SwipeDismissTarget.NORMAL -> !isExpanded
-                            }
-                            // The resting empty cutout is meant to stay: a swipe must neither slide it
-                            // away nor clear the departed notification it still remembers.
-                            if (forcedExpanded != null || !swipeToDismiss || replying || emptyPill || !targetAllows) return@pointerInput
-                            val allowLeft = swipeDismissDirection != SwipeDismissDirection.RIGHT
-                            val allowRight = swipeDismissDirection != SwipeDismissDirection.LEFT
-                            val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
-                            detectHorizontalDragGestures(
-                                onDragEnd = {
-                                    val x = dismissOffsetX.value
-                                    val dismiss = (x <= -threshold && allowLeft) || (x >= threshold && allowRight)
-                                    if (dismiss) {
-                                        onDismiss()
-                                    } else {
-                                        scope.launch {
-                                            dismissOffsetX.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
-                                            )
-                                        }
-                                    }
-                                },
-                                onDragCancel = { scope.launch { dismissOffsetX.animateTo(0f) } },
-                            ) { change, dragAmount ->
-                                // Clamp to the allowed direction(s) so a disabled side can't be dragged.
-                                val next = (dismissOffsetX.value + dragAmount).let {
-                                    when {
-                                        !allowLeft -> it.coerceAtLeast(0f)
-                                        !allowRight -> it.coerceAtMost(0f)
-                                        else -> it
-                                    }
-                                }
-                                scope.launch { dismissOffsetX.snapTo(next) }
-                                change.consume()
-                            }
-                        },
+                        .islandTapGestures(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            isExpanded = isExpanded,
+                            isNormalOnly = isNormalOnly,
+                            replying = replying,
+                            emptyPill = emptyPill,
+                            emptyOpensCenter = emptyOpensCenter,
+                            pressWidens = pressWidens,
+                            vibrateOnTap = vibrateOnTap,
+                            scope = scope,
+                            motion = motion,
+                            haptic = haptic,
+                            boopScale = boopScale,
+                            pressExpand = pressExpand,
+                            tapExpanded = tapExpandedState,
+                            onEmptyClick = onEmptyClick,
+                            onActivate = onActivate,
+                        )
+                        .islandSwipeUpToShrink(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            isExpanded = isExpanded,
+                            replying = replying,
+                            enabled = shrinkOnSwipeUp,
+                            emptyPill = emptyPill,
+                            tapExpanded = tapExpandedState,
+                        )
+                        .islandSwipeToDismiss(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            enabled = swipeToDismiss,
+                            direction = swipeDismissDirection,
+                            target = swipeDismissTarget,
+                            isExpanded = isExpanded,
+                            replying = replying,
+                            emptyPill = emptyPill,
+                            scope = scope,
+                            dismissOffsetX = dismissOffsetX,
+                            onDismiss = onDismiss,
+                        ),
                     shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
                     appearance = appearance,
                     progress = expandProgress,
                     appColor = shownEvent?.primaryColor(),
                     adaptiveColor = shownEvent?.primaryColor(),
                 ) {
-                    Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
-                        if (emptyPill) {
-                            if (showExpanded) {
+                    Crossfade(
+                        targetState = IslandContentKey(emptyPill = emptyPill, expanded = isExpanded),
+                        animationSpec = tween(scaled(150)),
+                        label = "islandContent"
+                    ) { content ->
+                        if (content.emptyPill) {
+                            if (content.expanded) {
                                 CenterContent(
                                     shortcuts = centerShortcuts,
                                     showLabels = centerShowLabels,
@@ -994,7 +897,10 @@ fun DynamicIsland(
                                         // In-place toggles (torch) keep the center open; everything
                                         // else closes it as we act, so it isn't left over the screen
                                         // (and out of a screenshot the shortcut may trigger).
-                                        if (!shortcut.keepsCenterOpen) tapExpanded = false
+                                        if (!shortcut.keepsCenterOpen) {
+                                            tapExpanded = false
+                                        }
+
                                         onCenterShortcut(shortcut)
                                     },
                                 )
@@ -1010,7 +916,7 @@ fun DynamicIsland(
                             shownEvent?.let { e ->
                                 if (e.call != null) {
                                     CallNormalContent(event = e, appearance = appearance, onAction = onAction)
-                                } else if (showExpanded) {
+                                } else if (content.expanded) {
                                     ExpandedContent(
                                         event = e,
                                         showActions = showActions,
@@ -1114,6 +1020,194 @@ fun DynamicIsland(
     }
     }
 }
+
+/**
+ * Press-and-tap gestures for the island surface, lifted out of the layout so the composable reads as
+ * structure. A press "boops" the collapsed pill and releases on lift: [pressWidens] chooses between
+ * briefly widening it by [PRESS_EXPAND_DP] on each side and scaling it down. While a reply is being
+ * typed the surface ignores presses and taps entirely. A tap either toggles the expanded state or
+ * activates the event: the resting empty pill opens the shortcut center when [emptyOpensCenter] is
+ * set and otherwise runs its own click action, a normal-only tile (a call, an assistant answer shown
+ * outside the cutout) never expands and goes straight to its content intent, and an island that is
+ * already open hands the tap to the app. An island forced open takes no gestures at all.
+ */
+private fun Modifier.islandTapGestures(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    isExpanded: Boolean,
+    isNormalOnly: Boolean,
+    replying: Boolean,
+    emptyPill: Boolean,
+    emptyOpensCenter: Boolean,
+    pressWidens: Boolean,
+    vibrateOnTap: Boolean,
+    scope: CoroutineScope,
+    motion: IslandMotion,
+    haptic: HapticFeedback,
+    boopScale: Animatable<Float, AnimationVector1D>,
+    pressExpand: Animatable<Float, AnimationVector1D>,
+    tapExpanded: MutableState<Boolean>,
+    onEmptyClick: () -> Unit,
+    onActivate: () -> Unit,
+): Modifier = pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, event?.id) {
+    if (forcedExpanded == true) return@pointerInput
+
+    detectTapGestures(
+        onPress = {
+            if (replying) return@detectTapGestures
+
+            if (!isExpanded) {
+                scope.launch {
+                    if (pressWidens) {
+                        pressExpand.animateTo(1f, motion.boop())
+                    } else {
+                        boopScale.animateTo(0.96f, motion.boop())
+                    }
+                }
+            }
+
+            tryAwaitRelease()
+
+            if (!isExpanded) {
+                scope.launch {
+                    if (pressWidens) {
+                        pressExpand.animateTo(0f, motion.boop())
+                    } else {
+                        boopScale.animateTo(1f, motion.boop())
+                    }
+                }
+            }
+        },
+        onTap = {
+            if (vibrateOnTap) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+
+            if (emptyPill) {
+                if (!emptyOpensCenter) {
+                    onEmptyClick()
+                } else if (forcedExpanded == null) {
+                    tapExpanded.value = !tapExpanded.value
+                    if (tapExpanded.value) {
+                        scope.launch { motion.pop(boopScale, peak = 1.03f) }
+                    }
+                }
+                return@detectTapGestures
+            }
+
+            if (replying) return@detectTapGestures
+
+            val canActivate = event?.contentIntent != null || event?.actionIntentAction != null
+
+            if (isNormalOnly) {
+                if (canActivate) onActivate()
+                return@detectTapGestures
+            }
+
+            if ((isExpanded || forcedExpanded == false) && canActivate) {
+                tapExpanded.value = false
+                onActivate()
+            } else if (forcedExpanded == null) {
+                tapExpanded.value = !tapExpanded.value
+                if (isExpanded) {
+                    scope.launch { motion.pop(boopScale, peak = 1.02f) }
+                }
+            }
+        },
+    )
+}
+
+/**
+ * Swipe up on the expanded island to shrink it back to the normal cutout, once the drag passes
+ * [SWIPE_UP_SHRINK_THRESHOLD_DP]. The detector is left uninstalled whenever it could not act anyway
+ * (a forced state, the gesture switched off, or the resting empty pill, which has no expanded state
+ * to shrink back from) so it never swallows a vertical drag meant for whatever is underneath.
+ */
+private fun Modifier.islandSwipeUpToShrink(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    isExpanded: Boolean,
+    replying: Boolean,
+    enabled: Boolean,
+    emptyPill: Boolean,
+    tapExpanded: MutableState<Boolean>,
+): Modifier = pointerInput(forcedExpanded, isExpanded, replying, enabled, emptyPill, event?.id) {
+    if (forcedExpanded != null || !enabled || emptyPill) return@pointerInput
+
+    val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
+    var dragTotal = 0f
+    detectVerticalDragGestures(
+        onDragStart = { dragTotal = 0f },
+        onDragEnd = {
+            if (isExpanded && !replying && dragTotal <= -threshold) {
+                tapExpanded.value = false
+            }
+        },
+    ) { change, dragAmount ->
+        dragTotal += dragAmount
+        change.consume()
+    }
+}
+
+/**
+ * Swipe sideways to dismiss the cutout past [SWIPE_DISMISS_THRESHOLD_DP], which for a notification
+ * also clears it from the system. Only the direction(s) the user allows in [direction] can be
+ * dragged (the offset is clamped to the allowed side) and only the cutout state(s) in [target] let
+ * go; a drag that stops short springs back to rest. The resting empty cutout is meant to stay, so a
+ * swipe must neither slide it away nor clear the departed notification it still remembers.
+ */
+private fun Modifier.islandSwipeToDismiss(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    enabled: Boolean,
+    direction: SwipeDismissDirection,
+    target: SwipeDismissTarget,
+    isExpanded: Boolean,
+    replying: Boolean,
+    emptyPill: Boolean,
+    scope: CoroutineScope,
+    dismissOffsetX: Animatable<Float, AnimationVector1D>,
+    onDismiss: () -> Unit,
+): Modifier = pointerInput(forcedExpanded, enabled, direction, target, isExpanded, replying, emptyPill, event?.id) {
+    val targetAllows = when (target) {
+        SwipeDismissTarget.BOTH -> true
+        SwipeDismissTarget.EXPANDED -> isExpanded
+        SwipeDismissTarget.NORMAL -> !isExpanded
+    }
+    if (forcedExpanded != null || !enabled || replying || emptyPill || !targetAllows) return@pointerInput
+
+    val allowLeft = direction != SwipeDismissDirection.RIGHT
+    val allowRight = direction != SwipeDismissDirection.LEFT
+    val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
+    detectHorizontalDragGestures(
+        onDragEnd = {
+            val x = dismissOffsetX.value
+            val dismiss = (x <= -threshold && allowLeft) || (x >= threshold && allowRight)
+            if (dismiss) {
+                onDismiss()
+            } else {
+                scope.launch {
+                    dismissOffsetX.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
+                    )
+                }
+            }
+        },
+        onDragCancel = { scope.launch { dismissOffsetX.animateTo(0f) } },
+    ) { change, dragAmount ->
+        val next = (dismissOffsetX.value + dragAmount).let {
+            when {
+                !allowLeft -> it.coerceAtLeast(0f)
+                !allowRight -> it.coerceAtMost(0f)
+                else -> it
+            }
+        }
+        scope.launch { dismissOffsetX.snapTo(next) }
+        change.consume()
+    }
+}
+
 
 /** A static, non-interactive pill used by the settings screen for previewing one state. */
 @Composable

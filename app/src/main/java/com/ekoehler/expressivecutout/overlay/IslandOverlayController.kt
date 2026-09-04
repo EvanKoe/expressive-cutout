@@ -1965,8 +1965,11 @@ class IslandOverlayController(private val context: Context) {
             // returns via musicPillToReturnTo() once the user leaves that app.
             if (signal is CutoutSignal.Music && shouldHideForPlayerApp()) {
                 playerAppHidden = true
+                dismissJob?.cancel()
+                forcedExpanded.value = null
+                expanded = false
                 currentEvent.value = null
-                removeOverlay()
+                syncWindowSize()
             }
             if (signal is CutoutSignal.Call && shouldHideForPhoneApp()) {
                 phoneAppHidden = true
