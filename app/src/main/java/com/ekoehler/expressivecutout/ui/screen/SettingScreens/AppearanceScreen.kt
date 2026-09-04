@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.graphics.drawable.shapes.RoundRectShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -63,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.findFirstRoot
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -78,6 +80,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.model.content.RectangleShape
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -89,6 +92,9 @@ import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
+import com.ekoehler.expressivecutout.ui.components.MaterialCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
 
 @Composable
@@ -112,18 +118,22 @@ internal fun AppearanceScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.appearance_section_title))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Shadow toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(isFirst = true),
             title = stringResource(R.string.appearance_shadow_title),
             description = stringResource(R.string.appearance_shadow_desc),
             checked = appearance.shadowEnabled,
             onCheckedChange = viewModel::setShadowEnabled,
         )
 
+        // Stroke toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.appearance_stroke_title),
             description = stringResource(R.string.appearance_stroke_desc),
             checked = appearance.strokeEnabled,
@@ -131,111 +141,124 @@ internal fun AppearanceScreen(
         )
 
         AnimatedVisibility(visible = appearance.strokeEnabled) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        AdjustableSlider(
-                            label = stringResource(R.string.appearance_stroke_width),
-                            valueText = "${strokeWidth.roundToInt()} dp",
-                            value = strokeWidth,
-                            valueRange = AppearanceSettings.MIN_STROKE_WIDTH_DP.toFloat()..
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Stroke width slider
+                MaterialCard {
+                    AdjustableSlider(
+                        label = stringResource(R.string.appearance_stroke_width),
+                        valueText = "${strokeWidth.roundToInt()} dp",
+                        value = strokeWidth,
+                        valueRange = AppearanceSettings.MIN_STROKE_WIDTH_DP.toFloat()..
                                 AppearanceSettings.MAX_STROKE_WIDTH_DP.toFloat(),
-                            step = 1f,
-                            onValueChange = { strokeWidth = it },
-                            onCommit = { viewModel.setStrokeWidth(strokeWidth.roundToInt()) },
-                        )
-
-                        AdjustableSlider(
-                            label = stringResource(R.string.appearance_stroke_opacity),
-                            valueText = "${(strokeOpacity * 100).roundToInt()}%",
-                            value = strokeOpacity,
-                            valueRange = 0f..1f,
-                            step = 0.05f,
-                            onValueChange = { strokeOpacity = it },
-                            onCommit = { viewModel.setStrokeOpacity(strokeOpacity) },
-                        )
-                    }
+                        step = 1f,
+                        onValueChange = { strokeWidth = it },
+                        onCommit = { viewModel.setStrokeWidth(strokeWidth.roundToInt()) },
+                    )
                 }
+
+                // Stroke color selector
                 ColorPickerCard(
                     label = stringResource(R.string.appearance_stroke_color),
                     selected = appearance.strokeColor,
                     onSelect = { it?.let(viewModel::setStrokeColor) },
                     allowAppIcon = true,
+                    roundedCorners = 4.dp
                 )
+
+                // Stroke opacity slider
+                MaterialCard {
+                    AdjustableSlider(
+                        label = stringResource(R.string.appearance_stroke_opacity),
+                        valueText = "${(strokeOpacity * 100).roundToInt()}%",
+                        value = strokeOpacity,
+                        valueRange = 0f..1f,
+                        step = 0.05f,
+                        onValueChange = { strokeOpacity = it },
+                        onCommit = { viewModel.setStrokeOpacity(strokeOpacity) },
+                    )
+                }
             }
         }
 
+        // Show app name toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.appearance_show_app_name_title),
             description = stringResource(R.string.appearance_show_app_name_desc),
             checked = appearance.showSourceAppName,
             onCheckedChange = viewModel::setShowSourceAppName,
         )
 
+        // Multi-line text scroll toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
-            title = stringResource(R.string.appearance_show_timestamp_title),
-            description = stringResource(R.string.appearance_show_timestamp_desc),
-            checked = appearance.showTimestamp,
-            onCheckedChange = viewModel::setShowTimestamp,
-        )
-
-        SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.appearance_show_full_notification_text_title),
             description = stringResource(R.string.appearance_show_full_notification_text_desc),
             checked = appearance.showFullNotificationText,
             onCheckedChange = viewModel::setShowFullNotificationText,
         )
 
+        // Dynamic icon color toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
             description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
             checked = appearance.preferDynamicIconColor,
             onCheckedChange = viewModel::setPreferDynamicIconColor,
         )
 
+        // Text color selector
         ColorPickerCard(
             label = stringResource(R.string.appearance_text_color),
             selected = appearance.textColor,
             onSelect = viewModel::setTextColor,
             defaultLabel = stringResource(R.string.appearance_text_color_auto),
+            roundedCorners = 4.dp,
             allowAppIcon = true,
         )
 
-        // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
-        // and gradients, one per state).
-        BackgroundCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenBackground()
-        })
+        // Show timestamp toggle
+        SettingsToggleCard(
+            shape = groupedShape(isLast = true),
+            title = stringResource(R.string.appearance_show_timestamp_title),
+            description = stringResource(R.string.appearance_show_timestamp_desc),
+            checked = appearance.showTimestamp,
+            onCheckedChange = viewModel::setShowTimestamp,
+        )
 
-        // Opens the dedicated screen for the expanded cutout's action chips and reply field
-        // (including the send/cancel reply-button colours).
-        ActionButtonsCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenActionButtons()
-        })
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Background color screen navigation
+        BackgroundCard(
+            shape = groupedShape(isFirst = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenBackground()
+            }
+        )
+
+        // Action buttons screen navigation
+        ActionButtonsCard(
+            shape = groupedShape(isLast = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenActionButtons()
+            }
+        )
     }
 }
 
 /** A clickable card that navigates to the dedicated background-fill screen. */
 @Composable
-private fun BackgroundCard(onClick: () -> Unit) {
+private fun BackgroundCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -273,12 +296,15 @@ private fun BackgroundCard(onClick: () -> Unit) {
 
 /** A clickable card that navigates to the dedicated action-buttons screen. */
 @Composable
-private fun ActionButtonsCard(onClick: () -> Unit) {
+private fun ActionButtonsCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(

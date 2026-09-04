@@ -52,6 +52,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 
 // Shared building blocks used by more than one settings sub-screen. Kept `internal` so each
 // screen file (same package, split across the SettingScreens/ folder) can reach them.
@@ -186,7 +187,7 @@ internal fun SettingsSliderCard(
  */
 @Composable
 internal fun SettingsToggleCard(
-    shape: Shape,
+    shape: Shape = groupedShape(),
     title: String,
     description: String,
     checked: Boolean,
