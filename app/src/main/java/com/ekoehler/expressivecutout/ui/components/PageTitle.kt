@@ -25,6 +25,7 @@ private val RobotoFlexDisplay = FontFamily(
         weight = FontWeight.W700,
         variationSettings = FontVariation.Settings(
             FontVariation.weight(700),
+            FontVariation.width(125f),
             FontVariation.opticalSizing(96.sp)
         )
     )
@@ -38,7 +39,7 @@ fun PageTitle(
 ) {
     val style: TextStyle = MaterialTheme.typography.headlineLarge.copy(
         fontFamily = RobotoFlexDisplay,
-        fontWeight = FontWeight.W700
+        fontWeight = FontWeight.W700,
     )
 
     Text(
