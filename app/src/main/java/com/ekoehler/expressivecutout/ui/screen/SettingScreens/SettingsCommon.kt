@@ -194,6 +194,7 @@ internal fun SettingsToggleCard(
     enabled: Boolean = true,
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,13 +37,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 import kotlin.math.roundToInt
@@ -61,6 +65,7 @@ private const val PREVIEW_BUTTON_HEIGHT_DP = 48
  * whether to show playback controls (previous / play‑pause / next) on the expanded cutout, and the
  * colour, opacity and corner rounding of each control button.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MusicTileScreen(
     viewModel: AppViewModel,
@@ -75,6 +80,8 @@ internal fun MusicTileScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.tile_music))
+
         SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp),
             title = stringResource(R.string.music_show_art_title),
@@ -82,6 +89,7 @@ internal fun MusicTileScreen(
             checked = settings.showAlbumArt,
             onCheckedChange = viewModel::setMusicShowAlbumArt,
         )
+
         // Rotation and the ring only apply to the album cover, so they ride with its toggle.
         AnimatedVisibility(visible = settings.showAlbumArt) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

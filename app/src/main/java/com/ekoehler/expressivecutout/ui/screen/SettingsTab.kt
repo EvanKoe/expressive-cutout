@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.app.Application
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.rememberScrollState
@@ -45,12 +46,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.ExpressiveCutoutApp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.pageTransition
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
 
@@ -225,6 +228,7 @@ private fun SettingsList(
     // case that best-effort request doesn't take on this OEM.
     val notificationsGranted = rememberNotificationAccessGranted()
     val notificationsRunning = rememberNotificationListenerRunning()
+    val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
     Column(
         modifier = Modifier
@@ -233,6 +237,8 @@ private fun SettingsList(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = appName)
+
         // Accessibility access permission request if needed
         AnimatedVisibility(
             visible = !accessibilityAvailable,

@@ -152,7 +152,7 @@
     <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="corner_mode_all">All</string>
-    <string name="corner_mode_split">Top / Bottom</string>
+    <string name="corner_mode_split">T/B</string>
     <string name="corner_mode_each">Each</string>
     <string name="appearance_corner_all">All corners</string>
     <string name="appearance_corner_top">Top corners</string>
