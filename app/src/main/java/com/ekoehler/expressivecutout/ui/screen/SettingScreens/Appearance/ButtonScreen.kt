@@ -3,9 +3,9 @@ package com.ekoehler.expressivecutout.ui.screen
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,12 +21,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,11 +52,11 @@ import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
-import com.ekoehler.expressivecutout.overlay.calculateExpandedNotificationHeightDp
-import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
+import com.ekoehler.expressivecutout.overlay.IslandPreview
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import kotlin.math.roundToInt
 
@@ -133,6 +129,9 @@ private val SentAlignment.descriptionRes: Int
 /** Accent used by the preview event, matching the accent shown on the sibling settings screens. */
 private val PREVIEW_ACCENT = Color(0xFF60A5FA)
 
+/** Top inset used by this screen's preview: the island's own horizontal padding, not a camera band. */
+private const val PREVIEW_TOP_MARGIN_DP = 18
+
 /**
  * "Action buttons" screen (reached from the Appearance screen). Configures the chips and inline
  * reply field shown in the expanded cutout: whether they appear at all, the chip style/colour/height,
@@ -147,8 +146,6 @@ internal fun ButtonScreen(
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val layout by viewModel.layout.collectAsStateWithLifecycle()
-    val systemInDark = isSystemInDarkTheme()
-    var previewDark by remember { mutableStateOf(systemInDark) }
     // Local height so the sliders/preview react immediately; committed to prefs on release.
     var buttonHeight by remember(appearance.actionButtonHeightDp) {
         mutableStateOf(appearance.actionButtonHeightDp.toFloat())
@@ -183,16 +180,7 @@ internal fun ButtonScreen(
             ),
         )
     }
-    val cutout = rememberTopCutout()
     val expanded = layout.expanded
-    // Mirror the real island: it grows by the chip row's height and top margin so the chips clear the camera hole —
-    // but only when the chips are actually shown, matching the toggle below.
-    val previewHeightDp = calculateExpandedNotificationHeightDp(
-        baseExpandedHeightDp = expanded.heightDp,
-        topMarginDp = expanded.topMarginDp,
-        buttonHeightDp = buttonHeight.roundToInt(),
-        hasActions = behaviour.showActionButtons,
-    )
 
     Column(
         modifier = Modifier
@@ -201,41 +189,35 @@ internal fun ButtonScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.appearance_preview),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalIconButton(onClick = { previewDark = !previewDark }) {
-                Icon(
-                    imageVector = if (previewDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                    contentDescription = stringResource(R.string.cd_toggle_preview_theme),
+        PageTitle(text = stringResource(R.string.action_buttons_title))
+
+        // Expanded cutout preview. The pill keeps the configured width share, but of the card's own
+        // width rather than the screen's, and is centred so it never runs past the content padding.
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val previewWidth = maxWidth * (expanded.widthPercent / 100f)
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                IslandPreview(
+                    event = previewEvent,
+                    width = previewWidth,
+                    heightDp = expanded.heightDp,
+                    cornerTopLeftDp = expanded.cornerTopLeftDp,
+                    cornerTopRightDp = expanded.cornerTopRightDp,
+                    cornerBottomLeftDp = expanded.cornerBottomLeftDp,
+                    cornerBottomRightDp = expanded.cornerBottomRightDp,
+                    // There is no camera hole to clear in-app, so the content sits on a small inset
+                    // matching the island's own horizontal padding instead of the real top margin.
+                    topMarginDp = PREVIEW_TOP_MARGIN_DP,
+                    expanded = true,
+                    appearance = previewAppearance,
+                    showActions = behaviour.showActionButtons,
+                    collapsedHeightDp = 12,
+                    onHeightMeasured = {},
                 )
             }
         }
-
-        IslandPreviewPanel(
-            background = if (previewDark) Color(0xFF0B0B0C) else Color(0xFFEDEFF3),
-            cutout = cutout,
-            widthPercent = expanded.widthPercent,
-            heightDp = previewHeightDp,
-            cornerTopLeftDp = expanded.cornerTopLeftDp,
-            cornerTopRightDp = expanded.cornerTopRightDp,
-            cornerBottomLeftDp = expanded.cornerBottomLeftDp,
-            cornerBottomRightDp = expanded.cornerBottomRightDp,
-            offsetXDp = expanded.offsetXDp,
-            offsetYDp = expanded.offsetYDp,
-            topMarginDp = expanded.topMarginDp,
-            expanded = true,
-            event = previewEvent,
-            appearance = previewAppearance,
-            showActions = behaviour.showActionButtons,
-        )
 
         // Whether the chips appear at all lives with the other behaviour toggles, but it is the
         // natural on/off switch for this screen, so it leads here too.

@@ -34,12 +34,14 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.overlay.onDynamicRole
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 
 /**
  * Lists the dynamic tiles the cutout can display — live, ongoing content such as the track
@@ -53,7 +55,6 @@ internal fun DynamicTilesScreen(
     onOpenTile: (DynamicTile) -> Unit,
 ) {
     val tileEnabled by viewModel.tileEnabled.collectAsStateWithLifecycle()
-    // The icon-container colour each tile lets the user pick, mirrored onto its list badge below.
     val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
     val timer by viewModel.timerTile.collectAsStateWithLifecycle()
     val assistant by viewModel.assistantTile.collectAsStateWithLifecycle()
@@ -61,7 +62,7 @@ internal fun DynamicTilesScreen(
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
