@@ -619,6 +619,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
     }
 
+    /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
+    fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowStatusDot(enabled)
+    }
+
     fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
         behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Image(uri))
     }

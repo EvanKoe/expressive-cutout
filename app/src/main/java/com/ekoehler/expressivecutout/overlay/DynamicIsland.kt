@@ -437,6 +437,8 @@ fun DynamicIsland(
     centerThemedIcons: Boolean = false,
     vibrateOnTap: Boolean = true,
     hapticsOnPop: Boolean = false,
+    /** Whether system-event pills may draw the radiating status dot on their trailing edge. */
+    statusDotEnabled: Boolean = true,
     permissionDotsEnabled: Boolean = false,
     permissionUsage: PermissionUsage = PermissionUsage(),
     permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
@@ -953,6 +955,7 @@ fun DynamicIsland(
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
                                         iconPop = iconPop,
+                                        statusDotEnabled = statusDotEnabled,
                                     )
                                 }
                             }
@@ -1226,10 +1229,21 @@ fun IslandPreview(
     collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
-    var measuredHeightDp by remember(event.id, expanded, topMarginDp, appearance.actionButtonHeightDp, showActions) {
-        mutableStateOf(heightDp)
+    // [ExpandedContent] measures its inner column only, so the camera band and the column's bottom
+    // padding have to be added back before the value can be used as an island height — otherwise the
+    // pill ends up short by both insets and the chip row is clipped against its bottom edge.
+    var measuredInnerHeightDp by remember(event.id, expanded, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(0)
     }
-    val effectiveHeightDp = if (expanded) maxOf(heightDp, measuredHeightDp) else heightDp
+    val hasActions = showActions && event.actions.isNotEmpty()
+    fun islandHeightFor(innerHeightDp: Int): Int = calculateExpandedNotificationHeightDp(
+        baseExpandedHeightDp = heightDp,
+        topMarginDp = topMarginDp,
+        measuredInnerHeightDp = innerHeightDp,
+        buttonHeightDp = appearance.actionButtonHeightDp,
+        hasActions = hasActions,
+    )
+    val effectiveHeightDp = if (expanded) islandHeightFor(measuredInnerHeightDp) else heightDp
     val eventPrimaryColor = event.primaryColor()
     IslandSurface(
         modifier = Modifier.size(width, effectiveHeightDp.dp),
@@ -1258,8 +1272,8 @@ fun IslandPreview(
                 onCancelReply = {},
                 onSendReply = {},
                 onHeightMeasured = { measured ->
-                    measuredHeightDp = measured
-                    onHeightMeasured?.invoke(measured)
+                    measuredInnerHeightDp = measured
+                    onHeightMeasured?.invoke(islandHeightFor(measured))
                 },
             )
         } else {
@@ -1444,6 +1458,7 @@ private fun CollapsedContent(
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
+    statusDotEnabled: Boolean = true,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // Scaled after the padding so the pop grows the badge about its own centre instead of
@@ -1512,7 +1527,7 @@ private fun CollapsedContent(
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * 0.20f).dp),
                 )
-            } else if (event.statusDotColor != null) {
+            } else if (statusDotEnabled && event.statusDotColor != null) {
                 RadiatingStatusDot(
                     color = event.statusDotColor,
                     sizeDp = (heightDp * 0.18f).dp,

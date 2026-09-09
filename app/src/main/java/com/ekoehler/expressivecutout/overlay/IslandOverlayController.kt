@@ -687,6 +687,7 @@ class IslandOverlayController(private val context: Context) {
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
                         hapticsOnPop = behaviour.hapticsOnPop,
+                        statusDotEnabled = behaviour.showStatusDot,
                         permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
                         permissionUsage = permissionUsage,
                         permissionDotPosition = permissionDotPosition,

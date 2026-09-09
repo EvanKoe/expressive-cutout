@@ -282,6 +282,7 @@
     <string name="status_bar_silence_alerts_title">Silence system alerts</string>
     <string name="status_bar_silence_alerts_desc">Same idea as “Automatically dismiss notifications,” but more reliable: the system itself mutes sounds, vibration and heads-up pop-ups, so only the island alerts you.</string>
     <string name="permission_dot_title">Display permission dot</string>
+    <string name="permission_dot_title_short">Permission dot</string>
     <string name="permission_dot_desc">Marks the cutout while an app is using the camera (green), the microphone (red) or your location (blue).</string>
     <string name="permission_dot_position_title">Position</string>
     <string name="permission_dot_position_left">Left</string>
@@ -460,6 +461,8 @@
     <string name="behaviour_empty_pill_desc">When no notification is displayed, the cutout stays on the screen</string>
     <string name="shows_when_empty_show_icon">Show icon</string>
     <string name="shows_when_empty_show_icon_desc">Display an icon on the pill while it is empty</string>
+    <string name="system_events_status_dot">Show status dot</string>
+    <string name="system_events_status_dot_desc">Display a pulsing coloured dot on system event pills</string>
     <string name="shows_when_empty_container_color">Container color</string>
     <string name="shows_when_empty_on_click">On click</string>
     <string name="shows_when_empty_click_none">None</string>

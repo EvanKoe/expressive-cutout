@@ -227,7 +227,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
                             onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
                             onOpenPermissionDot = { settingsRoute = SettingsRoute.PermissionDot },
-                            onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
+                            onOpenSystemEvents = { settingsRoute = SettingsRoute.SystemEvents },
                             onOpenEvent = { event ->
                                 selectedEventName = event.name
                                 settingsRoute = SettingsRoute.EventDetail
@@ -307,7 +307,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
                         SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
                         SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
-                        SettingsRoute.EventIcons -> stringResource(R.string.integrations_system_events_title)
+                        SettingsRoute.SystemEvents -> stringResource(R.string.integrations_system_events_title)
                         SettingsRoute.EventDetail ->
                             selectedEvent?.let { stringResource(it.labelRes) }
                                 ?: stringResource(R.string.integrations_system_events_title)

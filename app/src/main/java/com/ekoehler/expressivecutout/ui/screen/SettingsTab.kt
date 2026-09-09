@@ -90,7 +90,7 @@ fun SettingsTab(
     onOpenActionButtons: () -> Unit,
     onOpenShizuku: () -> Unit,
     onOpenPermissionDot: () -> Unit,
-    onOpenEventIcons: () -> Unit,
+    onOpenSystemEvents: () -> Unit,
     onOpenEvent: (SystemEventType) -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -126,6 +126,7 @@ fun SettingsTab(
             }
         }
     }
+
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     AnimatedContent(
         targetState = route,
@@ -150,7 +151,7 @@ fun SettingsTab(
                     onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
                     onOpenShizuku = onOpenShizuku,
-                    onOpenEventIcons = onOpenEventIcons,
+                    onOpenSystemEvents = onOpenSystemEvents,
                 )
             }
 
@@ -168,7 +169,7 @@ fun SettingsTab(
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
             SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding, onOpenPermissionDot)
             SettingsRoute.PermissionDot -> PermissionDotScreen(viewModel, contentPadding)
-            SettingsRoute.EventIcons -> EventIconsScreen(viewModel, contentPadding, onOpenEvent)
+            SettingsRoute.SystemEvents -> SystemEventsScreen(viewModel, contentPadding, onOpenEvent)
             SettingsRoute.EventDetail ->
                 selectedEvent?.let { EventDetailScreen(it, viewModel, contentPadding) }
         }
@@ -177,7 +178,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot, EventIcons, EventDetail }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot, SystemEvents, EventDetail }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -190,7 +191,7 @@ val SettingsRoute.parent: SettingsRoute
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
         SettingsRoute.PermissionDot -> SettingsRoute.Shizuku
-        SettingsRoute.EventDetail -> SettingsRoute.EventIcons
+        SettingsRoute.EventDetail -> SettingsRoute.SystemEvents
         else -> SettingsRoute.List
     }
 
@@ -215,7 +216,7 @@ private fun SettingsList(
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenShizuku: () -> Unit,
-    onOpenEventIcons: () -> Unit,
+    onOpenSystemEvents: () -> Unit,
 ) {
     val context = LocalContext.current
     // Re-reads on resume so returning from the system Accessibility settings updates immediately.
@@ -345,7 +346,7 @@ private fun SettingsList(
                 icon = Icons.Rounded.Notifications,
                 title = stringResource(R.string.integrations_system_events_title),
                 subtitle = stringResource(R.string.settings_icons_subtitle),
-                onClick = onOpenEventIcons,
+                onClick = onOpenSystemEvents,
             )
             SettingsListItem(
                 icon = Icons.Rounded.Apps,
