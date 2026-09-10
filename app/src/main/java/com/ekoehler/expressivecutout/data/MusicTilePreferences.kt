@@ -91,6 +91,11 @@ data class MusicTileSettings(
     val playPauseButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Show a playback progress bar under the transport controls. */
     val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,
+    /**
+     * Replace the music tile's normal cutout with the tiny cutout: a small pill carrying only the
+     * note glyph and the album cover. Tapping it still opens the expanded cutout.
+     */
+    val miniPlayer: Boolean = DEFAULT_MINI_PLAYER,
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
@@ -100,6 +105,7 @@ data class MusicTileSettings(
         const val DEFAULT_VISIBLE_IN_PLAYER_APP = true
         const val DEFAULT_SHOW_CONTROLS = true
         const val DEFAULT_SHOW_PROGRESS = false
+        const val DEFAULT_MINI_PLAYER = false
     }
 }
 
@@ -131,6 +137,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
                 filled = prefs[PLAY_PAUSE_FILLED] ?: MusicButtonStyle.DEFAULT_FILLED,
             ),
             showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,
+            miniPlayer = prefs[MINI_PLAYER] ?: MusicTileSettings.DEFAULT_MINI_PLAYER,
         )
     }
 
@@ -153,6 +160,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("visibleInPlayerApp", s.visibleInPlayerApp)
             put("showControls", s.showControls)
             put("showProgress", s.showProgress)
+            put("miniPlayer", s.miniPlayer)
             put("skipButton", s.skipButton.toJsonObject())
             put("playPauseButton", s.playPauseButton.toJsonObject())
         }.toString()
@@ -177,6 +185,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("visibleInPlayerApp")) prefs[VISIBLE_IN_PLAYER_APP] = obj.getBoolean("visibleInPlayerApp")
             if (obj.has("showControls")) prefs[SHOW_CONTROLS] = obj.getBoolean("showControls")
             if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")
+            if (obj.has("miniPlayer")) prefs[MINI_PLAYER] = obj.getBoolean("miniPlayer")
 
             obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
             obj.optJSONObject("playPauseButton")
@@ -275,6 +284,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[SHOW_PROGRESS] = enabled
     }
 
+    suspend fun setMiniPlayer(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[MINI_PLAYER] = enabled
+    }
+
     /**
      * Clamps to the range the corner slider offers, so an imported settings file can't leave a
      * shape the UI has no way to correct.
@@ -327,5 +340,6 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PLAY_PAUSE_CORNER = intPreferencesKey("play_pause_button_corner_percent")
         val PLAY_PAUSE_FILLED = booleanPreferencesKey("play_pause_button_filled")
         val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")
+        val MINI_PLAYER = booleanPreferencesKey("mini_player")
     }
 }

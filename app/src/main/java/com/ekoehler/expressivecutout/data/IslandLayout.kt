@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.data
 
+import kotlin.math.roundToInt
+
 /**
  * Geometry for one island state. [widthPercent] is the width as a percentage of the screen
  * width (so it scales to any device and can span the whole screen); [heightDp] is the height;
@@ -90,6 +92,52 @@ const val CALL_MAX_WIDTH_PERCENT = 80
 private const val CALL_HEIGHT_DP = 60
 /** Corner radius of the call cutout, half of [CALL_HEIGHT_DP] so its ends are fully round. */
 private const val CALL_CORNER_DP = 30
+
+/**
+ * The music tile's "Mini player": a tiny cutout holding only the note glyph, drawn in place of the
+ * normal cutout while music plays. It is not centred like every other state — it swallows the
+ * physical camera hole and extends past it to the left, so it reads as the camera grown a little
+ * wider to make room for the glyph.
+ *
+ * Derived from the user's [collapsed] state so its height and vertical offset carry over; the
+ * corners are made fully round, the width is fixed at [TINY_WIDTH_RATIO] times the height, and the
+ * horizontal offset is computed rather than inherited.
+ *
+ * @param displayWidthDp the screen width, since [IslandDimensions] stores width as a percentage of it.
+ * @param cameraRightEdgeDp the camera cutout's right edge measured from the screen's horizontal
+ *   centre, or null on a device whose cutout can't be measured — then [DEFAULT_CAMERA_RADIUS_DP]
+ *   stands in for a centred hole.
+ */
+fun IslandDimensions.asTinyCutout(
+    displayWidthDp: Int,
+    cameraRightEdgeDp: Float? = null,
+): IslandDimensions {
+    val widthDp = heightDp * TINY_WIDTH_RATIO
+    val percent = if (displayWidthDp > 0) (widthDp * 100f / displayWidthDp).roundToInt() else heightDp
+    val cameraRight = cameraRightEdgeDp ?: DEFAULT_CAMERA_RADIUS_DP
+    return IslandDimensions.of(
+        widthPercent = percent,
+        heightDp = heightDp,
+        // Its trailing edge clears the camera by one gap, so all of the width it has over the hole
+        // falls on the leading side — exactly the room the glyph needs.
+        offsetXDp = (cameraRight + TINY_CAMERA_GAP_DP - widthDp / 2f).roundToInt(),
+        offsetYDp = offsetYDp,
+        cornerTopLeftDp = heightDp / 2,
+        cornerTopRightDp = heightDp / 2,
+        cornerBottomLeftDp = heightDp / 2,
+        cornerBottomRightDp = heightDp / 2,
+        topMarginDp = topMarginDp,
+    )
+}
+
+/** How much wider than it is tall the tiny cutout is — just enough for its glyph. */
+private const val TINY_WIDTH_RATIO = 1.8f
+
+/** How far the tiny cutout's trailing edge clears the camera hole's own edge. */
+private const val TINY_CAMERA_GAP_DP = 4f
+
+/** Half a typical punch-hole, standing in when the device won't report its cutout. */
+private const val DEFAULT_CAMERA_RADIUS_DP = 16f
 
 /** The two independently configurable island states. */
 data class IslandLayout(

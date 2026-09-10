@@ -163,6 +163,7 @@ import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
@@ -271,12 +272,19 @@ internal fun calculateExpandedNotificationHeightDp(
 private const val MEDIA_PROGRESS_HEIGHT_DP = 4
 
 /**
- * Extra height added to the expanded music tile when it shows the progress bar: the bar itself plus
- * the spacing above it. Reserved separately from [expandedActionsExtraDp] because the bar is a third
- * row in the same column — without its own allowance the track text is squeezed out of its slot and
- * the bar, drawn after it, paints over the artist line.
+ * Breathing room above and below the progress bar, on top of the column's own row spacing. Without
+ * it the bar reads as glued to the album row above and the transport buttons below.
  */
-internal fun expandedMediaProgressExtraDp(): Int = MEDIA_PROGRESS_HEIGHT_DP + ACTIONS_ROW_SPACING_DP
+private const val MEDIA_PROGRESS_GAP_DP = 6
+
+/**
+ * Extra height added to the expanded music tile when it shows the progress bar: the bar itself, its
+ * own gap on each side, plus the spacing above it. Reserved separately from [expandedActionsExtraDp]
+ * because the bar is a third row in the same column — without its own allowance the track text is
+ * squeezed out of its slot and the bar, drawn after it, paints over the artist line.
+ */
+internal fun expandedMediaProgressExtraDp(): Int =
+    MEDIA_PROGRESS_HEIGHT_DP + MEDIA_PROGRESS_GAP_DP * 2 + ACTIONS_ROW_SPACING_DP
 
 /** The music tile's artwork/track row: the album badge's own size, which the text column matches. */
 private const val MEDIA_CONTENT_ROW_HEIGHT_DP = 44
@@ -394,7 +402,12 @@ internal fun SentAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
  * "Visible in player app" off) made its album cover vanish abruptly. Folding [emptyPill] into the
  * key cross-dissolves that swap in both directions.
  */
-private data class IslandContentKey(val emptyPill: Boolean, val expanded: Boolean)
+private data class IslandContentKey(
+    val emptyPill: Boolean,
+    val expanded: Boolean,
+    /** The music tile's tiny "Mini player" pill, so toggling it cross-dissolves too. */
+    val tiny: Boolean = false,
+)
 
 /**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
@@ -408,6 +421,11 @@ fun DynamicIsland(
     collapsed: IslandDimensions,
     expanded: IslandDimensions,
     displayWidthDp: Int,
+    /**
+     * The camera cutout's right edge in dp from the screen's horizontal centre, used only to hang
+     * the music tile's tiny "Mini player" pill off the hole. Null when the device reports no cutout.
+     */
+    cameraRightEdgeDp: Float? = null,
     forcedExpanded: Boolean?,
     collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
@@ -540,8 +558,13 @@ fun DynamicIsland(
         }
     }
 
+    // The music tile's "Mini player": while music plays the normal cutout shrinks to a tiny pill.
+    // Every other event keeps the normal (or expanded) cutout the user configured.
+    val isTinyMedia = !emptyPill && !isCall && !isExpanded && shownEvent?.media?.miniPlayer == true
+
     val dims = when {
         emptyPill && !isExpanded -> collapsed
+        isTinyMedia -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
         callTwoRow -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
@@ -696,7 +719,8 @@ fun DynamicIsland(
     // stuck-to-camera pill is barely wider than its own icon.
     // Mounted for as long as the feature is on rather than only while something is in use, so each
     // dot fades in and out with its own resource instead of appearing the instant the row exists.
-    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera
+    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
+        !isTinyMedia
     val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
     // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring —
     // has anything for the dots to collide with. Everything else has empty pill there, so the dots
@@ -718,7 +742,8 @@ fun DynamicIsland(
     // pill gives up the bubble's diameter plus the gap, and the two together still span exactly the
     // width the user chose. Both the width and the offset below animate, so the pill visibly makes
     // room rather than jumping.
-    val satelliteSharing = satellite != null && !isExpanded && !isCall && !isStickToCamera
+    val satelliteSharing = satellite != null && !isExpanded && !isCall && !isStickToCamera &&
+        !isTinyMedia
     val satelliteSplitDp = if (satelliteSharing) collapsed.heightDp + SATELLITE_GAP_DP else 0
     // The pair stays centred on the span the pill had to itself, so the pill's own centre steps away
     // from the side the bubble takes by half of what it gave up.
@@ -880,7 +905,11 @@ fun DynamicIsland(
                     adaptiveColor = shownEvent?.primaryColor(),
                 ) {
                     Crossfade(
-                        targetState = IslandContentKey(emptyPill = emptyPill, expanded = isExpanded),
+                        targetState = IslandContentKey(
+                            emptyPill = emptyPill,
+                            expanded = isExpanded,
+                            tiny = isTinyMedia,
+                        ),
                         animationSpec = tween(scaled(150)),
                         label = "islandContent"
                     ) { content ->
@@ -947,6 +976,12 @@ fun DynamicIsland(
                                             if (e.assistant != null) assistantContentHeightDp = hDp
                                             else expandedNotificationHeightDp = hDp
                                         },
+                                    )
+                                } else if (content.tiny) {
+                                    TinyMediaContent(
+                                        event = e,
+                                        heightDp = collapsed.heightDp,
+                                        iconPop = iconPop,
                                     )
                                 } else {
                                     CollapsedContent(
@@ -1539,6 +1574,56 @@ private fun CollapsedContent(
         }
     }
 }
+
+/**
+ * The tiny cutout's contents, drawn for the music tile's "Mini player": the note glyph alone, on the
+ * leading edge — the pill swallows the camera hole with its trailing half, so the leading extension
+ * is the only part of it free to hold anything. Deliberately no album cover: the pill is too small
+ * to carry one and still read as the camera grown a little wider.
+ * Sized off [heightDp] — the user's own normal-cutout height — so it scales with their geometry.
+ *
+ * @param iconPop scale for the glyph's arrival pop, hoisted by the caller exactly as
+ *   [CollapsedContent] hoists the badge's.
+ */
+@Composable
+private fun TinyMediaContent(
+    event: IslandEvent,
+    heightDp: Int,
+    iconPop: Animatable<Float, AnimationVector1D>? = null,
+) {
+    val pop = if (iconPop != null) {
+        Modifier.graphicsLayer {
+            scaleX = iconPop.value
+            scaleY = iconPop.value
+        }
+    } else {
+        Modifier
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        val placement = Modifier
+            .align(Alignment.CenterStart)
+            .padding(start = (heightDp * TINY_INSET_FRACTION).dp)
+            .then(pop)
+        when (val glyph = event.icon) {
+            is IslandIcon.Vector -> Icon(
+                imageVector = glyph.image,
+                contentDescription = null,
+                tint = LocalContentColor.current,
+                modifier = placement.size(badgeIconSizeFor(heightDp)),
+            )
+
+            else -> IconBadge(
+                event = event,
+                badgeSize = badgeSizeFor(heightDp),
+                iconSize = badgeIconSizeFor(heightDp),
+                modifier = placement,
+            )
+        }
+    }
+}
+
+/** The share of the tiny cutout's height left as padding at each end. */
+private const val TINY_INSET_FRACTION = 0.18f
 
 /**
  * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
@@ -2869,7 +2954,11 @@ private fun MediaExpandedContent(
             }
 
             event.media?.takeIf { it.showProgress }?.let {
-                MediaProgressBar(progress = nowPlaying?.progress)
+                // The column's own row spacing alone leaves the bar crowded between the artwork row
+                // above and the transport controls below, so it gets a gap of its own on each side.
+                Box(modifier = Modifier.padding(vertical = MEDIA_PROGRESS_GAP_DP.dp)) {
+                    MediaProgressBar(progress = nowPlaying?.progress)
+                }
             }
 
             event.media?.takeIf { it.showControls }?.let { media ->

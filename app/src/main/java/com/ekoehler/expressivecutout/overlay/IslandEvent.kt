@@ -205,6 +205,11 @@ data class MediaTileOptions(
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Look of the central play / pause button. */
     val playPauseStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /**
+     * Draw the tiny cutout — a small pill holding only the note glyph and the cover — in place of
+     * the normal cutout while music plays. The expanded cutout is unchanged, and a tap still opens it.
+     */
+    val miniPlayer: Boolean = false,
 )
 
 /**

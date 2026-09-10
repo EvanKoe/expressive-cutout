@@ -915,6 +915,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowProgress(enabled)
     }
 
+    fun setMusicMiniPlayer(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setMiniPlayer(enabled)
+    }
+
     fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setDismissNotifications(enabled)
     }

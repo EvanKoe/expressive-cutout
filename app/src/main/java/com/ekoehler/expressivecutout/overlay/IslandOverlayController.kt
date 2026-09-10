@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
@@ -92,6 +93,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.lang.reflect.Proxy
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -142,6 +144,14 @@ class IslandOverlayController(private val context: Context) {
      */
     private var displayWidthPx: Int = computeDisplayWidthPx()
     private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
+
+    /**
+     * The camera cutout's right edge in dp, measured from the screen's horizontal centre, or null
+     * on a device that reports no cutout. The music tile's tiny "Mini player" pill hangs off it;
+     * everything else is centred and ignores this. Re-measured on rotation, since the hole moves to
+     * a side edge in landscape.
+     */
+    private val cameraRightEdgeDp = MutableStateFlow(measureCameraRightEdgeDp())
 
     /**
      * The orientation the live window geometry was built for, so [onOrientationChanged] only reacts
@@ -598,6 +608,7 @@ class IslandOverlayController(private val context: Context) {
         rotationState.value = rotation
         displayWidthPx = computeDisplayWidthPx()
         displayWidthDp.value = (displayWidthPx / density).toInt()
+        cameraRightEdgeDp.value = measureCameraRightEdgeDp()
         applyLockVisibility()
         if (overlayHidden) return
         // Resize straight to the final geometry in one step (not the usual grow-then-shrink), while the
@@ -634,6 +645,7 @@ class IslandOverlayController(private val context: Context) {
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
+                val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
                 val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
@@ -658,6 +670,7 @@ class IslandOverlayController(private val context: Context) {
                         collapsed = layout.collapsed,
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
+                        cameraRightEdgeDp = cameraRightDp,
                         forcedExpanded = effectiveForced,
                         collapseTrigger = collapse,
                         isStickToCamera = isStickToCamera,
@@ -1340,8 +1353,10 @@ class IslandOverlayController(private val context: Context) {
             val totalDp = dims.offsetYDp + dims.heightDp + TOUCH_MARGIN_DP * 2
             return (totalDp * density).toInt()
         }
+        // The window is centred on the screen, so a pill pushed off-centre (the tiny "Mini player"
+        // parked beside the camera) needs twice its offset of extra width or it is clipped.
         val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
-            permissionDotWidthBonusDp(expanded)
+            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2
         return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
     }
 
@@ -1377,6 +1392,8 @@ class IslandOverlayController(private val context: Context) {
         if (satelliteEvent.value == null) return 0
         if (expanded) return 0
         if (currentEvent.value?.call != null) return 0
+        // The tiny cutout has no width to give away.
+        if (currentEvent.value?.media?.miniPlayer == true) return 0
         if (isLandscapeSplitSuppressed()) return 0
         return layoutState.value.collapsed.heightDp + SATELLITE_GAP_DP
     }
@@ -1413,6 +1430,7 @@ class IslandOverlayController(private val context: Context) {
         if (!behaviourState.value.splitIslandEnabled) return false
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
+        if (displaced.media?.miniPlayer == true || incoming.media?.miniPlayer == true) return false
         if (displaced.assistant != null || incoming.assistant != null) return false
         if (isTwoRowCall()) return false
         val key = displaced.notificationKey
@@ -1654,6 +1672,10 @@ class IslandOverlayController(private val context: Context) {
                     )
                 }
             }
+            // The music tile's "Mini player" shrinks the normal cutout to the tiny pill, so the
+            // window and the touchable region have to shrink with it.
+            event?.media?.miniPlayer == true ->
+                layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
             else -> layout.collapsed
         }
     }
@@ -2379,6 +2401,16 @@ class IslandOverlayController(private val context: Context) {
      * (left/right half of the landscape screen) so it tracks the actual hole, falling back to the
      * display rotation when the cutout can't be measured.
      */
+    /**
+     * The camera cutout's right edge relative to the screen's horizontal centre, in dp. Null when
+     * the device reports no cutout, which leaves [asTinyCutout] to assume a centred hole.
+     */
+    private fun measureCameraRightEdgeDp(): Float? {
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return null
+        val (widthPx, _) = currentScreenSizePx()
+        return (bounds.right - widthPx / 2f) / density
+    }
+
     private fun getLandscapeCameraGravity(): Int {
         val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) }
         if (center != null) {
