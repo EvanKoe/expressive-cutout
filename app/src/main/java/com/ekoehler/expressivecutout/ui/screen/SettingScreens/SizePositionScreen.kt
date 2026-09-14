@@ -1,12 +1,20 @@
 package com.ekoehler.expressivecutout.ui.screen
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,14 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,9 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -49,12 +50,27 @@ import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
-import com.ekoehler.expressivecutout.overlay.IslandEvent
-import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.ExpressivePillRow
+import com.ekoehler.expressivecutout.ui.components.MaterialCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
+
+/**
+ * Swap between two stacks of setting cards: the outgoing one fades out before the incoming one
+ * fades in, while the container springs between the two heights instead of jumping.
+ */
+private fun <S> AnimatedContentTransitionScope<S>.cardStackTransition(): ContentTransform =
+    fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 200)) togetherWith
+        fadeOut(animationSpec = tween(durationMillis = 200)) using
+        SizeTransform(clip = false) { _, _ ->
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessVeryLow,
+            )
+        }
 
 @Composable
 internal fun SizePositionScreen(
@@ -131,30 +147,42 @@ internal fun SizePositionScreen(
                 .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ExpressiveSegmentedRow(
+        PageTitle(text = stringResource(R.string.appearance_title))
+
+        ExpressivePillRow(
             options = listOf(
                 stringResource(R.string.tab_normal),
                 stringResource(R.string.tab_expanded),
             ),
             selectedIndex = tab,
             onSelect = { tab = it },
-            modifier = Modifier.fillMaxWidth()
-                .padding(top = 12.dp),
+            fillWidth = true
         )
-        when (tab) {
-            0 -> DimensionsEditor(
-                dimensions = layout.collapsed,
-                defaults = collapsedDefaults,
-                expandedPreview = false,
-                onChange = viewModel::setCollapsedDimensions,
-            )
 
-            else -> DimensionsEditor(
-                dimensions = layout.expanded,
-                defaults = expandedDefaults,
-                expandedPreview = true,
-                onChange = viewModel::setExpandedDimensions,
-            )
+        // Cross-fade the editor while its height settles, so swapping tabs doesn't snap the sliders
+        // in and out — the expanded tab carries one card more than the normal one.
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = { cardStackTransition() },
+            label = "dimensionsEditor",
+        ) { targetTab ->
+            when (targetTab) {
+                // Normal cutout
+                0 -> DimensionsEditor(
+                    dimensions = layout.collapsed,
+                    defaults = collapsedDefaults,
+                    expandedPreview = false,
+                    onChange = viewModel::setCollapsedDimensions,
+                )
+
+                // Expanded cutout
+                else -> DimensionsEditor(
+                    dimensions = layout.expanded,
+                    defaults = expandedDefaults,
+                    expandedPreview = true,
+                    onChange = viewModel::setExpandedDimensions,
+                )
+            }
         }
     }
 }
@@ -194,35 +222,74 @@ private fun DimensionsEditor(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        AdjustableSlider(
-            label = stringResource(R.string.appearance_width),
-            valueText = "${width.roundToInt()}%",
-            value = width,
-            valueRange = IslandDimensions.MIN_WIDTH_PERCENT.toFloat()..IslandDimensions.MAX_WIDTH_PERCENT.toFloat(),
-            step = 1f,
-            onValueChange = { width = it },
-            onCommit = { commit() },
-        )
-        AdjustableSlider(
-            label = stringResource(R.string.appearance_height),
-            valueText = "${height.roundToInt()} dp",
-            value = height,
-            valueRange = IslandDimensions.MIN_HEIGHT_DP.toFloat()..IslandDimensions.MAX_HEIGHT_DP.toFloat(),
-            step = 2f,
-            onValueChange = { height = it },
-            onCommit = { commit() },
-        )
-        if (expandedPreview) {
+        // Width slider
+        MaterialCard(shape = groupedShape(isFirst = true)) {
             AdjustableSlider(
-                label = stringResource(R.string.appearance_top_margin),
-                valueText = "${topMargin.roundToInt()} dp",
-                value = topMargin,
-                valueRange = IslandDimensions.MIN_TOP_MARGIN_DP.toFloat()..IslandDimensions.MAX_TOP_MARGIN_DP.toFloat(),
-                step = 2f,
-                onValueChange = { topMargin = it },
+                label = stringResource(R.string.appearance_width),
+                valueText = "${width.roundToInt()}%",
+                value = width,
+                valueRange = IslandDimensions.MIN_WIDTH_PERCENT.toFloat()..IslandDimensions.MAX_WIDTH_PERCENT.toFloat(),
+                step = 1f,
+                onValueChange = { width = it },
                 onCommit = { commit() },
             )
         }
+
+        // Height slider
+        MaterialCard {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_height),
+                valueText = "${height.roundToInt()} dp",
+                value = height,
+                valueRange = IslandDimensions.MIN_HEIGHT_DP.toFloat()..IslandDimensions.MAX_HEIGHT_DP.toFloat(),
+                step = 2f,
+                onValueChange = { height = it },
+                onCommit = { commit() },
+            )
+        }
+
+        // Top margin slider - expanded cutout only
+        if (expandedPreview) {
+            MaterialCard {
+                AdjustableSlider(
+                    label = stringResource(R.string.appearance_top_margin),
+                    valueText = "${topMargin.roundToInt()} dp",
+                    value = topMargin,
+                    valueRange = IslandDimensions.MIN_TOP_MARGIN_DP.toFloat()..IslandDimensions.MAX_TOP_MARGIN_DP.toFloat(),
+                    step = 2f,
+                    onValueChange = { topMargin = it },
+                    onCommit = { commit() },
+                )
+            }
+        }
+
+        // Vertical position
+        MaterialCard {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_vertical),
+                valueText = "${offsetY.roundToInt()} dp",
+                value = offsetY,
+                valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
+                step = 2f,
+                onValueChange = { offsetY = it },
+                onCommit = { commit() },
+            )
+        }
+
+        // Horizontal position
+        MaterialCard(groupedShape(isLast = true)) {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_horizontal),
+                valueText = "${offsetX.roundToInt()} dp",
+                value = offsetX,
+                valueRange = IslandDimensions.MIN_OFFSET_X_DP.toFloat()..IslandDimensions.MAX_OFFSET_X_DP.toFloat(),
+                step = 2f,
+                onValueChange = { offsetX = it },
+                onCommit = { commit() },
+            )
+        }
+
+        // Corner radius settings
         CornerRadiusControls(
             cornerTl = cornerTl,
             cornerTr = cornerTr,
@@ -236,26 +303,10 @@ private fun DimensionsEditor(
             onBrChange = { cornerBr = it },
             onCommit = { commit() },
         )
-        AdjustableSlider(
-            label = stringResource(R.string.appearance_vertical),
-            valueText = "${offsetY.roundToInt()} dp",
-            value = offsetY,
-            valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
-            step = 2f,
-            onValueChange = { offsetY = it },
-            onCommit = { commit() },
-        )
-        AdjustableSlider(
-            label = stringResource(R.string.appearance_horizontal),
-            valueText = "${offsetX.roundToInt()} dp",
-            value = offsetX,
-            valueRange = IslandDimensions.MIN_OFFSET_X_DP.toFloat()..IslandDimensions.MAX_OFFSET_X_DP.toFloat(),
-            step = 2f,
-            onValueChange = { offsetX = it },
-            onCommit = { commit() },
-        )
 
         Spacer(Modifier.size(4.dp))
+
+        // Reset defaults button
         Button(
             onClick = {
                 width = defaults.widthPercent.toFloat()
@@ -336,11 +387,7 @@ private fun CornerRadiusControls(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = stringResource(R.string.appearance_corner),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        ExpressiveSegmentedRow(
+        ExpressivePillRow(
             options = modes.map { cornerMode ->
                 when (cornerMode) {
                     CornerMode.All -> stringResource(R.string.corner_mode_all)
@@ -351,39 +398,75 @@ private fun CornerRadiusControls(
             selectedIndex = mode.ordinal,
             onSelect = { onModeChange(modes[it]) },
             modifier = Modifier.fillMaxWidth(),
+            fillWidth = true,
         )
 
-        when (mode) {
-            CornerMode.All -> CornerSlider(
-                label = stringResource(R.string.appearance_corner_all),
-                value = cornerTl,
-                range = range,
-                onValueChange = { onAllChanged(it) },
-                onCommit = onCommit,
-            )
+        // Cross-fade the slider group while the card stack grows or shrinks into the new mode's
+        // height, so switching modes doesn't snap the rest of the screen up and down.
+        AnimatedContent(
+            targetState = mode,
+            transitionSpec = { cardStackTransition() },
+            label = "cornerSliders",
+        ) { targetMode ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                when (targetMode) {
+                    CornerMode.All -> MaterialCard(shape = groupedShape(isFirst = true, isLast = true)) {
+                        CornerSlider(
+                            label = stringResource(R.string.appearance_corner_all),
+                            value = cornerTl,
+                            range = range,
+                            onValueChange = { onAllChanged(it) },
+                            onCommit = onCommit,
+                        )
+                    }
 
-            CornerMode.TopBottom -> {
-                CornerSlider(
-                    label = stringResource(R.string.appearance_corner_top),
-                    value = cornerTl,
-                    range = range,
-                    onValueChange = { onCornerChanged(onTlChange, it); onCornerChanged(onTrChange, it) },
-                    onCommit = onCommit,
-                )
-                CornerSlider(
-                    label = stringResource(R.string.appearance_corner_bottom),
-                    value = cornerBl,
-                    range = range,
-                    onValueChange = { onCornerChanged(onBlChange, it); onCornerChanged(onBrChange, it) },
-                    onCommit = onCommit,
-                )
-            }
+                    CornerMode.TopBottom -> {
+                        // Top corner slider
+                        MaterialCard(shape = groupedShape(isFirst = true)) {
+                            CornerSlider(
+                                label = stringResource(R.string.appearance_corner_top),
+                                value = cornerTl,
+                                range = range,
+                                onValueChange = {
+                                    onCornerChanged(onTlChange, it); onCornerChanged(
+                                    onTrChange,
+                                    it
+                                )
+                                },
+                                onCommit = onCommit,
+                            )
+                        }
 
-            CornerMode.Each -> {
-                CornerSlider(stringResource(R.string.appearance_corner_tl),cornerTl, range, { onCornerChanged(onTlChange, it) }, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_tr), cornerTr, range, { onCornerChanged(onTrChange, it) }, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_bl), cornerBl, range, { onCornerChanged(onBlChange, it) }, onCommit)
-                CornerSlider(stringResource(R.string.appearance_corner_br), cornerBr, range, { onCornerChanged(onBrChange, it) }, onCommit)
+                        // Bottom corner slider
+                        MaterialCard(shape = groupedShape(isLast = true)) {
+                            CornerSlider(
+                                label = stringResource(R.string.appearance_corner_bottom),
+                                value = cornerBl,
+                                range = range,
+                                onValueChange = {
+                                    onCornerChanged(onBlChange, it); onCornerChanged(
+                                    onBrChange,
+                                    it
+                                )
+                                },
+                                onCommit = onCommit,
+                            )
+                        }
+                    }
+
+                    CornerMode.Each -> {
+                        MaterialCard(shape = groupedShape(isFirst = true)) {
+                            CornerSlider(stringResource(R.string.appearance_corner_tl),cornerTl, range, { onCornerChanged(onTlChange, it) }, onCommit)
+                        }
+
+                        MaterialCard { CornerSlider(stringResource(R.string.appearance_corner_tr), cornerTr, range, { onCornerChanged(onTrChange, it) }, onCommit) }
+                        MaterialCard { CornerSlider(stringResource(R.string.appearance_corner_bl), cornerBl, range, { onCornerChanged(onBlChange, it) }, onCommit) }
+
+                        MaterialCard(shape = groupedShape(isLast = true)) {
+                            CornerSlider(stringResource(R.string.appearance_corner_br), cornerBr, range, { onCornerChanged(onBrChange, it) }, onCommit)
+                        }
+                    }
+                }
             }
         }
     }

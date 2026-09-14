@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -63,6 +65,175 @@ val DEFAULT_PRESET_COLORS: List<Long> = listOf(
 private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 /**
+ * This is a card component with a list of predefined and dynamic colors
+ */
+@Composable
+fun ColorPickerCard(
+    label: String? = null,
+    selected: CutoutColor?,
+    onSelect: (CutoutColor?) -> Unit,
+    defaultLabel: String? = null,
+    defaultColor: Color? = null,
+    presetColors: List<Long> = DEFAULT_PRESET_COLORS,
+    dynamicRoles: List<DynamicRole> = DEFAULT_DYNAMIC_ROLES,
+    shape: RoundedCornerShape = groupedShape(),
+    allowAppIcon: Boolean = true,
+    allowTransparent: Boolean = false,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val customArgb = (selected as? CutoutColor.Solid)?.argb
+        ?.takeIf { argb -> presetColors.none { it == argb } }
+    val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val recentColorPreferences = remember(context) { RecentColorPreferences(context) }
+    val storedRecents by recentColorPreferences.recentColors
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    // A recent pick that this screen also lists as a preset would otherwise show up twice.
+    val recentColors = storedRecents.filterNot { argb -> presetColors.any { it == argb } }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (label != null) {
+                Text(text = label, style = MaterialTheme.typography.titleMedium)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Optional "use the default" swatch (null selection), then the Material You dynamic
+                // roles, then the custom picker, then the user's recent picks, then the predefined
+                // swatches.
+                if (defaultLabel != null) {
+                    ColorSwatch(
+                        color = defaultColor ?: MaterialTheme.colorScheme.primary,
+                        selected = selected == null,
+                        badge = Icons.Rounded.RestartAlt,
+                        badgeDescription = defaultLabel,
+                        onClick = { onSelect(null) },
+                    )
+                }
+
+                // App icon color
+                if (allowAppIcon) {
+                    ColorSwatch(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        selected = selected is CutoutColor.AppIcon,
+                        badge = Icons.Rounded.Notifications,
+                        badgeDescription = stringResource(R.string.cd_color_app_icon),
+                        onClick = {
+                            val currentFallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
+                            onSelect(CutoutColor.AppIcon(currentFallback))
+                        },
+                    )
+                }
+
+                // Dynamic colors
+                dynamicRoles.forEach { role ->
+                    ColorSwatch(
+                        color = CutoutColor.Dynamic(role).resolve(),
+                        selected = (selected as? CutoutColor.Dynamic)?.role == role,
+                        badge = Icons.Rounded.AutoAwesome,
+                        badgeDescription = role.dynamicDescription(),
+                        onClick = { onSelect(CutoutColor.Dynamic(role)) },
+                    )
+                }
+
+                // Custom color (color picker with HEX)
+                CustomColorSwatch(
+                    selectedColor = customArgb?.let { Color(it) },
+                    onClick = { showPicker = true },
+                )
+
+                if (allowTransparent) {
+                    ColorSwatch(
+                        color = Color.Transparent,
+                        selected = selected == CutoutColor.Solid(
+                            Color.Transparent.toArgb().toLong()
+                        ),
+                        onClick = {
+                            onSelect(
+                                CutoutColor.Solid(
+                                    Color.Transparent.toArgb().toLong()
+                                )
+                            )
+                        },
+                        badgeDescription = stringResource(R.string.music_transparent_desc)
+                    )
+                }
+
+                // Recent colors
+                recentColors.forEach { argb ->
+                    ColorSwatch(
+                        color = Color(argb),
+                        selected = selected == CutoutColor.Solid(argb),
+                        onClick = { onSelect(CutoutColor.Solid(argb)) },
+                    )
+                }
+
+                // Preset colors
+                presetColors.forEach { argb ->
+                    ColorSwatch(
+                        color = Color(argb),
+                        selected = selected == CutoutColor.Solid(argb),
+                        onClick = { onSelect(CutoutColor.Solid(argb)) },
+                    )
+                }
+            }
+
+            // App icon fallback selector
+            AnimatedVisibility(visible = allowAppIcon && selected is CutoutColor.AppIcon) {
+                val fallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
+                AppColorFallbackRow(
+                    fallback = fallback,
+                    onSelect = { onSelect(CutoutColor.AppIcon(it)) },
+                )
+            }
+
+            // Description
+            val tooltipText = when {
+                selected == null -> stringResource(R.string.tooltip_default_reset)
+                selected is CutoutColor.AppIcon -> stringResource(R.string.tooltip_app_icon)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.PRIMARY -> stringResource(R.string.tooltip_dynamic_primary)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.SECONDARY -> stringResource(R.string.tooltip_dynamic_secondary)
+                selected is CutoutColor.Dynamic && selected.role == DynamicRole.TERTIARY -> stringResource(R.string.tooltip_dynamic_tertiary)
+                selected is CutoutColor.Solid && (selected.argb and 0xFFFFFFL == 0x000000L) -> stringResource(R.string.tooltip_oled_black)
+                selected is CutoutColor.Solid && customArgb != null -> stringResource(R.string.tooltip_custom_color)
+                selected is CutoutColor.Solid -> stringResource(R.string.tooltip_preset_color)
+                else -> null
+            }
+
+            ColorSelectionTooltip(text = tooltipText)
+        }
+    }
+
+    if (showPicker) {
+        ColorPickerDialog(
+            initial = currentColor,
+            onConfirm = { picked ->
+                showPicker = false
+                val argb = picked.toArgb().toLong() and 0xFFFFFFFFL
+                onSelect(CutoutColor.Solid(argb))
+                scope.launch { recentColorPreferences.record(argb) }
+            },
+            onDismiss = { showPicker = false },
+        )
+    }
+}
+
+/**
  * Reusable segmented row for choosing fallback behavior when app icon color is selected
  * but no active notification provides an app icon.
  */
@@ -73,7 +244,11 @@ fun AppColorFallbackRow(
     modifier: Modifier = Modifier,
 ) {
     val fallbackOptions = listOf(
-        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
+        /**
+         * If it only appears when ADAPTIVE is selected, why would ADAPTIVE be
+         * a fallback option?
+         */
+//        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
         AppColorFallback.DYNAMIC_THEME to R.string.app_color_fallback_dynamic,
         AppColorFallback.OLED_BLACK to R.string.app_color_fallback_oled,
     )
@@ -120,143 +295,6 @@ fun ColorSelectionTooltip(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-    }
-}
-
-@Composable
-fun ColorPickerCard(
-    label: String? = null,
-    selected: CutoutColor?,
-    onSelect: (CutoutColor?) -> Unit,
-    defaultLabel: String? = null,
-    defaultColor: Color? = null,
-    presetColors: List<Long> = DEFAULT_PRESET_COLORS,
-    dynamicRoles: List<DynamicRole> = DEFAULT_DYNAMIC_ROLES,
-    roundedCorners: Dp = 24.dp,
-    allowAppIcon: Boolean = true,
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val customArgb = (selected as? CutoutColor.Solid)?.argb
-        ?.takeIf { argb -> presetColors.none { it == argb } }
-    val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val recentColorPreferences = remember(context) { RecentColorPreferences(context) }
-    val storedRecents by recentColorPreferences.recentColors
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-    // A recent pick that this screen also lists as a preset would otherwise show up twice.
-    val recentColors = storedRecents.filterNot { argb -> presetColors.any { it == argb } }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(roundedCorners),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (label != null) {
-                Text(text = label, style = MaterialTheme.typography.titleMedium)
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Optional "use the default" swatch (null selection), then the Material You dynamic
-                // roles, then the custom picker, then the user's recent picks, then the predefined
-                // swatches.
-                if (defaultLabel != null) {
-                    ColorSwatch(
-                        color = defaultColor ?: MaterialTheme.colorScheme.primary,
-                        selected = selected == null,
-                        badge = Icons.Rounded.RestartAlt,
-                        badgeDescription = defaultLabel,
-                        onClick = { onSelect(null) },
-                    )
-                }
-
-                if (allowAppIcon) {
-                    ColorSwatch(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        selected = selected is CutoutColor.AppIcon,
-                        badgePainter = painterResource(R.drawable.ic_play_store),
-                        badgeDescription = stringResource(R.string.cd_color_app_icon),
-                        onClick = {
-                            val currentFallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
-                            onSelect(CutoutColor.AppIcon(currentFallback))
-                        },
-                    )
-                }
-
-                dynamicRoles.forEach { role ->
-                    ColorSwatch(
-                        color = CutoutColor.Dynamic(role).resolve(),
-                        selected = (selected as? CutoutColor.Dynamic)?.role == role,
-                        badge = Icons.Rounded.AutoAwesome,
-                        badgeDescription = role.dynamicDescription(),
-                        onClick = { onSelect(CutoutColor.Dynamic(role)) },
-                    )
-                }
-                CustomColorSwatch(
-                    selectedColor = customArgb?.let { Color(it) },
-                    onClick = { showPicker = true },
-                )
-                recentColors.forEach { argb ->
-                    ColorSwatch(
-                        color = Color(argb),
-                        selected = selected == CutoutColor.Solid(argb),
-                        onClick = { onSelect(CutoutColor.Solid(argb)) },
-                    )
-                }
-                presetColors.forEach { argb ->
-                    ColorSwatch(
-                        color = Color(argb),
-                        selected = selected == CutoutColor.Solid(argb),
-                        onClick = { onSelect(CutoutColor.Solid(argb)) },
-                    )
-                }
-            }
-
-            AnimatedVisibility(visible = allowAppIcon && selected is CutoutColor.AppIcon) {
-                val fallback = (selected as? CutoutColor.AppIcon)?.fallback ?: AppColorFallback.ADAPTIVE
-                AppColorFallbackRow(
-                    fallback = fallback,
-                    onSelect = { onSelect(CutoutColor.AppIcon(it)) },
-                )
-            }
-
-            val tooltipText = when {
-                selected == null -> stringResource(R.string.tooltip_default_reset)
-                selected is CutoutColor.AppIcon -> stringResource(R.string.tooltip_app_icon)
-                selected is CutoutColor.Dynamic && selected.role == DynamicRole.PRIMARY -> stringResource(R.string.tooltip_dynamic_primary)
-                selected is CutoutColor.Dynamic && selected.role == DynamicRole.SECONDARY -> stringResource(R.string.tooltip_dynamic_secondary)
-                selected is CutoutColor.Dynamic && selected.role == DynamicRole.TERTIARY -> stringResource(R.string.tooltip_dynamic_tertiary)
-                selected is CutoutColor.Solid && (selected.argb and 0xFFFFFFL == 0x000000L) -> stringResource(R.string.tooltip_oled_black)
-                selected is CutoutColor.Solid && customArgb != null -> stringResource(R.string.tooltip_custom_color)
-                selected is CutoutColor.Solid -> stringResource(R.string.tooltip_preset_color)
-                else -> null
-            }
-            ColorSelectionTooltip(text = tooltipText)
-        }
-    }
-
-    if (showPicker) {
-        ColorPickerDialog(
-            initial = currentColor,
-            onConfirm = { picked ->
-                showPicker = false
-                val argb = picked.toArgb().toLong() and 0xFFFFFFFFL
-                onSelect(CutoutColor.Solid(argb))
-                scope.launch { recentColorPreferences.record(argb) }
-            },
-            onDismiss = { showPicker = false },
         )
     }
 }

@@ -54,6 +54,7 @@ import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import java.nio.file.WatchEvent
 
 /** Grouped-list item shape: rounded at the group's outer edges, tight between stacked items. */
@@ -107,6 +108,7 @@ internal fun ShizukuScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = stringResource(R.string.shizuku_options_title))
 
         AnimatedVisibility(
             visible = !ready,

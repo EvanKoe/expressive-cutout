@@ -51,6 +51,7 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.AppColorFallbackRow
 import com.ekoehler.expressivecutout.ui.components.ColorSelectionTooltip
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import kotlin.math.roundToInt
 
 /** Accent used by preview swatches and fallback defaults. */
@@ -100,6 +101,8 @@ internal fun BackgroundScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = stringResource(R.string.appearance_background_color))
+
         // Which state is being edited.
         ExpressiveSegmentedRow(
             options = listOf(

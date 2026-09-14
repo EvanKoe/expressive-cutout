@@ -85,6 +85,8 @@
     <string name="music_art_stroke_title">Ring around the cover</string>
     <string name="music_art_stroke_desc">Draws a coloured ring around the album art, set slightly apart from it.</string>
     <string name="music_art_stroke_color">Ring colour</string>
+    <string name="music_cover_fallback_color">Fallback cover colour</string>
+    <string name="music_cover_fallback_default">Tile accent tint</string>
     <string name="settings_access_stalled_title">Overlay access needs a restart</string>
     <string name="settings_access_stalled">Still granted, but Android stopped the service — usually after an app update. Turn it off and on again to bring the island back</string>
     <string name="settings_notif_stalled_title">Notification access needs a restart</string>
@@ -152,7 +154,7 @@
     <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="corner_mode_all">All</string>
-    <string name="corner_mode_split">Top / Bottom</string>
+    <string name="corner_mode_split">T/B</string>
     <string name="corner_mode_each">Each</string>
     <string name="appearance_corner_all">All corners</string>
     <string name="appearance_corner_top">Top corners</string>
@@ -191,6 +193,9 @@
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
     <string name="music_rotate_art_title">Spin album art</string>
     <string name="music_rotate_art_desc">Rotate the album cover while music plays; it stops when paused.</string>
+    <string name="music_circle_cover_title">Circle cover</string>
+    <string name="music_circle_cover_desc">Crop the album cover to a full circle instead of a rounded square</string>
+    <string name="music_circle_cover_locked_desc">Always on while the cover spins — a spinning square would swing its corners</string>
     <string name="music_expand_on_play_title">Expand on play</string>
     <string name="music_expand_on_play_desc">Automatically expand the cutout when music starts playing; otherwise it only opens the normal cutout.</string>
     <string name="music_visible_in_player_title">Visible in player app</string>
@@ -198,10 +203,27 @@
     <string name="music_show_controls_title">Playback controls</string>
     <string name="music_show_controls_desc">Show previous, play/pause and next buttons on the expanded cutout.</string>
     <string name="music_buttons_title">Playback buttons</string>
-    <string name="music_skip_buttons_title">Previous / next buttons</string>
-    <string name="music_playpause_button_title">Play / pause button</string>
+    <string name="music_skip_buttons_title">Previous/next</string>
+    <string name="music_playpause_button_title">Play/pause</string>
     <string name="music_button_color">Colour</string>
     <string name="music_button_corners">Corners</string>
+    <string name="music_playpause_expand_title">Expand button</string>
+    <string name="music_playpause_expand_desc">Let the play/pause button fill the space left by the skip buttons</string>
+    <string name="music_playpause_text_title">Display Play/pause text</string>
+    <string name="music_playpause_text_desc">Show \"Play\" or \"Pause\" on the button instead of its icon</string>
+    <string name="music_playpause_label_play">Play</string>
+    <string name="music_playpause_label_pause">Pause</string>
+    <string name="music_prev_expand_title">Expand button</string>
+    <string name="music_prev_expand_desc">Let the previous button fill the space left by the other buttons</string>
+    <string name="music_prev_text_title">Display Previous text</string>
+    <string name="music_prev_text_desc">Show \"Previous\" on the button instead of its icon</string>
+    <string name="music_prev_label">Previous</string>
+    <string name="music_text_width">Text width</string>
+    <string name="music_next_expand_title">Expand button</string>
+    <string name="music_next_expand_desc">Let the next button fill the space left by the other buttons</string>
+    <string name="music_next_text_title">Display Next text</string>
+    <string name="music_next_text_desc">Show \"Next\" on the button instead of its icon</string>
+    <string name="music_next_label">Next</string>
     <string name="music_button_presets">Presets</string>
     <string name="music_preset_rounded">Rounded</string>
     <string name="music_preset_pill">Pill</string>
@@ -282,6 +304,7 @@
     <string name="status_bar_silence_alerts_title">Silence system alerts</string>
     <string name="status_bar_silence_alerts_desc">Same idea as “Automatically dismiss notifications,” but more reliable: the system itself mutes sounds, vibration and heads-up pop-ups, so only the island alerts you.</string>
     <string name="permission_dot_title">Display permission dot</string>
+    <string name="permission_dot_title_short">Permission dot</string>
     <string name="permission_dot_desc">Marks the cutout while an app is using the camera (green), the microphone (red) or your location (blue).</string>
     <string name="permission_dot_position_title">Position</string>
     <string name="permission_dot_position_left">Left</string>
@@ -308,7 +331,7 @@
 
     <string name="app_color_fallback_title">Fallback colour</string>
     <string name="app_color_fallback_desc">Used when no app icon is available (such as system events or an idle island)</string>
-    <string name="app_color_fallback_dynamic">Material You</string>
+    <string name="app_color_fallback_dynamic">Material</string>
     <string name="app_color_fallback_oled">OLED Black</string>
     <string name="app_color_fallback_adaptive">Adaptive</string>
 
@@ -460,6 +483,8 @@
     <string name="behaviour_empty_pill_desc">When no notification is displayed, the cutout stays on the screen</string>
     <string name="shows_when_empty_show_icon">Show icon</string>
     <string name="shows_when_empty_show_icon_desc">Display an icon on the pill while it is empty</string>
+    <string name="system_events_status_dot">Show status dot</string>
+    <string name="system_events_status_dot_desc">Display a pulsing coloured dot on system event pills</string>
     <string name="shows_when_empty_container_color">Container color</string>
     <string name="shows_when_empty_on_click">On click</string>
     <string name="shows_when_empty_click_none">None</string>
@@ -594,6 +619,10 @@
     <string name="import_failed">Import failed</string>
     <string name="bgColor_oled_title">Use OLED black</string>
     <string name="bgColor_oled_desc">Use pure black for lower consuption on OLED screens</string>
+    <string name="music_mini_player_title">Mini player</string>
+    <string name="music_mini_player_desc">Shrink the normal cutout to a tiny pill while music plays; tap it to open the expanded cutout</string>
+    <string name="music_right_button_title">Right button</string>
+    <string name="music_right_button_desc">Show one playback button on the right of the normal cutout</string>
     <string name="music_progress_title">Show progress</string>
     <string name="music_progress_description">Display a playback progress bar under the controls</string>
     <string name="behaviour_dismissNotifs_title">Automatically dismiss notifications</string>
@@ -605,4 +634,5 @@
     <string name="statusbar_preview_time">2:34</string>
     <string name="test_progress_complete_title">Download complete</string>
     <string name="test_progress_complete_text">document_preview.pdf</string>
+    <string name="music_transparent_desc">Transparent color</string>
 </resources>

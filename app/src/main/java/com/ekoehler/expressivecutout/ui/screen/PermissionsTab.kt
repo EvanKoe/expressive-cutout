@@ -47,6 +47,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 
 /**
  * "Permissions" destination: surfaces the notification, overlay (accessibility) and
@@ -77,6 +78,8 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = stringResource(R.string.nav_permissions))
+
         AnimatedVisibility(visible = status.allEssentialGranted) {
             AllSetCard()
         }

@@ -45,6 +45,8 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 
 /**
  * "Permission dot" detail screen, reached from the switch on the Shizuku options list. Holds which
@@ -71,6 +73,7 @@ internal fun PermissionDotScreen(
     // resource as in use, so the dots show on the actual cutout while this screen is up. Both are
     // dropped on pause so a backgrounded app isn't left claiming the camera is in use.
     val lifecycleOwner = LocalLifecycleOwner.current
+
     DisposableEffect(lifecycleOwner) {
         fun pin(active: Boolean) {
             IslandPreviewBus.setActive(active && Permissions.isAccessibilityGranted(context))
@@ -98,6 +101,8 @@ internal fun PermissionDotScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = stringResource(R.string.permission_dot_title_short))
+
         PermissionDotPositionCard(
             selected = position,
             onSelect = viewModel::setPermissionDotPosition,
@@ -199,7 +204,7 @@ private fun PermissionDotKindCard(
                     onSelect = { onSelectColor(it ?: defaultColor) },
                     defaultLabel = stringResource(R.string.label_default),
                     defaultColor = defaultColor.resolve(),
-                    roundedCorners = 0.dp,
+                    shape = groupedShape(),
                 )
             }
         }

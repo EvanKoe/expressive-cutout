@@ -10,7 +10,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 
 /**
  * A fully resolved, ready-to-render icon. Reducing every possible source (a Material
@@ -194,6 +196,8 @@ data class MediaTileOptions(
     val showAlbumArt: Boolean,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
+    /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */
+    val circleCover: Boolean = false,
     /** Ring the album art, set apart from it by a small gap. */
     val albumArtStroke: Boolean = false,
     /** Colour of that ring; null falls back to the tile's accent. */
@@ -203,8 +207,38 @@ data class MediaTileOptions(
     val showProgress: Boolean = false,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the previous button take the controls row's leftover width. */
+    val previousExpand: Boolean = false,
+    /** Label the expanded previous button "Previous" instead of drawing its icon. */
+    val previousText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val previousTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    /** Let the next button take the controls row's leftover width. */
+    val nextExpand: Boolean = false,
+    /** Label the expanded next button "Next" instead of drawing its icon. */
+    val nextText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val nextTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     /** Look of the central play / pause button. */
     val playPauseStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the play/pause button take the controls row's leftover width. */
+    val playPauseExpand: Boolean = false,
+    /** Label the expanded play/pause button "Play" / "Pause" instead of drawing its icon. */
+    val playPauseText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val playPauseTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    /**
+     * Draw the tiny cutout — a small pill holding only the note glyph and the cover — in place of
+     * the normal cutout while music plays. The expanded cutout is unchanged, and a tap still opens it.
+     */
+    val miniPlayer: Boolean = false,
+    /**
+     * Draw one transport button on the trailing edge of the normal cutout. Ignored while
+     * [miniPlayer] is on: the tiny pill has no room for it.
+     */
+    val rightButton: Boolean = false,
+    /** The action that button fires, and the icon it draws. */
+    val rightButtonAction: MusicRightButtonAction = MusicRightButtonAction.PLAY_PAUSE,
 )
 
 /**

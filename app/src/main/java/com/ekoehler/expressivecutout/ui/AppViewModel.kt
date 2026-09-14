@@ -42,6 +42,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
@@ -403,12 +404,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }
 
+    fun setMusicCircleCover(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setCircleCover(enabled)
+    }
+
     fun setMusicAlbumArtStroke(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setAlbumArtStroke(enabled)
     }
 
     fun setMusicAlbumArtStrokeColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setAlbumArtStrokeColor(color)
+    }
+
+    fun setMusicCoverFallbackColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setCoverFallbackColor(color)
     }
 
     fun setMusicExpandOnPlay(enabled: Boolean) = viewModelScope.launch {
@@ -505,6 +514,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicPlayPauseCornerPercent(percent: Int) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseCornerPercent(percent)
+    }
+
+    fun setMusicPreviousExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousExpand(enabled)
+    }
+
+    fun setMusicPreviousText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousText(enabled)
+    }
+
+    fun setMusicPreviousTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPreviousTextWidth(width)
+    }
+
+    fun setMusicNextExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextExpand(enabled)
+    }
+
+    fun setMusicNextText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextText(enabled)
+    }
+
+    fun setMusicNextTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setNextTextWidth(width)
+    }
+
+    fun setMusicPlayPauseExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseExpand(enabled)
+    }
+
+    fun setMusicPlayPauseText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseText(enabled)
+    }
+
+    fun setMusicPlayPauseTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseTextWidth(width)
     }
 
     fun applyMusicSkipPreset(preset: MusicButtonStyle) = viewModelScope.launch {
@@ -617,6 +662,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowsWhenEmptyShowIcon(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
+    }
+
+    /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
+    fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowStatusDot(enabled)
     }
 
     fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
@@ -908,6 +958,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowProgress(enabled)
+    }
+
+    fun setMusicMiniPlayer(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setMiniPlayer(enabled)
+    }
+
+    fun setMusicRightButton(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setRightButton(enabled)
+    }
+
+    fun setMusicRightButtonAction(action: MusicRightButtonAction) = viewModelScope.launch {
+        musicTilePreferences.setRightButtonAction(action)
     }
 
     fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {

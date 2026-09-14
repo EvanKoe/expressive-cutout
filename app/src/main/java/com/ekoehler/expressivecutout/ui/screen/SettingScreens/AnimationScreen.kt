@@ -43,6 +43,7 @@ import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.overlay.IslandMotion
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -78,6 +79,8 @@ internal fun AnimationScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
+        PageTitle(text = stringResource(R.string.animation_title))
+
         AnimationExampleCard(
             shape = groupedShape(isFirst = true, isLast = true),
             speed = behaviour.animationSpeed,

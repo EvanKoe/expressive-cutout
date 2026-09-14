@@ -567,9 +567,13 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             return
         }
 
-        if (!notification.shouldSurface()) return
+        if (!notification.shouldSurface()) {
+            return
+        }
 
-        if (suppressedByDnd()) return
+        if (suppressedByDnd()) {
+            return
+        }
 
         val extras = notification.notification.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
@@ -583,7 +587,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // their text changes every step, so they never match a fingerprint, and a stalled one at a
         // fixed percent must not read as a re-pop and vanish.
         val fingerprint = fingerprint(notification.packageName, title, text)
-        if (progress == null && suppressed.isSuppressed(fingerprint)) return
+
+        if (progress == null && suppressed.isSuppressed(fingerprint)) {
+            return
+        }
 
         val isSilent = isSilentNotification(notification, rankingMap)
         val islandEvent = CutoutSignal.Notification(
@@ -775,14 +782,24 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * group summaries, and the ongoing-but-unclearable ones that are plumbing rather than news.
      */
     private fun StatusBarNotification.shouldSurface(): Boolean {
-        if (packageName == this@CutoutNotificationListenerService.packageName) return false
+        if (packageName == this@CutoutNotificationListenerService.packageName) {
+            return false
+        }
+
         val flags = notification.flags
-        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
+        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) {
+            return false
+        }
+
         // A transfer in flight (a Chrome download, an upload) is ongoing and unclearable by design,
         // which the general filter below drops. A live progress bar is precisely what the progress
         // tile exists to show, so carrying one overrides both tests — persistent foreground-service
         // notices without a bar (a VPN, a sync service) stay filtered out as before.
-        if (getProgressDataOrNull(this) != null) return true
+
+        if (getProgressDataOrNull(this) != null) {
+            return true
+        }
+
         val isOngoing = flags and Notification.FLAG_ONGOING_EVENT != 0
         return isClearable && !isOngoing
     }

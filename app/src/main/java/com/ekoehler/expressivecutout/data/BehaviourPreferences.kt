@@ -102,6 +102,7 @@ data class BehaviourSettings(
     val showsWhenEmptyIconColor: CutoutColor? = null,
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
+    val showStatusDot: Boolean = DEFAULT_SHOW_STATUS_DOT,
     val centerShortcuts: List<CenterShortcut> = CenterShortcut.DEFAULTS,
     val centerShowLabels: Boolean = CENTER_SHOW_LABELS,
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
@@ -149,6 +150,7 @@ data class BehaviourSettings(
         const val SHOWS_WHEN_EMPTY = false
         const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
+        const val DEFAULT_SHOW_STATUS_DOT = true
         const val CENTER_SHOW_LABELS = true
         const val CENTER_FILL_CONTAINERS = false
         const val CENTER_THEMED_ICONS = false
@@ -217,6 +219,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
             showsWhenEmptyClickPackage = prefs[SHOWS_WHEN_EMPTY_CLICK_PACKAGE],
+            showStatusDot = prefs[SHOW_STATUS_DOT] ?: BehaviourSettings.DEFAULT_SHOW_STATUS_DOT,
             centerShortcuts = CenterShortcut.decodeList(prefs[CENTER_SHORTCUTS]),
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
@@ -269,6 +272,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("showsWhenEmptyIconColor", s.showsWhenEmptyIconColor?.serialize() ?: JSONObject.NULL)
             put("showsWhenEmptyClickAction", s.showsWhenEmptyClickAction.name)
             put("showsWhenEmptyClickPackage", s.showsWhenEmptyClickPackage ?: JSONObject.NULL)
+            put("showStatusDot", s.showStatusDot)
             put("centerShortcuts", CenterShortcut.encodeList(s.centerShortcuts))
             put("centerShowLabels", s.centerShowLabels)
             put("centerFillContainers", s.centerFillContainers)
@@ -339,6 +343,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 else obj.optString("showsWhenEmptyClickPackage").takeIf { s -> s.isNotEmpty() }
                 if (pkg == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE) else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = pkg
             }
+            if (obj.has("showStatusDot")) it[SHOW_STATUS_DOT] = obj.getBoolean("showStatusDot")
             if (obj.has("centerShortcuts") && !obj.isNull("centerShortcuts")) {
                 it[CENTER_SHORTCUTS] = obj.getString("centerShortcuts")
             }
@@ -494,6 +499,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
 
+    suspend fun setShowStatusDot(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOW_STATUS_DOT] = enabled
+    }
+
     suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHOWS_WHEN_EMPTY_SHOW_ICON] = enabled
     }
@@ -593,6 +602,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val SWIPE_DISMISS_TARGET = stringPreferencesKey("swipe_dismiss_target")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
         val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
+        val SHOW_STATUS_DOT = booleanPreferencesKey("show_status_dot")
         val SHOWS_WHEN_EMPTY_ICON = stringPreferencesKey("shows_when_empty_icon")
         val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")

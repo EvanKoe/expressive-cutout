@@ -39,6 +39,7 @@ import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import kotlin.math.roundToInt
 
@@ -91,6 +92,8 @@ internal fun BehaviourScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.behaviour_title))
+
         OptionSelectionCard(
             modifier = Modifier.padding(bottom = 8.dp),
             title = stringResource(R.string.behaviour_horizontal_cutout),
