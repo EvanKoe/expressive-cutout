@@ -42,6 +42,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
@@ -957,6 +958,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicMiniPlayer(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setMiniPlayer(enabled)
+    }
+
+    fun setMusicRightButton(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setRightButton(enabled)
+    }
+
+    fun setMusicRightButtonAction(action: MusicRightButtonAction) = viewModelScope.launch {
+        musicTilePreferences.setRightButtonAction(action)
     }
 
     fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {

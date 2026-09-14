@@ -75,6 +75,9 @@ data class MusicButtonStyle(
     }
 }
 
+/** The transport action carried by the button on the trailing edge of the music normal cutout. */
+enum class MusicRightButtonAction { PREVIOUS, PLAY_PAUSE, NEXT }
+
 /** The music tile's own settings, edited on its dedicated settings screen. */
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
@@ -122,6 +125,13 @@ data class MusicTileSettings(
      * note glyph and the album cover. Tapping it still opens the expanded cutout.
      */
     val miniPlayer: Boolean = DEFAULT_MINI_PLAYER,
+    /**
+     * Draw a single transport button on the trailing edge of the music tile's normal cutout. Only
+     * offered while [miniPlayer] is off — the tiny pill has no room beside the camera for it.
+     */
+    val rightButton: Boolean = DEFAULT_RIGHT_BUTTON,
+    /** Which transport action that button carries. */
+    val rightButtonAction: MusicRightButtonAction = DEFAULT_RIGHT_BUTTON_ACTION,
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
@@ -132,6 +142,8 @@ data class MusicTileSettings(
         const val DEFAULT_SHOW_CONTROLS = true
         const val DEFAULT_SHOW_PROGRESS = false
         const val DEFAULT_MINI_PLAYER = false
+        const val DEFAULT_RIGHT_BUTTON = false
+        val DEFAULT_RIGHT_BUTTON_ACTION = MusicRightButtonAction.PLAY_PAUSE
         const val DEFAULT_PLAY_PAUSE_EXPAND = false
         const val DEFAULT_PLAY_PAUSE_TEXT = false
         const val DEFAULT_PREVIOUS_EXPAND = false
@@ -176,6 +188,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             ),
             showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,
             miniPlayer = prefs[MINI_PLAYER] ?: MusicTileSettings.DEFAULT_MINI_PLAYER,
+            rightButton = prefs[RIGHT_BUTTON] ?: MusicTileSettings.DEFAULT_RIGHT_BUTTON,
+            rightButtonAction = prefs[RIGHT_BUTTON_ACTION]
+                ?.let { runCatching { MusicRightButtonAction.valueOf(it) }.getOrNull() }
+                ?: MusicTileSettings.DEFAULT_RIGHT_BUTTON_ACTION,
             playPauseExpand = prefs[PLAY_PAUSE_EXPAND] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_EXPAND,
             playPauseText = prefs[PLAY_PAUSE_TEXT] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_TEXT,
             playPauseTextWidth = (prefs[PLAY_PAUSE_TEXT_WIDTH] ?: MusicTileSettings.DEFAULT_TEXT_WIDTH)
@@ -212,6 +228,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("showControls", s.showControls)
             put("showProgress", s.showProgress)
             put("miniPlayer", s.miniPlayer)
+            put("rightButton", s.rightButton)
+            put("rightButtonAction", s.rightButtonAction.name)
             put("playPauseExpand", s.playPauseExpand)
             put("playPauseText", s.playPauseText)
             put("playPauseTextWidth", s.playPauseTextWidth.toDouble())
@@ -251,6 +269,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("showControls")) prefs[SHOW_CONTROLS] = obj.getBoolean("showControls")
             if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")
             if (obj.has("miniPlayer")) prefs[MINI_PLAYER] = obj.getBoolean("miniPlayer")
+            if (obj.has("rightButton")) prefs[RIGHT_BUTTON] = obj.getBoolean("rightButton")
+            runCatching { MusicRightButtonAction.valueOf(obj.optString("rightButtonAction")) }
+                .getOrNull()
+                ?.let { prefs[RIGHT_BUTTON_ACTION] = it.name }
             if (obj.has("playPauseExpand")) prefs[PLAY_PAUSE_EXPAND] = obj.getBoolean("playPauseExpand")
             if (obj.has("playPauseText")) prefs[PLAY_PAUSE_TEXT] = obj.getBoolean("playPauseText")
             if (obj.has("playPauseTextWidth")) prefs[PLAY_PAUSE_TEXT_WIDTH] = obj.textWidth("playPauseTextWidth")
@@ -375,6 +397,14 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[MINI_PLAYER] = enabled
     }
 
+    suspend fun setRightButton(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[RIGHT_BUTTON] = enabled
+    }
+
+    suspend fun setRightButtonAction(action: MusicRightButtonAction) = context.musicTileDataStore.edit {
+        it[RIGHT_BUTTON_ACTION] = action.name
+    }
+
     /**
      * Clamps to the range the corner slider offers, so an imported settings file can't leave a
      * shape the UI has no way to correct.
@@ -477,6 +507,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PLAY_PAUSE_FILLED = booleanPreferencesKey("play_pause_button_filled")
         val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")
         val MINI_PLAYER = booleanPreferencesKey("mini_player")
+        val RIGHT_BUTTON = booleanPreferencesKey("right_button")
+        val RIGHT_BUTTON_ACTION = stringPreferencesKey("right_button_action")
         val PLAY_PAUSE_EXPAND = booleanPreferencesKey("play_pause_button_expand")
         val PLAY_PAUSE_TEXT = booleanPreferencesKey("play_pause_button_text")
         val PREVIOUS_EXPAND = booleanPreferencesKey("previous_button_expand")

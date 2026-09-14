@@ -268,6 +268,8 @@ class IconResolver(private val context: Context) {
                 playPauseText = settings.playPauseText,
                 playPauseTextWidth = settings.playPauseTextWidth,
                 miniPlayer = settings.miniPlayer,
+                rightButton = settings.rightButton,
+                rightButtonAction = settings.rightButtonAction,
             ),
         )
     }

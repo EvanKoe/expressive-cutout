@@ -52,10 +52,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.ExpressivePillRow
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
@@ -106,6 +108,38 @@ internal fun MusicTileScreen(
             checked = settings.miniPlayer,
             onCheckedChange = viewModel::setMusicMiniPlayer,
         )
+
+        // One transport button on the trailing edge of the normal cutout. The tiny player has no
+        // room for it beside the camera, so it's only offered while that's off.
+        AnimatedVisibility(visible = !settings.miniPlayer) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SettingsToggleCard(
+                    shape = groupedShape(),
+                    title = stringResource(R.string.music_right_button_title),
+                    description = stringResource(R.string.music_right_button_desc),
+                    checked = settings.rightButton,
+                    onCheckedChange = viewModel::setMusicRightButton,
+                )
+
+                AnimatedVisibility(visible = settings.rightButton) {
+                    ExpressivePillRow(
+                        options = listOf(
+                            stringResource(R.string.music_prev_label),
+                            stringResource(R.string.music_playpause_button_title),
+                            stringResource(R.string.music_next_label),
+                        ),
+                        selectedIndex = settings.rightButtonAction.ordinal,
+                        onSelect = {
+                            viewModel.setMusicRightButtonAction(MusicRightButtonAction.entries[it])
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        fillWidth = true,
+                    )
+                }
+            }
+        }
 
         // Cover/ring settings - the cover also shows in the expanded cutout, so these stay
         // available whether or not the tiny player is on.

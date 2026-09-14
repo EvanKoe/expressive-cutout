@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 
@@ -229,6 +230,13 @@ data class MediaTileOptions(
      * the normal cutout while music plays. The expanded cutout is unchanged, and a tap still opens it.
      */
     val miniPlayer: Boolean = false,
+    /**
+     * Draw one transport button on the trailing edge of the normal cutout. Ignored while
+     * [miniPlayer] is on: the tiny pill has no room for it.
+     */
+    val rightButton: Boolean = false,
+    /** The action that button fires, and the icon it draws. */
+    val rightButtonAction: MusicRightButtonAction = MusicRightButtonAction.PLAY_PAUSE,
 )
 
 /**

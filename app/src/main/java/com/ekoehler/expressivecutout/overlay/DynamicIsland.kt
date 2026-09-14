@@ -22,6 +22,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -69,6 +70,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -166,6 +168,7 @@ import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.SatellitePosition
@@ -740,7 +743,10 @@ fun DynamicIsland(
     //
     // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
     // or fading out, but clears it for the resting empty pill.
-    val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let { it.timer != null || it.progressData != null } == true
+    val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let {
+        it.timer != null || it.progressData != null ||
+            (it.media?.rightButton == true && !it.media.miniPlayer)
+    } == true
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.
@@ -1507,6 +1513,12 @@ private fun CollapsedContent(
     iconPop: Animatable<Float, AnimationVector1D>? = null,
     statusDotEnabled: Boolean = true,
 ) {
+    // The music tile's single transport button, opposite its cover. Never on the stuck-to-camera
+    // pill (barely wider than the badge) nor beside the tiny player, which has no room for it.
+    val rightButton = event.media
+        ?.takeIf { it.rightButton && !it.miniPlayer && !isStickToCamera }
+        ?.rightButtonAction
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Scaled after the padding so the pop grows the badge about its own centre instead of
         // dragging it in from the pill's edge, and read inside the layer block so each frame redraws
@@ -1560,8 +1572,17 @@ private fun CollapsedContent(
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
+        rightButton?.let { action ->
+            MediaNormalButton(
+                action = action,
+                heightDp = heightDp,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = (heightDp * 0.16f).dp + trailingInsetDp.dp),
+            )
+        }
         // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
-        if (event.timer == null && event.progressData == null && !isStickToCamera) {
+        if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
             if (event.trailingText != null) {
                 Text(
                     text = event.trailingText,
@@ -1584,6 +1605,65 @@ private fun CollapsedContent(
                 )
             }
         }
+    }
+}
+
+/**
+ * One transport button on the trailing edge of the music tile's normal cutout, opposite the cover.
+ * Which action it carries — previous, play/pause, next — is the user's pick; the play/pause icon
+ * follows live playback from [NowPlayingBus], which is also where the tap is sent. Sized off
+ * [heightDp], the user's own normal-cutout height, exactly as the badge opposite it is.
+ */
+@Composable
+private fun MediaNormalButton(
+    action: MusicRightButtonAction,
+    heightDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val isPlaying = nowPlaying?.isPlaying == true
+    val transport = nowPlaying?.transport
+    val interaction = remember { MutableInteractionSource() }
+
+    val icon = when (action) {
+        MusicRightButtonAction.PREVIOUS -> Icons.Rounded.SkipPrevious
+        MusicRightButtonAction.PLAY_PAUSE -> if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+        MusicRightButtonAction.NEXT -> Icons.Rounded.SkipNext
+    }
+    val label = stringResource(
+        when (action) {
+            MusicRightButtonAction.PREVIOUS -> R.string.music_prev_label
+            MusicRightButtonAction.PLAY_PAUSE ->
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            MusicRightButtonAction.NEXT -> R.string.music_next_label
+        }
+    )
+
+    Box(
+        modifier = modifier
+            .size(badgeSizeFor(heightDp))
+            .pressScale(interaction)
+            .clip(CircleShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                enabled = transport != null,
+                onClick = {
+                    when (action) {
+                        MusicRightButtonAction.PREVIOUS -> transport?.previous()
+                        MusicRightButtonAction.PLAY_PAUSE -> transport?.playPause()
+                        MusicRightButtonAction.NEXT -> transport?.next()
+                    }
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = LocalContentColor.current,
+            modifier = Modifier.size(badgeIconSizeFor(heightDp)),
+        )
     }
 }
 
