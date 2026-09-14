@@ -161,8 +161,7 @@ internal fun AppearanceScreen(
                     label = stringResource(R.string.appearance_stroke_color),
                     selected = appearance.strokeColor,
                     onSelect = { it?.let(viewModel::setStrokeColor) },
-                    allowAppIcon = true,
-                    roundedCorners = 4.dp
+                    allowAppIcon = true
                 )
 
                 // Stroke opacity slider
@@ -213,7 +212,7 @@ internal fun AppearanceScreen(
             selected = appearance.textColor,
             onSelect = viewModel::setTextColor,
             defaultLabel = stringResource(R.string.appearance_text_color_auto),
-            roundedCorners = 4.dp,
+            shape = groupedShape(),
             allowAppIcon = true,
         )
 

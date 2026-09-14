@@ -65,71 +65,8 @@ val DEFAULT_PRESET_COLORS: List<Long> = listOf(
 private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
 
 /**
- * Reusable segmented row for choosing fallback behavior when app icon color is selected
- * but no active notification provides an app icon.
+ * This is a card component with a list of predefined and dynamic colors
  */
-@Composable
-fun AppColorFallbackRow(
-    fallback: AppColorFallback,
-    onSelect: (AppColorFallback) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val fallbackOptions = listOf(
-        /**
-         * If it only appears when ADAPTIVE is selected, why would ADAPTIVE be
-         * a fallback option?
-         */
-//        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
-        AppColorFallback.DYNAMIC_THEME to R.string.app_color_fallback_dynamic,
-        AppColorFallback.OLED_BLACK to R.string.app_color_fallback_oled,
-    )
-
-    Column(
-        modifier = modifier.padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.app_color_fallback_title),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            text = stringResource(R.string.app_color_fallback_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(2.dp))
-        ExpressiveSegmentedRow(
-            options = fallbackOptions.map { stringResource(it.second) },
-            selectedIndex = fallbackOptions.indexOfFirst { it.first == fallback }.coerceAtLeast(0),
-            onSelect = { index -> onSelect(fallbackOptions[index].first) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-/**
- * Contextual description card showing user what the active color swatch selection does.
- */
-@Composable
-fun ColorSelectionTooltip(
-    text: String?,
-    modifier: Modifier = Modifier,
-) {
-    if (text == null) return
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-        modifier = modifier.fillMaxWidth().padding(top = 2.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-    }
-}
-
 @Composable
 fun ColorPickerCard(
     label: String? = null,
@@ -139,8 +76,9 @@ fun ColorPickerCard(
     defaultColor: Color? = null,
     presetColors: List<Long> = DEFAULT_PRESET_COLORS,
     dynamicRoles: List<DynamicRole> = DEFAULT_DYNAMIC_ROLES,
-    roundedCorners: Dp = 24.dp,
+    shape: RoundedCornerShape = groupedShape(),
     allowAppIcon: Boolean = true,
+    allowTransparent: Boolean = false,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val customArgb = (selected as? CutoutColor.Solid)?.argb
@@ -157,7 +95,7 @@ fun ColorPickerCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(roundedCorners),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
@@ -219,6 +157,23 @@ fun ColorPickerCard(
                     onClick = { showPicker = true },
                 )
 
+                if (allowTransparent) {
+                    ColorSwatch(
+                        color = Color.Transparent,
+                        selected = selected == CutoutColor.Solid(
+                            Color.Transparent.toArgb().toLong()
+                        ),
+                        onClick = {
+                            onSelect(
+                                CutoutColor.Solid(
+                                    Color.Transparent.toArgb().toLong()
+                                )
+                            )
+                        },
+                        badgeDescription = stringResource(R.string.music_transparent_desc)
+                    )
+                }
+
                 // Recent colors
                 recentColors.forEach { argb ->
                     ColorSwatch(
@@ -274,6 +229,72 @@ fun ColorPickerCard(
                 scope.launch { recentColorPreferences.record(argb) }
             },
             onDismiss = { showPicker = false },
+        )
+    }
+}
+
+/**
+ * Reusable segmented row for choosing fallback behavior when app icon color is selected
+ * but no active notification provides an app icon.
+ */
+@Composable
+fun AppColorFallbackRow(
+    fallback: AppColorFallback,
+    onSelect: (AppColorFallback) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fallbackOptions = listOf(
+        /**
+         * If it only appears when ADAPTIVE is selected, why would ADAPTIVE be
+         * a fallback option?
+         */
+//        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
+        AppColorFallback.DYNAMIC_THEME to R.string.app_color_fallback_dynamic,
+        AppColorFallback.OLED_BLACK to R.string.app_color_fallback_oled,
+    )
+
+    Column(
+        modifier = modifier.padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.app_color_fallback_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(R.string.app_color_fallback_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
+        ExpressiveSegmentedRow(
+            options = fallbackOptions.map { stringResource(it.second) },
+            selectedIndex = fallbackOptions.indexOfFirst { it.first == fallback }.coerceAtLeast(0),
+            onSelect = { index -> onSelect(fallbackOptions[index].first) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Contextual description card showing user what the active color swatch selection does.
+ */
+@Composable
+fun ColorSelectionTooltip(
+    text: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (text == null) return
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = modifier.fillMaxWidth().padding(top = 2.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
         )
     }
 }

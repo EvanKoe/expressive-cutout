@@ -255,7 +255,13 @@ class IconResolver(private val context: Context) {
                 showControls = settings.showControls,
                 showProgress = settings.showProgress,
                 skipStyle = settings.skipButton,
+                previousExpand = settings.previousExpand,
+                previousText = settings.previousText,
+                nextExpand = settings.nextExpand,
+                nextText = settings.nextText,
                 playPauseStyle = settings.playPauseButton,
+                playPauseExpand = settings.playPauseExpand,
+                playPauseText = settings.playPauseText,
                 miniPlayer = settings.miniPlayer,
             ),
         )

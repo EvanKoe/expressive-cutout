@@ -135,6 +135,7 @@ import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.toUpperCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -2968,7 +2969,13 @@ private fun MediaExpandedContent(
                     enabled = nowPlaying != null,
                     heightDp = buttonHeightDp,
                     skipStyle = media.skipStyle,
+                    previousExpand = media.previousExpand,
+                    previousText = media.previousText,
+                    nextExpand = media.nextExpand,
+                    nextText = media.nextText,
                     playPauseStyle = media.playPauseStyle,
+                    playPauseExpand = media.playPauseExpand,
+                    playPauseText = media.playPauseText,
                     onPrevious = { nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
@@ -3032,7 +3039,13 @@ private fun MediaControls(
     enabled: Boolean,
     heightDp: Int,
     skipStyle: MusicButtonStyle,
+    previousExpand: Boolean,
+    previousText: Boolean,
+    nextExpand: Boolean,
+    nextText: Boolean,
     playPauseStyle: MusicButtonStyle,
+    playPauseExpand: Boolean,
+    playPauseText: Boolean,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -3042,37 +3055,58 @@ private fun MediaControls(
         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Previous button
         MediaButton(
             icon = Icons.Rounded.SkipPrevious,
-            contentDescription = "Previous track",
+            contentDescription = stringResource(R.string.music_prev_label),
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
             fill = skipStyle.resolveFill(fallback = null),
             cornerPercent = skipStyle.cornerPercent,
             onClick = onPrevious,
+            label = stringResource(R.string.music_prev_label)
+                .takeIf { previousExpand && previousText },
+            expand = previousExpand,
+            modifier = if (previousExpand) Modifier.weight(1f) else Modifier,
         )
+
+        // Play/pause button
         MediaButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-            contentDescription = if (isPlaying) "Pause" else "Play",
+            contentDescription = stringResource(
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            ),
             enabled = enabled,
             heightDp = heightDp,
-            // The play/pause button is a 16:9 rectangle rather than a square.
+            // The play/pause button is a 16:9 rectangle rather than a square, unless it's been
+            // asked to expand — then it takes whatever width the skip buttons leave over.
             widthDp = heightDp * 16 / 9,
             iconSize = 24.dp,
             fill = playPauseStyle.resolveFill(fallback = accent),
             cornerPercent = playPauseStyle.cornerPercent,
             onClick = onPlayPause,
+            label = stringResource(
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            ).takeIf { playPauseExpand && playPauseText },
+            expand = playPauseExpand,
+            modifier = if (playPauseExpand) Modifier.weight(1f) else Modifier,
         )
+
+        // Next button
         MediaButton(
             icon = Icons.Rounded.SkipNext,
-            contentDescription = "Next track",
+            contentDescription = stringResource(R.string.music_next_label),
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
             fill = skipStyle.resolveFill(fallback = null),
             cornerPercent = skipStyle.cornerPercent,
             onClick = onNext,
+            label = stringResource(R.string.music_next_label)
+                .takeIf { nextExpand && nextText },
+            expand = nextExpand,
+            modifier = if (nextExpand) Modifier.weight(1f) else Modifier,
         )
     }
 }
@@ -3091,7 +3125,8 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
  * tinted with the content colour; a non-null [fill] renders a filled button whose corners are rounded
  * by [cornerPercent] relative to its height (50 = a pill / stadium, 0 = a square) with an
  * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
- * rectangle — e.g. the 16:9 play/pause button.
+ * rectangle — e.g. the 16:9 play/pause button — and [modifier] carrying a width (a row weight)
+ * overrides it. A non-null [label] is drawn in place of the icon.
  */
 @Composable
 private fun MediaButton(
@@ -3104,24 +3139,22 @@ private fun MediaButton(
     cornerPercent: Int,
     onClick: () -> Unit,
     widthDp: Int = heightDp,
+    label: String? = null,
+    expand: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val modifier = Modifier
-        .size(width = widthDp.dp, height = heightDp.dp)
+    val sized = modifier
+        .then(if (expand) Modifier.height(heightDp.dp) else Modifier.size(width = widthDp.dp, height = heightDp.dp))
         .pressScale(interaction)
     if (fill == null) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            modifier = modifier,
+            modifier = sized,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = LocalContentColor.current,
-                modifier = Modifier.size(iconSize),
-            )
+            MediaButtonContent(icon, contentDescription, label, iconSize)
         }
     } else {
         FilledIconButton(
@@ -3137,14 +3170,34 @@ private fun MediaButton(
                 disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
                 disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
             ),
-            modifier = modifier,
+            modifier = sized,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize),
-            )
+            MediaButtonContent(icon, contentDescription, label, iconSize)
         }
+    }
+}
+
+/** The face of a transport button: its [label], drawn uppercase, when one is set — otherwise its icon. */
+@Composable
+private fun MediaButtonContent(
+    icon: ImageVector,
+    contentDescription: String,
+    label: String?,
+    iconSize: Dp,
+) {
+    if (label != null) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+    } else {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 

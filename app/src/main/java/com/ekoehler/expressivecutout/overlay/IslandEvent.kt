@@ -203,8 +203,20 @@ data class MediaTileOptions(
     val showProgress: Boolean = false,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the previous button take the controls row's leftover width. */
+    val previousExpand: Boolean = false,
+    /** Label the expanded previous button "Previous" instead of drawing its icon. */
+    val previousText: Boolean = false,
+    /** Let the next button take the controls row's leftover width. */
+    val nextExpand: Boolean = false,
+    /** Label the expanded next button "Next" instead of drawing its icon. */
+    val nextText: Boolean = false,
     /** Look of the central play / pause button. */
     val playPauseStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the play/pause button take the controls row's leftover width. */
+    val playPauseExpand: Boolean = false,
+    /** Label the expanded play/pause button "Play" / "Pause" instead of drawing its icon. */
+    val playPauseText: Boolean = false,
     /**
      * Draw the tiny cutout — a small pill holding only the note glyph and the cover — in place of
      * the normal cutout while music plays. The expanded cutout is unchanged, and a tap still opens it.

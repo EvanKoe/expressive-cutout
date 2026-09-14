@@ -87,8 +87,20 @@ data class MusicTileSettings(
     val showControls: Boolean = DEFAULT_SHOW_CONTROLS,
     /** Shared style of the previous / next (skip) buttons. */
     val skipButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the previous button take the row's leftover width instead of its fixed square size. */
+    val previousExpand: Boolean = DEFAULT_PREVIOUS_EXPAND,
+    /** On an expanded previous button, label it "Previous" rather than drawing the icon. */
+    val previousText: Boolean = DEFAULT_PREVIOUS_TEXT,
+    /** Let the next button take the row's leftover width instead of its fixed square size. */
+    val nextExpand: Boolean = DEFAULT_NEXT_EXPAND,
+    /** On an expanded next button, label it "Next" rather than drawing the icon. */
+    val nextText: Boolean = DEFAULT_NEXT_TEXT,
     /** Style of the central play / pause button. */
     val playPauseButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the play/pause button take the row's leftover width instead of its fixed 16:9 size. */
+    val playPauseExpand: Boolean = DEFAULT_PLAY_PAUSE_EXPAND,
+    /** On an expanded play/pause button, label it "Play" / "Pause" rather than drawing the icon. */
+    val playPauseText: Boolean = DEFAULT_PLAY_PAUSE_TEXT,
     /** Show a playback progress bar under the transport controls. */
     val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,
     /**
@@ -106,6 +118,12 @@ data class MusicTileSettings(
         const val DEFAULT_SHOW_CONTROLS = true
         const val DEFAULT_SHOW_PROGRESS = false
         const val DEFAULT_MINI_PLAYER = false
+        const val DEFAULT_PLAY_PAUSE_EXPAND = false
+        const val DEFAULT_PLAY_PAUSE_TEXT = false
+        const val DEFAULT_PREVIOUS_EXPAND = false
+        const val DEFAULT_PREVIOUS_TEXT = false
+        const val DEFAULT_NEXT_EXPAND = false
+        const val DEFAULT_NEXT_TEXT = false
     }
 }
 
@@ -138,6 +156,12 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             ),
             showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,
             miniPlayer = prefs[MINI_PLAYER] ?: MusicTileSettings.DEFAULT_MINI_PLAYER,
+            playPauseExpand = prefs[PLAY_PAUSE_EXPAND] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_EXPAND,
+            playPauseText = prefs[PLAY_PAUSE_TEXT] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_TEXT,
+            previousExpand = prefs[PREVIOUS_EXPAND] ?: MusicTileSettings.DEFAULT_PREVIOUS_EXPAND,
+            previousText = prefs[PREVIOUS_TEXT] ?: MusicTileSettings.DEFAULT_PREVIOUS_TEXT,
+            nextExpand = prefs[NEXT_EXPAND] ?: MusicTileSettings.DEFAULT_NEXT_EXPAND,
+            nextText = prefs[NEXT_TEXT] ?: MusicTileSettings.DEFAULT_NEXT_TEXT,
         )
     }
 
@@ -161,6 +185,12 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("showControls", s.showControls)
             put("showProgress", s.showProgress)
             put("miniPlayer", s.miniPlayer)
+            put("playPauseExpand", s.playPauseExpand)
+            put("playPauseText", s.playPauseText)
+            put("previousExpand", s.previousExpand)
+            put("previousText", s.previousText)
+            put("nextExpand", s.nextExpand)
+            put("nextText", s.nextText)
             put("skipButton", s.skipButton.toJsonObject())
             put("playPauseButton", s.playPauseButton.toJsonObject())
         }.toString()
@@ -186,6 +216,12 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("showControls")) prefs[SHOW_CONTROLS] = obj.getBoolean("showControls")
             if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")
             if (obj.has("miniPlayer")) prefs[MINI_PLAYER] = obj.getBoolean("miniPlayer")
+            if (obj.has("playPauseExpand")) prefs[PLAY_PAUSE_EXPAND] = obj.getBoolean("playPauseExpand")
+            if (obj.has("playPauseText")) prefs[PLAY_PAUSE_TEXT] = obj.getBoolean("playPauseText")
+            if (obj.has("previousExpand")) prefs[PREVIOUS_EXPAND] = obj.getBoolean("previousExpand")
+            if (obj.has("previousText")) prefs[PREVIOUS_TEXT] = obj.getBoolean("previousText")
+            if (obj.has("nextExpand")) prefs[NEXT_EXPAND] = obj.getBoolean("nextExpand")
+            if (obj.has("nextText")) prefs[NEXT_TEXT] = obj.getBoolean("nextText")
 
             obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
             obj.optJSONObject("playPauseButton")
@@ -299,6 +335,30 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    suspend fun setPreviousExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[PREVIOUS_EXPAND] = enabled
+    }
+
+    suspend fun setPreviousText(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[PREVIOUS_TEXT] = enabled
+    }
+
+    suspend fun setNextExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[NEXT_EXPAND] = enabled
+    }
+
+    suspend fun setNextText(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[NEXT_TEXT] = enabled
+    }
+
+    suspend fun setPlayPauseExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_EXPAND] = enabled
+    }
+
+    suspend fun setPlayPauseText(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_TEXT] = enabled
+    }
+
     suspend fun setPlayPauseFilled(filled: Boolean) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_FILLED] = filled
     }
@@ -341,5 +401,11 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PLAY_PAUSE_FILLED = booleanPreferencesKey("play_pause_button_filled")
         val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")
         val MINI_PLAYER = booleanPreferencesKey("mini_player")
+        val PLAY_PAUSE_EXPAND = booleanPreferencesKey("play_pause_button_expand")
+        val PLAY_PAUSE_TEXT = booleanPreferencesKey("play_pause_button_text")
+        val PREVIOUS_EXPAND = booleanPreferencesKey("previous_button_expand")
+        val PREVIOUS_TEXT = booleanPreferencesKey("previous_button_text")
+        val NEXT_EXPAND = booleanPreferencesKey("next_button_expand")
+        val NEXT_TEXT = booleanPreferencesKey("next_button_text")
     }
 }

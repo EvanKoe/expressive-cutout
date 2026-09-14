@@ -208,6 +208,16 @@
     <string name="music_playpause_text_desc">Show \"Play\" or \"Pause\" on the button instead of its icon</string>
     <string name="music_playpause_label_play">Play</string>
     <string name="music_playpause_label_pause">Pause</string>
+    <string name="music_prev_expand_title">Expand button</string>
+    <string name="music_prev_expand_desc">Let the previous button fill the space left by the other buttons</string>
+    <string name="music_prev_text_title">Display Previous text</string>
+    <string name="music_prev_text_desc">Show \"Previous\" on the button instead of its icon</string>
+    <string name="music_prev_label">Previous</string>
+    <string name="music_next_expand_title">Expand button</string>
+    <string name="music_next_expand_desc">Let the next button fill the space left by the other buttons</string>
+    <string name="music_next_text_title">Display Next text</string>
+    <string name="music_next_text_desc">Show \"Next\" on the button instead of its icon</string>
+    <string name="music_next_label">Next</string>
     <string name="music_button_presets">Presets</string>
     <string name="music_preset_rounded">Rounded</string>
     <string name="music_preset_pill">Pill</string>
@@ -616,4 +626,5 @@
     <string name="statusbar_preview_time">2:34</string>
     <string name="test_progress_complete_title">Download complete</string>
     <string name="test_progress_complete_text">document_preview.pdf</string>
+    <string name="music_transparent_desc">Transparent color</string>
 </resources>

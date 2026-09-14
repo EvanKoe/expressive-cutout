@@ -507,6 +507,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setPlayPauseCornerPercent(percent)
     }
 
+    fun setMusicPreviousExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousExpand(enabled)
+    }
+
+    fun setMusicPreviousText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousText(enabled)
+    }
+
+    fun setMusicNextExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextExpand(enabled)
+    }
+
+    fun setMusicNextText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextText(enabled)
+    }
+
+    fun setMusicPlayPauseExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseExpand(enabled)
+    }
+
+    fun setMusicPlayPauseText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseText(enabled)
+    }
+
     fun applyMusicSkipPreset(preset: MusicButtonStyle) = viewModelScope.launch {
         musicTilePreferences.applySkipPreset(preset)
     }

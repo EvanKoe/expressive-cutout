@@ -46,6 +46,7 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 
 /**
  * "Permission dot" detail screen, reached from the switch on the Shizuku options list. Holds which
@@ -203,7 +204,7 @@ private fun PermissionDotKindCard(
                     onSelect = { onSelectColor(it ?: defaultColor) },
                     defaultLabel = stringResource(R.string.label_default),
                     defaultColor = defaultColor.resolve(),
-                    roundedCorners = 0.dp,
+                    shape = groupedShape(),
                 )
             }
         }
