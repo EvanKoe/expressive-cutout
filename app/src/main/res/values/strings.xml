@@ -193,6 +193,9 @@
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
     <string name="music_rotate_art_title">Spin album art</string>
     <string name="music_rotate_art_desc">Rotate the album cover while music plays; it stops when paused.</string>
+    <string name="music_circle_cover_title">Circle cover</string>
+    <string name="music_circle_cover_desc">Crop the album cover to a full circle instead of a rounded square</string>
+    <string name="music_circle_cover_locked_desc">Always on while the cover spins — a spinning square would swing its corners</string>
     <string name="music_expand_on_play_title">Expand on play</string>
     <string name="music_expand_on_play_desc">Automatically expand the cutout when music starts playing; otherwise it only opens the normal cutout.</string>
     <string name="music_visible_in_player_title">Visible in player app</string>

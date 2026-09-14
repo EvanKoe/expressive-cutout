@@ -404,6 +404,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }
 
+    fun setMusicCircleCover(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setCircleCover(enabled)
+    }
+
     fun setMusicAlbumArtStroke(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setAlbumArtStroke(enabled)
     }

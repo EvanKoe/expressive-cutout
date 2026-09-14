@@ -82,6 +82,11 @@ enum class MusicRightButtonAction { PREVIOUS, PLAY_PAUSE, NEXT }
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
+    /**
+     * Crop the album cover to a full circle rather than a rounded square. Forced on while
+     * [rotateAlbumArt] is set — a spinning square would swing its corners.
+     */
+    val circleCover: Boolean = DEFAULT_CIRCLE_COVER,
     /** Draw a ring around the album cover, separated from it by a small gap. */
     val albumArtStroke: Boolean = DEFAULT_ALBUM_ART_STROKE,
     /** Colour of that ring; null keeps the tile's own pink accent. */
@@ -136,6 +141,7 @@ data class MusicTileSettings(
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
         const val DEFAULT_ROTATE_ALBUM_ART = false
+        const val DEFAULT_CIRCLE_COVER = false
         const val DEFAULT_ALBUM_ART_STROKE = false
         const val DEFAULT_EXPAND_ON_PLAY = true
         const val DEFAULT_VISIBLE_IN_PLAYER_APP = true
@@ -165,6 +171,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
+            circleCover = prefs[CIRCLE_COVER] ?: MusicTileSettings.DEFAULT_CIRCLE_COVER,
             albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
             albumArtStrokeColor = CutoutColor.deserialize(prefs[ALBUM_ART_STROKE_COLOR]),
             coverFallbackColor = CutoutColor.deserialize(prefs[COVER_FALLBACK_COLOR]),
@@ -220,6 +227,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         return JSONObject().apply {
             put("showAlbumArt", s.showAlbumArt)
             put("rotateAlbumArt", s.rotateAlbumArt)
+            put("circleCover", s.circleCover)
             put("albumArtStroke", s.albumArtStroke)
             put("albumArtStrokeColor", s.albumArtStrokeColor?.serialize() ?: JSONObject.NULL)
             put("coverFallbackColor", s.coverFallbackColor?.serialize() ?: JSONObject.NULL)
@@ -253,6 +261,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         context.musicTileDataStore.edit { prefs ->
             if (obj.has("showAlbumArt")) prefs[SHOW_ALBUM_ART] = obj.getBoolean("showAlbumArt")
             if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
+            if (obj.has("circleCover")) prefs[CIRCLE_COVER] = obj.getBoolean("circleCover")
             if (obj.has("albumArtStroke")) prefs[ALBUM_ART_STROKE] = obj.getBoolean("albumArtStroke")
             if (obj.has("albumArtStrokeColor")) {
                 val raw = if (obj.isNull("albumArtStrokeColor")) null else obj.optString("albumArtStrokeColor")
@@ -318,6 +327,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[ROTATE_ALBUM_ART] = enabled
+    }
+
+    suspend fun setCircleCover(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[CIRCLE_COVER] = enabled
     }
 
     suspend fun setAlbumArtStroke(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -491,6 +504,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
+        val CIRCLE_COVER = booleanPreferencesKey("circle_cover")
         val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
         val ALBUM_ART_STROKE_COLOR = stringPreferencesKey("album_art_stroke_color")
         val COVER_FALLBACK_COLOR = stringPreferencesKey("cover_fallback_color")

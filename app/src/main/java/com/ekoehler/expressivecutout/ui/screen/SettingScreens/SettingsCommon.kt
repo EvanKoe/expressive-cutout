@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -183,7 +184,10 @@ internal fun SettingsSliderCard(
 /**
  * A surface card wrapping a title/description and a trailing [Switch]. Pass [enabled] = false for a
  * setting that exists but can't be changed yet — the row dims and the switch stops responding,
- * which keeps the feature discoverable instead of hiding it.
+ * which keeps the feature discoverable instead of hiding it. [content] draws inside the same card,
+ * under the switch row, for a setting whose own options belong with it rather than in a card of
+ * their own. It keeps the card's horizontal padding but none below it, so content that animates
+ * itself away leaves no gap behind; content that stays adds its own bottom padding.
  */
 @Composable
 internal fun SettingsToggleCard(
@@ -193,6 +197,7 @@ internal fun SettingsToggleCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
 
@@ -221,6 +226,14 @@ internal fun SettingsToggleCard(
             }
             Spacer(Modifier.width(12.dp))
             Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        }
+        if (content != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                content = content,
+            )
         }
     }
 }

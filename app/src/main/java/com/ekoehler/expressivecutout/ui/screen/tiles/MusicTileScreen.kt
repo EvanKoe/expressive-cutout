@@ -112,15 +112,14 @@ internal fun MusicTileScreen(
         // One transport button on the trailing edge of the normal cutout. The tiny player has no
         // room for it beside the camera, so it's only offered while that's off.
         AnimatedVisibility(visible = !settings.miniPlayer) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SettingsToggleCard(
-                    shape = groupedShape(),
-                    title = stringResource(R.string.music_right_button_title),
-                    description = stringResource(R.string.music_right_button_desc),
-                    checked = settings.rightButton,
-                    onCheckedChange = viewModel::setMusicRightButton,
-                )
-
+            SettingsToggleCard(
+                shape = groupedShape(),
+                title = stringResource(R.string.music_right_button_title),
+                description = stringResource(R.string.music_right_button_desc),
+                checked = settings.rightButton,
+                onCheckedChange = viewModel::setMusicRightButton,
+            ) {
+                // Which action the button carries, in the same card as the toggle that shows it.
                 AnimatedVisibility(visible = settings.rightButton) {
                     ExpressivePillRow(
                         options = listOf(
@@ -134,7 +133,7 @@ internal fun MusicTileScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(bottom = 16.dp),
                         fillWidth = true,
                     )
                 }
@@ -162,6 +161,20 @@ internal fun MusicTileScreen(
                     description = stringResource(R.string.music_rotate_art_desc),
                     checked = settings.rotateAlbumArt,
                     onCheckedChange = viewModel::setMusicRotateAlbumArt,
+                )
+
+                // A spinning square would swing its corners, so spinning pins this on and the row
+                // dims rather than disappearing — the cover stays round either way.
+                SettingsToggleCard(
+                    shape = groupedShape(),
+                    title = stringResource(R.string.music_circle_cover_title),
+                    description = stringResource(
+                        if (settings.rotateAlbumArt) R.string.music_circle_cover_locked_desc
+                        else R.string.music_circle_cover_desc
+                    ),
+                    checked = settings.circleCover || settings.rotateAlbumArt,
+                    onCheckedChange = viewModel::setMusicCircleCover,
+                    enabled = !settings.rotateAlbumArt,
                 )
 
                 // Ring around cover toggle

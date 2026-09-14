@@ -196,6 +196,8 @@ data class MediaTileOptions(
     val showAlbumArt: Boolean,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
+    /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */
+    val circleCover: Boolean = false,
     /** Ring the album art, set apart from it by a small gap. */
     val albumArtStroke: Boolean = false,
     /** Colour of that ring; null falls back to the tile's accent. */

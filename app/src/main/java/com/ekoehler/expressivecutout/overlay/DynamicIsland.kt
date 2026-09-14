@@ -1482,6 +1482,7 @@ internal fun EventBadge(
             size = badgeSize,
             modifier = modifier,
             rotate = event.media?.rotateAlbumArt == true,
+            circle = event.media?.circleCover == true,
             playing = nowPlaying?.isPlaying == true,
             strokeColor = albumArtStrokeFor(event),
         )
@@ -3942,9 +3943,10 @@ internal fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mo
 }
 
 /**
- * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
- * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
- * non-null [strokeColor] rings the cover, set apart from it by a small gap.
+ * Album art, cropped to fill. Normally a rounded square; [circle] crops it to a full disc instead,
+ * and [rotate] implies that while also spinning it ([ALBUM_SPIN_MS] per turn) while [playing],
+ * freezing at its current angle when paused. A non-null [strokeColor] rings the cover, set apart
+ * from it by a small gap.
  *
  * [size] is the cover's ceiling rather than a promise. The expanded layout gives this a height budget
  * that shrinks as the track text and transport controls take their share, and because a `size()` is
@@ -3958,10 +3960,12 @@ internal fun AlbumArt(
     size: Dp,
     modifier: Modifier = Modifier,
     rotate: Boolean = false,
+    circle: Boolean = false,
     playing: Boolean = false,
     /** Colour of the ring drawn around the cover, or null to leave it bare. */
     strokeColor: Color? = null,
 ) {
+    val round = circle || rotate
     val angle = remember { Animatable(0f) }
     // Spin only while enabled and playing; on pause the effect cancels and the angle holds. Restart
     // repeats identical 0→360 turns from the held value, so a pause/resume is seamless.
@@ -3994,8 +3998,8 @@ internal fun AlbumArt(
                 modifier = Modifier
                     .matchParentSize()
                     // A spinning square would visibly swing its corners, so a rotatable cover — and
-                    // the ring tracking it — is drawn as a circle.
-                    .border(strokeWidth, strokeColor, albumArtShape(rotate, size)),
+                    // the ring tracking it — is drawn as a circle, as is one the user asked to round.
+                    .border(strokeWidth, strokeColor, albumArtShape(round, size)),
             )
         }
         androidx.compose.foundation.Image(
@@ -4006,14 +4010,14 @@ internal fun AlbumArt(
                 .fillMaxSize()
                 .padding(strokeWidth + gap)
                 .rotate(if (rotate) angle.value else 0f)
-                .clip(albumArtShape(rotate, coverSize)),
+                .clip(albumArtShape(round, coverSize)),
         )
     }
 }
 
-/** Circle for a spinning cover, else a rounded square whose radius scales with [size]. */
-private fun albumArtShape(rotate: Boolean, size: Dp) =
-    if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
+/** Circle for a round (spinning or circle-cropped) cover, else a rounded square whose radius scales with [size]. */
+private fun albumArtShape(round: Boolean, size: Dp) =
+    if (round) CircleShape else RoundedCornerShape(size * 0.24f)
 
 @Composable
 internal fun IconBadge(
