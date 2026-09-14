@@ -700,10 +700,10 @@ private fun PreviewButton(
 
         // Selected dot
         Box(
-            modifier = Modifier.height(4.dp)
-                .width(4.dp)
+            modifier = Modifier.height(6.dp)
+                .width(12.dp)
                 .clip(shape = CircleShape)
-                .background(color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent)
+                .background(color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
         )
     }
 }
