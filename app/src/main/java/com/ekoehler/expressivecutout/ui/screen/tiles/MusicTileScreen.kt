@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen.tiles
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -9,11 +10,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,8 +32,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,9 +54,13 @@ import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
+import kotlinx.coroutines.selects.select
 import kotlin.math.roundToInt
 
 /** The pink tile accent, used as the play/pause default and the preview backdrop's default fill. */
@@ -72,6 +84,7 @@ internal fun MusicTileScreen(
     contentPadding: PaddingValues,
 ) {
     val settings by viewModel.musicTile.collectAsStateWithLifecycle()
+    var playbackTab by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = Modifier
@@ -82,16 +95,16 @@ internal fun MusicTileScreen(
     ) {
         PageTitle(text = stringResource(R.string.tile_music))
 
+        // Tiny player toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp),
+            shape = groupedShape(isFirst = true),
             title = stringResource(R.string.music_mini_player_title),
             description = stringResource(R.string.music_mini_player_desc),
             checked = settings.miniPlayer,
             onCheckedChange = viewModel::setMusicMiniPlayer,
         )
 
-        // The tiny cutout carries no cover, so everything that styles one is meaningless while the
-        // mini player is on — it slides away rather than sitting there doing nothing.
+        // Cover/ring settings - when tiny player is disabled
         AnimatedVisibility(visible = !settings.miniPlayer) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 SettingsToggleCard(
@@ -105,20 +118,26 @@ internal fun MusicTileScreen(
                 // Rotation and the ring only apply to the album cover, so they ride with its toggle.
                 AnimatedVisibility(visible = settings.showAlbumArt) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                        // Spin album art toggle
                         SettingsToggleCard(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = groupedShape(),
                             title = stringResource(R.string.music_rotate_art_title),
                             description = stringResource(R.string.music_rotate_art_desc),
                             checked = settings.rotateAlbumArt,
                             onCheckedChange = viewModel::setMusicRotateAlbumArt,
                         )
+
+                        // Ring around cover toggle
                         SettingsToggleCard(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = groupedShape(),
                             title = stringResource(R.string.music_art_stroke_title),
                             description = stringResource(R.string.music_art_stroke_desc),
                             checked = settings.albumArtStroke,
                             onCheckedChange = viewModel::setMusicAlbumArtStroke,
                         )
+
+                        // Ring color
                         AnimatedVisibility(visible = settings.albumArtStroke) {
                             ColorPickerCard(
                                 label = stringResource(R.string.music_art_stroke_color),
@@ -134,83 +153,147 @@ internal fun MusicTileScreen(
             }
         }
 
+        // Toggles if playing music extends the cutout or stays in normal/tiny
         SettingsToggleCard(
-            shape = RoundedCornerShape(4.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.music_expand_on_play_title),
             description = stringResource(R.string.music_expand_on_play_desc),
             checked = settings.expandOnPlay,
             onCheckedChange = viewModel::setMusicExpandOnPlay,
         )
+
+        // Toggles if music cutout is enabled when the music app is open
         SettingsToggleCard(
-            shape = RoundedCornerShape(4.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.music_visible_in_player_title),
             description = stringResource(R.string.music_visible_in_player_desc),
             checked = settings.visibleInPlayerApp,
             onCheckedChange = viewModel::setMusicVisibleInPlayerApp,
         )
 
+        // Toggle playback control (previous, play/pause, next buttons)
         SettingsToggleCard(
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
+            shape = groupedShape(),
             title = stringResource(R.string.music_show_controls_title),
             description = stringResource(R.string.music_show_controls_desc),
             checked = settings.showControls,
             onCheckedChange = viewModel::setMusicShowControls,
         )
 
-        // Everything below styles the playback buttons; only meaningful when they're shown.
-        if (settings.showControls) {
-            SectionLabel(stringResource(R.string.music_buttons_title))
-            MusicButtonsPreview(
-                skipStyle = settings.skipButton,
-                playPauseStyle = settings.playPauseButton,
-            )
-
-            SectionLabel(stringResource(R.string.music_skip_buttons_title))
-            ButtonPresetRow(
-                current = settings.skipButton,
-                sampleFill = settings.skipButton.previewFill(fallback = null) ?: MUSIC_BUTTON_FILLED_DEFAULT,
-                onApply = viewModel::applyMusicSkipPreset,
-            )
-            ColorPickerCard(
-                label = stringResource(R.string.music_button_color),
-                selected = settings.skipButton.color,
-                onSelect = viewModel::setMusicSkipColor,
-                defaultLabel = stringResource(R.string.cd_color_default_plain),
-                defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ButtonShapeCard(
-                style = settings.skipButton,
-                onOpacityCommit = viewModel::setMusicSkipOpacity,
-                onCornerCommit = viewModel::setMusicSkipCornerPercent,
-            )
-
-            SectionLabel(stringResource(R.string.music_playpause_button_title))
-            ButtonPresetRow(
-                current = settings.playPauseButton,
-                sampleFill = settings.playPauseButton.previewFill(fallback = MUSIC_ACCENT) ?: MUSIC_ACCENT,
-                onApply = viewModel::applyMusicPlayPausePreset,
-            )
-            ColorPickerCard(
-                label = stringResource(R.string.music_button_color),
-                selected = settings.playPauseButton.color,
-                onSelect = viewModel::setMusicPlayPauseColor,
-                defaultLabel = stringResource(R.string.music_default_accent),
-                defaultColor = MUSIC_ACCENT,
-            )
-            ButtonShapeCard(
-                style = settings.playPauseButton,
-                onOpacityCommit = viewModel::setMusicPlayPauseOpacity,
-                onCornerCommit = viewModel::setMusicPlayPauseCornerPercent,
-            )
-        }
-
+        // Show progressbar
         SettingsToggleCard(
-            shape = RoundedCornerShape(size = 24.dp),
+            shape = groupedShape(isLast = true),
             title = stringResource(R.string.music_progress_title),
             description = stringResource(R.string.music_progress_description),
             checked = settings.showProgress,
             onCheckedChange = viewModel::setMusicShowProgress,
         )
+
+        // Everything below styles the playback buttons; only meaningful when they're shown.
+        if (settings.showControls) {
+            SectionLabel(stringResource(R.string.music_buttons_title))
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Music playback control preview
+            MusicButtonsPreview(
+                skipStyle = settings.skipButton,
+                playPauseStyle = settings.playPauseButton,
+                playbackSelected = playbackTab,
+                playPauseExpand = settings.playPauseExpand,
+                playPauseText = settings.playPauseText,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Play/pause - Prev/next selector
+            ExpressiveSegmentedRow(
+                options = listOf(stringResource(R.string.music_skip_buttons_title), stringResource(R.string.music_playpause_button_title)),
+                selectedIndex = playbackTab,
+                onSelect = { playbackTab = it }
+            )
+
+            AnimatedContent (
+                targetState = playbackTab,
+                label = "playbackControlSettings"
+            ) { current ->
+                when (current) {
+                    // Previous/next buttons
+                    0 -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        // Rounded/pill selector
+                        ButtonPresetRow(
+                            current = settings.skipButton,
+                            sampleFill = settings.skipButton.previewFill(fallback = null)
+                                ?: MUSIC_BUTTON_FILLED_DEFAULT,
+                            onApply = viewModel::applyMusicSkipPreset,
+                        )
+
+                        // Button color picker
+                        ColorPickerCard(
+                            label = stringResource(R.string.music_button_color),
+                            selected = settings.skipButton.color,
+                            onSelect = viewModel::setMusicSkipColor,
+                            defaultLabel = stringResource(R.string.cd_color_default_plain),
+                            defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        // Opacity/rounded corners settings
+                        ButtonShapeCard(
+                            style = settings.skipButton,
+                            onOpacityCommit = viewModel::setMusicSkipOpacity,
+                            onCornerCommit = viewModel::setMusicSkipCornerPercent,
+                        )
+                    }
+
+                    // Play/pause buttons
+                    1 -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        // Rounded/pill selector
+                        ButtonPresetRow(
+                            current = settings.playPauseButton,
+                            sampleFill = settings.playPauseButton.previewFill(fallback = MUSIC_ACCENT)
+                                ?: MUSIC_ACCENT,
+                            onApply = viewModel::applyMusicPlayPausePreset,
+                        )
+
+                        // Button color
+                        ColorPickerCard(
+                            label = stringResource(R.string.music_button_color),
+                            selected = settings.playPauseButton.color,
+                            onSelect = viewModel::setMusicPlayPauseColor,
+                            defaultLabel = stringResource(R.string.music_default_accent),
+                            defaultColor = MUSIC_ACCENT,
+                        )
+
+                        // Opacity/rounded corner settings
+                        ButtonShapeCard(
+                            style = settings.playPauseButton,
+                            onOpacityCommit = viewModel::setMusicPlayPauseOpacity,
+                            onCornerCommit = viewModel::setMusicPlayPauseCornerPercent,
+                        )
+
+                        // Stretch the button across the width the skip buttons leave over
+                        SettingsToggleCard(
+                            shape = groupedShape(isFirst = true),
+                            title = stringResource(R.string.music_playpause_expand_title),
+                            description = stringResource(R.string.music_playpause_expand_desc),
+                            checked = settings.playPauseExpand,
+                            onCheckedChange = viewModel::setMusicPlayPauseExpand,
+                        )
+
+                        // A label only fits once the button is expanded, so it rides with that toggle.
+                        AnimatedVisibility(visible = settings.playPauseExpand) {
+                            SettingsToggleCard(
+                                shape = groupedShape(isLast = true),
+                                title = stringResource(R.string.music_playpause_text_title),
+                                description = stringResource(R.string.music_playpause_text_desc),
+                                checked = settings.playPauseText,
+                                onCheckedChange = viewModel::setMusicPlayPauseText,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -351,11 +434,15 @@ private fun ButtonShapeCard(
 private fun MusicButtonsPreview(
     skipStyle: MusicButtonStyle,
     playPauseStyle: MusicButtonStyle,
+    // 0 if prev/next, 1 if play/pause
+    playbackSelected: Int,
+    playPauseExpand: Boolean,
+    playPauseText: Boolean,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Row(
             modifier = Modifier
@@ -364,15 +451,36 @@ private fun MusicButtonsPreview(
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PreviewButton(Icons.Rounded.SkipPrevious, skipStyle.previewFill(fallback = null), skipStyle.cornerPercent)
-            // The play/pause button is a 16:9 rectangle, matching the live overlay.
+            PreviewButton(
+                Icons.Rounded.SkipPrevious,
+                skipStyle.previewFill(fallback = null),
+                skipStyle.cornerPercent,
+                selected = playbackSelected == 0
+            )
+
+            // The play/pause button is a 16:9 rectangle, matching the live overlay, unless it's
+            // been asked to expand — then it takes the width the skip buttons leave over.
             PreviewButton(
                 Icons.Rounded.PlayArrow,
                 playPauseStyle.previewFill(fallback = MUSIC_ACCENT),
                 playPauseStyle.cornerPercent,
                 widthDp = PREVIEW_BUTTON_HEIGHT_DP * 16 / 9,
+                selected = playbackSelected == 1,
+                label = if (playPauseExpand && playPauseText) {
+                    stringResource(R.string.music_playpause_label_play)
+                } else {
+                    null
+                },
+                expand = playPauseExpand,
+                modifier = if (playPauseExpand) Modifier.weight(1f) else Modifier,
             )
-            PreviewButton(Icons.Rounded.SkipNext, skipStyle.previewFill(fallback = null), skipStyle.cornerPercent)
+
+            PreviewButton(
+                Icons.Rounded.SkipNext,
+                skipStyle.previewFill(fallback = null),
+                skipStyle.cornerPercent,
+                selected = playbackSelected == 0
+            )
         }
     }
 }
@@ -391,33 +499,67 @@ private fun PreviewButton(
     fill: Color?,
     cornerPercent: Int,
     widthDp: Int = PREVIEW_BUTTON_HEIGHT_DP,
+    selected: Boolean = false,
+    label: String? = null,
+    expand: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = Modifier
-            .size(width = widthDp.dp, height = PREVIEW_BUTTON_HEIGHT_DP.dp)
-            .then(
-                if (fill != null) {
-                    Modifier
-                        // Corner radius keyed to height so a wide button reads as a clean pill at
-                        // 50% rather than an ellipse, matching the live overlay.
-                        .clip(RoundedCornerShape((PREVIEW_BUTTON_HEIGHT_DP * cornerPercent / 100f).dp))
-                        .background(fill)
-                } else {
-                    Modifier
-                }
-            ),
-        contentAlignment = Alignment.Center,
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val tint = when {
-            fill == null -> Color(0xFFF5F5F5)
-            fill.luminance() > 0.5f -> Color(0xFF0A0A0A)
-            else -> Color(0xFFF5F5F5)
+        // Actual button
+        Box(
+            modifier = Modifier
+                .then(
+                    if (expand) {
+                        Modifier.fillMaxWidth().height(PREVIEW_BUTTON_HEIGHT_DP.dp)
+                    } else {
+                        Modifier.size(width = widthDp.dp, height = PREVIEW_BUTTON_HEIGHT_DP.dp)
+                    }
+                )
+                .then(
+                    if (fill != null) {
+                        Modifier
+                            // Corner radius keyed to height so a wide button reads as a clean pill at
+                            // 50% rather than an ellipse, matching the live overlay.
+                            .clip(RoundedCornerShape((PREVIEW_BUTTON_HEIGHT_DP * cornerPercent / 100f).dp))
+                            .background(fill)
+                    } else {
+                        Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            val tint = when {
+                fill == null -> Color(0xFFF5F5F5)
+                fill.luminance() > 0.5f -> Color(0xFF0A0A0A)
+                else -> Color(0xFFF5F5F5)
+            }
+            if (label != null) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = tint,
+                    maxLines = 1,
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
         }
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(26.dp),
+
+        // Selected dot
+        Box(
+            modifier = Modifier.height(4.dp)
+                .width(4.dp)
+                .clip(shape = CircleShape)
+                .background(color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent)
         )
     }
 }

@@ -75,7 +75,11 @@ fun AppColorFallbackRow(
     modifier: Modifier = Modifier,
 ) {
     val fallbackOptions = listOf(
-        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
+        /**
+         * If it only appears when ADAPTIVE is selected, why would ADAPTIVE be
+         * a fallback option?
+         */
+//        AppColorFallback.ADAPTIVE to R.string.app_color_fallback_adaptive,
         AppColorFallback.DYNAMIC_THEME to R.string.app_color_fallback_dynamic,
         AppColorFallback.OLED_BLACK to R.string.app_color_fallback_oled,
     )
