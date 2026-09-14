@@ -247,6 +247,8 @@ class IconResolver(private val context: Context) {
             packageName = packageName,
             appColor = appColor,
             contentIntent = signal.contentIntent,
+            // Only ever seen when there's no cover to draw: the note glyph's own container.
+            iconContainerColor = settings.coverFallbackColor,
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
                 rotateAlbumArt = settings.rotateAlbumArt,

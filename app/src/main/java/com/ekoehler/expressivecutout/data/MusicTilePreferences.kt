@@ -83,6 +83,11 @@ data class MusicTileSettings(
     val albumArtStroke: Boolean = DEFAULT_ALBUM_ART_STROKE,
     /** Colour of that ring; null keeps the tile's own pink accent. */
     val albumArtStrokeColor: CutoutColor? = null,
+    /**
+     * Container colour of the note glyph standing in for a missing cover; null keeps the tile's
+     * own faint accent-tinted disc.
+     */
+    val coverFallbackColor: CutoutColor? = null,
     /** Automatically expand the cutout when playback starts, rather than only opening the normal cutout. */
     val expandOnPlay: Boolean = DEFAULT_EXPAND_ON_PLAY,
     /** Keep the music cutout visible even while the app playing the music is in the foreground. */
@@ -150,6 +155,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
             albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
             albumArtStrokeColor = CutoutColor.deserialize(prefs[ALBUM_ART_STROKE_COLOR]),
+            coverFallbackColor = CutoutColor.deserialize(prefs[COVER_FALLBACK_COLOR]),
             expandOnPlay = prefs[EXPAND_ON_PLAY] ?: MusicTileSettings.DEFAULT_EXPAND_ON_PLAY,
             visibleInPlayerApp = prefs[VISIBLE_IN_PLAYER_APP]
                 ?: MusicTileSettings.DEFAULT_VISIBLE_IN_PLAYER_APP,
@@ -200,6 +206,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("rotateAlbumArt", s.rotateAlbumArt)
             put("albumArtStroke", s.albumArtStroke)
             put("albumArtStrokeColor", s.albumArtStrokeColor?.serialize() ?: JSONObject.NULL)
+            put("coverFallbackColor", s.coverFallbackColor?.serialize() ?: JSONObject.NULL)
             put("expandOnPlay", s.expandOnPlay)
             put("visibleInPlayerApp", s.visibleInPlayerApp)
             put("showControls", s.showControls)
@@ -233,6 +240,11 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
                 val raw = if (obj.isNull("albumArtStrokeColor")) null else obj.optString("albumArtStrokeColor")
                 val color = CutoutColor.deserialize(raw)
                 if (color == null) prefs.remove(ALBUM_ART_STROKE_COLOR) else prefs[ALBUM_ART_STROKE_COLOR] = color.serialize()
+            }
+            if (obj.has("coverFallbackColor")) {
+                val raw = if (obj.isNull("coverFallbackColor")) null else obj.optString("coverFallbackColor")
+                val color = CutoutColor.deserialize(raw)
+                if (color == null) prefs.remove(COVER_FALLBACK_COLOR) else prefs[COVER_FALLBACK_COLOR] = color.serialize()
             }
             if (obj.has("expandOnPlay")) prefs[EXPAND_ON_PLAY] = obj.getBoolean("expandOnPlay")
             if (obj.has("visibleInPlayerApp")) prefs[VISIBLE_IN_PLAYER_APP] = obj.getBoolean("visibleInPlayerApp")
@@ -296,6 +308,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             it.remove(ALBUM_ART_STROKE_COLOR)
         } else {
             it[ALBUM_ART_STROKE_COLOR] = color.serialize()
+        }
+    }
+
+    /** A null [color] clears the override, restoring the glyph's faint accent-tinted disc. */
+    suspend fun setCoverFallbackColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+        if (color == null) {
+            it.remove(COVER_FALLBACK_COLOR)
+        } else {
+            it[COVER_FALLBACK_COLOR] = color.serialize()
         }
     }
 
@@ -442,6 +463,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
         val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
         val ALBUM_ART_STROKE_COLOR = stringPreferencesKey("album_art_stroke_color")
+        val COVER_FALLBACK_COLOR = stringPreferencesKey("cover_fallback_color")
         val EXPAND_ON_PLAY = booleanPreferencesKey("expand_on_play")
         val VISIBLE_IN_PLAYER_APP = booleanPreferencesKey("visible_in_player_app")
         val SHOW_CONTROLS = booleanPreferencesKey("show_controls")

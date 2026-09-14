@@ -2938,7 +2938,9 @@ private fun MediaExpandedContent(
                     if (headerText != null) {
                         Text(
                             text = headerText,
-                            color = event.accent,
+                            // Same colour the fallback cover container uses, so the header and the
+                            // note badge read as one pick; the tile accent when nothing is chosen.
+                            color = event.iconContainerColor?.resolve() ?: event.accent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,

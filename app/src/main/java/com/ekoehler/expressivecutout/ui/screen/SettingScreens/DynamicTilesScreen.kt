@@ -58,6 +58,7 @@ internal fun DynamicTilesScreen(
     val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
     val timer by viewModel.timerTile.collectAsStateWithLifecycle()
     val assistant by viewModel.assistantTile.collectAsStateWithLifecycle()
+    val music by viewModel.musicTile.collectAsStateWithLifecycle()
 
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
@@ -69,12 +70,13 @@ internal fun DynamicTilesScreen(
             contentPadding = contentPadding,
         ) {
             itemsIndexed(tiles, key = { _, tile -> tile.name }) { index, tile ->
-                // Music shows the album art / app icon, never a coloured badge, so it has no override.
+                // Music has no badge of its own on the cutout — the row previews the container it
+                // falls back to when a track publishes no cover.
                 val containerColor = when (tile) {
                     DynamicTile.PHONE -> phone.iconContainerColor
                     DynamicTile.TIMER -> timer.iconContainerColor
                     DynamicTile.ASSISTANT -> assistant.iconContainerColor
-                    DynamicTile.MUSIC -> null
+                    DynamicTile.MUSIC -> music.coverFallbackColor
                 }
                 DynamicTileCard(
                     tile = tile,

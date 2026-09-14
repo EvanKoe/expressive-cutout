@@ -411,6 +411,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setAlbumArtStrokeColor(color)
     }
 
+    fun setMusicCoverFallbackColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setCoverFallbackColor(color)
+    }
+
     fun setMusicExpandOnPlay(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setExpandOnPlay(enabled)
     }

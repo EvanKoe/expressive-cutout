@@ -155,6 +155,16 @@ internal fun MusicTileScreen(
             }
         }
 
+        // Container behind the note glyph that stands in for a missing cover. The glyph's own ink
+        // flips to black on a bright container, so it stays legible whatever the user picks.
+        ColorPickerCard(
+            label = stringResource(R.string.music_cover_fallback_color),
+            selected = settings.coverFallbackColor,
+            onSelect = viewModel::setMusicCoverFallbackColor,
+            defaultLabel = stringResource(R.string.music_cover_fallback_default),
+            defaultColor = MUSIC_ACCENT.copy(alpha = 0.20f),
+        )
+
         // Toggles if playing music extends the cutout or stays in normal/tiny
         SettingsToggleCard(
             shape = groupedShape(),

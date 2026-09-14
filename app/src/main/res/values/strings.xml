@@ -85,6 +85,8 @@
     <string name="music_art_stroke_title">Ring around the cover</string>
     <string name="music_art_stroke_desc">Draws a coloured ring around the album art, set slightly apart from it.</string>
     <string name="music_art_stroke_color">Ring colour</string>
+    <string name="music_cover_fallback_color">Fallback cover colour</string>
+    <string name="music_cover_fallback_default">Tile accent tint</string>
     <string name="settings_access_stalled_title">Overlay access needs a restart</string>
     <string name="settings_access_stalled">Still granted, but Android stopped the service — usually after an app update. Turn it off and on again to bring the island back</string>
     <string name="settings_notif_stalled_title">Notification access needs a restart</string>
