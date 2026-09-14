@@ -213,6 +213,7 @@
     <string name="music_prev_text_title">Display Previous text</string>
     <string name="music_prev_text_desc">Show \"Previous\" on the button instead of its icon</string>
     <string name="music_prev_label">Previous</string>
+    <string name="music_text_width">Text width</string>
     <string name="music_next_expand_title">Expand button</string>
     <string name="music_next_expand_desc">Let the next button fill the space left by the other buttons</string>
     <string name="music_next_text_title">Display Next text</string>

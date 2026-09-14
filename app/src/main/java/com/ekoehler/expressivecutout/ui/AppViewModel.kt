@@ -515,6 +515,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setPreviousText(enabled)
     }
 
+    fun setMusicPreviousTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPreviousTextWidth(width)
+    }
+
     fun setMusicNextExpand(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setNextExpand(enabled)
     }
@@ -523,12 +527,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setNextText(enabled)
     }
 
+    fun setMusicNextTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setNextTextWidth(width)
+    }
+
     fun setMusicPlayPauseExpand(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseExpand(enabled)
     }
 
     fun setMusicPlayPauseText(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseText(enabled)
+    }
+
+    fun setMusicPlayPauseTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseTextWidth(width)
     }
 
     fun applyMusicSkipPreset(preset: MusicButtonStyle) = viewModelScope.launch {

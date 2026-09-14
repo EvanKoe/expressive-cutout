@@ -174,6 +174,8 @@ import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -2971,11 +2973,14 @@ private fun MediaExpandedContent(
                     skipStyle = media.skipStyle,
                     previousExpand = media.previousExpand,
                     previousText = media.previousText,
+                    previousTextWidth = media.previousTextWidth,
                     nextExpand = media.nextExpand,
                     nextText = media.nextText,
+                    nextTextWidth = media.nextTextWidth,
                     playPauseStyle = media.playPauseStyle,
                     playPauseExpand = media.playPauseExpand,
                     playPauseText = media.playPauseText,
+                    playPauseTextWidth = media.playPauseTextWidth,
                     onPrevious = { nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
@@ -3041,11 +3046,14 @@ private fun MediaControls(
     skipStyle: MusicButtonStyle,
     previousExpand: Boolean,
     previousText: Boolean,
+    previousTextWidth: Float,
     nextExpand: Boolean,
     nextText: Boolean,
+    nextTextWidth: Float,
     playPauseStyle: MusicButtonStyle,
     playPauseExpand: Boolean,
     playPauseText: Boolean,
+    playPauseTextWidth: Float,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -3067,6 +3075,7 @@ private fun MediaControls(
             onClick = onPrevious,
             label = stringResource(R.string.music_prev_label)
                 .takeIf { previousExpand && previousText },
+            labelWidth = previousTextWidth,
             expand = previousExpand,
             modifier = if (previousExpand) Modifier.weight(1f) else Modifier,
         )
@@ -3089,6 +3098,7 @@ private fun MediaControls(
             label = stringResource(
                 if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
             ).takeIf { playPauseExpand && playPauseText },
+            labelWidth = playPauseTextWidth,
             expand = playPauseExpand,
             modifier = if (playPauseExpand) Modifier.weight(1f) else Modifier,
         )
@@ -3105,6 +3115,7 @@ private fun MediaControls(
             onClick = onNext,
             label = stringResource(R.string.music_next_label)
                 .takeIf { nextExpand && nextText },
+            labelWidth = nextTextWidth,
             expand = nextExpand,
             modifier = if (nextExpand) Modifier.weight(1f) else Modifier,
         )
@@ -3126,7 +3137,8 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
  * by [cornerPercent] relative to its height (50 = a pill / stadium, 0 = a square) with an
  * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
  * rectangle — e.g. the 16:9 play/pause button — and [modifier] carrying a width (a row weight)
- * overrides it. A non-null [label] is drawn in place of the icon.
+ * overrides it. A non-null [label] is drawn in place of the icon, at Roboto Flex's [labelWidth]
+ * `wdth` axis.
  */
 @Composable
 private fun MediaButton(
@@ -3140,6 +3152,7 @@ private fun MediaButton(
     onClick: () -> Unit,
     widthDp: Int = heightDp,
     label: String? = null,
+    labelWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     expand: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -3154,7 +3167,7 @@ private fun MediaButton(
             interactionSource = interaction,
             modifier = sized,
         ) {
-            MediaButtonContent(icon, contentDescription, label, iconSize)
+            MediaButtonContent(icon, contentDescription, label, labelWidth, iconSize)
         }
     } else {
         FilledIconButton(
@@ -3172,23 +3185,28 @@ private fun MediaButton(
             ),
             modifier = sized,
         ) {
-            MediaButtonContent(icon, contentDescription, label, iconSize)
+            MediaButtonContent(icon, contentDescription, label, labelWidth, iconSize)
         }
     }
 }
 
-/** The face of a transport button: its [label], drawn uppercase, when one is set — otherwise its icon. */
+/**
+ * The face of a transport button: its [label], drawn uppercase in Roboto Flex narrowed or widened
+ * to [labelWidth], when one is set — otherwise its icon.
+ */
 @Composable
 private fun MediaButtonContent(
     icon: ImageVector,
     contentDescription: String,
     label: String?,
+    labelWidth: Float,
     iconSize: Dp,
 ) {
     if (label != null) {
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelLarge,
+            fontFamily = rememberRobotoFlexFamily(labelWidth),
             fontWeight = FontWeight.Bold,
             maxLines = 1,
         )

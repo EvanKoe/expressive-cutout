@@ -52,12 +52,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
@@ -202,10 +204,13 @@ internal fun MusicTileScreen(
                 playbackSelected = playbackTab,
                 playPauseExpand = settings.playPauseExpand,
                 playPauseText = settings.playPauseText,
+                playPauseTextWidth = settings.playPauseTextWidth,
                 previousExpand = settings.previousExpand,
                 previousText = settings.previousText,
+                previousTextWidth = settings.previousTextWidth,
                 nextExpand = settings.nextExpand,
                 nextText = settings.nextText,
+                nextTextWidth = settings.nextTextWidth,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -267,13 +272,23 @@ internal fun MusicTileScreen(
                         )
 
                         AnimatedVisibility(visible = settings.previousExpand) {
-                            SettingsToggleCard(
-                                shape = groupedShape(isLast = true),
-                                title = stringResource(R.string.music_prev_text_title),
-                                description = stringResource(R.string.music_prev_text_desc),
-                                checked = settings.previousText,
-                                onCheckedChange = viewModel::setMusicPreviousText,
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SettingsToggleCard(
+                                    shape = groupedShape(isLast = !settings.previousText),
+                                    title = stringResource(R.string.music_prev_text_title),
+                                    description = stringResource(R.string.music_prev_text_desc),
+                                    checked = settings.previousText,
+                                    onCheckedChange = viewModel::setMusicPreviousText,
+                                )
+
+                                // The width axis only bites once the label replaces the icon.
+                                AnimatedVisibility(visible = settings.previousText) {
+                                    TextWidthCard(
+                                        width = settings.previousTextWidth,
+                                        onCommit = viewModel::setMusicPreviousTextWidth,
+                                    )
+                                }
+                            }
                         }
 
                         // Next button settings
@@ -288,13 +303,23 @@ internal fun MusicTileScreen(
                         )
 
                         AnimatedVisibility(visible = settings.nextExpand) {
-                            SettingsToggleCard(
-                                shape = groupedShape(isLast = true),
-                                title = stringResource(R.string.music_next_text_title),
-                                description = stringResource(R.string.music_next_text_desc),
-                                checked = settings.nextText,
-                                onCheckedChange = viewModel::setMusicNextText,
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SettingsToggleCard(
+                                    shape = groupedShape(isLast = !settings.nextText),
+                                    title = stringResource(R.string.music_next_text_title),
+                                    description = stringResource(R.string.music_next_text_desc),
+                                    checked = settings.nextText,
+                                    onCheckedChange = viewModel::setMusicNextText,
+                                )
+
+                                // The width axis only bites once the label replaces the icon.
+                                AnimatedVisibility(visible = settings.nextText) {
+                                    TextWidthCard(
+                                        width = settings.nextTextWidth,
+                                        onCommit = viewModel::setMusicNextTextWidth,
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -339,13 +364,23 @@ internal fun MusicTileScreen(
 
                         // A label only fits once the button is expanded, so it rides with that toggle.
                         AnimatedVisibility(visible = settings.playPauseExpand) {
-                            SettingsToggleCard(
-                                shape = groupedShape(isLast = true),
-                                title = stringResource(R.string.music_playpause_text_title),
-                                description = stringResource(R.string.music_playpause_text_desc),
-                                checked = settings.playPauseText,
-                                onCheckedChange = viewModel::setMusicPlayPauseText,
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SettingsToggleCard(
+                                    shape = groupedShape(isLast = !settings.playPauseText),
+                                    title = stringResource(R.string.music_playpause_text_title),
+                                    description = stringResource(R.string.music_playpause_text_desc),
+                                    checked = settings.playPauseText,
+                                    onCheckedChange = viewModel::setMusicPlayPauseText,
+                                )
+
+                                // The width axis only bites once the label replaces the icon.
+                                AnimatedVisibility(visible = settings.playPauseText) {
+                                    TextWidthCard(
+                                        width = settings.playPauseTextWidth,
+                                        onCommit = viewModel::setMusicPlayPauseTextWidth,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -487,6 +522,39 @@ private fun ButtonShapeCard(
     }
 }
 
+/**
+ * A card holding one button label's Roboto Flex `wdth` slider — 25 condenses the label, 151 stretches
+ * it. The value is local while dragging and committed to prefs on release, like [ButtonShapeCard].
+ */
+@Composable
+private fun TextWidthCard(
+    width: Float,
+    onCommit: (Float) -> Unit,
+    shape: RoundedCornerShape = groupedShape(isLast = true),
+) {
+    var current by remember(width) { mutableFloatStateOf(width) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            AdjustableSlider(
+                label = stringResource(R.string.music_text_width),
+                valueText = "${current.roundToInt()}",
+                value = current,
+                valueRange = MusicTileSettings.MIN_TEXT_WIDTH..MusicTileSettings.MAX_TEXT_WIDTH,
+                step = 1f,
+                onValueChange = { current = it },
+                onCommit = { onCommit(current) },
+            )
+        }
+    }
+}
+
 /** A dark panel mirroring the expanded cutout, showing the three transport buttons as styled. */
 @Composable
 private fun MusicButtonsPreview(
@@ -496,10 +564,13 @@ private fun MusicButtonsPreview(
     playbackSelected: Int,
     playPauseExpand: Boolean,
     playPauseText: Boolean,
+    playPauseTextWidth: Float,
     previousExpand: Boolean,
     previousText: Boolean,
+    previousTextWidth: Float,
     nextExpand: Boolean,
     nextText: Boolean,
+    nextTextWidth: Float,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -520,6 +591,7 @@ private fun MusicButtonsPreview(
                 selected = playbackSelected == 0,
                 label = stringResource(R.string.music_prev_label).uppercase()
                     .takeIf { previousExpand && previousText },
+                labelWidth = previousTextWidth,
                 expand = previousExpand,
                 modifier = if (previousExpand) Modifier.weight(1f) else Modifier,
             )
@@ -534,6 +606,7 @@ private fun MusicButtonsPreview(
                 selected = playbackSelected == 1,
                 label = stringResource(R.string.music_playpause_label_play).uppercase()
                     .takeIf { playPauseExpand && playPauseText },
+                labelWidth = playPauseTextWidth,
                 expand = playPauseExpand,
                 modifier = if (playPauseExpand) Modifier.weight(1f) else Modifier,
             )
@@ -545,6 +618,7 @@ private fun MusicButtonsPreview(
                 selected = playbackSelected == 0,
                 label = stringResource(R.string.music_next_label).uppercase()
                     .takeIf { nextExpand && nextText },
+                labelWidth = nextTextWidth,
                 expand = nextExpand,
                 modifier = if (nextExpand) Modifier.weight(1f) else Modifier,
             )
@@ -568,6 +642,7 @@ private fun PreviewButton(
     widthDp: Int = PREVIEW_BUTTON_HEIGHT_DP,
     selected: Boolean = false,
     label: String? = null,
+    labelWidth: Float = MusicTileSettings.DEFAULT_TEXT_WIDTH,
     expand: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -608,6 +683,7 @@ private fun PreviewButton(
                 Text(
                     text = label.uppercase(),
                     style = MaterialTheme.typography.labelLarge,
+                    fontFamily = rememberRobotoFlexFamily(labelWidth),
                     fontWeight = FontWeight.Bold,
                     color = tint,
                     maxLines = 1,

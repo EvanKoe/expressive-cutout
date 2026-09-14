@@ -12,6 +12,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 import org.json.JSONObject
 
 /** Backing store for the music tile's settings. */
@@ -91,16 +94,22 @@ data class MusicTileSettings(
     val previousExpand: Boolean = DEFAULT_PREVIOUS_EXPAND,
     /** On an expanded previous button, label it "Previous" rather than drawing the icon. */
     val previousText: Boolean = DEFAULT_PREVIOUS_TEXT,
+    /** Roboto Flex `wdth` axis of the previous button's label. */
+    val previousTextWidth: Float = DEFAULT_TEXT_WIDTH,
     /** Let the next button take the row's leftover width instead of its fixed square size. */
     val nextExpand: Boolean = DEFAULT_NEXT_EXPAND,
     /** On an expanded next button, label it "Next" rather than drawing the icon. */
     val nextText: Boolean = DEFAULT_NEXT_TEXT,
+    /** Roboto Flex `wdth` axis of the next button's label. */
+    val nextTextWidth: Float = DEFAULT_TEXT_WIDTH,
     /** Style of the central play / pause button. */
     val playPauseButton: MusicButtonStyle = MusicButtonStyle.DEFAULT,
     /** Let the play/pause button take the row's leftover width instead of its fixed 16:9 size. */
     val playPauseExpand: Boolean = DEFAULT_PLAY_PAUSE_EXPAND,
     /** On an expanded play/pause button, label it "Play" / "Pause" rather than drawing the icon. */
     val playPauseText: Boolean = DEFAULT_PLAY_PAUSE_TEXT,
+    /** Roboto Flex `wdth` axis of the play/pause button's label. */
+    val playPauseTextWidth: Float = DEFAULT_TEXT_WIDTH,
     /** Show a playback progress bar under the transport controls. */
     val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,
     /**
@@ -124,6 +133,11 @@ data class MusicTileSettings(
         const val DEFAULT_PREVIOUS_TEXT = false
         const val DEFAULT_NEXT_EXPAND = false
         const val DEFAULT_NEXT_TEXT = false
+
+        /** Label width defaults to Roboto Flex's normal `wdth`; the sliders offer the whole axis. */
+        const val DEFAULT_TEXT_WIDTH = ROBOTO_FLEX_DEFAULT_WIDTH
+        const val MIN_TEXT_WIDTH = ROBOTO_FLEX_MIN_WIDTH
+        const val MAX_TEXT_WIDTH = ROBOTO_FLEX_MAX_WIDTH
     }
 }
 
@@ -158,10 +172,16 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             miniPlayer = prefs[MINI_PLAYER] ?: MusicTileSettings.DEFAULT_MINI_PLAYER,
             playPauseExpand = prefs[PLAY_PAUSE_EXPAND] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_EXPAND,
             playPauseText = prefs[PLAY_PAUSE_TEXT] ?: MusicTileSettings.DEFAULT_PLAY_PAUSE_TEXT,
+            playPauseTextWidth = (prefs[PLAY_PAUSE_TEXT_WIDTH] ?: MusicTileSettings.DEFAULT_TEXT_WIDTH)
+                .coerceIn(MusicTileSettings.MIN_TEXT_WIDTH, MusicTileSettings.MAX_TEXT_WIDTH),
             previousExpand = prefs[PREVIOUS_EXPAND] ?: MusicTileSettings.DEFAULT_PREVIOUS_EXPAND,
             previousText = prefs[PREVIOUS_TEXT] ?: MusicTileSettings.DEFAULT_PREVIOUS_TEXT,
+            previousTextWidth = (prefs[PREVIOUS_TEXT_WIDTH] ?: MusicTileSettings.DEFAULT_TEXT_WIDTH)
+                .coerceIn(MusicTileSettings.MIN_TEXT_WIDTH, MusicTileSettings.MAX_TEXT_WIDTH),
             nextExpand = prefs[NEXT_EXPAND] ?: MusicTileSettings.DEFAULT_NEXT_EXPAND,
             nextText = prefs[NEXT_TEXT] ?: MusicTileSettings.DEFAULT_NEXT_TEXT,
+            nextTextWidth = (prefs[NEXT_TEXT_WIDTH] ?: MusicTileSettings.DEFAULT_TEXT_WIDTH)
+                .coerceIn(MusicTileSettings.MIN_TEXT_WIDTH, MusicTileSettings.MAX_TEXT_WIDTH),
         )
     }
 
@@ -187,10 +207,13 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("miniPlayer", s.miniPlayer)
             put("playPauseExpand", s.playPauseExpand)
             put("playPauseText", s.playPauseText)
+            put("playPauseTextWidth", s.playPauseTextWidth.toDouble())
             put("previousExpand", s.previousExpand)
             put("previousText", s.previousText)
+            put("previousTextWidth", s.previousTextWidth.toDouble())
             put("nextExpand", s.nextExpand)
             put("nextText", s.nextText)
+            put("nextTextWidth", s.nextTextWidth.toDouble())
             put("skipButton", s.skipButton.toJsonObject())
             put("playPauseButton", s.playPauseButton.toJsonObject())
         }.toString()
@@ -218,16 +241,23 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("miniPlayer")) prefs[MINI_PLAYER] = obj.getBoolean("miniPlayer")
             if (obj.has("playPauseExpand")) prefs[PLAY_PAUSE_EXPAND] = obj.getBoolean("playPauseExpand")
             if (obj.has("playPauseText")) prefs[PLAY_PAUSE_TEXT] = obj.getBoolean("playPauseText")
+            if (obj.has("playPauseTextWidth")) prefs[PLAY_PAUSE_TEXT_WIDTH] = obj.textWidth("playPauseTextWidth")
             if (obj.has("previousExpand")) prefs[PREVIOUS_EXPAND] = obj.getBoolean("previousExpand")
             if (obj.has("previousText")) prefs[PREVIOUS_TEXT] = obj.getBoolean("previousText")
+            if (obj.has("previousTextWidth")) prefs[PREVIOUS_TEXT_WIDTH] = obj.textWidth("previousTextWidth")
             if (obj.has("nextExpand")) prefs[NEXT_EXPAND] = obj.getBoolean("nextExpand")
             if (obj.has("nextText")) prefs[NEXT_TEXT] = obj.getBoolean("nextText")
+            if (obj.has("nextTextWidth")) prefs[NEXT_TEXT_WIDTH] = obj.textWidth("nextTextWidth")
 
             obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
             obj.optJSONObject("playPauseButton")
                 ?.applyButton(prefs, PLAY_PAUSE_COLOR, PLAY_PAUSE_OPACITY, PLAY_PAUSE_CORNER, PLAY_PAUSE_FILLED)
         }
     }
+
+    /** Reads a label-width axis value, clamped to the range the slider offers. */
+    private fun JSONObject.textWidth(name: String): Float = optDouble(name).toFloat()
+        .coerceIn(MusicTileSettings.MIN_TEXT_WIDTH, MusicTileSettings.MAX_TEXT_WIDTH)
 
     /** Writes one [MusicButtonStyle] object into the given transport button's keys. */
     private fun JSONObject.applyButton(
@@ -343,6 +373,14 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[PREVIOUS_TEXT] = enabled
     }
 
+    /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
+    suspend fun setPreviousTextWidth(width: Float) = context.musicTileDataStore.edit {
+        it[PREVIOUS_TEXT_WIDTH] = width.coerceIn(
+            MusicTileSettings.MIN_TEXT_WIDTH,
+            MusicTileSettings.MAX_TEXT_WIDTH,
+        )
+    }
+
     suspend fun setNextExpand(enabled: Boolean) = context.musicTileDataStore.edit {
         it[NEXT_EXPAND] = enabled
     }
@@ -351,12 +389,28 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[NEXT_TEXT] = enabled
     }
 
+    /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
+    suspend fun setNextTextWidth(width: Float) = context.musicTileDataStore.edit {
+        it[NEXT_TEXT_WIDTH] = width.coerceIn(
+            MusicTileSettings.MIN_TEXT_WIDTH,
+            MusicTileSettings.MAX_TEXT_WIDTH,
+        )
+    }
+
     suspend fun setPlayPauseExpand(enabled: Boolean) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_EXPAND] = enabled
     }
 
     suspend fun setPlayPauseText(enabled: Boolean) = context.musicTileDataStore.edit {
         it[PLAY_PAUSE_TEXT] = enabled
+    }
+
+    /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
+    suspend fun setPlayPauseTextWidth(width: Float) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_TEXT_WIDTH] = width.coerceIn(
+            MusicTileSettings.MIN_TEXT_WIDTH,
+            MusicTileSettings.MAX_TEXT_WIDTH,
+        )
     }
 
     suspend fun setPlayPauseFilled(filled: Boolean) = context.musicTileDataStore.edit {
@@ -407,5 +461,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PREVIOUS_TEXT = booleanPreferencesKey("previous_button_text")
         val NEXT_EXPAND = booleanPreferencesKey("next_button_expand")
         val NEXT_TEXT = booleanPreferencesKey("next_button_text")
+        val PLAY_PAUSE_TEXT_WIDTH = floatPreferencesKey("play_pause_button_text_width")
+        val PREVIOUS_TEXT_WIDTH = floatPreferencesKey("previous_button_text_width")
+        val NEXT_TEXT_WIDTH = floatPreferencesKey("next_button_text_width")
     }
 }
