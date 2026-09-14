@@ -175,6 +175,7 @@ import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
 import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -296,6 +297,13 @@ private const val MEDIA_CONTENT_ROW_HEIGHT_DP = 44
 private const val MEDIA_EXPANDED_BOTTOM_PADDING_DP = 16
 
 /**
+ * Extra height reserved for the expanded music tile only, on top of what its rows strictly measure.
+ * The tile packs artwork, track text, the progress bar and the transport row into one column, and at
+ * the bare content height they read as cramped against each other and the cutout.
+ */
+private const val MEDIA_EXPANDED_EXTRA_HEIGHT_DP = 40
+
+/**
  * The expanded music tile's base height, taken from its own content rather than the user's expanded
  * height: the camera band, the artwork row, and the bottom inset. Its layout is a top-anchored column
  * with no filler, so a taller card would strand the controls above dead space and a shorter one would
@@ -303,7 +311,8 @@ private const val MEDIA_EXPANDED_BOTTOM_PADDING_DP = 16
  * progress bar and transport controls are added on top of this by the usual height bonuses.
  */
 internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP): Int =
-    topMarginDp + MEDIA_CONTENT_ROW_HEIGHT_DP + MEDIA_EXPANDED_BOTTOM_PADDING_DP
+    topMarginDp + MEDIA_CONTENT_ROW_HEIGHT_DP + MEDIA_EXPANDED_BOTTOM_PADDING_DP +
+        MEDIA_EXPANDED_EXTRA_HEIGHT_DP
 
 /**
  * Bottom inset under the action chips (or the text column when there are none). Kept equal to the
@@ -3023,13 +3032,20 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         }
     }
 
-    LinearProgressIndicator(
-        progress = { fraction },
+    WavyProgressBar(
+        progress = fraction,
         modifier = Modifier.fillMaxWidth(),
-        color = color,
+        waveColor = color,
         trackColor = trackColor,
-        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        isWavy = progress.speed != 0f
     )
+//    LinearProgressIndicator(
+//        progress = { fraction },
+//        modifier = Modifier.fillMaxWidth(),
+//        color = color,
+//        trackColor = trackColor,
+//        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+//    )
 }
 
 /**
