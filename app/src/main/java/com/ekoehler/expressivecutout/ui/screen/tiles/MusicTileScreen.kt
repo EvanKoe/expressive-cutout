@@ -107,50 +107,47 @@ internal fun MusicTileScreen(
             onCheckedChange = viewModel::setMusicMiniPlayer,
         )
 
-        // Cover/ring settings - when tiny player is disabled
-        AnimatedVisibility(visible = !settings.miniPlayer) {
+        // Cover/ring settings - the cover also shows in the expanded cutout, so these stay
+        // available whether or not the tiny player is on.
+        SettingsToggleCard(
+            shape = RoundedCornerShape(4.dp),
+            title = stringResource(R.string.music_show_art_title),
+            description = stringResource(R.string.music_show_art_desc),
+            checked = settings.showAlbumArt,
+            onCheckedChange = viewModel::setMusicShowAlbumArt,
+        )
+
+        // Rotation and the ring only apply to the album cover, so they ride with its toggle.
+        AnimatedVisibility(visible = settings.showAlbumArt) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                // Spin album art toggle
                 SettingsToggleCard(
-                    shape = RoundedCornerShape(4.dp),
-                    title = stringResource(R.string.music_show_art_title),
-                    description = stringResource(R.string.music_show_art_desc),
-                    checked = settings.showAlbumArt,
-                    onCheckedChange = viewModel::setMusicShowAlbumArt,
+                    shape = groupedShape(),
+                    title = stringResource(R.string.music_rotate_art_title),
+                    description = stringResource(R.string.music_rotate_art_desc),
+                    checked = settings.rotateAlbumArt,
+                    onCheckedChange = viewModel::setMusicRotateAlbumArt,
                 )
 
-                // Rotation and the ring only apply to the album cover, so they ride with its toggle.
-                AnimatedVisibility(visible = settings.showAlbumArt) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Ring around cover toggle
+                SettingsToggleCard(
+                    shape = groupedShape(),
+                    title = stringResource(R.string.music_art_stroke_title),
+                    description = stringResource(R.string.music_art_stroke_desc),
+                    checked = settings.albumArtStroke,
+                    onCheckedChange = viewModel::setMusicAlbumArtStroke,
+                )
 
-                        // Spin album art toggle
-                        SettingsToggleCard(
-                            shape = groupedShape(),
-                            title = stringResource(R.string.music_rotate_art_title),
-                            description = stringResource(R.string.music_rotate_art_desc),
-                            checked = settings.rotateAlbumArt,
-                            onCheckedChange = viewModel::setMusicRotateAlbumArt,
-                        )
-
-                        // Ring around cover toggle
-                        SettingsToggleCard(
-                            shape = groupedShape(),
-                            title = stringResource(R.string.music_art_stroke_title),
-                            description = stringResource(R.string.music_art_stroke_desc),
-                            checked = settings.albumArtStroke,
-                            onCheckedChange = viewModel::setMusicAlbumArtStroke,
-                        )
-
-                        // Ring color
-                        AnimatedVisibility(visible = settings.albumArtStroke) {
-                            ColorPickerCard(
-                                label = stringResource(R.string.music_art_stroke_color),
-                                selected = settings.albumArtStrokeColor,
-                                onSelect = viewModel::setMusicAlbumArtStrokeColor,
-                                defaultLabel = stringResource(R.string.music_default_accent),
-                                defaultColor = MUSIC_ACCENT,
-                            )
-                        }
-                    }
+                // Ring color
+                AnimatedVisibility(visible = settings.albumArtStroke) {
+                    ColorPickerCard(
+                        label = stringResource(R.string.music_art_stroke_color),
+                        selected = settings.albumArtStrokeColor,
+                        onSelect = viewModel::setMusicAlbumArtStrokeColor,
+                        defaultLabel = stringResource(R.string.music_default_accent),
+                        defaultColor = MUSIC_ACCENT,
+                    )
                 }
             }
         }
