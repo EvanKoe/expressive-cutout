@@ -237,6 +237,8 @@
     <string name="phone_show_duration_desc">Show how long the call has been running.</string>
     <string name="phone_show_actions_title">Action buttons</string>
     <string name="phone_show_actions_desc">Show the call\'s buttons, such as Hang up.</string>
+    <string name="phone_button_labels_title">Button labels</string>
+    <string name="phone_button_labels_desc">Write Take and Hang up next to the icons on the incoming call\'s full-width buttons. Off shows the icons alone.</string>
     <string name="phone_expanded_incoming_title">Expanded layout for incoming calls</string>
     <string name="phone_expanded_incoming_desc">Show a ringing call in a taller two-row tile with full-width Take and Hang up buttons, instead of the compact single row.</string>
     <string name="phone_mini_call_title">Mini call</string>

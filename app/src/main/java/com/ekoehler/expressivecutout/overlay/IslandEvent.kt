@@ -183,6 +183,8 @@ data class CallTileOptions(
     val showPhoto: Boolean,
     val showDuration: Boolean,
     val showActions: Boolean,
+    /** Label the wide call buttons (Take / Hang up) beside their icon instead of showing the icon alone. */
+    val showButtonLabels: Boolean,
     /** Use the taller two-row layout for an incoming (ringing) call instead of the compact single row. */
     val incomingExpandedLayout: Boolean,
     /**

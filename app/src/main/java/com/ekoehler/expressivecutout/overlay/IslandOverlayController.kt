@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.asSplitCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.AssistantTilePreferences
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
@@ -1234,7 +1235,32 @@ class IslandOverlayController(private val context: Context) {
     private fun touchRects(viewWidth: Int, viewHeight: Int): List<Rect> {
         val pill = pillTouchRect(viewWidth, viewHeight)
         val satellite = satelliteTouchRect(viewWidth, viewHeight)
-        return if (satellite == null) listOf(pill) else listOf(pill, satellite)
+        val callCapsule = callCapsuleTouchRect(viewWidth, viewHeight)
+        return listOfNotNull(pill, satellite, callCapsule)
+    }
+
+    /**
+     * The detached hang-up capsule's rectangle, or null unless a connected call is drawn split.
+     * Mirrors the offsets [DynamicIsland] places it at — the pill's centre, out past half the pill's
+     * width plus the gap — so what is tappable is exactly what is drawn.
+     */
+    private fun callCapsuleTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
+        if (!isSplitCall()) return null
+        val dims = effectiveDims(layoutState.value, expanded = false)
+        val gapPx = (CALL_SPLIT_GAP_DP * density).toInt()
+        val capsuleWidthPx = (callSplitHangUpWidthDp(dims.heightDp) * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val margin = (TOUCH_MARGIN_DP * density).toInt()
+        val pillCenterX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
+        val capsuleCenterX = pillCenterX + pillWidthPx / 2 + gapPx + capsuleWidthPx / 2
+        val topPx = (dims.offsetYDp * density).toInt()
+        val bottomPx = topPx + (dims.heightDp * density).toInt()
+        return Rect(
+            (capsuleCenterX - capsuleWidthPx / 2 - margin).coerceAtLeast(0),
+            (topPx - margin).coerceAtLeast(0),
+            (capsuleCenterX + capsuleWidthPx / 2 + margin).coerceAtMost(viewWidth),
+            (bottomPx + margin).coerceAtMost(if (viewHeight > 0) viewHeight else bottomPx + margin),
+        )
     }
 
     /**
@@ -1662,6 +1688,18 @@ class IslandOverlayController(private val context: Context) {
                     // The two-row incoming layout starts from the expanded cutout (grown by the button
                     // row via currentHeightBonusDp).
                     layout.expanded
+                } else if (isSplitCall()) {
+                    // The split connected call keeps the normal pill's height and corners, sized and
+                    // placed around the camera hole; its hang-up button lives in a capsule beside it.
+                    layout.collapsed.asSplitCallCutout(
+                        displayWidthDp = displayWidthDp.value,
+                        contentWidthDp = callSplitContentWidthDp(
+                            heightDp = layout.collapsed.heightDp,
+                            density = density,
+                            longClock = callClockCarriesHours(OnCallBus.state.value?.startTimeMs),
+                        ),
+                        cameraRightEdgeDp = cameraRightEdgeDp.value,
+                    )
                 } else {
                     // Match the pill's name-driven width so the trailing call button(s) stay tappable:
                     // one for a connected call's hang-up, two for a one-line incoming's decline + answer.
@@ -1678,6 +1716,17 @@ class IslandOverlayController(private val context: Context) {
             else -> layout.collapsed
         }
     }
+
+    /**
+     * Whether the shown call is drawn split — a narrow pill plus the detached hang-up capsule.
+     * Mirrors [usesSplitCallCutout] so the touchable region matches what the island renders.
+     */
+    private fun isSplitCall(): Boolean = usesSplitCallCutout(
+        event = currentEvent.value,
+        callOngoing = OnCallBus.state.value?.ongoing == true,
+        expanded = expanded,
+        tiny = isTinyTile(),
+    )
 
     /**
      * The extra height the currently-drawn state claims below its base dimensions: the expanded island's

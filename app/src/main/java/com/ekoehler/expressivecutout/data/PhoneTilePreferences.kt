@@ -23,6 +23,8 @@ data class PhoneTileSettings(
     val showDuration: Boolean = DEFAULT_SHOW_DURATION,
     /** Show the call's action buttons (Hang up, and any others the dialer exposes). */
     val showActions: Boolean = DEFAULT_SHOW_ACTIONS,
+    /** Label the wide call buttons (Take / Hang up) beside their icon instead of showing the icon alone. */
+    val showButtonLabels: Boolean = DEFAULT_SHOW_BUTTON_LABELS,
     /**
      * Use the taller two-row layout for an incoming (ringing) call — caller over a row of Take /
      * Hang up buttons — instead of the compact single row. Connected calls always use the single row.
@@ -46,6 +48,7 @@ data class PhoneTileSettings(
         const val DEFAULT_SHOW_PHOTO = true
         const val DEFAULT_SHOW_DURATION = true
         const val DEFAULT_SHOW_ACTIONS = true
+        const val DEFAULT_SHOW_BUTTON_LABELS = true
         const val DEFAULT_EXPANDED_INCOMING = true
         const val DEFAULT_MINI_CALL = false
 
@@ -65,6 +68,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             showPhoto = prefs[SHOW_PHOTO] ?: PhoneTileSettings.DEFAULT_SHOW_PHOTO,
             showDuration = prefs[SHOW_DURATION] ?: PhoneTileSettings.DEFAULT_SHOW_DURATION,
             showActions = prefs[SHOW_ACTIONS] ?: PhoneTileSettings.DEFAULT_SHOW_ACTIONS,
+            showButtonLabels = prefs[SHOW_BUTTON_LABELS] ?: PhoneTileSettings.DEFAULT_SHOW_BUTTON_LABELS,
             expandedIncomingLayout = prefs[EXPANDED_INCOMING] ?: PhoneTileSettings.DEFAULT_EXPANDED_INCOMING,
             miniCall = prefs[MINI_CALL] ?: PhoneTileSettings.DEFAULT_MINI_CALL,
             iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
@@ -82,6 +86,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             put("showPhoto", s.showPhoto)
             put("showDuration", s.showDuration)
             put("showActions", s.showActions)
+            put("showButtonLabels", s.showButtonLabels)
             put("expandedIncomingLayout", s.expandedIncomingLayout)
             put("miniCall", s.miniCall)
             put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
@@ -97,6 +102,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("showPhoto")) it[SHOW_PHOTO] = obj.getBoolean("showPhoto")
             if (obj.has("showDuration")) it[SHOW_DURATION] = obj.getBoolean("showDuration")
             if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
+            if (obj.has("showButtonLabels")) it[SHOW_BUTTON_LABELS] = obj.getBoolean("showButtonLabels")
             if (obj.has("expandedIncomingLayout")) it[EXPANDED_INCOMING] = obj.getBoolean("expandedIncomingLayout")
             if (obj.has("miniCall")) it[MINI_CALL] = obj.getBoolean("miniCall")
             if (obj.has("iconContainerColor")) {
@@ -125,6 +131,10 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         it[SHOW_ACTIONS] = enabled
     }
 
+    suspend fun setShowButtonLabels(enabled: Boolean) = context.phoneTileDataStore.edit {
+        it[SHOW_BUTTON_LABELS] = enabled
+    }
+
     suspend fun setExpandedIncomingLayout(enabled: Boolean) = context.phoneTileDataStore.edit {
         it[EXPANDED_INCOMING] = enabled
     }
@@ -150,6 +160,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         val SHOW_PHOTO = booleanPreferencesKey("show_photo")
         val SHOW_DURATION = booleanPreferencesKey("show_duration")
         val SHOW_ACTIONS = booleanPreferencesKey("show_actions")
+        val SHOW_BUTTON_LABELS = booleanPreferencesKey("show_button_labels")
         val EXPANDED_INCOMING = booleanPreferencesKey("expanded_incoming_layout")
         val MINI_CALL = booleanPreferencesKey("mini_call")
         val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")

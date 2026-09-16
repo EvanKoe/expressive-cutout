@@ -70,6 +70,16 @@ internal fun PhoneTileScreen(
             checked = settings.expandedIncomingLayout,
             onCheckedChange = viewModel::setPhoneExpandedIncomingLayout,
         )
+        // The wide Take / Hang up buttons that carry these labels only exist in that taller layout.
+        if (settings.expandedIncomingLayout) {
+            SettingsToggleCard(
+                shape = RoundedCornerShape(4.dp),
+                title = stringResource(R.string.phone_button_labels_title),
+                description = stringResource(R.string.phone_button_labels_desc),
+                checked = settings.showButtonLabels,
+                onCheckedChange = viewModel::setPhoneShowButtonLabels,
+            )
+        }
         SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
             title = stringResource(R.string.phone_mini_call_title),

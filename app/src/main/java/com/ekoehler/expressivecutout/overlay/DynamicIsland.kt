@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -122,11 +123,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbnb.lottie.LottieProperty
@@ -167,6 +170,7 @@ import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
+import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
@@ -174,6 +178,7 @@ import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.asSplitCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicRightButtonAction
@@ -186,6 +191,7 @@ import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
 import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import kotlinx.coroutines.delay
@@ -574,18 +580,32 @@ fun DynamicIsland(
     }
 
     val density = LocalDensity.current.density
-    val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
+
+    // "Mini player" / "Mini call": while music plays or a call is connected, the normal cutout
+    // shrinks to a tiny pill. Every other event keeps the normal (or expanded) cutout the user chose.
+    val isTiny = !emptyPill && !isExpanded &&
+        shownEvent?.usesTinyCutout(callOngoing = liveCall?.ongoing == true) == true
+
+    // A connected call splits in two: a narrow pill and the detached hang-up capsule beside it.
+    val callSplit = usesSplitCallCutout(
+        event = shownEvent,
+        callOngoing = liveCall?.ongoing == true,
+        expanded = isExpanded,
+        tiny = isTiny,
+    )
+    val callWidthPercent = remember(
+        isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density,
+    ) {
         if (isCall) {
             callCutoutWidthPercent(shownEvent.label, callTrailingButtons, callIncoming, displayWidthDp, density)
         } else {
             CALL_MIN_WIDTH_PERCENT
         }
     }
-
-    // "Mini player" / "Mini call": while music plays or a call is connected, the normal cutout
-    // shrinks to a tiny pill. Every other event keeps the normal (or expanded) cutout the user chose.
-    val isTiny = !emptyPill && !isExpanded &&
-        shownEvent?.usesTinyCutout(callOngoing = liveCall?.ongoing == true) == true
+    val callLongClock = callClockCarriesHours(liveCall?.startTimeMs)
+    val callSplitContentDp = remember(collapsed.heightDp, density, callLongClock) {
+        callSplitContentWidthDp(collapsed.heightDp, density, callLongClock)
+    }
 
     val dims = when {
         emptyPill && !isExpanded -> collapsed
@@ -593,6 +613,9 @@ fun DynamicIsland(
         callTwoRow -> expanded
         // A tapped-open connected call takes the full expanded cutout for its controls.
         isCall && isExpanded -> expanded
+        // The split call keeps the normal pill's own height and corners, but is sized and placed
+        // around the camera hole so its badge and clock never end up behind it.
+        callSplit -> collapsed.asSplitCallCutout(displayWidthDp, callSplitContentDp, cameraRightEdgeDp)
         isCall -> collapsed.asCallCutout(callWidthPercent)
         // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
         // content — see [mediaExpandedBaseHeightDp].
@@ -994,7 +1017,12 @@ fun DynamicIsland(
                                             },
                                         )
                                     } else {
-                                        CallNormalContent(event = e, appearance = appearance, onAction = onAction)
+                                        CallNormalContent(
+                                            event = e,
+                                            heightDp = dims.heightDp,
+                                            appearance = appearance,
+                                            onAction = onAction,
+                                        )
                                     }
                                 } else if (content.expanded) {
                                     ExpandedContent(
@@ -1096,6 +1124,35 @@ fun DynamicIsland(
                         alpha = satelliteReveal.value
                     },
                 )
+            }
+        }
+
+        // The connected call's hang-up button, parked beside the pill the same way: the pill keeps
+        // its own centred, camera-anchored offset and the capsule tracks its animated trailing edge.
+        val capsuleAction = shownEvent?.actions?.firstOrNull { it.destructive }
+            ?: shownEvent?.actions?.firstOrNull()
+        val capsuleCall = shownEvent?.call
+        if (callSplit && capsuleAction != null && capsuleCall != null && reveal.value > 0.01f) {
+            val capsuleWidthDp = callSplitHangUpWidthDp(dims.heightDp)
+            val step = revealWidth / 2 + CALL_SPLIT_GAP_DP.dp + (capsuleWidthDp / 2).dp
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(x = offsetX + step, y = offsetY),
+            ) {
+                CallTheme {
+                    CallHangUpCapsule(
+                        call = capsuleCall,
+                        hangUp = capsuleAction,
+                        heightDp = dims.heightDp,
+                        onAction = onAction,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = reveal.value
+                            scaleY = reveal.value
+                            alpha = reveal.value
+                        },
+                    )
+                }
             }
         }
     }
@@ -1463,6 +1520,8 @@ internal fun albumArtStrokeFor(event: IslandEvent): Color? =
 
 /** The fraction of its container a badge takes, and the fraction the glyph inside it takes. */
 private const val BADGE_SIZE_FRACTION = 0.72f
+/** The share of the pill's height left before its badge, shared by the collapsed and split pills. */
+private const val COLLAPSED_BADGE_INSET_FRACTION = 0.16f
 private const val BADGE_ICON_FRACTION = 0.46f
 
 /**
@@ -2649,6 +2708,35 @@ private fun ActionChipRow(
  * by [PRESS_EXPAND_DP] on each side. Both animate on the same spring and via [graphicsLayer], so the
  * surrounding layout never reflows.
  */
+/**
+ * The animated row weights for a group of call buttons sharing one row, one per [interactions]
+ * entry: holding a button down springs it wider while its neighbours shrink by the same total,
+ * the expressive button-group squeeze. See [callGroupWeight].
+ */
+@Composable
+private fun rememberCallGroupWeights(interactions: List<MutableInteractionSource>): List<Float> {
+    val pressed = interactions.map { it.collectIsPressedAsState().value }
+    val pressedIndex = pressed.indexOf(true)
+    return pressed.indices.map { index ->
+        animateFloatAsState(
+            targetValue = callGroupWeight(pressedIndex, index, interactions.size),
+            animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow),
+            label = "callGroupWeight",
+        ).value
+    }
+}
+
+/**
+ * The row weight the button at [index] should take while the button at [pressedIndex] (-1 for none)
+ * is held down: the pressed one swells by [CALL_GROUP_PRESS_GROW] and the other [count] - 1 buttons
+ * split that same width between them, so the group keeps its own bounds while it squeezes.
+ */
+private fun callGroupWeight(pressedIndex: Int, index: Int, count: Int): Float = when {
+    pressedIndex < 0 -> 1f
+    pressedIndex == index -> 1f + CALL_GROUP_PRESS_GROW
+    else -> 1f - CALL_GROUP_PRESS_GROW / (count - 1)
+}
+
 @Composable
 private fun Modifier.pressScale(
     interaction: MutableInteractionSource,
@@ -3369,6 +3457,76 @@ private const val CALL_NAME_SIZE_SP = 15
 private const val CALL_NAME_SLACK_DP = 8
 
 /**
+ * Metrics for the split connected-call cutout: the user's own normal pill, carrying the caller's
+ * photo (or the tile's icon) on its leading edge and the ticking duration on its trailing one, with
+ * the hang-up button detached into a capsule beside it. Shared with [IslandOverlayController], which
+ * reserves the same room in the touchable region.
+ */
+internal const val CALL_SPLIT_GAP_DP = 8
+/** The detached capsule is a stadium twice as wide as the pill is tall. */
+private const val CALL_SPLIT_HANGUP_ASPECT = 2f
+/** The duration's text size as a share of the pill's height, matching the timer tile's own. */
+private const val CALL_SPLIT_DURATION_FRACTION = 0.34f
+/** Room between the badge and the clock. */
+private const val CALL_SPLIT_TEXT_GAP_FRACTION = 0.34f
+/** Room the clock keeps clear of the camera hole, so it never reads as crowding it. */
+private const val CALL_SPLIT_CONTENT_CAMERA_GAP_DP = 10
+/**
+ * The durations the pill is sized for: the longest minutes-and-seconds form [formatCallDuration]
+ * reaches, so the pill never has to grow as a call rolls past a minute, and the hours form for a
+ * call that has already passed one — which would otherwise leave the clock's widest digits sitting
+ * in dead space on every short call.
+ */
+private const val CALL_SPLIT_DURATION_SAMPLE = "00:00"
+private const val CALL_SPLIT_DURATION_SAMPLE_LONG = "0:00:00"
+
+/** When [formatCallDuration] switches to the hours form, and the pill to the longer sample. */
+private const val CALL_SPLIT_LONG_CLOCK_MS = 3_600_000L
+
+/** Whether the call has been running long enough for its clock to carry hours. */
+internal fun callClockCarriesHours(startTimeMs: Long?): Boolean =
+    startTimeMs != null && System.currentTimeMillis() - startTimeMs >= CALL_SPLIT_LONG_CLOCK_MS
+
+/** The detached hang-up capsule's width beside a pill [heightDp] tall. */
+internal fun callSplitHangUpWidthDp(heightDp: Int): Int = (heightDp * CALL_SPLIT_HANGUP_ASPECT).roundToInt()
+
+/** What the capsule and its gap claim beside the split pill. */
+internal fun callSplitExtraDp(heightDp: Int): Int = callSplitHangUpWidthDp(heightDp) + CALL_SPLIT_GAP_DP
+
+/**
+ * Whether the call cutout is drawn split — the normal pill plus the detached hang-up capsule. Only a
+ * connected call at its normal size qualifies: a ringing one needs its caller and two buttons, the
+ * tiny "Mini call" pill has room for neither, and the expanded card carries its own hang-up row.
+ * There is nothing to detach either when the dialer gives us no action or the user hid the buttons.
+ */
+internal fun usesSplitCallCutout(
+    event: IslandEvent?,
+    callOngoing: Boolean,
+    expanded: Boolean,
+    tiny: Boolean,
+): Boolean {
+    val call = event?.call ?: return false
+    return callOngoing && !expanded && !tiny && call.showActions && event.actions.isNotEmpty()
+}
+
+/**
+ * The room the split pill's content claims on its leading side — the badge, the gap and the widest
+ * clock it will show, plus the room it keeps clear of the hole — which [asSplitCallCutout] parks
+ * left of the camera. Mirrors the insets
+ * [CallSplitRowContent] lays that content out with, so the two stay in agreement.
+ */
+internal fun callSplitContentWidthDp(heightDp: Int, density: Float, longClock: Boolean): Float {
+    val fixedDp = heightDp * (COLLAPSED_BADGE_INSET_FRACTION + BADGE_SIZE_FRACTION +
+        CALL_SPLIT_TEXT_GAP_FRACTION) + CALL_SPLIT_CONTENT_CAMERA_GAP_DP
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = heightDp * CALL_SPLIT_DURATION_FRACTION * density
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val sample = if (longClock) CALL_SPLIT_DURATION_SAMPLE_LONG else CALL_SPLIT_DURATION_SAMPLE
+    return fixedDp + paint.measureText(sample) / density
+}
+
+/**
  * Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
  * grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the
  * camera hole with a flexible gap before the buttons pinned to the bottom edge.
@@ -3399,6 +3557,12 @@ private const val CALL_EXPANDED_BUTTON_GAP_DP = 8
 private const val CALL_EXPANDED_TOGGLE_DP = 56
 private const val CALL_EXPANDED_TOGGLE_CORNER_DP = 18
 private const val CALL_EXPANDED_HANGUP_DP = 48
+
+/** How many buttons sit in the expanded card's toggle row (Mute / Speaker / Open). */
+private const val CALL_TOGGLE_COUNT = 3
+
+/** The extra row weight a pressed button in a call button group takes from its neighbours. */
+private const val CALL_GROUP_PRESS_GROW = 0.35f
 private const val CALL_EXPANDED_AVATAR_DP = 40
 
 /**
@@ -3456,6 +3620,7 @@ internal fun callCutoutWidthPercent(
 @Composable
 private fun CallNormalContent(
     event: IslandEvent,
+    heightDp: Int,
     appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
@@ -3467,6 +3632,10 @@ private fun CallNormalContent(
     CallTheme {
         if (incoming && call.incomingExpandedLayout && hasActions) {
             IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
+        } else if (!incoming && hasActions) {
+            // Connected: the pill keeps the badge and the clock, and the hang-up button rides beside
+            // it in [CallHangUpCapsule] — see [usesSplitCallCutout].
+            CallSplitRowContent(event = event, call = call, onCall = onCall, heightDp = heightDp)
         } else {
             CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
         }
@@ -3490,6 +3659,78 @@ private fun CallTheme(content: @Composable () -> Unit) {
         }
     }
     MaterialTheme(colorScheme = scheme, content = content)
+}
+
+/**
+ * The connected call's split pill, laid out like the collapsed pill it borrows its geometry from:
+ * the caller's photo — or the tile's icon when there is none, or the user hid photos — on the
+ * leading edge with the ticking duration beside it. Both stay left of the camera hole — the pill is
+ * placed around it by [asSplitCallCutout] and left empty over it. No caller name and no hang-up
+ * button: that rides beside the pill in [CallHangUpCapsule].
+ */
+@Composable
+private fun CallSplitRowContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    heightDp: Int,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .padding(start = (heightDp * COLLAPSED_BADGE_INSET_FRACTION).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy((heightDp * CALL_SPLIT_TEXT_GAP_FRACTION).dp),
+    ) {
+        EventBadge(
+            event = event,
+            badgeSize = badgeSizeFor(heightDp),
+            iconSize = badgeIconSizeFor(heightDp),
+        )
+        if (call.showDuration) {
+            CallStatus(
+                onCall = onCall,
+                fontSize = (heightDp * CALL_SPLIT_DURATION_FRACTION).sp,
+                fontWeight = FontWeight.SemiBold,
+                alpha = 1f,
+            )
+        }
+    }
+}
+
+/**
+ * The connected call's hang-up button, detached from the pill into a capsule of its own beside it.
+ * Filled with the tile's hang-up colour and shaped as a stadium of the call cutout's own height, so
+ * the two read as one system split in half rather than as a pill with a stray button next to it.
+ */
+@Composable
+private fun CallHangUpCapsule(
+    call: CallTileOptions,
+    hangUp: IslandAction,
+    heightDp: Int,
+    modifier: Modifier = Modifier,
+    onAction: (IslandAction) -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val fill = call.hangUpColor.resolve()
+    Surface(
+        onClick = { onAction(hangUp) },
+        interactionSource = interaction,
+        shape = CircleShape,
+        color = fill,
+        contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
+        modifier = modifier
+            .size(width = callSplitHangUpWidthDp(heightDp).dp, height = heightDp.dp)
+            .pressScale(interaction),
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Rounded.CallEnd,
+                contentDescription = stringResource(R.string.phone_hang_up),
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
 }
 
 /**
@@ -3661,6 +3902,7 @@ private fun IncomingCallExpandedContent(
                     CallWideButton(
                         icon = Icons.Rounded.Call,
                         label = stringResource(R.string.phone_answer),
+                        showLabel = call.showButtonLabels,
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.weight(1f),
@@ -3671,6 +3913,7 @@ private fun IncomingCallExpandedContent(
                     CallWideButton(
                         icon = Icons.Rounded.CallEnd,
                         label = stringResource(R.string.phone_hang_up),
+                        showLabel = call.showButtonLabels,
                         container = MaterialTheme.colorScheme.error,
                         content = MaterialTheme.colorScheme.onError,
                         modifier = Modifier.weight(1f),
@@ -3704,6 +3947,7 @@ private fun CallExpandedContent(
     val muted by CallAudioBus.muted.collectAsStateWithLifecycle()
     val speakerOn by CallAudioBus.speakerOn.collectAsStateWithLifecycle()
     val activeFill = call.otherButtonColor.resolve()
+    val toggleInteractions = remember { List(CALL_TOGGLE_COUNT) { MutableInteractionSource() } }
 
     // The dialer's in-call screen moves both behind our back, so re-read them as the card opens.
     LaunchedEffect(Unit) { CallAudioBus.refresh(context) }
@@ -3720,7 +3964,7 @@ private fun CallExpandedContent(
                 ),
             verticalArrangement = Arrangement.spacedBy(CALL_EXPANDED_ROW_GAP_DP.dp),
         ) {
-            // Weighted so the two button rows keep their height and the caller row gives way.
+            // Contact + time
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3728,11 +3972,14 @@ private fun CallExpandedContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
             ) {
+                // Profile pic
                 if (photo != null) {
                     ContactPhoto(bitmap = photo, size = CALL_EXPANDED_AVATAR_DP.dp)
                 } else {
                     IconBadge(event = event, badgeSize = CALL_EXPANDED_AVATAR_DP.dp, iconSize = 24.dp)
                 }
+
+                // Number + duration
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = event.label,
@@ -3747,39 +3994,64 @@ private fun CallExpandedContent(
                     }
                 }
             }
+
+            val toggleWeights = rememberCallGroupWeights(toggleInteractions)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(CALL_EXPANDED_BUTTON_GAP_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+
+                // Mute button
                 CallToggleButton(
                     icon = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
                     label = stringResource(R.string.phone_mute),
                     active = muted,
                     activeFill = activeFill,
-                    modifier = Modifier.weight(1f),
+                    interaction = toggleInteractions[0],
+                    modifier = Modifier.weight(toggleWeights[0]),
+                    shape = RoundedCornerShape(
+                        topStart = 24.dp,
+                        topEnd = 4.dp,
+                        bottomStart = 24.dp,
+                        bottomEnd = 4.dp
+                    ),
                     onClick = { CallAudioBus.toggleMute(context) },
                 )
+
+                // Speaker button
                 CallToggleButton(
                     icon = Icons.AutoMirrored.Rounded.VolumeUp,
                     label = stringResource(R.string.phone_speaker),
                     active = speakerOn,
                     activeFill = activeFill,
-                    modifier = Modifier.weight(1f),
+                    interaction = toggleInteractions[1],
+                    modifier = Modifier.weight(toggleWeights[1]),
                     onClick = { CallAudioBus.toggleSpeaker(context) },
                 )
+
+                // Open in phone app button
                 CallToggleButton(
                     icon = Icons.AutoMirrored.Rounded.OpenInNew,
                     label = stringResource(R.string.phone_open),
                     active = false,
                     activeFill = activeFill,
-                    modifier = Modifier.weight(1f),
+                    interaction = toggleInteractions[2],
+                    modifier = Modifier.weight(toggleWeights[2]),
+                    shape = RoundedCornerShape(
+                        topStart = 4.dp,
+                        topEnd = 24.dp,
+                        bottomStart = 4.dp,
+                        bottomEnd = 24.dp
+                    ),
                     onClick = onOpen,
                 )
             }
             if (call.showActions && hangUp != null) {
                 CallWideButton(
                     icon = Icons.Rounded.CallEnd,
-                    label = null,
+                    label = stringResource(R.string.phone_hang_up),
+                    showLabel = false,
                     container = MaterialTheme.colorScheme.errorContainer,
                     content = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.fillMaxWidth(),
@@ -3795,6 +4067,8 @@ private fun CallExpandedContent(
  * One of the expanded call layout's three square buttons — an icon over its label — filled with the
  * tile's "other buttons" colour while [active] and a neutral container otherwise, so Mute and
  * Speaker read as on/off at a glance while Open (which toggles nothing) always stays neutral.
+ * Presses aren't scaled here: the row reads [interaction] to widen this button and squeeze its
+ * neighbours instead — see [rememberCallGroupWeights].
  */
 @Composable
 private fun CallToggleButton(
@@ -3802,25 +4076,25 @@ private fun CallToggleButton(
     label: String,
     active: Boolean,
     activeFill: Color,
+    interaction: MutableInteractionSource,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    shape: RoundedCornerShape = RoundedCornerShape(4.dp)
 ) {
-    val interaction = remember { MutableInteractionSource() }
     val container = if (active) activeFill else MaterialTheme.colorScheme.surfaceVariant
     val content = if (active) {
         if (container.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = RoundedCornerShape(CALL_EXPANDED_TOGGLE_CORNER_DP.dp),
+        shape = shape,
         color = container,
         contentColor = content,
-        modifier = modifier
-            .height(CALL_EXPANDED_TOGGLE_DP.dp)
-            .pressScale(interaction),
+        modifier = modifier.height(CALL_EXPANDED_TOGGLE_DP.dp),
     ) {
         Column(
             modifier = Modifier
@@ -3832,27 +4106,21 @@ private fun CallToggleButton(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.size(24.dp),
             )
         }
     }
 }
 
-/** A full-width, filled call button (Take / Hang up) with a leading icon and an optional label —
- *  a null [label] leaves the icon centred alone. Used by the incoming-call layout's bottom row and
- *  the expanded call layout's hang-up row. */
+/** A full-width, filled call button (Take / Hang up) with a leading icon and its [label], drawn in
+ *  Roboto Flex at its widest `wdth` like the music transport labels. A false [showLabel] centres the
+ *  icon alone, the [label] staying on as the button's content description. Used by the incoming-call
+ *  layout's bottom row and the expanded call layout's hang-up row. */
 @Composable
 private fun CallWideButton(
     icon: ImageVector,
-    label: String?,
+    label: String,
+    showLabel: Boolean,
     container: Color,
     content: Color,
     modifier: Modifier = Modifier,
@@ -3879,14 +4147,15 @@ private fun CallWideButton(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = label,
                 modifier = Modifier.size(20.dp),
             )
-            if (label != null) {
+            if (showLabel) {
                 Text(
                     text = label,
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontFamily = rememberRobotoFlexFamily(ROBOTO_FLEX_MAX_WIDTH),
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -3927,7 +4196,14 @@ private fun CallCircleButton(
 
 /** The phone tile's secondary line: a duration that ticks up once connected, else "incoming call". */
 @Composable
-private fun CallStatus(onCall: OnCall?) {
+private fun CallStatus(
+    onCall: OnCall?,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 12.sp,
+    fontWeight: FontWeight? = null,
+    alpha: Float = 0.70f,
+    textAlign: TextAlign? = null,
+) {
     val start = onCall?.startTimeMs
     val text = if (start != null) {
         var now by remember(start) { mutableStateOf(System.currentTimeMillis()) }
@@ -3945,10 +4221,13 @@ private fun CallStatus(onCall: OnCall?) {
     }
     Text(
         text = text,
-        color = LocalContentColor.current.copy(alpha = 0.70f),
-        fontSize = 12.sp,
+        color = LocalContentColor.current.copy(alpha = alpha),
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
     )
 }
 

@@ -444,6 +444,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneShowButtonLabels(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowButtonLabels(enabled)
+    }
+
     fun setPhoneExpandedIncomingLayout(enabled: Boolean) = viewModelScope.launch {
         phoneTilePreferences.setExpandedIncomingLayout(enabled)
     }
