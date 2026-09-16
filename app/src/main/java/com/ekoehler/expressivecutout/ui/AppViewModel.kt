@@ -448,6 +448,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setExpandedIncomingLayout(enabled)
     }
 
+    fun setPhoneMiniCall(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setMiniCall(enabled)
+    }
+
     fun setPhoneIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
         phoneTilePreferences.setIconContainerColor(color)
     }

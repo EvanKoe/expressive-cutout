@@ -64,11 +64,18 @@ internal fun PhoneTileScreen(
             onCheckedChange = viewModel::setPhoneShowActions,
         )
         SettingsToggleCard(
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
+            shape = RoundedCornerShape(4.dp),
             title = stringResource(R.string.phone_expanded_incoming_title),
             description = stringResource(R.string.phone_expanded_incoming_desc),
             checked = settings.expandedIncomingLayout,
             onCheckedChange = viewModel::setPhoneExpandedIncomingLayout,
+        )
+        SettingsToggleCard(
+            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
+            title = stringResource(R.string.phone_mini_call_title),
+            description = stringResource(R.string.phone_mini_call_desc),
+            checked = settings.miniCall,
+            onCheckedChange = viewModel::setPhoneMiniCall,
         )
 
         // The icon container is the fallback disc shown on the cutout when there's no contact photo.

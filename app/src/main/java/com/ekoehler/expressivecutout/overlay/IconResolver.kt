@@ -317,6 +317,7 @@ class IconResolver(private val context: Context) {
                 showDuration = settings.showDuration,
                 showActions = settings.showActions,
                 incomingExpandedLayout = settings.expandedIncomingLayout,
+                miniCall = settings.miniCall,
                 hangUpColor = settings.hangUpColor,
                 otherButtonColor = settings.otherButtonColor,
             ),

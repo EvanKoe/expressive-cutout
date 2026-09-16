@@ -1393,7 +1393,7 @@ class IslandOverlayController(private val context: Context) {
         if (expanded) return 0
         if (currentEvent.value?.call != null) return 0
         // The tiny cutout has no width to give away.
-        if (currentEvent.value?.media?.miniPlayer == true) return 0
+        if (isTinyTile()) return 0
         if (isLandscapeSplitSuppressed()) return 0
         return layoutState.value.collapsed.heightDp + SATELLITE_GAP_DP
     }
@@ -1430,7 +1430,7 @@ class IslandOverlayController(private val context: Context) {
         if (!behaviourState.value.splitIslandEnabled) return false
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
-        if (displaced.media?.miniPlayer == true || incoming.media?.miniPlayer == true) return false
+        if (isTinyTile(displaced) || isTinyTile(incoming)) return false
         if (displaced.assistant != null || incoming.assistant != null) return false
         if (isTwoRowCall()) return false
         val key = displaced.notificationKey
@@ -1653,6 +1653,9 @@ class IslandOverlayController(private val context: Context) {
             expanded && event?.media != null ->
                 layout.expanded.copy(heightDp = mediaExpandedBaseHeightDp(layout.expanded.topMarginDp))
             expanded -> layout.expanded
+            // "Mini player" / "Mini call" shrink the normal cutout to the tiny pill, so the window
+            // and the touchable region have to shrink with it.
+            isTinyTile() -> layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false
                 if (isTwoRowCall()) {
@@ -1672,10 +1675,6 @@ class IslandOverlayController(private val context: Context) {
                     )
                 }
             }
-            // The music tile's "Mini player" shrinks the normal cutout to the tiny pill, so the
-            // window and the touchable region have to shrink with it.
-            event?.media?.miniPlayer == true ->
-                layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
             else -> layout.collapsed
         }
     }
@@ -1693,6 +1692,9 @@ class IslandOverlayController(private val context: Context) {
         }
         val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
+            // The expanded connected call stacks its own two button rows under the caller row.
+            expanded && event?.call != null ->
+                callExpandedExtraDp(event.call.showActions && event.actions.isNotEmpty())
             // The empty pill's expanded "center" (no event) claims room for its shortcut row.
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
@@ -1709,6 +1711,13 @@ class IslandOverlayController(private val context: Context) {
             else -> 0
         }
     }
+
+    /**
+     * Whether an event draws the tiny cutout right now — the music "Mini player" or a connected
+     * call's "Mini call". Defaults to the shown event; mirrors what [DynamicIsland] renders.
+     */
+    private fun isTinyTile(event: IslandEvent? = currentEvent.value): Boolean =
+        event?.usesTinyCutout(callOngoing = OnCallBus.state.value?.ongoing == true) == true
 
     /** Whether the shown event is an incoming call rendered in the taller two-row layout. */
     private fun isTwoRowCall(): Boolean {

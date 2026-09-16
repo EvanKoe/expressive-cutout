@@ -28,6 +28,13 @@ data class PhoneTileSettings(
      * Hang up buttons — instead of the compact single row. Connected calls always use the single row.
      */
     val expandedIncomingLayout: Boolean = DEFAULT_EXPANDED_INCOMING,
+    /**
+     * Replace the connected call's normal cutout with the tiny cutout: a small pill carrying only a
+     * call glyph, the same shape the music tile's "Mini player" draws. Tapping it still opens the
+     * expanded call controls. A ringing call ignores it — it keeps its layout so the answer and
+     * decline buttons stay reachable.
+     */
+    val miniCall: Boolean = DEFAULT_MINI_CALL,
     /** Colour of the icon container (fallback disc shown when there's no contact photo). Null = default. */
     val iconContainerColor: CutoutColor? = null,
     /** Fill of the hang-up / end-call button. */
@@ -40,6 +47,7 @@ data class PhoneTileSettings(
         const val DEFAULT_SHOW_DURATION = true
         const val DEFAULT_SHOW_ACTIONS = true
         const val DEFAULT_EXPANDED_INCOMING = true
+        const val DEFAULT_MINI_CALL = false
 
         /** Hang up is red by default (matches the preset red swatch). */
         val DEFAULT_HANG_UP_COLOR: CutoutColor = CutoutColor.Solid(0xFFEF4444)
@@ -58,6 +66,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             showDuration = prefs[SHOW_DURATION] ?: PhoneTileSettings.DEFAULT_SHOW_DURATION,
             showActions = prefs[SHOW_ACTIONS] ?: PhoneTileSettings.DEFAULT_SHOW_ACTIONS,
             expandedIncomingLayout = prefs[EXPANDED_INCOMING] ?: PhoneTileSettings.DEFAULT_EXPANDED_INCOMING,
+            miniCall = prefs[MINI_CALL] ?: PhoneTileSettings.DEFAULT_MINI_CALL,
             iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
             hangUpColor = CutoutColor.deserialize(prefs[HANG_UP_COLOR])
                 ?: PhoneTileSettings.DEFAULT_HANG_UP_COLOR,
@@ -74,6 +83,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             put("showDuration", s.showDuration)
             put("showActions", s.showActions)
             put("expandedIncomingLayout", s.expandedIncomingLayout)
+            put("miniCall", s.miniCall)
             put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
             put("hangUpColor", s.hangUpColor.serialize())
             put("otherButtonColor", s.otherButtonColor.serialize())
@@ -88,6 +98,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("showDuration")) it[SHOW_DURATION] = obj.getBoolean("showDuration")
             if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
             if (obj.has("expandedIncomingLayout")) it[EXPANDED_INCOMING] = obj.getBoolean("expandedIncomingLayout")
+            if (obj.has("miniCall")) it[MINI_CALL] = obj.getBoolean("miniCall")
             if (obj.has("iconContainerColor")) {
                 val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
                 val color = CutoutColor.deserialize(raw)
@@ -118,6 +129,10 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         it[EXPANDED_INCOMING] = enabled
     }
 
+    suspend fun setMiniCall(enabled: Boolean) = context.phoneTileDataStore.edit {
+        it[MINI_CALL] = enabled
+    }
+
     /** A null [color] clears the override, restoring the default accent-tinted icon container. */
     suspend fun setIconContainerColor(color: CutoutColor?) = context.phoneTileDataStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
@@ -136,6 +151,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         val SHOW_DURATION = booleanPreferencesKey("show_duration")
         val SHOW_ACTIONS = booleanPreferencesKey("show_actions")
         val EXPANDED_INCOMING = booleanPreferencesKey("expanded_incoming_layout")
+        val MINI_CALL = booleanPreferencesKey("mini_call")
         val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
         val HANG_UP_COLOR = stringPreferencesKey("hang_up_color")
         val OTHER_BUTTON_COLOR = stringPreferencesKey("other_button_color")

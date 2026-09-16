@@ -239,6 +239,8 @@
     <string name="phone_show_actions_desc">Show the call\'s buttons, such as Hang up.</string>
     <string name="phone_expanded_incoming_title">Expanded layout for incoming calls</string>
     <string name="phone_expanded_incoming_desc">Show a ringing call in a taller two-row tile with full-width Take and Hang up buttons, instead of the compact single row.</string>
+    <string name="phone_mini_call_title">Mini call</string>
+    <string name="phone_mini_call_desc">Shrink the cutout to a tiny pill beside the camera once the call connects. Tap it to open the call controls. A ringing call keeps its full tile.</string>
     <string name="phone_button_colours_title">Button colours</string>
     <string name="phone_hangup_color_label">Hang up button</string>
     <string name="phone_other_color_label">Other buttons</string>
@@ -246,6 +248,9 @@
     <string name="phone_ringing">Calling...</string>
     <string name="phone_answer">Take</string>
     <string name="phone_hang_up">Hang up</string>
+    <string name="phone_mute">Mute</string>
+    <string name="phone_speaker">Speaker</string>
+    <string name="phone_open">Open</string>
     <string name="phone_tile_note">The photo, name and buttons come from your dialer\'s ongoing-call notification, so exactly which buttons appear depends on your dialer.</string>
     <string name="timer_show_actions_title">Action buttons</string>
     <string name="timer_show_actions_desc">Show the timer\'s buttons, such as Add 1 min and Reset.</string>

@@ -53,16 +53,23 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -142,6 +149,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.CallAudioBus
 import com.ekoehler.expressivecutout.core.MediaArtBus
 import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.NowPlaying
@@ -507,8 +515,11 @@ fun DynamicIsland(
     var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
     val confirmingSent = sentReply != null
     val isCall = shownEvent?.call != null
+    val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
+    val callIncoming = isCall && liveCall?.ongoing == false
     val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
-    val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
+    // A ringing call owns its own layout and never expands; a connected one opens into the call controls.
+    val isNormalOnly = callIncoming || isAssistantNormalOnly || shownEvent?.normalOnly == true
     val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
     val isExpanded = when {
         forcedExpanded == false -> false
@@ -554,8 +565,6 @@ fun DynamicIsland(
     val hasMediaProgress = shownEvent?.media?.showProgress == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
-    val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val callIncoming = isCall && liveCall?.ongoing == false
     val callTwoRow = callIncoming && shownEvent?.call?.incomingExpandedLayout == true && hasCallActions
     val callTrailingButtons = when {
         !isCall || !hasCallActions -> 0
@@ -573,14 +582,17 @@ fun DynamicIsland(
         }
     }
 
-    // The music tile's "Mini player": while music plays the normal cutout shrinks to a tiny pill.
-    // Every other event keeps the normal (or expanded) cutout the user configured.
-    val isTinyMedia = !emptyPill && !isCall && !isExpanded && shownEvent?.media?.miniPlayer == true
+    // "Mini player" / "Mini call": while music plays or a call is connected, the normal cutout
+    // shrinks to a tiny pill. Every other event keeps the normal (or expanded) cutout the user chose.
+    val isTiny = !emptyPill && !isExpanded &&
+        shownEvent?.usesTinyCutout(callOngoing = liveCall?.ongoing == true) == true
 
     val dims = when {
         emptyPill && !isExpanded -> collapsed
-        isTinyMedia -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
+        isTiny -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
         callTwoRow -> expanded
+        // A tapped-open connected call takes the full expanded cutout for its controls.
+        isCall && isExpanded -> expanded
         isCall -> collapsed.asCallCutout(callWidthPercent)
         // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
         // content — see [mediaExpandedBaseHeightDp].
@@ -670,8 +682,7 @@ fun DynamicIsland(
         }
         isExpanded && shownEvent?.timer != null ->
             if (hasTimerActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
-        isExpanded && (hasCallActions || callTwoRow) ->
-            if (hasCallActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+        isExpanded && isCall -> callExpandedExtraDp(hasCallActions)
         isExpanded -> {
             val maxCutoutHeightDp = (screenHeightDp * 0.70f).toInt()
             val innerHeightDp = maxOf(precomputedNotificationHeightDp, expandedNotificationHeightDp)
@@ -735,7 +746,7 @@ fun DynamicIsland(
     // Mounted for as long as the feature is on rather than only while something is in use, so each
     // dot fades in and out with its own resource instead of appearing the instant the row exists.
     val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
-        !isTinyMedia
+        !isTiny
     val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
     // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring —
     // has anything for the dots to collide with. Everything else has empty pill there, so the dots
@@ -761,7 +772,7 @@ fun DynamicIsland(
     // width the user chose. Both the width and the offset below animate, so the pill visibly makes
     // room rather than jumping.
     val satelliteSharing = satellite != null && !isExpanded && !isCall && !isStickToCamera &&
-        !isTinyMedia
+        !isTiny
     val satelliteSplitDp = if (satelliteSharing) collapsed.heightDp + SATELLITE_GAP_DP else 0
     // The pair stays centred on the span the pill had to itself, so the pill's own centre steps away
     // from the side the bubble takes by half of what it gave up.
@@ -926,7 +937,7 @@ fun DynamicIsland(
                         targetState = IslandContentKey(
                             emptyPill = emptyPill,
                             expanded = isExpanded,
-                            tiny = isTinyMedia,
+                            tiny = isTiny,
                         ),
                         animationSpec = tween(scaled(150)),
                         label = "islandContent"
@@ -963,8 +974,28 @@ fun DynamicIsland(
                             }
                         } else {
                             shownEvent?.let { e ->
-                                if (e.call != null) {
-                                    CallNormalContent(event = e, appearance = appearance, onAction = onAction)
+                                if (content.tiny) {
+                                    TinyTileContent(
+                                        event = e,
+                                        heightDp = collapsed.heightDp,
+                                        iconPop = iconPop,
+                                    )
+                                } else if (e.call != null) {
+                                    if (content.expanded) {
+                                        CallExpandedContent(
+                                            event = e,
+                                            call = e.call,
+                                            onCall = liveCall,
+                                            topMarginDp = expanded.topMarginDp,
+                                            onAction = onAction,
+                                            onOpen = {
+                                                tapExpanded = false
+                                                onActivate()
+                                            },
+                                        )
+                                    } else {
+                                        CallNormalContent(event = e, appearance = appearance, onAction = onAction)
+                                    }
                                 } else if (content.expanded) {
                                     ExpandedContent(
                                         event = e,
@@ -994,12 +1025,6 @@ fun DynamicIsland(
                                             if (e.assistant != null) assistantContentHeightDp = hDp
                                             else expandedNotificationHeightDp = hDp
                                         },
-                                    )
-                                } else if (content.tiny) {
-                                    TinyMediaContent(
-                                        event = e,
-                                        heightDp = collapsed.heightDp,
-                                        iconPop = iconPop,
                                     )
                                 } else {
                                     CollapsedContent(
@@ -1669,21 +1694,25 @@ private fun MediaNormalButton(
 }
 
 /**
- * The tiny cutout's contents, drawn for the music tile's "Mini player": the note glyph alone, on the
- * leading edge — the pill swallows the camera hole with its trailing half, so the leading extension
- * is the only part of it free to hold anything. Deliberately no album cover: the pill is too small
- * to carry one and still read as the camera grown a little wider.
+ * The tiny cutout's contents, drawn for the music tile's "Mini player" and the phone tile's "Mini
+ * call": one glyph alone, on the leading edge — the pill swallows the camera hole with its trailing
+ * half, so the leading extension is the only part of it free to hold anything. Deliberately nothing
+ * else (no album cover, no contact photo): the pill is too small to carry one and still read as the
+ * camera grown a little wider.
  * Sized off [heightDp] — the user's own normal-cutout height — so it scales with their geometry.
  *
  * @param iconPop scale for the glyph's arrival pop, hoisted by the caller exactly as
  *   [CollapsedContent] hoists the badge's.
  */
 @Composable
-private fun TinyMediaContent(
+private fun TinyTileContent(
     event: IslandEvent,
     heightDp: Int,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
 ) {
+    // A call event's own icon is the avatar standing in for a missing contact photo, which reads as
+    // "a contact" rather than "a call" once it's alone on the pill; the tiny call shows a handset.
+    val glyph = if (event.call != null) TINY_CALL_GLYPH else event.icon
     val pop = if (iconPop != null) {
         Modifier.graphicsLayer {
             scaleX = iconPop.value
@@ -1697,7 +1726,7 @@ private fun TinyMediaContent(
             .align(Alignment.CenterStart)
             .padding(start = (heightDp * TINY_INSET_FRACTION).dp)
             .then(pop)
-        when (val glyph = event.icon) {
+        when (glyph) {
             is IslandIcon.Vector -> Icon(
                 imageVector = glyph.image,
                 contentDescription = null,
@@ -1717,6 +1746,9 @@ private fun TinyMediaContent(
 
 /** The share of the tiny cutout's height left as padding at each end. */
 private const val TINY_INSET_FRACTION = 0.18f
+
+/** The glyph the tiny cutout carries for a call, standing in for the event's contact avatar. */
+private val TINY_CALL_GLYPH = IslandIcon.Vector(Icons.Rounded.PhoneInTalk)
 
 /**
  * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
@@ -3357,6 +3389,29 @@ private const val CALL_INCOMING_AVATAR_DP = 40
 internal fun callIncomingExtraDp(): Int = CALL_INCOMING_BUTTON_DP + CALL_INCOMING_BUTTON_GAP_DP
 
 /**
+ * Metrics for the expanded connected-call layout ([CallExpandedContent]): the caller row over a row
+ * of Mute / Speaker / Open buttons, over one full-width hang-up button.
+ */
+private const val CALL_EXPANDED_SIDE_PAD_DP = 14
+private const val CALL_EXPANDED_BOTTOM_PAD_DP = 14
+private const val CALL_EXPANDED_ROW_GAP_DP = 10
+private const val CALL_EXPANDED_BUTTON_GAP_DP = 8
+private const val CALL_EXPANDED_TOGGLE_DP = 56
+private const val CALL_EXPANDED_TOGGLE_CORNER_DP = 18
+private const val CALL_EXPANDED_HANGUP_DP = 48
+private const val CALL_EXPANDED_AVATAR_DP = 40
+
+/**
+ * The height the expanded call layout claims below the expanded cutout (whose own height covers the
+ * caller row): its button row, plus the hang-up row when the dialer gives us an action to fire
+ * ([showHangUp]). Shared with the overlay's window sizing so the touchable region stays as tall as
+ * what [CallExpandedContent] renders.
+ */
+internal fun callExpandedExtraDp(showHangUp: Boolean): Int =
+    CALL_EXPANDED_ROW_GAP_DP + CALL_EXPANDED_TOGGLE_DP +
+        if (showHangUp) CALL_EXPANDED_ROW_GAP_DP + CALL_EXPANDED_HANGUP_DP else 0
+
+/**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
  * [CALL_MIN_WIDTH_PERCENT] by default, widening to fit a long name up to [CALL_MAX_WIDTH_PERCENT].
  * [trailingButtons] reserves room for that many trailing call buttons (one for a connected call's
@@ -3409,11 +3464,32 @@ private fun CallNormalContent(
     val incoming = onCall?.ongoing == false
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
-    if (incoming && call.incomingExpandedLayout && hasActions) {
-        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
-    } else {
-        CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
+    CallTheme {
+        if (incoming && call.incomingExpandedLayout && hasActions) {
+            IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
+        } else {
+            CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
+        }
     }
+}
+
+/**
+ * The palette the phone tile's layouts draw from. The cutout is a dark pill whatever the system
+ * theme is, so the call buttons pin Material's *dark* scheme (dynamic on Android 12+) rather than
+ * inheriting the app theme's light one, which would put pale containers and dark ink on black.
+ * Scoped to the call layouts only; every other tile keeps the app theme.
+ */
+@Composable
+private fun CallTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val scheme = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicDarkColorScheme(context)
+        } else {
+            darkColorScheme()
+        }
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 /**
@@ -3606,15 +3682,181 @@ private fun IncomingCallExpandedContent(
     }
 }
 
-/** A full-width, filled call button (Take / Hang up) with a leading icon and label, used by the
- *  incoming-call layout's bottom row. */
+/**
+ * The connected call's expanded layout, reached by tapping the normal call cutout. Top: the caller's
+ * photo beside their name and the ticking duration. Middle: Mute, Speaker and Open, the first two
+ * toggling the live call's audio through [CallAudioBus] and lighting up while on, the third handing
+ * the call over to the dialer's own in-call screen via [onOpen]. Bottom: one full-width hang-up
+ * button firing the dialer's own end-call action. Sized by [callExpandedExtraDp].
+ */
+@Composable
+private fun CallExpandedContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    topMarginDp: Int,
+    onAction: (IslandAction) -> Unit,
+    onOpen: () -> Unit,
+) {
+    val context = LocalContext.current
+    val photo = onCall?.photo?.takeIf { call.showPhoto }
+    val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
+    val muted by CallAudioBus.muted.collectAsStateWithLifecycle()
+    val speakerOn by CallAudioBus.speakerOn.collectAsStateWithLifecycle()
+    val activeFill = call.otherButtonColor.resolve()
+
+    // The dialer's in-call screen moves both behind our back, so re-read them as the card opens.
+    LaunchedEffect(Unit) { CallAudioBus.refresh(context) }
+
+    CallTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                    end = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                    top = topMarginDp.dp,
+                    bottom = CALL_EXPANDED_BOTTOM_PAD_DP.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(CALL_EXPANDED_ROW_GAP_DP.dp),
+        ) {
+            // Weighted so the two button rows keep their height and the caller row gives way.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
+            ) {
+                if (photo != null) {
+                    ContactPhoto(bitmap = photo, size = CALL_EXPANDED_AVATAR_DP.dp)
+                } else {
+                    IconBadge(event = event, badgeSize = CALL_EXPANDED_AVATAR_DP.dp, iconSize = 24.dp)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = event.label,
+                        color = LocalContentColor.current,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    AnimatedVisibility(visible = call.showDuration) {
+                        CallStatus(onCall = onCall)
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CALL_EXPANDED_BUTTON_GAP_DP.dp),
+            ) {
+                CallToggleButton(
+                    icon = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                    label = stringResource(R.string.phone_mute),
+                    active = muted,
+                    activeFill = activeFill,
+                    modifier = Modifier.weight(1f),
+                    onClick = { CallAudioBus.toggleMute(context) },
+                )
+                CallToggleButton(
+                    icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                    label = stringResource(R.string.phone_speaker),
+                    active = speakerOn,
+                    activeFill = activeFill,
+                    modifier = Modifier.weight(1f),
+                    onClick = { CallAudioBus.toggleSpeaker(context) },
+                )
+                CallToggleButton(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    label = stringResource(R.string.phone_open),
+                    active = false,
+                    activeFill = activeFill,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpen,
+                )
+            }
+            if (call.showActions && hangUp != null) {
+                CallWideButton(
+                    icon = Icons.Rounded.CallEnd,
+                    label = null,
+                    container = MaterialTheme.colorScheme.errorContainer,
+                    content = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                    heightDp = CALL_EXPANDED_HANGUP_DP,
+                    onClick = { onAction(hangUp) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One of the expanded call layout's three square buttons — an icon over its label — filled with the
+ * tile's "other buttons" colour while [active] and a neutral container otherwise, so Mute and
+ * Speaker read as on/off at a glance while Open (which toggles nothing) always stays neutral.
+ */
+@Composable
+private fun CallToggleButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    activeFill: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val container = if (active) activeFill else MaterialTheme.colorScheme.surfaceVariant
+    val content = if (active) {
+        if (container.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(CALL_EXPANDED_TOGGLE_CORNER_DP.dp),
+        color = container,
+        contentColor = content,
+        modifier = modifier
+            .height(CALL_EXPANDED_TOGGLE_DP.dp)
+            .pressScale(interaction),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** A full-width, filled call button (Take / Hang up) with a leading icon and an optional label —
+ *  a null [label] leaves the icon centred alone. Used by the incoming-call layout's bottom row and
+ *  the expanded call layout's hang-up row. */
 @Composable
 private fun CallWideButton(
     icon: ImageVector,
-    label: String,
+    label: String?,
     container: Color,
     content: Color,
     modifier: Modifier = Modifier,
+    heightDp: Int = CALL_INCOMING_BUTTON_DP,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -3625,7 +3867,7 @@ private fun CallWideButton(
         color = container,
         contentColor = content,
         modifier = modifier
-            .height(CALL_INCOMING_BUTTON_DP.dp)
+            .height(heightDp.dp)
             .pressScale(interaction),
     ) {
         Row(
@@ -3640,13 +3882,15 @@ private fun CallWideButton(
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )
-            Text(
-                text = label,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (label != null) {
+                Text(
+                    text = label,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
