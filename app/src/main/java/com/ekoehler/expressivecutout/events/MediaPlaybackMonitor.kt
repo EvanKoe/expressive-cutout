@@ -107,8 +107,6 @@ class MediaPlaybackMonitor(private val context: Context) {
      */
     fun stop() {
         sessionManager?.let(::unregister)
-        watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
-        watched.clear()
         scope.coroutineContext.cancelChildren()
         clearPendingShow()
         NowPlayingBus.update(null)
@@ -118,9 +116,14 @@ class MediaPlaybackMonitor(private val context: Context) {
         if (registered) return
         runCatching {
             manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
+            val controllers = manager.getActiveSessions(listenerComponent)
             registered = true
-            rebind(manager.getActiveSessions(listenerComponent))
-        }.onFailure { Log.w(TAG, "Media session access unavailable", it) }
+            rebind(controllers)
+        }.onFailure { error ->
+            registered = false
+            runCatching { manager.removeOnActiveSessionsChangedListener(sessionsListener) }
+            Log.w(TAG, "Media session access unavailable", error)
+        }
     }
 
     private fun unregister(manager: MediaSessionManager) {
@@ -227,14 +230,16 @@ class MediaPlaybackMonitor(private val context: Context) {
             return
         }
 
-        val albumArt = metadata?.albumArt()
+        val trackArt = metadata?.trackArt()
+        val albumBackgroundArt = metadata?.albumBackgroundArt() ?: trackArt
 
         NowPlayingBus.update(
             NowPlaying(
                 packageName = primary.packageName,
                 title = title,
                 artist = artist,
-                albumArt = albumArt,
+                albumArt = trackArt,
+                albumBackgroundArt = albumBackgroundArt,
                 isPlaying = playing,
                 transport = ControllerTransport(primary),
                 progress = primary.progress(metadata, playing),
@@ -251,9 +256,9 @@ class MediaPlaybackMonitor(private val context: Context) {
         lastShownKey = key
         // Held briefly rather than emitted here: players routinely report STATE_PLAYING a tick or two
         // before publishing the track, so the same start arrives first as "no metadata" and then as
-        // the real title — two different keys, which read as two tracks starting and would leave
-        // the island showing the same tile twice. Waiting for the metadata to settle collapses that
-        // into one pop carrying the final track, while a genuine track change is still its own pop.
+        // the real title — two different keys, which read as two tracks starting and would leave the
+        // island showing the same tile twice. Waiting for the metadata to settle collapses that into
+        // one pop carrying the final track, while a genuine track change is still its own pop.
         val signal = CutoutSignal.Music(
             packageName = primary.packageName,
             title = title,
@@ -299,19 +304,25 @@ class MediaPlaybackMonitor(private val context: Context) {
      * back to the cover lifted off its media notification — see
      * [com.ekoehler.expressivecutout.core.MediaArtBus].
      */
-    private fun MediaMetadata.albumArt(): ImageBitmap? = (
-        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: getBitmap(MediaMetadata.METADATA_KEY_ART)
+    private fun MediaMetadata.trackArt(): ImageBitmap? = (
+        getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         )?.toArtImageBitmap()
-        ?: artUri()?.loadImageBitmapOrNull(context)
+        ?: trackArtUri()?.loadImageBitmapOrNull(context)
 
-    /** The art URI a player publishes in place of a bitmap, if it gave one at all. */
-    private fun MediaMetadata.artUri(): Uri? = listOf(
-        MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+    private fun MediaMetadata.albumBackgroundArt(): ImageBitmap? = (
+        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        )?.toArtImageBitmap()
+        ?: albumArtUri()?.loadImageBitmapOrNull(context)
+
+    private fun MediaMetadata.trackArtUri(): Uri? = listOf(
         MediaMetadata.METADATA_KEY_ART_URI,
         MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
     ).firstNotNullOfOrNull { key -> getString(key)?.takeIf { it.isNotBlank() } }
+        ?.let { runCatching { it.toUri() }.getOrNull() }
+
+    private fun MediaMetadata.albumArtUri(): Uri? = getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+        ?.takeIf { it.isNotBlank() }
         ?.let { runCatching { it.toUri() }.getOrNull() }
 
     /** Bridges the tile's transport buttons to the active session's controls. */
@@ -340,7 +351,7 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         /**
          * How long a new track is held before it pops the island, letting a session that reports its
-         * playback state and its metadata in separate ticks settle into a single pop. Short enough
+         * playback state and its metadata in separate ticks settle into a single signal. Short enough
          * that a real track change still feels immediate.
          */
         const val SHOW_DEBOUNCE_MS = 250L
