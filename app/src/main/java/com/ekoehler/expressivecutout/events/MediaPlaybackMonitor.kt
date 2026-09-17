@@ -63,6 +63,9 @@ class MediaPlaybackMonitor(private val context: Context) {
     /** The pending "show" emission, held for [SHOW_DEBOUNCE_MS] so a start settles into one pop. */
     private var showJob: Job? = null
 
+    /** Whether the active-sessions listener is registered with Android. */
+    private var registered = false
+
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
             rebind(controllers.orEmpty())
@@ -87,10 +90,15 @@ class MediaPlaybackMonitor(private val context: Context) {
                 sync()
             }
         }
-        runCatching {
-            manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
-            rebind(manager.getActiveSessions(listenerComponent))
-        }.onFailure { Log.w(TAG, "Media session access unavailable", it) }
+        scope.launch {
+            CutoutNotificationListenerService.bound.collect { bound ->
+                if (bound) {
+                    register(manager)
+                } else {
+                    unregister(manager)
+                }
+            }
+        }
     }
 
     /**
@@ -98,11 +106,30 @@ class MediaPlaybackMonitor(private val context: Context) {
      * nothing behind on the island.
      */
     fun stop() {
-        sessionManager?.let { runCatching { it.removeOnActiveSessionsChangedListener(sessionsListener) } }
+        sessionManager?.let(::unregister)
         watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
         watched.clear()
         scope.coroutineContext.cancelChildren()
         clearPendingShow()
+        NowPlayingBus.update(null)
+    }
+
+    private fun register(manager: MediaSessionManager) {
+        if (registered) return
+        runCatching {
+            manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
+            registered = true
+            rebind(manager.getActiveSessions(listenerComponent))
+        }.onFailure { Log.w(TAG, "Media session access unavailable", it) }
+    }
+
+    private fun unregister(manager: MediaSessionManager) {
+        if (!registered) return
+        runCatching { manager.removeOnActiveSessionsChangedListener(sessionsListener) }
+            .onFailure { Log.w(TAG, "Failed to unregister media session listener", it) }
+        registered = false
+        watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
+        watched.clear()
         NowPlayingBus.update(null)
     }
 
@@ -224,9 +251,9 @@ class MediaPlaybackMonitor(private val context: Context) {
         lastShownKey = key
         // Held briefly rather than emitted here: players routinely report STATE_PLAYING a tick or two
         // before publishing the track, so the same start arrives first as "no metadata" and then as
-        // the real title — two different keys, which read as two tracks starting and would leave the
-        // island showing the same tile twice. Waiting for the metadata to settle collapses that into
-        // one pop carrying the final track, while a genuine track change is still its own pop.
+        // the real title — two different keys, which read as two tracks starting and would leave
+        // the island showing the same tile twice. Waiting for the metadata to settle collapses that
+        // into one pop carrying the final track, while a genuine track change is still its own pop.
         val signal = CutoutSignal.Music(
             packageName = primary.packageName,
             title = title,
@@ -313,7 +340,7 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         /**
          * How long a new track is held before it pops the island, letting a session that reports its
-         * playback state and its metadata in separate ticks settle into a single signal. Short enough
+         * playback state and its metadata in separate ticks settle into a single pop. Short enough
          * that a real track change still feels immediate.
          */
         const val SHOW_DEBOUNCE_MS = 250L
