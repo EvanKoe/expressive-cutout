@@ -18,19 +18,31 @@ import androidx.core.graphics.createBitmap
  */
 object AppIconColorExtractor {
     private val colorCache = LruCache<String, Int>(64)
+    private val unavailablePackages = LruCache<String, Boolean>(64)
+    private val packageNamePattern = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
 
     /**
      * Retrieves the primary color for [packageName], or null if it cannot be resolved.
      */
     fun extractAppColor(context: Context, packageName: String): Color? {
+        if (!packageNamePattern.matches(packageName) || unavailablePackages.get(packageName) == true) {
+            return null
+        }
+
         val cached = colorCache.get(packageName)
         if (cached != null) {
             return Color(cached)
         }
 
-        val drawable = getPlainAppIcon(context, packageName) ?: return null
+        val drawable = getPlainAppIcon(context, packageName) ?: run {
+            unavailablePackages.put(packageName, true)
+            return null
+        }
         val bitmap = drawableToBitmap(drawable, 48, 48)
-        val extractedInt = extractDominantColor(bitmap) ?: return null
+        val extractedInt = extractDominantColor(bitmap) ?: run {
+            unavailablePackages.put(packageName, true)
+            return null
+        }
         colorCache.put(packageName, extractedInt)
         return Color(extractedInt)
     }
