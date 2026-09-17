@@ -27,7 +27,10 @@ data class NowPlaying(
     val packageName: String,
     val title: String?,
     val artist: String?,
+    /** Track artwork used by the compact pill. */
     val albumArt: ImageBitmap?,
+    /** Album artwork used by the expanded background, when the player publishes it separately. */
+    val albumBackgroundArt: ImageBitmap? = null,
     val isPlaying: Boolean,
     val transport: MediaTransport,
     /** Where playback has got to, or null for a session that publishes no position. */
