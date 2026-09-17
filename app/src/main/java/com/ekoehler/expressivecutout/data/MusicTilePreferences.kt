@@ -81,6 +81,7 @@ enum class MusicRightButtonAction { PREVIOUS, PLAY_PAUSE, NEXT }
 /** The music tile's own settings, edited on its dedicated settings screen. */
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
+    val showAlbumBackground: Boolean = DEFAULT_SHOW_ALBUM_BACKGROUND,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
     /**
      * Crop the album cover to a full circle rather than a rounded square. Forced on while
@@ -140,6 +141,7 @@ data class MusicTileSettings(
 ) {
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
+        const val DEFAULT_SHOW_ALBUM_BACKGROUND = false
         const val DEFAULT_ROTATE_ALBUM_ART = false
         const val DEFAULT_CIRCLE_COVER = false
         const val DEFAULT_ALBUM_ART_STROKE = false
@@ -170,6 +172,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
+            showAlbumBackground = prefs[SHOW_ALBUM_BACKGROUND] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_BACKGROUND,
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
             circleCover = prefs[CIRCLE_COVER] ?: MusicTileSettings.DEFAULT_CIRCLE_COVER,
             albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
@@ -226,6 +229,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val s = settings.first()
         return JSONObject().apply {
             put("showAlbumArt", s.showAlbumArt)
+            put("showAlbumBackground", s.showAlbumBackground)
             put("rotateAlbumArt", s.rotateAlbumArt)
             put("circleCover", s.circleCover)
             put("albumArtStroke", s.albumArtStroke)
@@ -260,6 +264,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val obj = JSONObject(json)
         context.musicTileDataStore.edit { prefs ->
             if (obj.has("showAlbumArt")) prefs[SHOW_ALBUM_ART] = obj.getBoolean("showAlbumArt")
+            if (obj.has("showAlbumBackground")) prefs[SHOW_ALBUM_BACKGROUND] = obj.getBoolean("showAlbumBackground")
             if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
             if (obj.has("circleCover")) prefs[CIRCLE_COVER] = obj.getBoolean("circleCover")
             if (obj.has("albumArtStroke")) prefs[ALBUM_ART_STROKE] = obj.getBoolean("albumArtStroke")
@@ -323,6 +328,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
         it[SHOW_ALBUM_ART] = enabled
+    }
+
+    suspend fun setShowAlbumBackground(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[SHOW_ALBUM_BACKGROUND] = enabled
     }
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -503,6 +512,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
+        val SHOW_ALBUM_BACKGROUND = booleanPreferencesKey("show_album_background")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
         val CIRCLE_COVER = booleanPreferencesKey("circle_cover")
         val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
