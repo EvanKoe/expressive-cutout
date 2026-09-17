@@ -194,6 +194,8 @@ data class CallTileOptions(
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
 data class MediaTileOptions(
     val showAlbumArt: Boolean,
+    /** Draw the album cover behind the expanded music player. */
+    val showAlbumBackground: Boolean = false,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
     /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */
