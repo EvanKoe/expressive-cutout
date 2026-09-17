@@ -191,6 +191,8 @@
     <!-- Music tile settings -->
     <string name="music_show_art_title">Album art</string>
     <string name="music_show_art_desc">Show the album cover on the normal cutout while music plays.</string>
+    <string name="music_album_background_title">Album art background</string>
+    <string name="music_album_background_desc">Use the album cover behind the expanded music player.</string>
     <string name="music_rotate_art_title">Spin album art</string>
     <string name="music_rotate_art_desc">Rotate the album cover while music plays; it stops when paused.</string>
     <string name="music_circle_cover_title">Circle cover</string>
