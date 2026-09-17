@@ -150,6 +150,14 @@ internal fun MusicTileScreen(
             onCheckedChange = viewModel::setMusicShowAlbumArt,
         )
 
+        SettingsToggleCard(
+            shape = groupedShape(),
+            title = stringResource(R.string.music_album_background_title),
+            description = stringResource(R.string.music_album_background_desc),
+            checked = settings.showAlbumBackground,
+            onCheckedChange = viewModel::setMusicShowAlbumBackground,
+        )
+
         // Rotation and the ring only apply to the album cover, so they ride with its toggle.
         AnimatedVisibility(visible = settings.showAlbumArt) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
