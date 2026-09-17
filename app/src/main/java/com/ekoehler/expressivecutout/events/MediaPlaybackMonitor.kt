@@ -306,9 +306,11 @@ class MediaPlaybackMonitor(private val context: Context) {
      */
     private fun MediaMetadata.trackArt(): ImageBitmap? = (
         getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         )?.toArtImageBitmap()
         ?: trackArtUri()?.loadImageBitmapOrNull(context)
+        ?: albumArtUri()?.loadImageBitmapOrNull(context)
 
     private fun MediaMetadata.albumBackgroundArt(): ImageBitmap? = (
         getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
@@ -317,6 +319,7 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     private fun MediaMetadata.trackArtUri(): Uri? = listOf(
         MediaMetadata.METADATA_KEY_ART_URI,
+        MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
         MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
     ).firstNotNullOfOrNull { key -> getString(key)?.takeIf { it.isNotBlank() } }
         ?.let { runCatching { it.toUri() }.getOrNull() }
