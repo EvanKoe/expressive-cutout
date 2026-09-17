@@ -3006,7 +3006,6 @@ private fun MediaExpandedContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp)
     ) {
         if (albumBackground != null && event.media?.showAlbumBackground == true) {
             Image(
@@ -3027,6 +3026,7 @@ private fun MediaExpandedContent(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp)
                 .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
