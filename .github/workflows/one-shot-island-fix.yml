@@ -1,0 +1,122 @@
+name: One-shot Island Fix
+
+on:
+  push:
+    branches:
+      - fix/comprehensive-audit
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply approved fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          controller = Path("app/src/main/java/com/vikram/expressiveisland/overlay/IslandOverlayController.kt")
+          text = controller.read_text()
+
+          marker = "// System broadcasts can arrive in bursts"
+          if marker not in text:
+              old = '''    private var satelliteDismissJob: Job? = null
+    private var currentDeadlineMs: Long? = null
+    private var satelliteDeadlineMs: Long? = null
+'''
+              new = '''    private var satelliteDismissJob: Job? = null
+    private var currentDeadlineMs: Long? = null
+    private var satelliteDeadlineMs: Long? = null
+
+    // System broadcasts can arrive in bursts (for example charging + network + Bluetooth during
+    // a connection change). Keep the UI responsive by coalescing passive system presentations.
+    private var lastSystemPresentationAtMs = 0L
+    private val systemPresentationWindowMs = 150L
+'''
+              if old not in text:
+                  raise SystemExit("controller field anchor not found")
+              text = text.replace(old, new, 1)
+
+          old = '''            val rawAutoExpand = when (signal) {
+                is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
+                is CutoutSignal.Music -> musicSettings.expandOnPlay
+                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
+                is CutoutSignal.System -> {
+                    signal.type == SystemEventType.BATTERY_LOW ||
+                            signal.type == SystemEventType.CHARGING_STARTED ||
+                            signal.type == SystemEventType.WIFI_CONNECTED ||
+                            signal.type == SystemEventType.HEADPHONES_CONNECTED
+                }
+                // The phone tile has no expanded state — it is shown as one bigger normal cutout.
+                is CutoutSignal.Call -> false
+                is CutoutSignal.Timer -> false
+            }
+'''
+              new = '''            // Device-state events are passive: update the pill without opening the expanded card.
+            // This prevents charging/network/Bluetooth callback bursts from restarting animations.
+            if (signal is CutoutSignal.System) {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastSystemPresentationAtMs < systemPresentationWindowMs) return@collect
+                lastSystemPresentationAtMs = now
+            }
+
+            val rawAutoExpand = when (signal) {
+                is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
+                is CutoutSignal.Music -> musicSettings.expandOnPlay
+                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
+                is CutoutSignal.System -> false
+                // The phone tile has no expanded state — it is shown as one bigger normal cutout.
+                is CutoutSignal.Call -> false
+                is CutoutSignal.Timer -> false
+            }
+'''
+              if old not in text:
+                  raise SystemExit("controller auto-expand block not found")
+              text = text.replace(old, new, 1)
+              controller.write_text(text)
+
+          dynamic = Path("app/src/main/java/com/vikram/expressiveisland/overlay/DynamicIsland.kt")
+          text = dynamic.read_text()
+          marker = "// Keep expansion state tied to the logical content"
+          if marker not in text:
+              old = '''    val expansionKey = if (shownEvent?.media != null) {
+        "media"
+    } else {
+        shownEvent?.id
+    }
+
+    var tapExpanded by remember(expansionKey, forcedExpanded) {
+'''
+              new = '''    // Keep expansion state tied to the logical content, not transient event IDs.
+    // Notification progress updates retain their notification key, so an expanded card stays open.
+    val expansionKey = when {
+        shownEvent?.notificationKey != null -> "notification:${shownEvent.notificationKey}"
+        shownEvent?.media != null -> "media"
+        shownEvent?.timer != null -> "timer"
+        shownEvent?.call != null -> "call"
+        shownEvent?.assistant != null -> "assistant"
+        else -> shownEvent?.id
+    }
+
+    var tapExpanded by remember(expansionKey, forcedExpanded) {
+'''
+              if old not in text:
+                  raise SystemExit("dynamic expansion key block not found")
+              text = text.replace(old, new, 1)
+              dynamic.write_text(text)
+
+          print("Approved island fixes applied")
+          PY
+
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/vikram/expressiveisland/overlay/IslandOverlayController.kt app/src/main/java/com/vikram/expressiveisland/overlay/DynamicIsland.kt
+          git diff --cached --quiet || git commit -m "fix: stabilize island expansion and progress state"
+          git push
