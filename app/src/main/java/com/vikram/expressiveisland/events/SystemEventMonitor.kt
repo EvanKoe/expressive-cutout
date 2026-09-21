@@ -62,7 +62,9 @@ class SystemEventMonitor(private val context: Context) {
         context.getSystemService<BluetoothManager>()
 
     private val vpnNetworks = mutableSetOf<Network>()
+    private val wifiNetworks = mutableSetOf<Network>()
     private val bluetoothDevices = mutableSetOf<String>()
+    private val headphoneDevices = mutableSetOf<Int>()
 
     @Volatile
     private var isLowBatteryState = false
@@ -214,81 +216,69 @@ class SystemEventMonitor(private val context: Context) {
             addedDevices: Array<out AudioDeviceInfo>,
         ) {
             addedDevices
-                .firstOrNull { it.isHeadphone }
-                ?.let { device ->
-                    HeadphonesBus.update(
-                        HeadphonesState(
-                            name = device.productName?.toString(),
-                            type = device.type,
+                .filter { it.isHeadphone }
+                .forEach { device ->
+                    if (headphoneDevices.add(device.id)) {
+                        HeadphonesBus.update(
+                            HeadphonesState(
+                                name = device.productName?.toString(),
+                                type = device.type,
+                            )
                         )
-                    )
-
-                    emit(SystemEventType.HEADPHONES_CONNECTED)
+                        emit(SystemEventType.HEADPHONES_CONNECTED)
+                    }
                 }
         }
 
         override fun onAudioDevicesRemoved(
             removedDevices: Array<out AudioDeviceInfo>,
         ) {
-            if (removedDevices.any { it.isHeadphone }) {
+            removedDevices
+                .filter { it.isHeadphone }
+                .forEach { device -> headphoneDevices.remove(device.id) }
+            if (headphoneDevices.isEmpty() && removedDevices.any { it.isHeadphone }) {
+                HeadphonesBus.update(null)
                 emit(SystemEventType.HEADPHONES_DISCONNECTED)
             }
         }
     }
 
-    private val networkCallback =
+    private val wifiNetworkCallback =
         object : ConnectivityManager.NetworkCallback() {
-
             override fun onAvailable(network: Network) {
-                val capabilities = connectivityManager?.getNetworkCapabilities(network)
-
-                if (capabilities?.hasTransport(TRANSPORT_VPN) == true) {
-                    vpnNetworks.add(network)
-                    emit(SystemEventType.VPN_CONNECTED)
-                }
-
-                emit(SystemEventType.WIFI_CONNECTED)
+                if (wifiNetworks.add(network)) emit(SystemEventType.WIFI_CONNECTED)
+                updateWifiState(network, connectivityManager?.getNetworkCapabilities(network))
             }
 
-            override fun onCapabilitiesChanged(
-                network: Network,
-                capabilities: NetworkCapabilities,
-            ) {
-                Log.d(
-                    "WifiDebug",
-                    "onCapabilitiesChanged() network=$network"
-                )
-
-                updateWifiState(
-                    network,
-                    capabilities,
-                )
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                updateWifiState(network, capabilities)
             }
 
-            override fun onLinkPropertiesChanged(
-                network: Network,
-                linkProperties: LinkProperties,
-            ) {
-                Log.d(
-                    "WifiDebug",
-                    "onLinkPropertiesChanged() network=$network"
-                )
-
-                updateWifiState(
-                    network,
-                    connectivityManager
-                        ?.getNetworkCapabilities(network),
-                )
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                updateWifiState(network, connectivityManager?.getNetworkCapabilities(network))
             }
 
             override fun onLost(network: Network) {
-                if (vpnNetworks.remove(network)) {
+                if (wifiNetworks.remove(network) && wifiNetworks.isEmpty()) {
+                    WifiBus.update(null)
+                    emit(SystemEventType.WIFI_DISCONNECTED)
+                }
+            }
+        }
+
+    private val vpnNetworkCallback =
+        object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                val capabilities = connectivityManager?.getNetworkCapabilities(network)
+                if (capabilities?.hasTransport(TRANSPORT_VPN) == true && vpnNetworks.add(network)) {
+                    emit(SystemEventType.VPN_CONNECTED)
+                }
+            }
+
+            override fun onLost(network: Network) {
+                if (vpnNetworks.remove(network) && vpnNetworks.isEmpty()) {
                     emit(SystemEventType.VPN_DISCONNECTED)
                 }
-
-                WifiBus.update(null)
-
-                emit(SystemEventType.WIFI_DISCONNECTED)
             }
         }
 
@@ -516,7 +506,11 @@ class SystemEventMonitor(private val context: Context) {
 
         connectivityManager?.registerNetworkCallback(
             wifiRequest(),
-            networkCallback,
+            wifiNetworkCallback,
+        )
+        connectivityManager?.registerNetworkCallback(
+            vpnRequest(),
+            vpnNetworkCallback,
         )
 
         // Populate charging state immediately if the monitor starts while
@@ -538,12 +532,13 @@ class SystemEventMonitor(private val context: Context) {
             audioDeviceCallback
         )
 
-        connectivityManager?.unregisterNetworkCallback(
-            networkCallback
-        )
+        connectivityManager?.unregisterNetworkCallback(wifiNetworkCallback)
+        connectivityManager?.unregisterNetworkCallback(vpnNetworkCallback)
 
         vpnNetworks.clear()
+        wifiNetworks.clear()
         bluetoothDevices.clear()
+        headphoneDevices.clear()
         wasHotspotEnabled = false
 
         ChargingBus.update(null)
@@ -698,9 +693,12 @@ class SystemEventMonitor(private val context: Context) {
 
     private fun wifiRequest() =
         NetworkRequest.Builder()
-            .addTransportType(
-                NetworkCapabilities.TRANSPORT_WIFI
-            )
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+
+    private fun vpnRequest() =
+        NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
             .build()
 
     private val AudioDeviceInfo.isHeadphone: Boolean

@@ -157,6 +157,6 @@ object StatusBarIconController {
             IBinder::class.java,
             String::class.java,
             Int::class.javaPrimitiveType,
-        ).invoke(this, flags, token, packageName, android.os.Process.myUserHandle().hashCode())
+        ).invoke(this, flags, token, packageName, android.os.UserHandle.myUserId())
     }
 }

@@ -127,7 +127,7 @@ private fun DynamicTileCard(
         glyphColor = when (containerColor) {
             is CutoutColor.Dynamic -> onDynamicRole(containerColor.role)
             is CutoutColor.Solid -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
-            is CutoutColor.AppIcon -> TODO()
+            is CutoutColor.AppIcon -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
         }
     } else {
         badgeColor = accent.copy(alpha = 0.18f)

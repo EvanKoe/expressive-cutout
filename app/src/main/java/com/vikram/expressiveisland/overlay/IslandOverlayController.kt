@@ -114,6 +114,12 @@ val DEFAULT_SATELLITE_POSITION = SatellitePosition.RIGHT
  */
 class IslandOverlayController(private val context: Context) {
 
+    private enum class NotificationDisposition {
+        RELEASE,
+        SETTLE,
+        DISCARD,
+    }
+
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
     private val keyguardManager = context.getSystemService<KeyguardManager>()
@@ -1215,6 +1221,10 @@ class IslandOverlayController(private val context: Context) {
 
     private fun parkInSatellite(event: IslandEvent, deadlineMs: Long?) {
         satelliteDismissJob?.cancel()
+        val previous = satelliteEvent.value
+        if (previous != null && previous.id != event.id) {
+            previous.notificationKey?.let(CutoutNotificationListenerService::release)
+        }
         satelliteEvent.value = event
         satelliteDeadlineMs = deadlineMs
         if (deadlineMs != null) {
@@ -1245,11 +1255,15 @@ class IslandOverlayController(private val context: Context) {
         parkInSatellite(displaced, deadlineMs)
     }
 
-    private fun clearSatellite() {
+    private fun clearSatellite(releaseNotification: Boolean = true) {
         satelliteDismissJob?.cancel()
         satelliteDismissJob = null
         satelliteDeadlineMs = null
-        if (satelliteEvent.value != null) {
+        val satellite = satelliteEvent.value
+        if (satellite != null) {
+            if (releaseNotification) {
+                satellite.notificationKey?.let(CutoutNotificationListenerService::release)
+            }
             satelliteEvent.value = null
             syncWindowSize()
         }
@@ -1286,7 +1300,7 @@ class IslandOverlayController(private val context: Context) {
             clearSatellite()
             return false
         }
-        clearSatellite()
+        clearSatellite(releaseNotification = false)
         forcedExpanded.value = null
         expanded = false
         currentSystemEventType = null
@@ -1740,7 +1754,7 @@ class IslandOverlayController(private val context: Context) {
             intent?.let(::sendPendingIntent)
             return
         }
-        dismissIsland()
+        dismissIsland(NotificationDisposition.SETTLE)
         intent?.let(::sendPendingIntent)
     }
 
@@ -1749,12 +1763,7 @@ class IslandOverlayController(private val context: Context) {
      * notification from the system too (like swiping it away in the shade).
      */
     private fun onDismiss() {
-        currentEvent.value?.notificationKey?.let {
-            CutoutNotificationListenerService.Companion.dismiss(
-                it
-            )
-        }
-        dismissIsland()
+        dismissIsland(NotificationDisposition.DISCARD)
     }
 
     /** Fire one of the notification's action buttons, then dismiss the island. */
@@ -1764,11 +1773,11 @@ class IslandOverlayController(private val context: Context) {
         // rather than letting it linger until the removed notification trips the auto-dismiss timer.
         // The others (Pause / Resume / Add 1 min) only change a running timer, so keep the pill up.
         if (currentEvent.value?.timer != null) {
-            if (action.destructive) dismissIsland()
+            if (action.destructive) dismissIsland(NotificationDisposition.SETTLE)
             action.intent?.let(::sendPendingIntent)
             return
         }
-        dismissIsland()
+        dismissIsland(NotificationDisposition.SETTLE)
         action.intent?.let(::sendPendingIntent)
     }
 
@@ -1779,7 +1788,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
         val intent = action.intent ?: return
-        dismissIsland()
+        dismissIsland(NotificationDisposition.SETTLE)
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }
         RemoteInput.addResultsToIntent(reply.remoteInputs.toTypedArray(), fillIn, results)
@@ -1813,11 +1822,20 @@ class IslandOverlayController(private val context: Context) {
      * pill — but only after a short beat, so it eases back in rather than snapping in the instant the
      * interruption clears (which read as laggy). Re-checks playback after the delay in case it ended.
      */
-    private fun dismissIsland() {
+    private fun dismissIsland(disposition: NotificationDisposition = NotificationDisposition.RELEASE) {
         dismissJob?.cancel()
         restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
+        val event = currentEvent.value
+        val notificationKey = event?.notificationKey
+        if (notificationKey != null) {
+            when (disposition) {
+                NotificationDisposition.RELEASE -> CutoutNotificationListenerService.release(notificationKey)
+                NotificationDisposition.SETTLE -> CutoutNotificationListenerService.settle(notificationKey)
+                NotificationDisposition.DISCARD -> CutoutNotificationListenerService.dismiss(notificationKey)
+            }
+        }
         if (promoteSatelliteCollapsed()) return
         val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
