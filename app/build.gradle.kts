@@ -40,7 +40,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Keep release builds optimized without embedding signing credentials in source.
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (releaseStoreFile != null && releaseStorePassword != null &&
                 releaseKeyAlias != null && releaseKeyPassword != null
             ) {
