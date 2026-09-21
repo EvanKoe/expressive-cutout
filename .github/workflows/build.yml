@@ -2,7 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/comprehensive-audit
   pull_request:
     branches: [main]
   workflow_dispatch:
