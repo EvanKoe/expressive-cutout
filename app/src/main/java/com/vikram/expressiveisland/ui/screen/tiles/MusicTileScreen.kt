@@ -214,6 +214,34 @@ internal fun MusicTileScreen(
             checked = settings.showProgress,
             onCheckedChange = viewModel::setMusicShowProgress,
         )
+
+        SettingsToggleCard(
+            shape = RoundedCornerShape(4.dp),
+            title = stringResource(R.string.music_expanded_background_title),
+            description = stringResource(R.string.music_expanded_background_desc),
+            checked = settings.expandedBackground,
+            onCheckedChange = viewModel::setMusicExpandedBackground,
+        )
+        AnimatedVisibility(visible = settings.expandedBackground) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                var blur by remember(settings.expandedBackgroundBlur) {
+                    mutableFloatStateOf(settings.expandedBackgroundBlur)
+                }
+                AdjustableSlider(
+                    label = stringResource(R.string.music_background_blur),
+                    valueText = "${blur.roundToInt()} dp",
+                    value = blur,
+                    valueRange = 0f..40f,
+                    step = 1f,
+                    onValueChange = { blur = it },
+                    onCommit = { viewModel.setMusicExpandedBackgroundBlur(blur) },
+                )
+            }
+        }
     }
 }
 

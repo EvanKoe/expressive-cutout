@@ -94,6 +94,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
@@ -171,6 +172,7 @@ import com.vikram.expressiveisland.data.IconSource
 import com.vikram.expressiveisland.data.IslandDimensions
 import com.vikram.expressiveisland.data.IslandLayout
 import com.vikram.expressiveisland.data.MusicButtonStyle
+import com.vikram.expressiveisland.data.MusicTilePreferences
 import com.vikram.expressiveisland.data.ReplyInputStyle
 import com.vikram.expressiveisland.data.SentAlignment
 import com.vikram.expressiveisland.data.SwipeDismissDirection
@@ -2871,15 +2873,32 @@ private fun MediaExpandedContent(
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
+    val musicPreferences = remember { MusicTilePreferences(LocalContext.current) }
+    val musicSettings by musicPreferences.settings.collectAsStateWithLifecycle()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (musicSettings.expandedBackground && albumArt != null) {
+            Image(
+                bitmap = albumArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(musicSettings.expandedBackgroundBlur.dp)
+                    .graphicsLayer { alpha = 0.72f },
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.28f)),
+            )
+        }
+
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),

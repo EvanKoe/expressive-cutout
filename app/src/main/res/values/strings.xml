@@ -577,6 +577,9 @@
     <string name="bgColor_oled_desc">Use pure black for lower consuption on OLED screens</string>
     <string name="music_progress_title">Show progress</string>
     <string name="music_progress_description">Display a playback progress bar under the controls</string>
+    <string name="music_expanded_background_title">Album cover background</string>
+    <string name="music_expanded_background_desc">Use the current album cover as the background of the expanded music card.</string>
+    <string name="music_background_blur">Background blur</string>
     <string name="behaviour_dismissNotifs_title">Automatically dismiss notifications</string>
     <string name="behaviour_dismissNotifs_desc">Keep notifications out of the shade while the island shows them. Ignore one and it comes back a minute later, so nothing is lost</string>
     <string name="behaviour_displayWhileDnd_title">Display while Do not disturb</string>

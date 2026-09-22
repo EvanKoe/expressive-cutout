@@ -868,6 +868,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowProgress(enabled)
     }
 
+    fun setMusicExpandedBackground(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setExpandedBackground(enabled)
+    }
+
+    fun setMusicExpandedBackgroundBlur(blurDp: Float) = viewModelScope.launch {
+        musicTilePreferences.setExpandedBackgroundBlur(blurDp)
+    }
+
     fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setDismissNotifications(enabled)
     }
