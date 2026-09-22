@@ -3,7 +3,9 @@ package com.ekoehler.expressivecutout.ui.screen.tiles
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +23,8 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 
 /**
@@ -42,6 +46,9 @@ internal fun PhoneTileScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.tile_phone))
+        Spacer(modifier = Modifier.height(8.dp))
+
         SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp),
             title = stringResource(R.string.phone_show_photo_title),
@@ -101,6 +108,7 @@ internal fun PhoneTileScreen(
             onSelect = viewModel::setPhoneIconContainerColor,
             defaultLabel = stringResource(R.string.music_default_accent),
             defaultColor = Color(DynamicTile.PHONE.accent),
+            shape = groupedShape(isFirst = true, isLast = true)
         )
 
         // Button colours only matter when the action buttons are shown.
@@ -111,18 +119,13 @@ internal fun PhoneTileScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
             )
+
             ColorPickerCard(
                 label = stringResource(R.string.phone_hangup_color_label),
                 selected = settings.hangUpColor,
                 onSelect = { it?.let(viewModel::setPhoneHangUpColor) },
+                shape = groupedShape(isFirst = true, isLast = true)
             )
         }
-
-        Text(
-            text = stringResource(R.string.phone_tile_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-        )
     }
 }
