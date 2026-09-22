@@ -448,8 +448,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneShowButtonLabels(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowButtonLabels(enabled)
+    }
+
     fun setPhoneExpandedIncomingLayout(enabled: Boolean) = viewModelScope.launch {
         phoneTilePreferences.setExpandedIncomingLayout(enabled)
+    }
+
+    fun setPhoneMiniCall(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setMiniCall(enabled)
     }
 
     fun setPhoneIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
@@ -462,6 +470,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPhoneOtherButtonColor(color: CutoutColor) = viewModelScope.launch {
         phoneTilePreferences.setOtherButtonColor(color)
+    }
+
+    fun setPhoneIncomingAnswerColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingAnswerColor(color)
+    }
+
+    fun setPhoneIncomingHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingHangUpColor(color)
+    }
+
+    fun setPhoneExpandedHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setExpandedHangUpColor(color)
     }
 
     fun setTimerShowActions(enabled: Boolean) = viewModelScope.launch {

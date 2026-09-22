@@ -3,7 +3,9 @@ package com.ekoehler.expressivecutout.ui.screen.tiles
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +23,8 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 
 /**
@@ -42,6 +46,9 @@ internal fun PhoneTileScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.tile_phone))
+        Spacer(modifier = Modifier.height(8.dp))
+
         SettingsToggleCard(
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp),
             title = stringResource(R.string.phone_show_photo_title),
@@ -64,11 +71,28 @@ internal fun PhoneTileScreen(
             onCheckedChange = viewModel::setPhoneShowActions,
         )
         SettingsToggleCard(
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
+            shape = RoundedCornerShape(4.dp),
             title = stringResource(R.string.phone_expanded_incoming_title),
             description = stringResource(R.string.phone_expanded_incoming_desc),
             checked = settings.expandedIncomingLayout,
             onCheckedChange = viewModel::setPhoneExpandedIncomingLayout,
+        )
+        // The wide Take / Hang up buttons that carry these labels only exist in that taller layout.
+        if (settings.expandedIncomingLayout) {
+            SettingsToggleCard(
+                shape = RoundedCornerShape(4.dp),
+                title = stringResource(R.string.phone_button_labels_title),
+                description = stringResource(R.string.phone_button_labels_desc),
+                checked = settings.showButtonLabels,
+                onCheckedChange = viewModel::setPhoneShowButtonLabels,
+            )
+        }
+        SettingsToggleCard(
+            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp),
+            title = stringResource(R.string.phone_mini_call_title),
+            description = stringResource(R.string.phone_mini_call_desc),
+            checked = settings.miniCall,
+            onCheckedChange = viewModel::setPhoneMiniCall,
         )
 
         // The icon container is the fallback disc shown on the cutout when there's no contact photo.
@@ -84,6 +108,7 @@ internal fun PhoneTileScreen(
             onSelect = viewModel::setPhoneIconContainerColor,
             defaultLabel = stringResource(R.string.music_default_accent),
             defaultColor = Color(DynamicTile.PHONE.accent),
+            shape = groupedShape(isFirst = true, isLast = true)
         )
 
         // Button colours only matter when the action buttons are shown.
@@ -94,18 +119,31 @@ internal fun PhoneTileScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
             )
+
             ColorPickerCard(
                 label = stringResource(R.string.phone_hangup_color_label),
                 selected = settings.hangUpColor,
                 onSelect = { it?.let(viewModel::setPhoneHangUpColor) },
+                shape = groupedShape(isFirst = true)
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_incoming_answer_color_label),
+                selected = settings.incomingAnswerColor,
+                onSelect = { it?.let(viewModel::setPhoneIncomingAnswerColor) },
+                shape = groupedShape()
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_incoming_hangup_color_label),
+                selected = settings.incomingHangUpColor,
+                onSelect = { it?.let(viewModel::setPhoneIncomingHangUpColor) },
+                shape = groupedShape()
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_expanded_hangup_color_label),
+                selected = settings.expandedHangUpColor,
+                onSelect = { it?.let(viewModel::setPhoneExpandedHangUpColor) },
+                shape = groupedShape(isLast = true)
             )
         }
-
-        Text(
-            text = stringResource(R.string.phone_tile_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-        )
     }
 }

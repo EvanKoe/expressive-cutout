@@ -183,12 +183,26 @@ data class CallTileOptions(
     val showPhoto: Boolean,
     val showDuration: Boolean,
     val showActions: Boolean,
+    /** Label the wide call buttons (Take / Hang up) beside their icon instead of showing the icon alone. */
+    val showButtonLabels: Boolean,
     /** Use the taller two-row layout for an incoming (ringing) call instead of the compact single row. */
     val incomingExpandedLayout: Boolean,
+    /**
+     * Draw the tiny cutout — the same small pill the music tile's "Mini player" uses, carrying only
+     * a call glyph — in place of a connected call's normal cutout. A tap still opens the expanded
+     * call controls. Ignored while the call is ringing: that layout carries the answer button.
+     */
+    val miniCall: Boolean = false,
     /** Fill of the hang-up / end-call button. */
     val hangUpColor: CutoutColor,
     /** Fill shared by every other call button. */
     val otherButtonColor: CutoutColor,
+    /** Fill of the Take (answer) button on a ringing call. */
+    val incomingAnswerColor: CutoutColor,
+    /** Fill of the Hang up (decline) button on a ringing call. */
+    val incomingHangUpColor: CutoutColor,
+    /** Fill of the hang-up button on the expanded call card. */
+    val expandedHangUpColor: CutoutColor,
 )
 
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
@@ -266,3 +280,12 @@ data class IslandReply(
     val remoteInputs: List<RemoteInput>,
     val hint: String?,
 )
+
+/**
+ * Whether this event draws the tiny cutout in place of its own normal one: the music tile's "Mini
+ * player", or the phone tile's "Mini call" on a call that has already connected ([callOngoing]) —
+ * a ringing one keeps its layout so the answer button stays reachable. Shared by the overlay's
+ * rendering and its window sizing so the two always agree on the pill's geometry.
+ */
+fun IslandEvent.usesTinyCutout(callOngoing: Boolean): Boolean =
+    media?.miniPlayer == true || (call?.miniCall == true && callOngoing)

@@ -358,31 +358,23 @@ internal fun ColorSwatch(
     badgePainter: androidx.compose.ui.graphics.painter.Painter? = null,
     badgeDescription: String? = null,
 ) {
-    val ring = MaterialTheme.colorScheme.primary
-    // A faint border keeps near-white swatches visible against the card.
-    val edge = MaterialTheme.colorScheme.outlineVariant
-    // Expressive: the selected swatch springs up a touch and its ring thickens.
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1f,
+        targetValue = if (selected) 1.4f else 1f,
         animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow),
         label = "swatchScale",
     )
-    val ringWidth by animateDpAsState(
-        targetValue = if (selected) 3.dp else 1.dp,
+    val borderRadius by animateDpAsState(
+        targetValue = if (selected) 24.dp else 4.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "swatchRing",
+        label = "swatchRadius",
     )
+
     Box(
         modifier = Modifier
-            .size(44.dp)
-            .scale(scale)
-            .clip(CircleShape)
+            .height(44.dp)
+            .width((52 * scale).dp)
+            .clip(shape = RoundedCornerShape(borderRadius))
             .background(color)
-            .border(
-                width = ringWidth,
-                color = if (selected) ring else edge,
-                shape = CircleShape,
-            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -439,15 +431,10 @@ internal fun CustomColorSwatch(
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clip(CircleShape)
+            .clip(shape = RoundedCornerShape(4.dp))
             .then(
                 if (selectedColor != null) Modifier.background(selectedColor)
                 else Modifier.background(rainbow),
-            )
-            .border(
-                width = if (selectedColor != null) 3.dp else 1.dp,
-                color = if (selectedColor != null) ring else edge,
-                shape = CircleShape,
             )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

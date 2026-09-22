@@ -130,6 +130,40 @@ fun IslandDimensions.asTinyCutout(
     )
 }
 
+/**
+ * The split connected call's pill: the user's own collapsed geometry — height, corners, vertical
+ * offset — but sized and placed around the physical camera like [asTinyCutout], since its content
+ * has to stay readable. [contentWidthDp] of badge and clock sits on the leading side, ending where
+ * the camera hole begins, and the pill runs on past the hole, clearing it by [TINY_CAMERA_GAP_DP],
+ * with nothing drawn over it.
+ *
+ * @param displayWidthDp the screen width, since [IslandDimensions] stores width as a percentage of it.
+ * @param cameraRightEdgeDp the camera cutout's right edge measured from the screen's horizontal
+ *   centre, or null when the device won't report one — then [DEFAULT_CAMERA_RADIUS_DP] stands in.
+ */
+fun IslandDimensions.asSplitCallCutout(
+    displayWidthDp: Int,
+    contentWidthDp: Float,
+    cameraRightEdgeDp: Float? = null,
+): IslandDimensions {
+    val cameraRight = cameraRightEdgeDp ?: DEFAULT_CAMERA_RADIUS_DP
+    val widthDp = contentWidthDp + cameraRight * 2f + TINY_CAMERA_GAP_DP
+    val percent = if (displayWidthDp > 0) (widthDp * 100f / displayWidthDp).roundToInt() else widthPercent
+    return IslandDimensions.of(
+        widthPercent = percent,
+        heightDp = heightDp,
+        // Centre of the span from the content's leading edge (one camera radius left of the hole,
+        // less the content) to the trailing edge that clears the hole by a gap.
+        offsetXDp = ((TINY_CAMERA_GAP_DP - contentWidthDp) / 2f).roundToInt(),
+        offsetYDp = offsetYDp,
+        cornerTopLeftDp = cornerTopLeftDp,
+        cornerTopRightDp = cornerTopRightDp,
+        cornerBottomLeftDp = cornerBottomLeftDp,
+        cornerBottomRightDp = cornerBottomRightDp,
+        topMarginDp = topMarginDp,
+    )
+}
+
 /** How much wider than it is tall the tiny cutout is — just enough for its glyph. */
 private const val TINY_WIDTH_RATIO = 1.8f
 
@@ -137,7 +171,7 @@ private const val TINY_WIDTH_RATIO = 1.8f
 private const val TINY_CAMERA_GAP_DP = 4f
 
 /** Half a typical punch-hole, standing in when the device won't report its cutout. */
-private const val DEFAULT_CAMERA_RADIUS_DP = 16f
+internal const val DEFAULT_CAMERA_RADIUS_DP = 16f
 
 /** The two independently configurable island states. */
 data class IslandLayout(

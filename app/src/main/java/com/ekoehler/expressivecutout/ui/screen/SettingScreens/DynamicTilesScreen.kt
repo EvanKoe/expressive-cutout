@@ -34,8 +34,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.overlay.onDynamicRole
@@ -63,21 +63,25 @@ internal fun DynamicTilesScreen(
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .padding(contentPadding)
+    ) {
+        PageTitle(text = stringResource(R.string.dynamic_tiles_title))
+        Spacer(modifier = Modifier.height(8.dp))
+
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
-            contentPadding = contentPadding,
         ) {
             itemsIndexed(tiles, key = { _, tile -> tile.name }) { index, tile ->
-                // Music has no badge of its own on the cutout — the row previews the container it
-                // falls back to when a track publishes no cover.
                 val containerColor = when (tile) {
                     DynamicTile.PHONE -> phone.iconContainerColor
                     DynamicTile.TIMER -> timer.iconContainerColor
                     DynamicTile.ASSISTANT -> assistant.iconContainerColor
                     DynamicTile.MUSIC -> music.coverFallbackColor
                 }
+
                 DynamicTileCard(
                     tile = tile,
                     shape = groupShape(index = index, lastIndex = lastIndex),
