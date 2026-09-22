@@ -322,6 +322,9 @@ class IconResolver(private val context: Context) {
                 miniCall = settings.miniCall,
                 hangUpColor = settings.hangUpColor,
                 otherButtonColor = settings.otherButtonColor,
+                incomingAnswerColor = settings.incomingAnswerColor,
+                incomingHangUpColor = settings.incomingHangUpColor,
+                expandedHangUpColor = settings.expandedHangUpColor,
             ),
         )
     }

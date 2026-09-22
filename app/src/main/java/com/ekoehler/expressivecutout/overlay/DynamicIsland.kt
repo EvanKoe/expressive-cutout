@@ -70,13 +70,13 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -1142,19 +1142,17 @@ fun DynamicIsland(
                     .align(Alignment.TopCenter)
                     .offset(x = offsetX + step, y = offsetY),
             ) {
-                CallTheme {
-                    CallHangUpCapsule(
-                        call = capsuleCall,
-                        hangUp = capsuleAction,
-                        heightDp = dims.heightDp,
-                        onAction = onAction,
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = reveal.value
-                            scaleY = reveal.value
-                            alpha = reveal.value
-                        },
-                    )
-                }
+                CallHangUpCapsule(
+                    call = capsuleCall,
+                    hangUp = capsuleAction,
+                    heightDp = dims.heightDp,
+                    onAction = onAction,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = reveal.value
+                        scaleY = reveal.value
+                        alpha = reveal.value
+                    },
+                )
             }
         }
     }
@@ -3657,36 +3655,15 @@ private fun CallNormalContent(
     val incoming = onCall?.ongoing == false
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
-    CallTheme {
-        if (incoming && call.incomingExpandedLayout && hasActions) {
-            IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
-        } else if (!incoming && hasActions) {
-            // Connected: the pill keeps the badge and the clock, and the hang-up button rides beside
-            // it in [CallHangUpCapsule] — see [usesSplitCallCutout].
-            CallSplitRowContent(event = event, call = call, onCall = onCall, heightDp = heightDp)
-        } else {
-            CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
-        }
+    if (incoming && call.incomingExpandedLayout && hasActions) {
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
+    } else if (!incoming && hasActions) {
+        // Connected: the pill keeps the badge and the clock, and the hang-up button rides beside
+        // it in [CallHangUpCapsule] — see [usesSplitCallCutout].
+        CallSplitRowContent(event = event, call = call, onCall = onCall, heightDp = heightDp)
+    } else {
+        CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
     }
-}
-
-/**
- * The palette the phone tile's layouts draw from. The cutout is a dark pill whatever the system
- * theme is, so the call buttons pin Material's *dark* scheme (dynamic on Android 12+) rather than
- * inheriting the app theme's light one, which would put pale containers and dark ink on black.
- * Scoped to the call layouts only; every other tile keeps the app theme.
- */
-@Composable
-private fun CallTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val scheme = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            dynamicDarkColorScheme(context)
-        } else {
-            darkColorScheme()
-        }
-    }
-    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 /**
@@ -3818,20 +3795,22 @@ private fun CallSingleRowContent(
         if (call.showActions) {
             if (incoming) {
                 if (answer != null) {
+                    val fill = call.incomingAnswerColor.resolve()
                     CallCircleButton(
                         icon = Icons.Rounded.Call,
                         description = "Answer",
-                        container = MaterialTheme.colorScheme.primary,
-                        content = MaterialTheme.colorScheme.onPrimary,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         onClick = { onAction(answer) },
                     )
                 }
                 if (hangUp != null) {
+                    val fill = call.incomingHangUpColor.resolve()
                     CallCircleButton(
                         icon = Icons.Rounded.CallEnd,
                         description = "Decline",
-                        container = MaterialTheme.colorScheme.error,
-                        content = MaterialTheme.colorScheme.onError,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         onClick = { onAction(hangUp) },
                     )
                 }
@@ -3927,23 +3906,25 @@ private fun IncomingCallExpandedContent(
                 horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_BUTTON_GAP_DP.dp),
             ) {
                 if (answer != null) {
+                    val fill = call.incomingAnswerColor.resolve()
                     CallWideButton(
                         icon = Icons.Rounded.Call,
                         label = stringResource(R.string.phone_answer),
                         showLabel = call.showButtonLabels,
-                        container = MaterialTheme.colorScheme.primary,
-                        content = MaterialTheme.colorScheme.onPrimary,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         modifier = Modifier.weight(1f),
                         onClick = { onAction(answer) },
                     )
                 }
                 if (hangUp != null) {
+                    val fill = call.incomingHangUpColor.resolve()
                     CallWideButton(
                         icon = Icons.Rounded.CallEnd,
                         label = stringResource(R.string.phone_hang_up),
                         showLabel = call.showButtonLabels,
-                        container = MaterialTheme.colorScheme.error,
-                        content = MaterialTheme.colorScheme.onError,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         modifier = Modifier.weight(1f),
                         onClick = { onAction(hangUp) },
                     )
@@ -3980,51 +3961,51 @@ private fun CallExpandedContent(
     // The dialer's in-call screen moves both behind our back, so re-read them as the card opens.
     LaunchedEffect(Unit) { CallAudioBus.refresh(context) }
 
-    CallTheme {
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                start = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                end = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                top = topMarginDp.dp,
+                bottom = CALL_EXPANDED_BOTTOM_PAD_DP.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CALL_EXPANDED_ROW_GAP_DP.dp),
+    ) {
+        // Contact + time
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    start = CALL_EXPANDED_SIDE_PAD_DP.dp,
-                    end = CALL_EXPANDED_SIDE_PAD_DP.dp,
-                    top = topMarginDp.dp,
-                    bottom = CALL_EXPANDED_BOTTOM_PAD_DP.dp,
-                ),
-            verticalArrangement = Arrangement.spacedBy(CALL_EXPANDED_ROW_GAP_DP.dp),
+                .fillMaxWidth()
+                .weight(1f, fill = false),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
         ) {
-            // Contact + time
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
-            ) {
-                // Profile pic
-                if (photo != null) {
-                    ContactPhoto(bitmap = photo, size = CALL_EXPANDED_AVATAR_DP.dp)
-                } else {
-                    IconBadge(event = event, badgeSize = CALL_EXPANDED_AVATAR_DP.dp, iconSize = 24.dp)
-                }
-
-                // Number + duration
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = event.label,
-                        color = LocalContentColor.current,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    AnimatedVisibility(visible = call.showDuration) {
-                        CallStatus(onCall = onCall)
-                    }
-                }
+            // Profile pic
+            if (photo != null) {
+                ContactPhoto(bitmap = photo, size = CALL_EXPANDED_AVATAR_DP.dp)
+            } else {
+                IconBadge(event = event, badgeSize = CALL_EXPANDED_AVATAR_DP.dp, iconSize = 24.dp)
             }
 
-            val toggleWeights = rememberCallGroupWeights(toggleInteractions)
+            // Number + duration
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                AnimatedVisibility(visible = call.showDuration) {
+                    CallStatus(onCall = onCall)
+                }
+            }
+        }
 
+        val toggleWeights = rememberCallGroupWeights(toggleInteractions)
+
+        CallToggleTheme {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -4075,20 +4056,40 @@ private fun CallExpandedContent(
                     onClick = onOpen,
                 )
             }
-            if (call.showActions && hangUp != null) {
-                CallWideButton(
-                    icon = Icons.Rounded.CallEnd,
-                    label = stringResource(R.string.phone_hang_up),
-                    showLabel = false,
-                    container = MaterialTheme.colorScheme.errorContainer,
-                    content = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                    heightDp = CALL_EXPANDED_HANGUP_DP,
-                    onClick = { onAction(hangUp) },
-                )
-            }
+        }
+        if (call.showActions && hangUp != null) {
+            val hangUpFill = call.expandedHangUpColor.resolve()
+            CallWideButton(
+                icon = Icons.Rounded.CallEnd,
+                label = stringResource(R.string.phone_hang_up),
+                showLabel = false,
+                container = hangUpFill,
+                content = if (hangUpFill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
+                modifier = Modifier.fillMaxWidth(),
+                heightDp = CALL_EXPANDED_HANGUP_DP,
+                onClick = { onAction(hangUp) },
+            )
         }
     }
+}
+
+/**
+ * Pins Material's *dark* scheme (dynamic on Android 12+) for the expanded card's Mute / Speaker /
+ * Open row alone. Those three sit on a neutral `surfaceVariant` container, and the cutout is a dark
+ * card whatever the system theme is, so the light scheme's pale container would glare against it.
+ * Every other call button carries a user-picked fill and keeps the ambient theme.
+ */
+@Composable
+private fun CallToggleTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val scheme = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicDarkColorScheme(context)
+        } else {
+            darkColorScheme()
+        }
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 /**

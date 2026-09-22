@@ -197,6 +197,12 @@ data class CallTileOptions(
     val hangUpColor: CutoutColor,
     /** Fill shared by every other call button. */
     val otherButtonColor: CutoutColor,
+    /** Fill of the Take (answer) button on a ringing call. */
+    val incomingAnswerColor: CutoutColor,
+    /** Fill of the Hang up (decline) button on a ringing call. */
+    val incomingHangUpColor: CutoutColor,
+    /** Fill of the hang-up button on the expanded call card. */
+    val expandedHangUpColor: CutoutColor,
 )
 
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */

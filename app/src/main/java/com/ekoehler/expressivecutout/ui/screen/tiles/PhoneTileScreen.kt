@@ -124,7 +124,25 @@ internal fun PhoneTileScreen(
                 label = stringResource(R.string.phone_hangup_color_label),
                 selected = settings.hangUpColor,
                 onSelect = { it?.let(viewModel::setPhoneHangUpColor) },
-                shape = groupedShape(isFirst = true, isLast = true)
+                shape = groupedShape(isFirst = true)
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_incoming_answer_color_label),
+                selected = settings.incomingAnswerColor,
+                onSelect = { it?.let(viewModel::setPhoneIncomingAnswerColor) },
+                shape = groupedShape()
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_incoming_hangup_color_label),
+                selected = settings.incomingHangUpColor,
+                onSelect = { it?.let(viewModel::setPhoneIncomingHangUpColor) },
+                shape = groupedShape()
+            )
+            ColorPickerCard(
+                label = stringResource(R.string.phone_expanded_hangup_color_label),
+                selected = settings.expandedHangUpColor,
+                onSelect = { it?.let(viewModel::setPhoneExpandedHangUpColor) },
+                shape = groupedShape(isLast = true)
             )
         }
     }

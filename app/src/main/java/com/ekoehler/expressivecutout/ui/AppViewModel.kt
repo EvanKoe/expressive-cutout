@@ -472,6 +472,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setOtherButtonColor(color)
     }
 
+    fun setPhoneIncomingAnswerColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingAnswerColor(color)
+    }
+
+    fun setPhoneIncomingHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingHangUpColor(color)
+    }
+
+    fun setPhoneExpandedHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setExpandedHangUpColor(color)
+    }
+
     fun setTimerShowActions(enabled: Boolean) = viewModelScope.launch {
         timerTilePreferences.setShowActions(enabled)
     }

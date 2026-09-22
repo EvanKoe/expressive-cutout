@@ -248,6 +248,9 @@
     <string name="phone_button_colours_title">Button colours</string>
     <string name="phone_hangup_color_label">Hang up button</string>
     <string name="phone_other_color_label">Other buttons</string>
+    <string name="phone_incoming_answer_color_label">Incoming call take button</string>
+    <string name="phone_incoming_hangup_color_label">Incoming call hang up button</string>
+    <string name="phone_expanded_hangup_color_label">Expanded call hang up button</string>
     <string name="phone_caller_unknown">Unknown</string>
     <string name="phone_ringing">Calling...</string>
     <string name="phone_answer">Take</string>

@@ -43,6 +43,12 @@ data class PhoneTileSettings(
     val hangUpColor: CutoutColor = DEFAULT_HANG_UP_COLOR,
     /** Fill shared by every other call button (answer, mute, speaker, …). */
     val otherButtonColor: CutoutColor = DEFAULT_OTHER_BUTTON_COLOR,
+    /** Fill of the Take (answer) button on a ringing call. */
+    val incomingAnswerColor: CutoutColor = DEFAULT_INCOMING_ANSWER_COLOR,
+    /** Fill of the Hang up (decline) button on a ringing call. */
+    val incomingHangUpColor: CutoutColor = DEFAULT_INCOMING_HANG_UP_COLOR,
+    /** Fill of the hang-up button on the expanded call card. */
+    val expandedHangUpColor: CutoutColor = DEFAULT_EXPANDED_HANG_UP_COLOR,
 ) {
     companion object {
         const val DEFAULT_SHOW_PHOTO = true
@@ -57,6 +63,15 @@ data class PhoneTileSettings(
 
         /** Every other button follows the Material You primary accent by default. */
         val DEFAULT_OTHER_BUTTON_COLOR: CutoutColor = CutoutColor.Dynamic(DynamicRole.PRIMARY)
+
+        /** Taking a ringing call follows the Material You primary accent by default. */
+        val DEFAULT_INCOMING_ANSWER_COLOR: CutoutColor = CutoutColor.Dynamic(DynamicRole.PRIMARY)
+
+        /** Declining a ringing call is red by default, like every other hang-up button. */
+        val DEFAULT_INCOMING_HANG_UP_COLOR: CutoutColor = CutoutColor.Solid(0xFFEF4444)
+
+        /** The expanded card's hang-up button is red by default too. */
+        val DEFAULT_EXPANDED_HANG_UP_COLOR: CutoutColor = CutoutColor.Solid(0xFFEF4444)
     }
 }
 
@@ -76,6 +91,12 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
                 ?: PhoneTileSettings.DEFAULT_HANG_UP_COLOR,
             otherButtonColor = CutoutColor.deserialize(prefs[OTHER_BUTTON_COLOR])
                 ?: PhoneTileSettings.DEFAULT_OTHER_BUTTON_COLOR,
+            incomingAnswerColor = CutoutColor.deserialize(prefs[INCOMING_ANSWER_COLOR])
+                ?: PhoneTileSettings.DEFAULT_INCOMING_ANSWER_COLOR,
+            incomingHangUpColor = CutoutColor.deserialize(prefs[INCOMING_HANG_UP_COLOR])
+                ?: PhoneTileSettings.DEFAULT_INCOMING_HANG_UP_COLOR,
+            expandedHangUpColor = CutoutColor.deserialize(prefs[EXPANDED_HANG_UP_COLOR])
+                ?: PhoneTileSettings.DEFAULT_EXPANDED_HANG_UP_COLOR,
         )
     }
 
@@ -92,6 +113,9 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             put("iconContainerColor", s.iconContainerColor?.serialize() ?: JSONObject.NULL)
             put("hangUpColor", s.hangUpColor.serialize())
             put("otherButtonColor", s.otherButtonColor.serialize())
+            put("incomingAnswerColor", s.incomingAnswerColor.serialize())
+            put("incomingHangUpColor", s.incomingHangUpColor.serialize())
+            put("expandedHangUpColor", s.expandedHangUpColor.serialize())
         }.toString()
     }
 
@@ -115,6 +139,15 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
             }
             if (obj.has("otherButtonColor") && !obj.isNull("otherButtonColor")) {
                 CutoutColor.deserialize(obj.optString("otherButtonColor"))?.let { c -> it[OTHER_BUTTON_COLOR] = c.serialize() }
+            }
+            if (obj.has("incomingAnswerColor") && !obj.isNull("incomingAnswerColor")) {
+                CutoutColor.deserialize(obj.optString("incomingAnswerColor"))?.let { c -> it[INCOMING_ANSWER_COLOR] = c.serialize() }
+            }
+            if (obj.has("incomingHangUpColor") && !obj.isNull("incomingHangUpColor")) {
+                CutoutColor.deserialize(obj.optString("incomingHangUpColor"))?.let { c -> it[INCOMING_HANG_UP_COLOR] = c.serialize() }
+            }
+            if (obj.has("expandedHangUpColor") && !obj.isNull("expandedHangUpColor")) {
+                CutoutColor.deserialize(obj.optString("expandedHangUpColor"))?.let { c -> it[EXPANDED_HANG_UP_COLOR] = c.serialize() }
             }
         }
     }
@@ -156,6 +189,18 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         it[OTHER_BUTTON_COLOR] = color.serialize()
     }
 
+    suspend fun setIncomingAnswerColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+        it[INCOMING_ANSWER_COLOR] = color.serialize()
+    }
+
+    suspend fun setIncomingHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+        it[INCOMING_HANG_UP_COLOR] = color.serialize()
+    }
+
+    suspend fun setExpandedHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+        it[EXPANDED_HANG_UP_COLOR] = color.serialize()
+    }
+
     private companion object {
         val SHOW_PHOTO = booleanPreferencesKey("show_photo")
         val SHOW_DURATION = booleanPreferencesKey("show_duration")
@@ -166,5 +211,8 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         val ICON_CONTAINER_COLOR = stringPreferencesKey("icon_container_color")
         val HANG_UP_COLOR = stringPreferencesKey("hang_up_color")
         val OTHER_BUTTON_COLOR = stringPreferencesKey("other_button_color")
+        val INCOMING_ANSWER_COLOR = stringPreferencesKey("incoming_answer_color")
+        val INCOMING_HANG_UP_COLOR = stringPreferencesKey("incoming_hang_up_color")
+        val EXPANDED_HANG_UP_COLOR = stringPreferencesKey("expanded_hang_up_color")
     }
 }
