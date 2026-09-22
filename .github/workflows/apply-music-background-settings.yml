@@ -1,0 +1,132 @@
+name: Apply music background settings
+
+on:
+  push:
+    branches:
+      - feat/music-background-settings
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch music background feature
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Anchor not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # 1. Persist the expanded-card background settings.
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '    val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,\n) {',
+              '''    val showProgress: Boolean = DEFAULT_SHOW_PROGRESS,\n    /** Use the current album artwork as the expanded music card backdrop. */\n    val expandedAlbumBackground: Boolean = DEFAULT_EXPANDED_ALBUM_BACKGROUND,\n    /** Opacity of the blurred album artwork backdrop (0f..1f). */\n    val expandedAlbumBackgroundOpacity: Float = DEFAULT_EXPANDED_ALBUM_BACKGROUND_OPACITY,\n) {''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '            showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,\n        )',
+              '''            showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,\n            expandedAlbumBackground = prefs[EXPANDED_ALBUM_BACKGROUND]\n                ?: MusicTileSettings.DEFAULT_EXPANDED_ALBUM_BACKGROUND,\n            expandedAlbumBackgroundOpacity = (prefs[EXPANDED_ALBUM_BACKGROUND_OPACITY]\n                ?: MusicTileSettings.DEFAULT_EXPANDED_ALBUM_BACKGROUND_OPACITY).coerceIn(0f, 1f),\n        )''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '            put("showProgress", s.showProgress)\n            put("skipButton", s.skipButton.toJsonObject())',
+              '''            put("showProgress", s.showProgress)\n            put("expandedAlbumBackground", s.expandedAlbumBackground)\n            put("expandedAlbumBackgroundOpacity", s.expandedAlbumBackgroundOpacity.toDouble())\n            put("skipButton", s.skipButton.toJsonObject())''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '            if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")\n\n            obj.optJSONObject("skipButton")',
+              '''            if (obj.has("showProgress")) prefs[SHOW_PROGRESS] = obj.getBoolean("showProgress")\n            if (obj.has("expandedAlbumBackground")) {\n                prefs[EXPANDED_ALBUM_BACKGROUND] = obj.getBoolean("expandedAlbumBackground")\n            }\n            if (obj.has("expandedAlbumBackgroundOpacity")) {\n                prefs[EXPANDED_ALBUM_BACKGROUND_OPACITY] =\n                    obj.optDouble("expandedAlbumBackgroundOpacity").toFloat().coerceIn(0f, 1f)\n            }\n\n            obj.optJSONObject("skipButton")''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '    suspend fun setShowProgress(enabled: Boolean) = context.musicTileDataStore.edit {\n        it[SHOW_PROGRESS] = enabled\n    }\n',
+              '''    suspend fun setShowProgress(enabled: Boolean) = context.musicTileDataStore.edit {\n        it[SHOW_PROGRESS] = enabled\n    }\n\n    suspend fun setExpandedAlbumBackground(enabled: Boolean) = context.musicTileDataStore.edit {\n        it[EXPANDED_ALBUM_BACKGROUND] = enabled\n    }\n\n    suspend fun setExpandedAlbumBackgroundOpacity(opacity: Float) = context.musicTileDataStore.edit {\n        it[EXPANDED_ALBUM_BACKGROUND_OPACITY] = opacity.coerceIn(0f, 1f)\n    }\n''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '        val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")\n',
+              '''        val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")\n        val EXPANDED_ALBUM_BACKGROUND = booleanPreferencesKey("expanded_album_background")\n        val EXPANDED_ALBUM_BACKGROUND_OPACITY = floatPreferencesKey("expanded_album_background_opacity")\n''',
+          )
+
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt',
+              '        const val DEFAULT_SHOW_PROGRESS = false\n',
+              '''        const val DEFAULT_SHOW_PROGRESS = false\n        const val DEFAULT_EXPANDED_ALBUM_BACKGROUND = true\n        const val DEFAULT_EXPANDED_ALBUM_BACKGROUND_OPACITY = 0.55f\n''',
+          )
+
+          # 2. Expose the settings through the ViewModel.
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/ui/AppViewModel.kt',
+              '    fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {\n        musicTilePreferences.setShowControls(enabled)\n    }\n',
+              '''    fun setMusicShowControls(enabled: Boolean) = viewModelScope.launch {\n        musicTilePreferences.setShowControls(enabled)\n    }\n\n    fun setMusicExpandedAlbumBackground(enabled: Boolean) = viewModelScope.launch {\n        musicTilePreferences.setExpandedAlbumBackground(enabled)\n    }\n\n    fun setMusicExpandedAlbumBackgroundOpacity(opacity: Float) = viewModelScope.launch {\n        musicTilePreferences.setExpandedAlbumBackgroundOpacity(opacity)\n    }\n''',
+          )
+
+          # 3. Add a dedicated section to the music settings screen.
+          replace_once(
+              'app/src/main/java/com/vikram/expressiveisland/ui/screen/tiles/MusicTileScreen.kt',
+              '''        SettingsToggleCard(\n            shape = RoundedCornerShape(\n                topStart = 4.dp,\n                topEnd = 4.dp,\n                bottomStart = 32.dp,\n                bottomEnd = 32.dp\n            ),\n            title = stringResource(R.string.music_show_controls_title),\n            description = stringResource(R.string.music_show_controls_desc),\n            checked = settings.showControls,\n            onCheckedChange = viewModel::setMusicShowControls,\n        )\n\n        // Everything below styles the playback buttons; only meaningful when they're shown.''',
+              '''        SettingsToggleCard(\n            shape = RoundedCornerShape(\n                topStart = 4.dp,\n                topEnd = 4.dp,\n                bottomStart = 32.dp,\n                bottomEnd = 32.dp\n            ),\n            title = stringResource(R.string.music_show_controls_title),\n            description = stringResource(R.string.music_show_controls_desc),\n            checked = settings.showControls,\n            onCheckedChange = viewModel::setMusicShowControls,\n        )\n\n        SectionLabel(stringResource(R.string.music_expanded_background_section))\n        SettingsToggleCard(\n            shape = RoundedCornerShape(24.dp),\n            title = stringResource(R.string.music_expanded_background_title),\n            description = stringResource(R.string.music_expanded_background_desc),\n            checked = settings.expandedAlbumBackground,\n            onCheckedChange = viewModel::setMusicExpandedAlbumBackground,\n        )\n        if (settings.expandedAlbumBackground) {\n            var backdropOpacity by remember(settings.expandedAlbumBackgroundOpacity) {\n                mutableFloatStateOf(settings.expandedAlbumBackgroundOpacity)\n            }\n            Card(\n                modifier = Modifier.fillMaxWidth(),\n                shape = RoundedCornerShape(24.dp),\n                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),\n            ) {\n                Column(\n                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),\n                ) {\n                    AdjustableSlider(\n                        label = stringResource(R.string.music_expanded_background_opacity),\n                        valueText = "${(backdropOpacity * 100).roundToInt()}%",\n                        value = backdropOpacity,\n                        valueRange = 0f..1f,\n                        step = 0.05f,\n                        onValueChange = { backdropOpacity = it },\n                        onCommit = { viewModel.setMusicExpandedAlbumBackgroundOpacity(backdropOpacity) },\n                    )\n                }\n            }\n        }\n\n        // Everything below styles the playback buttons; only meaningful when they're shown.''',
+          )
+
+          # 4. Add the actual expanded-card background. It deliberately sits outside the content\n          # padding, eliminating the black strips at the top/left/bottom seen in the previous version.\n          p = Path('app/src/main/java/com/vikram/expressiveisland/overlay/DynamicIsland.kt')\n          text = p.read_text()\n          if 'import androidx.compose.ui.draw.blur\n' not in text:\n              text = text.replace('import androidx.compose.ui.draw.clip\n', 'import androidx.compose.ui.draw.blur\nimport androidx.compose.ui.draw.clip\n', 1)\n          if 'import com.vikram.expressiveisland.data.MusicTilePreferences\n' not in text:\n              text = text.replace('import com.vikram.expressiveisland.data.MusicButtonStyle\n', 'import com.vikram.expressiveisland.data.MusicButtonStyle\nimport com.vikram.expressiveisland.data.MusicTilePreferences\n', 1)\n\n          old_state = '''    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()\n    val albumArt = albumArtFor(event, nowPlaying)\n\n    Box(\n        modifier = Modifier\n            .fillMaxSize()\n            .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)\n    ) {'''
+          new_state = '''    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()\n    val albumArt = albumArtFor(event, nowPlaying)\n    val context = LocalContext.current\n    val musicPreferences = remember { MusicTilePreferences(context) }\n    val musicSettings by musicPreferences.settings.collectAsStateWithLifecycle()\n\n    Box(modifier = Modifier.fillMaxSize()) {\n        if (musicSettings.expandedAlbumBackground && albumArt != null) {\n            Image(\n                bitmap = albumArt,\n                contentDescription = null,\n                contentScale = ContentScale.Crop,\n                modifier = Modifier\n                    .fillMaxSize()\n                    .blur(30.dp)\n                    .graphicsLayer {\n                        alpha = musicSettings.expandedAlbumBackgroundOpacity\n                    },\n            )\n            // Keep the foreground readable without hiding the artwork.\n            Box(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .background(Color.Black.copy(alpha = 0.28f)),\n            )\n        }\n\n        Box(\n            modifier = Modifier\n                .fillMaxSize()\n                .padding(start = 18.dp, end = 18.dp, top = collapsedHeightDp.dp)\n        ) {'''
+          if old_state not in text:\n              raise SystemExit('MediaExpandedContent opening anchor not found')\n          text = text.replace(old_state, new_state, 1)\n\n          # The original content Box now sits inside the new full-size background Box. Close the\n          # extra wrapper immediately before the function's existing closing brace.\n          marker = '''private fun MediaExpandedContent(\n    event: IslandEvent,\n    buttonHeightDp: Int,\n    collapsedHeightDp: Int,\n    onMediaInteraction: () -> Unit,\n) {'''
+          start = text.find(marker)\n          if start < 0:\n              raise SystemExit('MediaExpandedContent function not found for closing wrapper')\n          next_fn = text.find('\n@Composable', start + len(marker))\n          if next_fn < 0:\n              raise SystemExit('Could not find end of MediaExpandedContent')\n          segment = text[start:next_fn]\n          if segment.rstrip().endswith('    }\n}'):\n              segment = segment.rstrip()[:-1] + '    }\n}'\n          else:\n              # The exact closing indentation may differ; use the last function brace.\n              idx = segment.rfind('\n}')\n              if idx < 0:\n                  raise SystemExit('MediaExpandedContent closing brace not found')\n              segment = segment[:idx] + '\n    }' + segment[idx:]\n          text = text[:start] + segment + text[next_fn:]\n          p.write_text(text)\n\n          # 5. Add user-facing labels without touching existing translations.\n          s = Path('app/src/main/res/values/strings.xml')\n          st = s.read_text()\n          anchor = '    <string name="music_progress_title">'\n          if 'music_expanded_background_section' not in st:\n              i = st.find(anchor)\n              if i < 0:\n                  raise SystemExit('Music progress string anchor not found')\n              block = '''    <string name="music_expanded_background_section">Expanded card background</string>\n    <string name="music_expanded_background_title">Album artwork background</string>\n    <string name="music_expanded_background_desc">Use the current album cover as a blurred background on the expanded music card.</string>\n    <string name="music_expanded_background_opacity">Background opacity</string>\n'''
+              st = st[:i] + block + st[i:]\n              s.write_text(st)\n          PY
+
+      - name: Commit source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/vikram/expressiveisland/data/MusicTilePreferences.kt \
+            app/src/main/java/com/vikram/expressiveisland/ui/AppViewModel.kt \
+            app/src/main/java/com/vikram/expressiveisland/ui/screen/tiles/MusicTileScreen.kt \
+            app/src/main/java/com/vikram/expressiveisland/overlay/DynamicIsland.kt \
+            app/src/main/res/values/strings.xml
+          git commit -m "feat: add configurable expanded music background"
+          git push
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: expressive-cutout-music-background-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary patch workflow
+        run: |
+          git rm .github/workflows/apply-music-background-settings.yml
+          git commit -m "chore: remove temporary music background patch workflow"
+          git push
