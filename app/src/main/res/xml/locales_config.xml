@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every language the app ships strings for: the base res/values (English) plus one entry per
+     res/values-<tag> folder. It is both what Android 13+ offers under "App languages" and what
+     AppLanguages reads to build the in-app picker, so adding a translation is a new values-<tag>
+     folder and one line here. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="fr-FR" />
+    <locale android:name="tr" />
+</locale-config>

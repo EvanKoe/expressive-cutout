@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -58,6 +59,7 @@ import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
 
 /** Label and supporting line shown for each chip style in its options card. */
@@ -187,7 +189,7 @@ internal fun ButtonScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         PageTitle(text = stringResource(R.string.action_buttons_title))
 
@@ -207,8 +209,6 @@ internal fun ButtonScreen(
                     cornerTopRightDp = expanded.cornerTopRightDp,
                     cornerBottomLeftDp = expanded.cornerBottomLeftDp,
                     cornerBottomRightDp = expanded.cornerBottomRightDp,
-                    // There is no camera hole to clear in-app, so the content sits on a small inset
-                    // matching the island's own horizontal padding instead of the real top margin.
                     topMarginDp = PREVIEW_TOP_MARGIN_DP,
                     expanded = true,
                     appearance = previewAppearance,
@@ -219,10 +219,12 @@ internal fun ButtonScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Whether the chips appear at all lives with the other behaviour toggles, but it is the
         // natural on/off switch for this screen, so it leads here too.
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(isFirst = true),
             title = stringResource(R.string.action_buttons_enable_title),
             description = stringResource(R.string.action_buttons_enable_desc),
             checked = behaviour.showActionButtons,
@@ -231,14 +233,13 @@ internal fun ButtonScreen(
 
         // Whether tapping an action button confirms with a toast.
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.action_buttons_toast_title),
             description = stringResource(R.string.action_buttons_toast_desc),
             checked = behaviour.toastOnAction,
             onCheckedChange = viewModel::setToastOnAction,
         )
 
-        // --- Chip style ---
+        // Chip style
         OptionSelectionCard(
             title = stringResource(R.string.action_buttons_style_title),
             options = ActionButtonStyle.entries.map { style ->
@@ -250,9 +251,11 @@ internal fun ButtonScreen(
             },
             selectedValue = appearance.actionButtonStyle,
             onSelectionChange = viewModel::setActionButtonStyle,
+            isLast = false,
+            isFirst = false
         )
 
-        // --- Chip colour (dynamic roles, custom, presets) ---
+        // Chip colour (dynamic roles, custom, presets)
         // A null selection follows the notification's own accent (the historical default).
         ColorPickerCard(
             label = stringResource(R.string.action_buttons_color_title),
@@ -262,10 +265,10 @@ internal fun ButtonScreen(
             defaultColor = PREVIEW_ACCENT,
         )
 
-        // --- Chip height ---
+        // Chip height
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -282,7 +285,7 @@ internal fun ButtonScreen(
             }
         }
 
-        // --- Chip alignment ---
+        // Chip alignment
         OptionSelectionCard(
             title = stringResource(R.string.action_buttons_alignment_title),
             options = ActionButtonAlignment.entries.map { alignment ->
@@ -294,9 +297,11 @@ internal fun ButtonScreen(
             },
             selectedValue = appearance.actionButtonAlignment,
             onSelectionChange = viewModel::setActionButtonAlignment,
+            isLast = false,
+            isFirst = false
         )
 
-        // --- Reply field style ---
+        // Reply field style
         OptionSelectionCard(
             title = stringResource(R.string.action_buttons_input_style_title),
             options = ReplyInputStyle.entries.map { style ->
@@ -315,18 +320,19 @@ internal fun ButtonScreen(
                     heightDp = buttonHeight.roundToInt(),
                 )
             },
+            isLast = false,
+            isFirst = false
         )
 
-        // --- Cancel button placement ---
+        // Cancel button placement
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.action_buttons_cancel_left_title),
             description = stringResource(R.string.action_buttons_cancel_left_desc),
             checked = appearance.cancelButtonOnLeft,
             onCheckedChange = viewModel::setCancelButtonOnLeft,
         )
 
-        // --- "Sent" confirmation placement ---
+        // "Sent" confirmation placement
         OptionSelectionCard(
             title = stringResource(R.string.action_buttons_sent_alignment_title),
             options = SentAlignment.entries.map { alignment ->
@@ -338,11 +344,11 @@ internal fun ButtonScreen(
             },
             selectedValue = appearance.sentAlignment,
             onSelectionChange = viewModel::setSentAlignment,
+            isLast = false,
+            isFirst = false
         )
 
-        // --- Send / cancel reply-button colours ---
-        // Their colours default to the notification's accent (send) and a neutral tint (cancel);
-        // the leading "default" swatch restores that behaviour.
+        // Send button color
         ColorPickerCard(
             label = stringResource(R.string.appearance_send_color),
             selected = appearance.sendButtonColor,
@@ -350,12 +356,15 @@ internal fun ButtonScreen(
             defaultLabel = stringResource(R.string.cd_color_default_accent),
             defaultColor = PREVIEW_ACCENT,
         )
+
+        // Cancel button color
         ColorPickerCard(
             label = stringResource(R.string.appearance_cancel_color),
             selected = appearance.cancelButtonColor,
             onSelect = viewModel::setCancelButtonColor,
             defaultLabel = stringResource(R.string.cd_color_default_neutral),
             defaultColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            shape = groupedShape(isLast = true)
         )
     }
 }
