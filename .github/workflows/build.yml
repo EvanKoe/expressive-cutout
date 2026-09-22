@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/comprehensive-audit
+      - fix/double-pill
   pull_request:
     branches: [main]
   workflow_dispatch:
