@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feat/music-background-settings
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -32,7 +33,6 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload debug APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: expressive-cutout-debug-${{ github.sha }}
