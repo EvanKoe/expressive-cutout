@@ -251,6 +251,7 @@ class IconResolver(private val context: Context) {
             iconContainerColor = settings.coverFallbackColor,
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
+                showAlbumBackground = settings.showAlbumBackground,
                 rotateAlbumArt = settings.rotateAlbumArt,
                 circleCover = settings.circleCover,
                 albumArtStroke = settings.albumArtStroke,

@@ -63,6 +63,9 @@ class MediaPlaybackMonitor(private val context: Context) {
     /** The pending "show" emission, held for [SHOW_DEBOUNCE_MS] so a start settles into one pop. */
     private var showJob: Job? = null
 
+    /** Whether the active-sessions listener is registered with Android. */
+    private var registered = false
+
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
             rebind(controllers.orEmpty())
@@ -87,10 +90,15 @@ class MediaPlaybackMonitor(private val context: Context) {
                 sync()
             }
         }
-        runCatching {
-            manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
-            rebind(manager.getActiveSessions(listenerComponent))
-        }.onFailure { Log.w(TAG, "Media session access unavailable", it) }
+        scope.launch {
+            CutoutNotificationListenerService.bound.collect { bound ->
+                if (bound) {
+                    register(manager)
+                } else {
+                    unregister(manager)
+                }
+            }
+        }
     }
 
     /**
@@ -98,11 +106,33 @@ class MediaPlaybackMonitor(private val context: Context) {
      * nothing behind on the island.
      */
     fun stop() {
-        sessionManager?.let { runCatching { it.removeOnActiveSessionsChangedListener(sessionsListener) } }
-        watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
-        watched.clear()
+        sessionManager?.let(::unregister)
         scope.coroutineContext.cancelChildren()
         clearPendingShow()
+        NowPlayingBus.update(null)
+    }
+
+    private fun register(manager: MediaSessionManager) {
+        if (registered) return
+        runCatching {
+            manager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent)
+            val controllers = manager.getActiveSessions(listenerComponent)
+            registered = true
+            rebind(controllers)
+        }.onFailure { error ->
+            registered = false
+            runCatching { manager.removeOnActiveSessionsChangedListener(sessionsListener) }
+            Log.w(TAG, "Media session access unavailable", error)
+        }
+    }
+
+    private fun unregister(manager: MediaSessionManager) {
+        if (!registered) return
+        runCatching { manager.removeOnActiveSessionsChangedListener(sessionsListener) }
+            .onFailure { Log.w(TAG, "Failed to unregister media session listener", it) }
+        registered = false
+        watched.forEach { (controller, callback) -> controller.unregisterCallback(callback) }
+        watched.clear()
         NowPlayingBus.update(null)
     }
 
@@ -200,14 +230,16 @@ class MediaPlaybackMonitor(private val context: Context) {
             return
         }
 
-        val albumArt = metadata?.albumArt()
+        val trackArt = metadata?.trackArt()
+        val albumBackgroundArt = metadata?.albumBackgroundArt() ?: trackArt
 
         NowPlayingBus.update(
             NowPlaying(
                 packageName = primary.packageName,
                 title = title,
                 artist = artist,
-                albumArt = albumArt,
+                albumArt = trackArt,
+                albumBackgroundArt = albumBackgroundArt,
                 isPlaying = playing,
                 transport = ControllerTransport(primary),
                 progress = primary.progress(metadata, playing),
@@ -272,19 +304,28 @@ class MediaPlaybackMonitor(private val context: Context) {
      * back to the cover lifted off its media notification — see
      * [com.ekoehler.expressivecutout.core.MediaArtBus].
      */
-    private fun MediaMetadata.albumArt(): ImageBitmap? = (
-        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: getBitmap(MediaMetadata.METADATA_KEY_ART)
+    private fun MediaMetadata.trackArt(): ImageBitmap? = (
+        getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         )?.toArtImageBitmap()
-        ?: artUri()?.loadImageBitmapOrNull(context)
+        ?: trackArtUri()?.loadImageBitmapOrNull(context)
+        ?: albumArtUri()?.loadImageBitmapOrNull(context)
 
-    /** The art URI a player publishes in place of a bitmap, if it gave one at all. */
-    private fun MediaMetadata.artUri(): Uri? = listOf(
-        MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+    private fun MediaMetadata.albumBackgroundArt(): ImageBitmap? = (
+        getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        )?.toArtImageBitmap()
+        ?: albumArtUri()?.loadImageBitmapOrNull(context)
+
+    private fun MediaMetadata.trackArtUri(): Uri? = listOf(
         MediaMetadata.METADATA_KEY_ART_URI,
+        MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
         MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
     ).firstNotNullOfOrNull { key -> getString(key)?.takeIf { it.isNotBlank() } }
+        ?.let { runCatching { it.toUri() }.getOrNull() }
+
+    private fun MediaMetadata.albumArtUri(): Uri? = getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+        ?.takeIf { it.isNotBlank() }
         ?.let { runCatching { it.toUri() }.getOrNull() }
 
     /** Bridges the tile's transport buttons to the active session's controls. */
