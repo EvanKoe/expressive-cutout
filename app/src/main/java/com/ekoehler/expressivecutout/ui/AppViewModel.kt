@@ -400,6 +400,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowAlbumArt(enabled)
     }
 
+    fun setMusicShowAlbumBackground(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setShowAlbumBackground(enabled)
+    }
+
     fun setMusicRotateAlbumArt(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }

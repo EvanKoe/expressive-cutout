@@ -843,8 +843,47 @@ class IslandOverlayController(private val context: Context) {
     private fun observeMusicSettings() = scope.launch {
         musicTilePreferences.settings.collect {
             musicSettings = it
+            refreshMusicEvent()
             // Toggling "Visible in player app" should take effect immediately, even mid-playback.
             applyPlayerAppVisibility()
+        }
+    }
+
+    /**
+     * Re-resolves the live music event so display settings changed in the settings screen are
+     * visible without waiting for the next track or restarting the overlay service.
+     */
+    private fun refreshMusicEvent() {
+        val nowPlaying = NowPlayingBus.state.value ?: return
+        val previous = lastMusicEvent ?: return
+        val signal = CutoutSignal.Music(
+            packageName = nowPlaying.packageName,
+            title = nowPlaying.title,
+            artist = nowPlaying.artist,
+            contentIntent = previous.contentIntent,
+        )
+        val refreshed = resolver.resolve(
+            signal = signal,
+            customIcons = customIcons,
+            musicSettings = musicSettings,
+            phoneSettings = phoneSettings,
+            timerSettings = timerSettings,
+            assistantSettings = assistantSettings,
+            dynamicEventColor = eventDynamicColor,
+            dynamicEventColorRole = eventDynamicColorRole,
+            dynamicEventColorOpacity = eventDynamicColorOpacity,
+            animatedIconEnabled = eventAnimatedIcons,
+            animatedIconLoop = eventAnimatedIconLoops,
+            eventColorOverrides = eventColors,
+            preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
+        ).copy(
+            initiallyExpanded = previous.initiallyExpanded,
+            normalOnly = previous.normalOnly,
+        )
+        lastMusicEvent = refreshed
+        if (currentEvent.value?.media != null) {
+            currentEvent.value = refreshed
+            syncWindowSize()
         }
     }
 

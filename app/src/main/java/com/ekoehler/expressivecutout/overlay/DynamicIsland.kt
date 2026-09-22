@@ -30,6 +30,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1419,10 +1420,20 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
  * on package so a stale cover is never drawn over a different player's track.
  */
 @Composable
-internal fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
+internal fun albumArtFor(
+    event: IslandEvent,
+    nowPlaying: NowPlaying?,
+    expandedBackground: Boolean = false,
+): ImageBitmap? {
     val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
-    if (event.media?.showAlbumArt != true) return null
-    return nowPlaying?.albumArt
+    if (event.media?.showAlbumArt != true &&
+        !(expandedBackground && event.media?.showAlbumBackground == true)
+    ) return null
+    return if (expandedBackground && event.media?.showAlbumBackground == true) {
+        nowPlaying?.albumBackgroundArt ?: nowPlaying?.albumArt
+    } else {
+        nowPlaying?.albumArt
+    }
         ?: notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.art
 }
 
@@ -2983,6 +2994,7 @@ private fun MediaExpandedContent(
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
+    val albumBackground = albumArtFor(event, nowPlaying, expandedBackground = true)
     val relativeTime = rememberRelativeTime(event.postTimeMs)
     val headerText = formatNotificationHeader(
         appName = event.appName,
@@ -2994,12 +3006,27 @@ private fun MediaExpandedContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 18.dp, end = 18.dp)
     ) {
+        if (albumBackground != null && event.media?.showAlbumBackground == true) {
+            Image(
+                bitmap = albumBackground,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                alpha = 0.42f,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.48f)),
+            )
+        }
+
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp)
                 .padding(top = topMarginDp.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
