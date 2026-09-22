@@ -3589,7 +3589,7 @@ private const val CALL_EXPANDED_HANGUP_DP = 48
 private const val CALL_TOGGLE_COUNT = 3
 
 /** The extra row weight a pressed button in a call button group takes from its neighbours. */
-private const val CALL_GROUP_PRESS_GROW = 0.35f
+private const val CALL_GROUP_PRESS_GROW = 0.11f
 private const val CALL_EXPANDED_AVATAR_DP = 40
 
 /**
