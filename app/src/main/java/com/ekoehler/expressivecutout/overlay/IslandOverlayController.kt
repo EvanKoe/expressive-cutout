@@ -15,6 +15,7 @@ import android.graphics.Region
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.telecom.TelecomManager
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -714,6 +715,7 @@ class IslandOverlayController(private val context: Context) {
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
+                        onOpenCall = ::onOpenCall,
                         onAction = ::onAction,
                         onReply = ::onReply,
                         onReplyActiveChange = ::onReplyActive,
@@ -2213,6 +2215,38 @@ class IslandOverlayController(private val context: Context) {
                 context.startActivity(launchIntent)
             }.onFailure { Log.w(TAG, "Failed to launch settings action", it) }
         }
+    }
+
+    /**
+     * The expanded call card's "Open" button: hand the live call back to the dialer's own in-call
+     * screen, leaving the pill up (the call is still running). Telecom is asked first because it
+     * raises the in-call screen itself — the call notification's content intent would be an activity
+     * start from our overlay, which Android 14+ can silently drop, and the in-app test call carries
+     * no content intent at all. That intent is the fallback, then simply launching the app that owns
+     * the call.
+     */
+    private fun onOpenCall() {
+        dismissJob?.cancel()
+        val packageName = OnCallBus.state.value?.packageName
+        if (packageName != null && packageName != context.packageName) {
+            val telecom = context.getSystemService<TelecomManager>()
+            if (telecom != null) {
+                runCatching { telecom.showInCallScreen(false) }
+                    .onSuccess { return }
+                    .onFailure { Log.w(TAG, "Failed to show the in-call screen", it) }
+            }
+        }
+        val intent = currentEvent.value?.contentIntent
+        if (intent != null) {
+            sendPendingIntent(intent)
+            return
+        }
+        val launch = packageName
+            ?.let { context.packageManager.getLaunchIntentForPackage(it) }
+            ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            ?: return
+        runCatching { context.startActivity(launch) }
+            .onFailure { Log.w(TAG, "Failed to open the calling app", it) }
     }
 
     /**

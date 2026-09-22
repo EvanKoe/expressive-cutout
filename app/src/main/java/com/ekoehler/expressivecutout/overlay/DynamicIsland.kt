@@ -500,6 +500,7 @@ fun DynamicIsland(
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
+    onOpenCall: () -> Unit = onActivate,
     onAction: (IslandAction) -> Unit,
     onReply: (IslandAction, String) -> Unit,
     onReplyActiveChange: (Boolean) -> Unit,
@@ -1014,7 +1015,7 @@ fun DynamicIsland(
                                             onAction = onAction,
                                             onOpen = {
                                                 tapExpanded = false
-                                                onActivate()
+                                                onOpenCall()
                                             },
                                         )
                                     } else {
