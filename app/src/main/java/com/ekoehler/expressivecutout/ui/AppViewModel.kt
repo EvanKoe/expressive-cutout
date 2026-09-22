@@ -40,6 +40,7 @@ import com.ekoehler.expressivecutout.data.JsonSerializable
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicRightButtonAction
@@ -78,6 +79,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
+    private val languagePreferences = LanguagePreferences(application)
     private val behaviourPreferences = BehaviourPreferences(application)
     private val appearancePreferences = AppearancePreferences(application)
     private val eventPreferences = EventPreferences(application)
@@ -222,6 +224,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = AppTheme.SYSTEM,
         )
 
+    val language: StateFlow<String> = languagePreferences.language
+
     val behaviour: StateFlow<BehaviourSettings> =
         behaviourPreferences.settings.stateIn(
             scope = viewModelScope,
@@ -243,6 +247,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val jsonSections: Map<String, JsonSerializable> = mapOf(
         JsonSettings.THEME to themePreferences,
+        JsonSettings.LANGUAGE to languagePreferences,
         JsonSettings.LAYOUT to layoutPreferences,
         JsonSettings.ICONS to preferences,
         JsonSettings.BEHAVIOUR to behaviourPreferences,
@@ -595,6 +600,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { themePreferences.setTheme(theme) }
+
+    /**
+     * Switches the app to the language tagged [tag]. The store applies it to the process straight
+     * away; on Android 12 and below the caller still has to restart the activity for the UI it is
+     * showing to be re-read in the new language.
+     */
+    fun setLanguage(tag: String) = languagePreferences.setLanguage(tag)
 
     fun setCutoutEnabled(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setCutoutEnabled(enabled)

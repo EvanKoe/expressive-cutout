@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.system.AppLocale
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.MainScreen
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
@@ -18,6 +20,10 @@ import com.ekoehler.expressivecutout.ui.theme.isDark
 
 /** Single-activity host. The overlay itself runs independently in the services. */
 class MainActivity : ComponentActivity() {
+
+    /** Localises the whole settings UI to the picked language. See [AppLocale]. */
+    override fun attachBaseContext(newBase: Context) =
+        super.attachBaseContext(AppLocale.wrap(newBase))
 
     /**
      * Hosts the whole settings UI: one edge-to-edge activity with the Compose tree rooted here, so

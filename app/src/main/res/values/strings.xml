@@ -579,6 +579,8 @@
 
     <!-- Profile tab -->
     <string name="profile_theme">Theme</string>
+    <string name="profile_language">Language</string>
+    <string name="profile_language_subtitle">The language the app is shown in</string>
     <string name="profile_version">Version</string>
     <string name="profile_version_subtitle">See what\'s new in this build</string>
     <string name="profile_export_title">Import/Export settings</string>

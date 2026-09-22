@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.res.Configuration
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -10,6 +11,7 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
+import com.ekoehler.expressivecutout.system.AppLocale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * It tracks which app is in the foreground, and inspects assistant windows for live response text.
  */
 class CutoutAccessibilityService : AccessibilityService() {
+
+    /** Localises the strings the island itself draws. See [AppLocale]. */
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLocale.wrap(base))
 
     private var overlay: IslandOverlayController? = null
     private var systemEvents: SystemEventMonitor? = null

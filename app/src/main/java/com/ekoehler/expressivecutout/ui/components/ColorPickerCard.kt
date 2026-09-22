@@ -116,9 +116,7 @@ fun ColorPickerCard(
                     .clip(shape = RoundedCornerShape(24.dp)),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                // Optional "use the default" swatch (null selection), then the Material You dynamic
-                // roles, then the custom picker, then the user's recent picks, then the predefined
-                // swatches.
+                // Default color
                 if (defaultLabel != null) {
                     ColorSwatch(
                         color = defaultColor ?: MaterialTheme.colorScheme.primary,
@@ -218,7 +216,15 @@ fun ColorPickerCard(
                 else -> null
             }
 
-            ColorSelectionTooltip(text = tooltipText)
+            // Description
+            AnimatedVisibility(visible = tooltipText != null) {
+                Text(
+                    text = tooltipText ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
         }
     }
 
