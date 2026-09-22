@@ -7,17 +7,16 @@
     <!-- Needed only for the in-app "send test notification" button (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Needed to show the details of the connected Wi-Fi network -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Lets the app talk to Shizuku, which performs the privileged status-bar calls on our
-         behalf. Optional at runtime: everything except the Status bar screen works without it. -->
+    <!-- Android 13+ Nearby Wi-Fi access. Location permissions remain for legacy Wi-Fi APIs. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
+    <!-- Android 12+ Bluetooth device access used by system Bluetooth broadcasts. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
-    <!-- It's required for the Wi-Fi events to work. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Makes launchable apps visible to the package manager on Android 11+, so the Apps screen
-         can list them for the per-app allow/mute switches. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -47,8 +46,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Shizuku's own initialisation hook: it binds this provider to hand our process the
-             privileged binder. Required by the Shizuku API, not something we call ourselves. -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
@@ -57,14 +54,8 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY, which is why an
-             accessibility service is used at all: it removes the need for SYSTEM_ALERT_WINDOW.
-
-             This service may read screen content, for features only: it takes the foreground
-             app's package name (so tiles can react to it), and reads answer text out of known
-             assistant apps for the assistant tile. Nothing read is stored or transmitted, and
-             the app declares no INTERNET permission. See res/xml/accessibility_service_config.xml
-             for the exact scope. -->
+        <!-- The accessibility service hosts the overlay and may retrieve text from known assistant
+             windows for the optional assistant tile. Content is processed locally and not transmitted. -->
         <service
             android:name=".service.CutoutAccessibilityService"
             android:exported="false"
@@ -78,17 +69,9 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Handles the buttons on the in-app test notification (reply / mark as read). -->
-        <receiver
-            android:name=".notifications.TestReplyReceiver"
-            android:exported="false" />
+        <receiver android:name=".notifications.TestReplyReceiver" android:exported="false" />
+        <receiver android:name=".notifications.TestCallReceiver" android:exported="false" />
 
-        <!-- Ends the in-app test call when its hang-up button is tapped. -->
-        <receiver
-            android:name=".notifications.TestCallReceiver"
-            android:exported="false" />
-
-        <!-- Captures posted notifications and forwards them to the island. -->
         <service
             android:name=".service.CutoutNotificationListenerService"
             android:exported="false"

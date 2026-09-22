@@ -30,12 +30,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.vikram.expressiveisland.data.AppPreferences
 import com.vikram.expressiveisland.data.BehaviourPreferences
 import com.vikram.expressiveisland.data.BehaviourSettings
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.withContext
 
 
 /**
@@ -90,12 +92,15 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     private val behaviourPreferences by lazy { BehaviourPreferences(this) }
+    private val appPreferences by lazy { AppPreferences(this) }
 
     private val alerter by lazy {
         NotificationAlerter(this)
     }
 
     private var behaviourJob: Job? = null
+    private var appPreferencesJob: Job? = null
+    private var disabledApps: Set<String> = emptySet()
 
     // Mirror of BehaviourSettings.dismissNotifications, cached because onNotificationPosted runs on
     // the main thread and must not wait on a DataStore read. Main-thread only, like the key fields.
@@ -152,12 +157,33 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         if (instance === this) instance = null
         _bound.value = false
+        held.clear()
+        returning.clear()
+        pendingCancel.clear()
+        currentCallKey = null
+        currentTimerKey = null
+        currentMediaArtKey = null
+        currentAssistantKey = null
+        OnCallBus.update(null)
+        RunningTimerBus.update(null)
+        MediaArtBus.update(null)
+        alerter.stop()
     }
 
     override fun onDestroy() {
         if (instance === this) instance = null
         _bound.value = false
         alerter.stop()
+        held.clear()
+        returning.clear()
+        pendingCancel.clear()
+        OnCallBus.update(null)
+        RunningTimerBus.update(null)
+        MediaArtBus.update(null)
+        currentCallKey = null
+        currentTimerKey = null
+        currentMediaArtKey = null
+        currentAssistantKey = null
         scope.cancel()
         super.onDestroy()
     }
@@ -177,7 +203,15 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                     dismissNotifications = settings.dismissNotifications
                     displayWhileDnd = settings.displayWhileDnd
                     alertOnNotification = settings.alertOnNotification
+                    behaviourPreferencesSnapshotIgnoreSilent = settings.ignoreSilentNotifications
                 }
+        }
+        if (appPreferencesJob?.isActive != true) {
+            appPreferencesJob = scope.launch {
+                appPreferences.disabledPackages
+                    .distinctUntilChanged()
+                    .collect { disabledApps = it }
+            }
         }
     }
 
@@ -203,6 +237,13 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             else -> false
         }
     }
+    private fun behaviourIgnoreSilentNotifications(): Boolean =
+        behaviourPreferencesSnapshotIgnoreSilent
+
+    // Kept as a simple cached value so notification callbacks never perform a DataStore read.
+    private var behaviourPreferencesSnapshotIgnoreSilent =
+        BehaviourSettings.DEFAULT_IGNORE_SILENT_NOTIFICATIONS
+
 
 
     /**
@@ -358,6 +399,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         if (!notification.shouldSurface()) return
 
+        // Apply the same per-app mute decision used by the overlay before touching the real
+        // notification. A muted notification must never be snoozed merely because the listener
+        // emitted it before the overlay had a chance to reject it.
+        if (notification.packageName in disabledApps) return
+
         if (suppressedByDnd()) return
 
         val extras = notification.notification.extras
@@ -366,6 +412,10 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         val progress = getProgressDataOrNull(sbn)
         val isSilent = isSilentNotification(notification)
+
+        // Keep the listener-side decision in lockstep with the overlay. Otherwise an ignored
+        // silent notification can still be snoozed and disappear from the notification shade.
+        if (behaviourIgnoreSilentNotifications() && isSilent) return
 
         val islandEvent = CutoutSignal.Notification(
             packageName = notification.packageName,
@@ -509,11 +559,17 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private fun StatusBarNotification.publishMediaArt() {
         if (notification.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) != true) return
-        val art = notification.getLargeIcon()
-            ?.loadImageBitmapOrNull(this@CutoutNotificationListenerService)
-            ?: return
-        currentMediaArtKey = key
-        MediaArtBus.update(MediaArt(packageName = packageName, art = art))
+        val sbnKey = key
+        val packageName = packageName
+        val icon = notification.getLargeIcon() ?: return
+        scope.launch(Dispatchers.IO) {
+            val art = icon.loadImageBitmapOrNull(this@CutoutNotificationListenerService) ?: return@launch
+            withContext(Dispatchers.Main.immediate) {
+                if (instance !== this@CutoutNotificationListenerService) return@withContext
+                currentMediaArtKey = sbnKey
+                MediaArtBus.update(MediaArt(packageName = packageName, art = art))
+            }
+        }
     }
 
     private fun StatusBarNotification.shouldSurface(): Boolean {

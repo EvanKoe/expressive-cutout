@@ -194,19 +194,36 @@ class MediaPlaybackMonitor(private val context: Context) {
             return
         }
 
-        val albumArt = metadata?.albumArt()
-
+        // Publish the lightweight media state immediately. Bitmap/content-provider access can
+        // block the callback thread, so artwork is decoded separately on IO and only applied if the
+        // same session/track is still current when the decode completes.
+        val transport = ControllerTransport(primary)
+        val progress = primary.progress(metadata, playing)
+        val mediaKey = "${primary.packageName}|$title|$artist"
         NowPlayingBus.update(
             NowPlaying(
                 packageName = primary.packageName,
                 title = title,
                 artist = artist,
-                albumArt = albumArt,
+                albumArt = null,
                 isPlaying = playing,
-                transport = ControllerTransport(primary),
-                progress = primary.progress(metadata, playing),
+                transport = transport,
+                progress = progress,
             ),
         )
+        metadata?.let { currentMetadata ->
+            scope.launch(Dispatchers.IO) {
+                val art = currentMetadata.albumArt() ?: return@launch
+                scope.launch(Dispatchers.Main.immediate) {
+                    val current = NowPlayingBus.state.value
+                    if (current != null &&
+                        "${current.packageName}|${current.title}|${current.artist}" == mediaKey
+                    ) {
+                        NowPlayingBus.update(current.copy(albumArt = art))
+                    }
+                }
+            }
+        }
 
         // Pop the island when a fresh track begins playing; reset when paused so a resume re-pops.
         if (!playing) {
@@ -214,7 +231,7 @@ class MediaPlaybackMonitor(private val context: Context) {
             return
         }
 
-        val key = "${primary.packageName}|$title|$artist"
+        val key = mediaKey
         if (key == lastShownKey) return
 
         lastShownKey = key

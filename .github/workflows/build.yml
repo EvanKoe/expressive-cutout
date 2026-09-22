@@ -2,7 +2,10 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/comprehensive-audit
+      - fix/double-pill
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -30,20 +33,25 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Lint
-        run: ./gradlew lintDebug --no-daemon
-
+      # Publish the APK immediately after a successful assemble. Lint is a separate validation
+      # step, so a lint failure never hides an otherwise successfully-built debug APK artifact.
       - name: Upload debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: expressive-cutout-debug
+          name: expressive-cutout-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon
 
       - name: Upload lint report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lint-report
+          name: lint-report-${{ github.sha }}
           path: app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
+          retention-days: 14
