@@ -3,6 +3,7 @@ package com.vikram.expressiveisland.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.vikram.expressiveisland.core.CutoutSignal
@@ -15,22 +16,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * The always-on host of the island. Its main purpose is to provide a context that can add
- * a TYPE_ACCESSIBILITY_OVERLAY window (no SYSTEM_ALERT_WINDOW required) and to keep the
- * overlay controller and system-event monitor alive for the lifetime of the binding.
- *
- * It tracks which app is in the foreground, and inspects assistant windows for live response text.
- */
 class CutoutAccessibilityService : AccessibilityService() {
-
     private var overlay: IslandOverlayController? = null
     private var systemEvents: SystemEventMonitor? = null
     private var mediaPlayback: MediaPlaybackMonitor? = null
     private var lastAssistantKey: String? = null
+    private var lastAssistantInspectionAt = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        teardownComponents()
         overlay = IslandOverlayController(this).also { it.start() }
         systemEvents = SystemEventMonitor(this).also { it.start() }
         mediaPlayback = MediaPlaybackMonitor(this).also { it.start() }
@@ -38,33 +33,8 @@ class CutoutAccessibilityService : AccessibilityService() {
         _bound.value = true
     }
 
-    private fun isAssistantPackage(packageName: String): Boolean {
-        val pkg = packageName.lowercase()
-        return pkg == "com.google.android.googlequicksearchbox" ||
-            pkg == "com.google.android.apps.googleassistant" ||
-            pkg == "com.google.android.apps.bard" ||
-            pkg == "com.google.android.apps.gemini" ||
-            pkg == "com.samsung.android.bixby.agent" ||
-            pkg == "com.samsung.android.bixby.service" ||
-            pkg == "com.amazon.dee.app" ||
-            pkg == "com.openai.chatgpt" ||
-            pkg == "com.microsoft.copilot" ||
-            pkg.contains("assistant") ||
-            pkg.contains("bixby") ||
-            pkg.contains("gemini")
-    }
-
-    private val DISCLAIMER_PATTERNS = listOf(
-        "can make mistakes",
-        "gemini is ai",
-        "gemini is an ai",
-        "display inaccurate info",
-        "check responses",
-        "type, talk, or share",
-        "ask gemini",
-        "gemini advanced",
-        "share screen with live"
-    )
+    private fun isAssistantPackage(packageName: String): Boolean =
+        packageName.lowercase() in ASSISTANT_PACKAGES
 
     private fun isDisclaimer(text: String): Boolean {
         val lower = text.lowercase()
@@ -74,132 +44,136 @@ class CutoutAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val ev = event ?: return
         val pkg = ev.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
+        if (ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) ForegroundAppBus.update(pkg)
 
-        if (ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            ForegroundAppBus.update(pkg)
+        if (!isAssistantPackage(pkg)) {
+            if (lastAssistantKey != null && ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                clearAssistant(pkg)
+            }
+            return
         }
 
-        if (isAssistantPackage(pkg)) {
-            inspectAssistantWindow(pkg, ev)
-        } else if (lastAssistantKey != null && ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // User navigated away from assistant app/overlay — dismiss assistant cutout
-            lastAssistantKey = null
-            IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
+        if (ev.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastAssistantInspectionAt < ASSISTANT_INSPECTION_INTERVAL_MS) return
+            lastAssistantInspectionAt = now
         }
+        inspectAssistantWindow(pkg, ev)
     }
 
     private fun inspectAssistantWindow(pkg: String, event: AccessibilityEvent) {
         val rootNode = rootInActiveWindow ?: event.source
         if (rootNode == null) {
-            if (lastAssistantKey != null) {
-                lastAssistantKey = null
-                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
-            }
+            clearAssistant(pkg)
             return
         }
 
-        val textList = mutableListOf<String>()
-        collectTextNodes(rootNode, textList)
-
+        val textList = ArrayList<String>(MAX_TEXT_NODES)
+        collectTextNodes(rootNode, textList, 0, 0)
         if (textList.isEmpty()) {
-            if (lastAssistantKey != null) {
-                lastAssistantKey = null
-                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
-            }
+            clearAssistant(pkg)
             return
         }
 
-        val title = textList.firstOrNull { it.isNotBlank() }
-        val responseText = textList.filter { it.isNotBlank() && it != title }.joinToString("\n").ifBlank { title }
+        val title = textList.firstOrNull()?.take(MAX_TITLE_LENGTH)
+        val responseText = textList.asSequence()
+            .drop(1)
+            .joinToString("\n")
+            .take(MAX_RESPONSE_LENGTH)
+            .ifBlank { title.orEmpty() }
+        if (title.isNullOrBlank() && responseText.isBlank()) {
+            clearAssistant(pkg)
+            return
+        }
 
-        val lastKey = "$pkg|$title|$responseText"
-        if (lastKey != lastAssistantKey) {
-            lastAssistantKey = lastKey
-            IslandEventBus.emit(
-                CutoutSignal.Assistant(
-                    packageName = pkg,
-                    title = title,
-                    text = responseText,
-                    contentIntent = null,
-                    active = true,
-                ),
-            )
+        val key = "$pkg|$title|$responseText".take(MAX_KEY_LENGTH)
+        if (key != lastAssistantKey) {
+            lastAssistantKey = key
+            IslandEventBus.emit(CutoutSignal.Assistant(
+                packageName = pkg,
+                title = title,
+                text = responseText,
+                contentIntent = null,
+                active = true,
+            ))
         }
     }
 
-    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<String>) {
-        if (node == null) return
+    private fun clearAssistant(pkg: String) {
+        if (lastAssistantKey == null) return
+        lastAssistantKey = null
+        IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
+    }
+
+    private fun collectTextNodes(
+        node: AccessibilityNodeInfo?,
+        list: MutableList<String>,
+        depth: Int,
+        totalChars: Int,
+    ): Int {
+        if (node == null || depth > MAX_NODE_DEPTH || list.size >= MAX_TEXT_NODES || totalChars >= MAX_RESPONSE_LENGTH) return totalChars
+        var chars = totalChars
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrBlank() && text.length > 1 && !isDisclaimer(text)) {
-            list.add(text)
+            val remaining = MAX_RESPONSE_LENGTH - chars
+            if (remaining > 0) {
+                val value = text.take(remaining)
+                list.add(value)
+                chars += value.length
+            }
         }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectTextNodes(child, list)
+        for (i in 0 until minOf(node.childCount, MAX_CHILDREN_PER_NODE)) {
+            if (list.size >= MAX_TEXT_NODES || chars >= MAX_RESPONSE_LENGTH) break
+            chars = collectTextNodes(node.getChild(i), list, depth + 1, chars)
         }
+        return chars
     }
 
-    /**
-     * Forward device rotations to the overlay so it can rebuild its top-of-screen window for the new
-     * geometry — otherwise the touchable-region carve-out that lets the notification shade through
-     * beside the pill goes stale in landscape and the band swallows the shade pull.
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         overlay?.onOrientationChanged(newConfig.orientation)
     }
 
     override fun onInterrupt() = Unit
+    override fun onUnbind(intent: Intent?): Boolean { teardown(); return super.onUnbind(intent) }
+    override fun onDestroy() { teardown(); super.onDestroy() }
 
-    override fun onUnbind(intent: Intent?): Boolean {
-        teardown()
-        return super.onUnbind(intent)
-    }
-
-    override fun onDestroy() {
-        teardown()
-        super.onDestroy()
+    private fun teardownComponents() {
+        mediaPlayback?.stop(); mediaPlayback = null
+        systemEvents?.stop(); systemEvents = null
+        overlay?.stop(); overlay = null
     }
 
     private fun teardown() {
         _bound.value = false
         instance = null
-        mediaPlayback?.stop()
-        mediaPlayback = null
-        systemEvents?.stop()
-        systemEvents = null
-        overlay?.stop()
-        overlay = null
+        teardownComponents()
+        lastAssistantKey = null
+        lastAssistantInspectionAt = 0L
     }
 
     companion object {
-        /**
-         * The live service instance while bound, used by [performGlobal] to fire system-wide actions
-         * for the expanded "center" shortcuts. Held statically (the service has no android:process, so
-         * it's this same process) and cleared in [teardown] so it never outlives the binding.
-         */
+        private const val ASSISTANT_INSPECTION_INTERVAL_MS = 150L
+        private const val MAX_TEXT_NODES = 80
+        private const val MAX_NODE_DEPTH = 24
+        private const val MAX_CHILDREN_PER_NODE = 64
+        private const val MAX_RESPONSE_LENGTH = 4_000
+        private const val MAX_TITLE_LENGTH = 160
+        private const val MAX_KEY_LENGTH = 4_500
+        private val ASSISTANT_PACKAGES = setOf(
+            "com.google.android.googlequicksearchbox", "com.google.android.apps.googleassistant",
+            "com.google.android.apps.bard", "com.google.android.apps.gemini",
+            "com.samsung.android.bixby.agent", "com.samsung.android.bixby.service",
+            "com.amazon.dee.app", "com.openai.chatgpt", "com.microsoft.copilot",
+        )
+        private val DISCLAIMER_PATTERNS = listOf(
+            "can make mistakes", "gemini is ai", "gemini is an ai", "display inaccurate info",
+            "check responses", "type, talk, or share", "ask gemini", "gemini advanced",
+            "share screen with live",
+        )
         private var instance: CutoutAccessibilityService? = null
-
-        /**
-         * Perform a system-wide [AccessibilityService] global action (e.g. lock screen, screenshot,
-         * quick settings) if the service is bound. Best-effort: returns false when nothing is bound
-         * or the action is rejected, so callers can fall back or ignore it.
-         */
-        fun performGlobal(action: Int): Boolean =
-            runCatching { instance?.performGlobalAction(action) }.getOrNull() ?: false
-
         private val _bound = MutableStateFlow(false)
-
-        /**
-         * True only while Android actually has this service bound — i.e. while the island is
-         * really running. Deliberately separate from
-         * [com.vikram.expressiveisland.permissions.Permissions.isAccessibilityGranted], which
-         * reads the user's *consent* out of Settings.Secure: that stays "enabled" across a
-         * reinstall or an app update while the binding is dead, so the app would otherwise report
-         * itself healthy while nothing at all is listening. Lives in the companion object rather
-         * than on the instance so the settings UI (same process — no android:process on the
-         * service) can observe it without a binder of its own.
-         */
         val bound: StateFlow<Boolean> = _bound.asStateFlow()
+        fun performGlobal(action: Int): Boolean = runCatching { instance?.performGlobalAction(action) }.getOrNull() ?: false
     }
 }

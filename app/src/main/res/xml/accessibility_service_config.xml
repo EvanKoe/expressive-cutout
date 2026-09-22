@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The service exists chiefly so we may host a TYPE_ACCESSIBILITY_OVERLAY window without
-    the SYSTEM_ALERT_WINDOW permission. It also listens for typeWindowStateChanged to learn
-    which app is in the foreground (package name only), so the music tile can hide while the
-    playing app is open. canRetrieveWindowContent is false, so no screen content is ever read.
+    Hosts the TYPE_ACCESSIBILITY_OVERLAY window without SYSTEM_ALERT_WINDOW.
+    The service also tracks the foreground package and, when the assistant tile is enabled,
+    reads accessibility window content to extract assistant response text locally.
+    No accessibility content is transmitted off-device by this app.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeNotificationStateChanged"

@@ -3940,7 +3940,8 @@ private fun IconBadge(
                 is CutoutColor.Solid ->
                     if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
 
-                is CutoutColor.AppIcon -> TODO()
+                is CutoutColor.AppIcon ->
+                    if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
             }
         }
 
