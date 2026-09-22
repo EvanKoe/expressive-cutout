@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - fix/comprehensive-audit
-      - fix/double-pill
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -33,8 +31,6 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
 
-      # Publish the APK immediately after a successful assemble. Lint is a separate validation
-      # step, so a lint failure never hides an otherwise successfully-built debug APK artifact.
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
