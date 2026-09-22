@@ -24,6 +24,7 @@ object JsonSettings {
 
     /** Section labels — also the keys of the store map AppViewModel builds. */
     const val THEME = "theme"
+    const val LANGUAGE = "language"
     const val LAYOUT = "layout"
     const val ICONS = "icons"
     const val BEHAVIOUR = "behaviour"

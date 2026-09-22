@@ -1,6 +1,9 @@
 package com.ekoehler.expressivecutout
 
 import android.app.Application
+import android.content.Context
+import com.ekoehler.expressivecutout.data.LanguagePreferences
+import com.ekoehler.expressivecutout.system.AppLocale
 import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.StatusBarIconController
@@ -18,12 +21,16 @@ class ExpressiveCutoutApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** Localises anything reading strings off the application context. See [AppLocale]. */
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLocale.wrap(base))
+
     /**
      * Starts the singletons that have to outlive any single service or activity, and lifts the
      * hidden-API restriction they need, before anything else in the process runs.
      */
     override fun onCreate() {
         super.onCreate()
+        LanguagePreferences(this).applyStored()
         // IStatusBarService is a non-SDK interface, so plain reflection on it is blocked for apps
         // targeting a recent SDK. This lifts the restriction for our process only.
         HiddenApiBypass.addHiddenApiExemptions("")

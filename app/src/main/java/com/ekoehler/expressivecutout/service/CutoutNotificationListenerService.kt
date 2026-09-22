@@ -33,6 +33,7 @@ import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
 import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
+import com.ekoehler.expressivecutout.system.AppLocale
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 
@@ -72,6 +73,9 @@ data class ProgressData(
  * on the re-post: letting it settle into the shade silently, or cancelling it then.
  */
 class CutoutNotificationListenerService : NotificationListenerService() {
+
+    /** Localises the strings this service builds for the island. See [AppLocale]. */
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLocale.wrap(base))
 
     /**
      * Key of the call notification currently driving the phone tile, so we pop the island only once
