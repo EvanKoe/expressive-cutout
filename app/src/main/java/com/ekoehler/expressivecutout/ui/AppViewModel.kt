@@ -397,6 +397,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appPreferences.setEnabled(packageName, enabled)
     }
 
+    fun setAppsEnabled(packageNames: Collection<String>, enabled: Boolean) = viewModelScope.launch {
+        appPreferences.setEnabled(packageNames, enabled)
+    }
+
     fun setAppNormalOnly(packageName: String, normalOnly: Boolean) = viewModelScope.launch {
         appPreferences.setNormalOnly(packageName, normalOnly)
     }
