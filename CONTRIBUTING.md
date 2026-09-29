@@ -8,6 +8,10 @@ As an open source project, your PRs and issues are very welcome!
 
 To propose new features, you can open an issue on Github, but the easiest is to go to [the discord server](https://discord.gg/uG5XWj2N5v) in the `#sugestions` channel. This discord server is also the easiest way to reach me and the community.
 
+## Translations
+Since v0.3, the app has a translation module that allows you to add your language to the app. Please note that these languages are community-maintained, and thus, can't be garanteed for each version.
+To contribute as a translator, read `docs/TRANSLATE.md`.
+
 ## Pull request template
 When you are making a pull request, I suggest you come from `dev` and merge to `dev`. `main` is secured and is only used for releases.
 There is no specific template, but for PRs, I like lists that go straight to the point.
