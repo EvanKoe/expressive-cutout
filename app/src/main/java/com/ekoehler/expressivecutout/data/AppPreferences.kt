@@ -50,6 +50,16 @@ class AppPreferences(private val context: Context) : JsonSerializable {
     }
 
     /**
+     * Applies one enabled state to every package in [packageNames] at once. The select-all control
+     * covers a few hundred apps, and looping [setEnabled] over them would queue that many separate
+     * DataStore writes and emissions.
+     */
+    suspend fun setEnabled(packageNames: Collection<String>, enabled: Boolean) = context.perAppDataStore.edit { prefs ->
+        val current = prefs[DISABLED_KEY].orEmpty()
+        prefs[DISABLED_KEY] = if (enabled) current - packageNames else current + packageNames
+    }
+
+    /**
      * Adds or removes [packageName] from the normal-only set: apps listed here still get the
      * collapsed cutout, but never the expanded island.
      */
