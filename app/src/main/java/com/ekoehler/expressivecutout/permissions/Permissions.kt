@@ -1,8 +1,10 @@
 package com.ekoehler.expressivecutout.permissions
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -43,6 +45,15 @@ object Permissions {
         val powerManager = context.getSystemService<PowerManager>() ?: return false
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)
     }
+
+    /**
+     * The optional grant behind the phone tile's fast call-end signal. Without it the tile still
+     * closes, just from the notification panel rather than from the platform's own call state.
+     */
+    const val PHONE_STATE: String = Manifest.permission.READ_PHONE_STATE
+
+    fun isPhoneStateGranted(context: Context): Boolean =
+        context.checkSelfPermission(PHONE_STATE) == PackageManager.PERMISSION_GRANTED
 
     fun openNotificationAccessSettings(context: Context) =
         context.startActivitySafely(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))

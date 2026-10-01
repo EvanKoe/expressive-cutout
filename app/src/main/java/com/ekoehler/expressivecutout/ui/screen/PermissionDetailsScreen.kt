@@ -19,12 +19,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Card
@@ -137,6 +139,33 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "not ask for.",
         uses = listOf(
             "Post the sample notification, call and reply used to preview the island without waiting for a real one",
+        ),
+        optional = true,
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.VolumeUp,
+        title = "Audio settings",
+        manifestName = "MODIFY_AUDIO_SETTINGS",
+        summary = "Used by two buttons on the expanded phone tile. No dialer offers mute or " +
+            "speakerphone as a notification action, so the tile drives the audio route itself. " +
+            "It changes nothing on its own, and records no audio — this permission cannot.",
+        uses = listOf(
+            "Mute and unmute the microphone during a call, from the expanded phone tile",
+            "Put a call on speakerphone and take it off again",
+        ),
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.Call,
+        title = "Phone state",
+        manifestName = "READ_PHONE_STATE",
+        summary = "Optional, and asked for only on the Permissions screen. It reports whether a " +
+            "call is ringing, connected or over — nothing else. It gives no phone number, no " +
+            "caller identity and no call log; the caller shown on the island comes from the " +
+            "dialer's own notification, as it always has. Without it the phone tile still closes " +
+            "when a call ends, just from the notification panel, which can take a few seconds.",
+        uses = listOf(
+            "Close the phone tile the moment a call ends, instead of waiting to notice the " +
+                "dialer's notification is gone",
         ),
         optional = true,
     ),

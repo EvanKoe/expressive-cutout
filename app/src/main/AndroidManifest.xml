@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Lets the expanded phone tile's Mute and Speaker buttons route the live call's audio. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Optional. Lets the phone tile close on the platform's own call state the moment a call
+         ends, instead of waiting to notice the dialer's notification is gone. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <!-- Lets the app talk to Shizuku, which performs the privileged status-bar calls on our
          behalf. Optional at runtime: everything except the Status bar screen works without it. -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />

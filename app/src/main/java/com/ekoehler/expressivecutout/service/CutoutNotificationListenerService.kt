@@ -34,6 +34,7 @@ import com.ekoehler.expressivecutout.events.CallNotificationParser
 import com.ekoehler.expressivecutout.events.TimerNotificationParser
 import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.system.AppLocale
+import com.ekoehler.expressivecutout.system.CallStateMonitor
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 
 
@@ -106,6 +107,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     private var behaviourJob: Job? = null
 
+    /** Runs [clearCallIfEnded] for the length of a call; see [startCallWatchdog]. */
+    private var callWatchdogJob: Job? = null
+
+    /** The platform's call state, watched for the length of a call; see [watchForCallEnd]. */
+    private val callStateMonitor by lazy { CallStateMonitor(this) }
+
     /**
      * Mirror of BehaviourSettings.dismissNotifications, cached because onNotificationPosted runs on
      * the main thread and must not wait on a DataStore read. Main-thread only, like the key fields.
@@ -174,13 +181,17 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
     /**
      * Publishes the listener and starts watching behaviour settings once the framework has bound
-     * it, then recovers the album cover of whatever is already playing.
+     * it, recovers the album cover of whatever is already playing, and picks up the platform's call
+     * state when the optional grant for it is in place.
      */
     override fun onListenerConnected() {
         instance = this
         _bound.value = true
         observeBehaviour()
         seedMediaArt()
+        // Registered up front, not when a call starts: a dialer's leftover call notification has to
+        // be recognisable as stale on the very first post we see of it.
+        traceCall("listener connected; call state registered=${callStateMonitor.start(::onCallStateIdle)}")
     }
 
     /**
@@ -217,6 +228,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         // a fetch-back caught mid-flight by a teardown must not leave the device silent.
         if (mutedReturns > 0) setEffectsMuted(false)
         alerter.stop()
+        stopCallWatchdog()
+        callStateMonitor.stop()
         scope.cancel()
         super.onDestroy()
     }
@@ -659,12 +672,16 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         )
     }
 
+    /** One line of [TRACE_CALLS] output. */
+    private fun traceCall(message: String) {
+        if (TRACE_CALLS) Log.i(TAG, "CALL $message")
+    }
+
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // Clears call cutout when call ends
-        if (sbn?.key != null && sbn.key == currentCallKey) {
-            currentCallKey = null
-            OnCallBus.update(null)
+        if (sbn != null && CallNotificationParser.isCall(sbn)) {
+            traceCall("removed key=${sbn.key} pkg=${sbn.packageName}")
         }
+        clearCallIfEnded()
         // Clears time cutout when timer finishes or reset
         if (sbn?.key != null && sbn.key == currentTimerKey) {
             currentTimerKey = null
@@ -684,6 +701,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * appears — later re-posts refresh the state without re-popping, mirroring the media monitor.
      */
     private fun handleCall(sbn: StatusBarNotification) {
+        val stale = isStaleCall(sbn)
+        traceCall(
+            "posted key=${sbn.key} pkg=${sbn.packageName} stale=$stale " +
+                "idle=${callStateMonitor.isIdle} known=${CallStateMonitor.knowsAbout(this, sbn.packageName)}",
+        )
+        if (stale) return
         val call = CallNotificationParser.parse(sbn, this)
         val prevOngoing = OnCallBus.state.value?.ongoing
 
@@ -710,6 +733,99 @@ class CutoutNotificationListenerService : NotificationListenerService() {
                     ongoing = call.ongoing,
                 ),
             )
+        }
+        watchForCallEnd()
+    }
+
+    /**
+     * Whether a call notification belongs to a call that is already over. Google Dialer leaves its
+     * ongoing-call notification posted after a hang-up — still marked as a connected call, with the
+     * caller and the chronometer torn out of it — so taking the panel at its word pops a blank call
+     * tile for a call that ended. Only answerable with the optional phone-state grant; without it
+     * the panel is all there is, and a dialer that lies cannot be caught out.
+     */
+    private fun isStaleCall(sbn: StatusBarNotification): Boolean =
+        callStateMonitor.isIdle && CallStateMonitor.knowsAbout(this, sbn.packageName)
+
+    /**
+     * Drop the phone tile once no call notification is left on the panel. Deliberately asks the
+     * framework what is still posted rather than matching the removed key against [currentCallKey]:
+     * a dialer that re-posts a call under a new key, or a removal that never reaches a listener the
+     * framework is rebinding, would otherwise leave the tile up for a call that already ended, with
+     * the cutout's own hang-up button the only way to be rid of it.
+     *
+     * A null [currentCallKey] means the live call came from somewhere other than the panel — the
+     * in-app test call — and is left alone.
+     */
+    private fun clearCallIfEnded() {
+        if (currentCallKey == null || OnCallBus.state.value == null) return
+        val active = runCatching { activeNotifications }
+            .onFailure { Log.w(TAG, "Call still on the panel is unknown; keeping the tile up", it) }
+            .getOrNull() ?: return
+        val live = active.filter { CallNotificationParser.isCall(it) && !isStaleCall(it) }
+        traceCall("panel scan: ${live.size} live call notification(s) of ${active.size} posted")
+        if (live.isNotEmpty()) return
+        traceCall("panel scan -> clearing the tile")
+        currentCallKey = null
+        OnCallBus.update(null)
+        stopCallWatchdog()
+    }
+
+    /**
+     * Start watching for the end of the call now driving the tile. The platform's own call state is
+     * the better signal — immediate, and right even when the dialer leaves its notification behind —
+     * but it rests on an optional grant and covers the dialer's calls alone, so anything it cannot
+     * speak for falls back to re-reading the panel. Idempotent: a call re-posts on every update.
+     */
+    private fun watchForCallEnd() {
+        val telephonyKnows = CallStateMonitor.knowsAbout(this, OnCallBus.state.value?.packageName) &&
+            callStateMonitor.start(::onCallStateIdle)
+        traceCall("watching: telephony=$telephonyKnows poll=${!telephonyKnows}")
+        if (telephonyKnows) {
+            callWatchdogJob?.cancel()
+            callWatchdogJob = null
+        } else {
+            startCallWatchdog()
+        }
+    }
+
+    /**
+     * The platform says no call is up any more. Trusted over the panel, which is the whole point of
+     * the grant behind it: a dialer that leaves its notification posted after a hang-up is exactly
+     * what [clearCallIfEnded] alone cannot see through.
+     */
+    private fun onCallStateIdle() {
+        val pkg = OnCallBus.state.value?.packageName
+        traceCall("telephony idle; live call pkg=$pkg known=${CallStateMonitor.knowsAbout(this, pkg)}")
+        if (!CallStateMonitor.knowsAbout(this, pkg)) return
+        traceCall("telephony idle -> clearing the tile")
+        currentCallKey = null
+        OnCallBus.update(null)
+        stopCallWatchdog()
+    }
+
+    /**
+     * Stops the panel poll. The call-state monitor deliberately stays registered: a dialer that
+     * leaves its notification posted goes on posting updates after the call, and [isStaleCall] has
+     * to be able to recognise them.
+     */
+    private fun stopCallWatchdog() {
+        callWatchdogJob?.cancel()
+        callWatchdogJob = null
+    }
+
+    /**
+     * Re-check the panel on a slow beat for as long as a call drives the tile, so a hang-up the
+     * framework never reports as a removal still closes the cutout. Idempotent, and it ends by
+     * itself with the call it was started for.
+     */
+    private fun startCallWatchdog() {
+        if (callWatchdogJob?.isActive == true) return
+        callWatchdogJob = scope.launch {
+            while (currentCallKey != null) {
+                delay(CALL_WATCHDOG_INTERVAL_MS)
+                clearCallIfEnded()
+            }
         }
     }
 
@@ -812,11 +928,20 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         private const val TAG = "CutoutNotifListener"
 
         /**
+         * How often [startCallWatchdog] re-checks the panel. Slow enough to cost nothing over a
+         * call, quick enough that a missed hang-up never leaves the cutout up for long.
+         */
+        private const val CALL_WATCHDOG_INTERVAL_MS = 3_000L
+
+        /**
          * Flip to trace every hold to logcat under [TAG]. Off in normal builds: the check behind it
          * costs a round trip to the framework per notification, and is only ever needed while
          * investigating the hold itself.
          */
         private const val TRACE_HOLDS = false
+
+        /** Traces how a call is picked up and let go, for diagnosing a dialer that misreports one. */
+        private const val TRACE_CALLS = true
 
         /**
          * How long after a hold the notification is checked for having actually left the active

@@ -589,7 +589,9 @@ fun DynamicIsland(
         shownEvent?.usesTinyCutout(callOngoing = liveCall?.ongoing == true) == true
 
     // A connected call splits in two: a narrow pill and the detached hang-up capsule beside it.
-    val callSplit = usesSplitCallCutout(
+    // Never beside the resting empty pill: the dialer taking the call full screen clears the cutout
+    // while [shownEvent] still holds the call, and the capsule would hang on beside nothing.
+    val callSplit = !emptyPill && usesSplitCallCutout(
         event = shownEvent,
         callOngoing = liveCall?.ongoing == true,
         expanded = isExpanded,
@@ -777,6 +779,10 @@ fun DynamicIsland(
     // has anything for the dots to collide with. Everything else has empty pill there, so the dots
     // fit as they are and the pill is left at the width the user chose.
     //
+    // Dropped for the resting pill, which is nobody's event: [shownEvent] outlives the cutout being
+    // cleared, so an adaptive fill would keep wearing the last app's colour until something replaced it.
+    val surfaceColor = if (emptyPill) null else shownEvent?.primaryColor()
+
     // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
     // or fading out, but clears it for the resting empty pill.
     val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let {
@@ -858,6 +864,16 @@ fun DynamicIsland(
         satelliteReveal.animateTo(
             targetValue = if (satelliteShown) 1f else 0f,
             animationSpec = motion.float(baseMs = if (satelliteShown) 320 else 200),
+        )
+    }
+
+    // The capsule gets an animatable of its own for the same reason the bubble does: it has to be
+    // able to scale away while the pill it is parked beside stays up as the resting empty cutout.
+    val callSplitReveal = remember { Animatable(0f) }
+    LaunchedEffect(callSplit) {
+        callSplitReveal.animateTo(
+            targetValue = if (callSplit) 1f else 0f,
+            animationSpec = motion.float(baseMs = if (callSplit) 320 else 200),
         )
     }
 
@@ -955,8 +971,8 @@ fun DynamicIsland(
                     shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
                     appearance = appearance,
                     progress = expandProgress,
-                    appColor = shownEvent?.primaryColor(),
-                    adaptiveColor = shownEvent?.primaryColor(),
+                    appColor = surfaceColor,
+                    adaptiveColor = surfaceColor,
                 ) {
                     Crossfade(
                         targetState = IslandContentKey(
@@ -1134,7 +1150,8 @@ fun DynamicIsland(
         val capsuleAction = shownEvent?.actions?.firstOrNull { it.destructive }
             ?: shownEvent?.actions?.firstOrNull()
         val capsuleCall = shownEvent?.call
-        if (callSplit && capsuleAction != null && capsuleCall != null && reveal.value > 0.01f) {
+        val capsuleReveal = minOf(reveal.value, callSplitReveal.value)
+        if (capsuleAction != null && capsuleCall != null && capsuleReveal > 0.01f) {
             val capsuleWidthDp = callSplitHangUpWidthDp(dims.heightDp)
             val step = revealWidth / 2 + CALL_SPLIT_GAP_DP.dp + (capsuleWidthDp / 2).dp
             Box(
@@ -1148,9 +1165,9 @@ fun DynamicIsland(
                     heightDp = dims.heightDp,
                     onAction = onAction,
                     modifier = Modifier.graphicsLayer {
-                        scaleX = reveal.value
-                        scaleY = reveal.value
-                        alpha = reveal.value
+                        scaleX = capsuleReveal
+                        scaleY = capsuleReveal
+                        alpha = capsuleReveal
                     },
                 )
             }

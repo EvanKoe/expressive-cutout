@@ -98,6 +98,8 @@ Your data privacy matters. The app only requests the absolute minimum permission
 - Vibration: for haptic feedback in the app and on the cutout,  
 - Ignore battery optimisation (optional): to make sure battery optimisation does not kill the app,  
 - Post notification (optional): for testing purpose,  
+- Audio settings: so the expanded phone tile's Mute and Speaker buttons can route a live call's audio, since no dialer offers either as a notification action. It records nothing — this permission cannot,  
+- Phone state (optional): it reports only whether a call is ringing, connected or over — no phone number, no caller identity, no call log. It lets the phone tile close the moment you hang up, instead of waiting to notice the dialer's notification is gone. Without it the tile still closes, just a few seconds later,  
 - Shizuku (optional): only for the two features Android reserves for the shell user — hiding the system status bar icons, and reading which apps are using the microphone, camera or location for the privacy dots. Shizuku is a separate app you install and start yourself, and you approve this app in its interface. Without it, those two features are unavailable and everything else works as normal,  
 - Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it,  
 - App list visibility (`<queries>`, not a permission you grant): on Android 11+ an app sees no other app unless it says what it needs to see. This one asks for apps that have a launcher icon, so the Apps screen can list them for the per-app switches, an app's icon can colour the island, and the app can tell whether Shizuku is installed. It is deliberately not `QUERY_ALL_PACKAGES`

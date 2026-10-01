@@ -338,6 +338,8 @@
     <string name="shizuku_not_running_desc">Démarrez-le depuis l’application Shizuku, puis revenez. Il s’arrête à chaque redémarrage.</string>
     <string name="shizuku_permission_title">Accorder l’accès à Shizuku</string>
     <string name="shizuku_permission_desc">Appuyez pour laisser Expressive Cutout utiliser Shizuku.</string>
+    <string name="perm_phone_state_title">État du téléphone</string>
+    <string name="perm_phone_state_desc">Facultatif. Ferme la tuile téléphone dès la fin de l’appel.</string>
     <string name="perm_shizuku_title">Shizuku</string>
     <string name="perm_shizuku_desc">Facultatif. Nécessaire uniquement pour masquer les icônes de notification de la barre d’état.</string>
 

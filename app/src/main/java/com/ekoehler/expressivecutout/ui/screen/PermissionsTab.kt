@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
@@ -28,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +61,14 @@ import com.ekoehler.expressivecutout.ui.components.PageTitle
 @Composable
 fun PermissionsTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
-    val status = rememberPermissionStatus()
+    var status by rememberPermissionStatus()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
+
+    // Answered in place rather than in system settings, so take the result rather than waiting for
+    // the resume rememberPermissionStatus reads on.
+    val requestPhoneState = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> status = status.copy(phoneState = granted) }
 
     // Shizuku can be started while we're backgrounded, and returning here is the natural moment to
     // notice, so re-read on resume alongside the grants rememberPermissionStatus already refreshes.
@@ -108,6 +118,15 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 description = stringResource(R.string.perm_battery_desc),
                 granted = status.batteryIgnored,
                 onClick = { Permissions.requestIgnoreBatteryOptimization(context) },
+            )
+            // Optional too: without it the phone tile still closes when a call ends, just from the
+            // notification panel rather than from the platform's own call state.
+            PermissionCard(
+                icon = Icons.Rounded.Call,
+                title = stringResource(R.string.perm_phone_state_title),
+                description = stringResource(R.string.perm_phone_state_desc),
+                granted = status.phoneState,
+                onClick = { requestPhoneState.launch(Permissions.PHONE_STATE) },
             )
             // Optional, so it's deliberately outside status.allEssentialGranted — a missing Shizuku
             // must never stop the "All set" card from showing. Shizuku dies on every reboot, and
@@ -234,14 +253,18 @@ private data class PermissionStatus(
     val notifications: Boolean,
     val accessibility: Boolean,
     val batteryIgnored: Boolean,
+    val phoneState: Boolean,
 ) {
-    // Battery optimisation is a reliability nicety, not a hard requirement.
+    // Battery optimisation and the call state are reliability niceties, not hard requirements.
     val allEssentialGranted: Boolean get() = notifications && accessibility
 }
 
-/** Reads permission state now and again on every [Lifecycle.Event.ON_RESUME]. */
+/**
+ * Reads permission state now and again on every [Lifecycle.Event.ON_RESUME]. Returned as a mutable
+ * state so a runtime prompt answered in place can write its result straight back.
+ */
 @Composable
-private fun rememberPermissionStatus(): PermissionStatus {
+private fun rememberPermissionStatus(): MutableState<PermissionStatus> {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -249,12 +272,13 @@ private fun rememberPermissionStatus(): PermissionStatus {
         notifications = Permissions.isNotificationAccessGranted(context),
         accessibility = Permissions.isAccessibilityGranted(context),
         batteryIgnored = Permissions.isBatteryOptimizationIgnored(context),
+        phoneState = Permissions.isPhoneStateGranted(context),
     )
 
-    var status by remember { mutableStateOf(read()) }
+    val status = remember { mutableStateOf(read()) }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) status = read()
+            if (event == Lifecycle.Event.ON_RESUME) status.value = read()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
