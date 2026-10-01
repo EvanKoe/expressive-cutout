@@ -1044,9 +1044,12 @@ class IslandOverlayController(private val context: Context) {
                 phoneAppHidden = false
             }
             applyPhoneAppVisibility()
+            Log.i(TAG, "CALL bus=${if (call == null) "cleared" else "live"} pillIsCall=${currentEvent.value?.call != null}")
             // Only steer the call pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.call == null) return@collect
-            if (callActive) dismissJob?.cancel() else scheduleDismiss()
+            // A call that has ended takes its pill with it. Handing it to the auto-dismiss timer
+            // instead would leave a dead call on the cutout for the whole normal duration.
+            if (callActive) dismissJob?.cancel() else dismissIsland()
         }
     }
 

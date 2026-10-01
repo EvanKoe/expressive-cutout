@@ -338,6 +338,8 @@
     <string name="shizuku_not_running_desc">Start it from the Shizuku app, then come back. It stops on every reboot.</string>
     <string name="shizuku_permission_title">Grant Shizuku access</string>
     <string name="shizuku_permission_desc">Tap to let Expressive Cutout use Shizuku.</string>
+    <string name="perm_phone_state_title">Phone state</string>
+    <string name="perm_phone_state_desc">Optional. Closes the phone tile the moment a call ends.</string>
     <string name="perm_shizuku_title">Shizuku</string>
     <string name="perm_shizuku_desc">Optional. Only needed to hide the status bar notification icons.</string>
 
