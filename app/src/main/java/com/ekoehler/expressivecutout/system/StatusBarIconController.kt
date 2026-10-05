@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
+import com.ekoehler.expressivecutout.core.CutoutWidthBus
+import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -47,7 +49,9 @@ object StatusBarIconController {
 
     /**
      * Keeps the system status bar in sync with the saved wish, re-applying whenever Shizuku becomes
-     * reachable again — after a reboot, or after the user starts Shizuku for the first time.
+     * reachable again — after a reboot, or after the user starts Shizuku for the first time. A
+     * setting left on [StatusBarHideMode.AUTO] takes its wish from the island's own width, read
+     * from [CutoutWidthBus], so the bar empties and refills as the cutout grows and shrinks.
      *
      * There is deliberately no `stop()`, and adding one would be a mistake: releasing [token] is
      * what restores the system icons, so a public stop would be a way to silently undo the user's
@@ -57,15 +61,21 @@ object StatusBarIconController {
     fun start(context: Context, scope: CoroutineScope) {
         val preferences = StatusBarPreferences(context)
         val packageName = context.packageName
+        val modes = combine(
+            preferences.notificationIconsMode,
+            preferences.systemInfoMode,
+            preferences.clockMode,
+        ) { icons, systemInfo, clock ->
+            Modes(icons, systemInfo, clock)
+        }
         scope.launch {
             combine(
-                preferences.hideNotificationIcons,
-                preferences.hideSystemInfo,
-                preferences.hideClock,
+                modes,
                 preferences.silenceAlerts,
                 ShizukuState.status,
-            ) { hideIcons, hideSystemInfo, hideClock, silenceAlerts, status ->
-                Wish(hideIcons, hideSystemInfo, hideClock, silenceAlerts, status)
+                CutoutWidthBus.widened,
+            ) { chosen, silenceAlerts, status, widened ->
+                Wish(chosen.resolve(widened), silenceAlerts, status)
             }
                 .collect { wish ->
                     if (wish.status != ShizukuStatus.READY) {
@@ -74,7 +84,13 @@ object StatusBarIconController {
                         service = null
                         return@collect
                     }
-                    apply(wish.hideIcons, wish.hideSystemInfo, wish.hideClock, wish.silenceAlerts, packageName)
+                    apply(
+                        wish.hiding.hideIcons,
+                        wish.hiding.hideSystemInfo,
+                        wish.hiding.hideClock,
+                        wish.silenceAlerts,
+                        packageName,
+                    )
                 }
         }
     }
@@ -111,11 +127,34 @@ object StatusBarIconController {
         false
     }
 
-    /** The full set of status-bar wishes plus the bridge state, combined for [start]. */
-    private data class Wish(
+    /**
+     * The three hiding wishes as the user set them, plus whether they asked for the island's width
+     * to drive them instead of being held on permanently.
+     */
+    /** The three hiding settings as the user chose them, combined for [start]. */
+    private data class Modes(
+        val notificationIcons: StatusBarHideMode,
+        val systemInfo: StatusBarHideMode,
+        val clock: StatusBarHideMode,
+    ) {
+        /** What each setting works out to right now, given whether the cutout is [widened]. */
+        fun resolve(widened: Boolean) = Hiding(
+            hideIcons = notificationIcons.hides(widened),
+            hideSystemInfo = systemInfo.hides(widened),
+            hideClock = clock.hides(widened),
+        )
+    }
+
+    /** What the three settings work out to for the status bar as it stands. */
+    private data class Hiding(
         val hideIcons: Boolean,
         val hideSystemInfo: Boolean,
         val hideClock: Boolean,
+    )
+
+    /** The resolved status-bar wishes plus the bridge state, combined for [start]. */
+    private data class Wish(
+        val hiding: Hiding,
         val silenceAlerts: Boolean,
         val status: ShizukuStatus,
     )

@@ -306,6 +306,10 @@
     <!-- Shizuku options screen -->
     <string name="shizuku_options_title">Shizuku options</string>
     <string name="settings_shizuku_subtitle">Hide status bar icons and silence system alerts</string>
+    <string name="status_bar_hide_mode_off">Off</string>
+    <string name="status_bar_hide_mode_auto">Auto</string>
+    <string name="status_bar_hide_mode_always">Always</string>
+    <string name="status_bar_hide_mode_note">“Auto” hides only while the cutout is wider than usual — during a call, or while the island is expanded. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>

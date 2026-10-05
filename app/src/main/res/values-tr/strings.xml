@@ -272,6 +272,10 @@
     <!-- Shizuku options screen -->
     <string name="shizuku_options_title">Shizuku seçenekleri</string>
     <string name="settings_shizuku_subtitle">Durum çubuğu simgelerini gizle ve sistem uyarılarını sessize al</string>
+    <string name="status_bar_hide_mode_off">Kapalı</string>
+    <string name="status_bar_hide_mode_auto">Oto</string>
+    <string name="status_bar_hide_mode_always">Her zaman</string>
+    <string name="status_bar_hide_mode_note">“Oto” yalnızca çentik normalden genişken gizler — bir arama sırasında ya da ada genişletildiğinde. “Her zaman” ise sürekli gizler; çubuğun o ucunu zaten kaplayan bir ada için uygundur.</string>
     <string name="status_bar_hide_icons_title">Bildirim simgelerini gizle</string>
     <string name="status_bar_hide_icons_desc">Bildirim simgelerini sistem durum çubuğundan temizler, böylece onları yalnızca ada bildirir.</string>
     <string name="status_bar_hide_icons_note">Android bunu yeniden başlatmada unutur. Geri getirmek için Shizuku\'yu yeniden başlatıp bu uygulamayı bir kez açın.</string>
