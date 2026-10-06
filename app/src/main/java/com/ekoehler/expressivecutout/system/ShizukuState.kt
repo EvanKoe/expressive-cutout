@@ -7,8 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import rikka.shizuku.Shizuku
 
-/** The Shizuku app's package, needed to tell "not installed" apart from "not running". */
-private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+/**
+ * Manager apps that serve the Shizuku binder, in lookup order: upstream Shizuku, then the Shevery
+ * fork. Both speak the same Shizuku-API protocol, so only the "is it installed" check differs.
+ */
+private val MANAGER_PACKAGES = listOf("moe.shizuku.privileged.api", "com.hamondev.shevery")
 
 /** Arbitrary code echoed back to [Shizuku.OnRequestPermissionResultListener]. */
 private const val PERMISSION_REQUEST_CODE = 4919
@@ -69,7 +72,7 @@ object ShizukuState {
      */
     private fun currentStatus(): ShizukuStatus {
         val context = appContext ?: return ShizukuStatus.NOT_INSTALLED
-        if (!isInstalled(context)) return ShizukuStatus.NOT_INSTALLED
+        if (installedManagerPackage(context) == null) return ShizukuStatus.NOT_INSTALLED
         // pingBinder is the only honest "is it running" check — the grant can read fine while the
         // process is gone, exactly like the accessibility service after an app update.
         if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return ShizukuStatus.NOT_RUNNING
@@ -87,9 +90,11 @@ object ShizukuState {
         runCatching { Shizuku.requestPermission(PERMISSION_REQUEST_CODE) }
     }
 
-    /** Whether the Shizuku app is installed, treating any lookup failure as absent. */
-    private fun isInstalled(context: Context): Boolean = runCatching {
-        context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
-        true
-    }.getOrDefault(false)
+    /**
+     * The package of the first installed Shizuku-compatible manager (Shizuku or Shevery), or null
+     * when none is. Any lookup failure counts as absent.
+     */
+    fun installedManagerPackage(context: Context): String? = MANAGER_PACKAGES.firstOrNull { pkg ->
+        runCatching { context.packageManager.getPackageInfo(pkg, 0) }.isSuccess
+    }
 }

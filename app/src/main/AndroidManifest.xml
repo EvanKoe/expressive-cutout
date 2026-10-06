@@ -17,14 +17,15 @@
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <!-- Makes launchable apps visible to the package manager on Android 11+, so the Apps screen
-         can list them for the per-app allow/mute switches. The explicit Shizuku entry is what
-         lets us tell "not installed" apart from "installed but not running". -->
+         can list them for the per-app allow/mute switches. The explicit Shizuku and Shevery
+         entries are what let us tell "not installed" apart from "installed but not running". -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.hamondev.shevery" />
     </queries>
 
     <application

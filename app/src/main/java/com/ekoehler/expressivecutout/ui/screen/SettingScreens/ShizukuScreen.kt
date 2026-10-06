@@ -1,6 +1,5 @@
 package com.ekoehler.expressivecutout.ui.screen
 
-import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,21 +40,19 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
-import androidx.core.view.accessibility.AccessibilityViewCommand
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.PageTitle
-import java.nio.file.WatchEvent
 
 /** Grouped-list item shape: rounded at the group's outer edges, tight between stacked items. */
 private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
@@ -81,9 +78,9 @@ internal fun ShizukuScreen(
     onOpenPermissionDot: () -> Unit,
 ) {
     val context = LocalContext.current
-    val hideIcons by viewModel.hideNotificationIcons.collectAsStateWithLifecycle()
-    val hideSystemInfo by viewModel.hideSystemInfo.collectAsStateWithLifecycle()
-    val hideClock by viewModel.hideClock.collectAsStateWithLifecycle()
+    val iconsMode by viewModel.notificationIconsMode.collectAsStateWithLifecycle()
+    val systemInfoMode by viewModel.systemInfoMode.collectAsStateWithLifecycle()
+    val clockMode by viewModel.clockMode.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
     val permissionDot by viewModel.permissionDotEnabled.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
@@ -123,7 +120,19 @@ internal fun ShizukuScreen(
             )
         }
 
-        StatusBarPreview(hideIcons = hideIcons, hideSystem = hideSystemInfo, hideClock = hideClock)
+        // The preview stands for the resting status bar, so "Auto" reads as nothing hidden yet.
+        StatusBarPreview(
+            hideIcons = ready && iconsMode.hides(widened = false),
+            hideSystem = ready && systemInfoMode.hides(widened = false),
+            hideClock = ready && clockMode.hides(widened = false),
+        )
+
+        Text(
+            text = stringResource(R.string.status_bar_hide_mode_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
 
         Text(
             text = stringResource(R.string.status_bar_hide_icons_note),
@@ -133,30 +142,30 @@ internal fun ShizukuScreen(
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SettingsToggleCard(
+            StatusBarHideModeCard(
                 shape = groupedShape(isFirst = true, isLast = false),
                 title = stringResource(R.string.status_bar_hide_icons_title),
                 description = stringResource(R.string.status_bar_hide_icons_desc),
-                checked = ready && hideIcons,
-                onCheckedChange = viewModel::setHideNotificationIcons,
+                selected = iconsMode,
+                onSelect = viewModel::setNotificationIconsMode,
                 enabled = ready,
             )
 
-            SettingsToggleCard(
+            StatusBarHideModeCard(
                 shape = groupedShape(isFirst = false, isLast = false),
                 title = stringResource(R.string.status_bar_hide_system_info_title),
                 description = stringResource(R.string.status_bar_hide_system_info_desc),
-                checked = ready && hideSystemInfo,
-                onCheckedChange = viewModel::setHideSystemInfo,
+                selected = systemInfoMode,
+                onSelect = viewModel::setSystemInfoMode,
                 enabled = ready,
             )
 
-            SettingsToggleCard(
+            StatusBarHideModeCard(
                 shape = groupedShape(isFirst = false, isLast = true),
                 title = stringResource(R.string.status_bar_hide_clock_title),
                 description = stringResource(R.string.status_bar_hide_clock_desc),
-                checked = ready && hideClock,
-                onCheckedChange = viewModel::setHideClock,
+                selected = clockMode,
+                onSelect = viewModel::setClockMode,
                 enabled = ready,
             )
         }
@@ -178,6 +187,67 @@ internal fun ShizukuScreen(
             onCheckedChange = viewModel::setPermissionDotEnabled,
             onClick = onOpenPermissionDot,
         )
+    }
+}
+
+/**
+ * One status-bar hiding setting, picked as a [StatusBarHideMode] rather than switched on and off.
+ * Three states are needed because the island's resting width covers the two ends of the bar
+ * unequally: a pill wide enough to sit over the notification icons all the time may still leave the
+ * battery and Wi-Fi alone until it grows, so each end wants its own rule.
+ *
+ * [StatusBarHideMode]'s declaration order is the option order, so the two can't drift apart.
+ */
+@Composable
+private fun StatusBarHideModeCard(
+    shape: Shape,
+    title: String,
+    description: String,
+    selected: StatusBarHideMode,
+    onSelect: (StatusBarHideMode) -> Unit,
+    enabled: Boolean,
+) {
+    val modes = StatusBarHideMode.entries
+    val labels = modes.map {
+        stringResource(
+            when (it) {
+                StatusBarHideMode.OFF -> R.string.status_bar_hide_mode_off
+                StatusBarHideMode.AUTO -> R.string.status_bar_hide_mode_auto
+                StatusBarHideMode.ALWAYS -> R.string.status_bar_hide_mode_always
+            }
+        )
+    }
+    val contentAlpha = if (enabled) 1f else 0.38f
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+            )
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+            )
+
+            ExpressiveSegmentedRow(
+                options = labels,
+                selectedIndex = modes.indexOf(selected),
+                onSelect = { onSelect(modes[it]) },
+                modifier = Modifier.fillMaxWidth(),
+                disabledIndices = if (enabled) emptySet() else modes.indices.toSet(),
+            )
+        }
     }
 }
 

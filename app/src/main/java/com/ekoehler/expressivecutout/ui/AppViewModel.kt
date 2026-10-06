@@ -54,6 +54,7 @@ import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.PageTransitionStyle
+import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
@@ -775,49 +776,47 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Whether the user wants the system status bar's notification icons hidden. Saved even while
-     * Shizuku is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
-     */
-    val hideNotificationIcons: StateFlow<Boolean> =
-        statusBarPreferences.hideNotificationIcons.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false,
-        )
-
-    fun setHideNotificationIcons(hide: Boolean) = viewModelScope.launch {
-        statusBarPreferences.setHideNotificationIcons(hide)
-    }
-
-    /**
-     * Whether the user wants the system status bar's info icons (clock, battery, Wi-Fi, signal)
-     * hidden. Saved even while Shizuku is unreachable; `StatusBarIconController` applies it as soon
-     * as the bridge is back.
-     */
-    val hideSystemInfo: StateFlow<Boolean> =
-        statusBarPreferences.hideSystemInfo.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false,
-        )
-
-    fun setHideSystemInfo(hide: Boolean) = viewModelScope.launch {
-        statusBarPreferences.setHideSystemInfo(hide)
-    }
-
-    /**
-     * Whether the user wants the system status bar's clock hidden. Saved even while Shizuku is
+     * When the system status bar's notification icons are hidden: never, only while the island is
+     * drawn wider than its normal cutout, or the whole time. Saved even while Shizuku is
      * unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
      */
-    val hideClock: StateFlow<Boolean> =
-        statusBarPreferences.hideClock.stateIn(
+    val notificationIconsMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.notificationIconsMode.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false,
+            initialValue = StatusBarHideMode.OFF,
         )
 
-    fun setHideClock(hide: Boolean) = viewModelScope.launch {
-        statusBarPreferences.setHideClock(hide)
+    fun setNotificationIconsMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsMode(mode)
+    }
+
+    /**
+     * When the system status bar's info icons (battery, Wi-Fi, signal) are hidden. These sit at the
+     * far end of the bar, so a pill that already covers the notification icons at rest often still
+     * leaves these alone — which is why each setting carries its own [StatusBarHideMode].
+     */
+    val systemInfoMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.systemInfoMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatusBarHideMode.OFF,
+        )
+
+    fun setSystemInfoMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoMode(mode)
+    }
+
+    /** When the system status bar's clock is hidden. See [notificationIconsMode]. */
+    val clockMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.clockMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatusBarHideMode.OFF,
+        )
+
+    fun setClockMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setClockMode(mode)
     }
 
     /**

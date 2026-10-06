@@ -38,6 +38,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.CutoutWidthBus
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
@@ -324,6 +325,7 @@ class IslandOverlayController(private val context: Context) {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var dismissJob: Job? = null
     private var windowResizeJob: Job? = null
+    private var cutoutWidthJob: Job? = null
     private val collapseTrigger = MutableStateFlow(0L)
 
     /**
@@ -395,6 +397,10 @@ class IslandOverlayController(private val context: Context) {
         mirroredKey?.let { CutoutNotificationListenerService.release(it) }
         dismissJob?.cancel()
         windowResizeJob?.cancel()
+        // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
+        // blank for as long as the service stays off.
+        cutoutWidthJob?.cancel()
+        CutoutWidthBus.update(false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -1166,7 +1172,37 @@ class IslandOverlayController(private val context: Context) {
             windowWidthPx(layoutState.value),
             windowHeightPx(layoutState.value, expanded),
         )
+        publishCutoutWidth()
     }
+
+    /**
+     * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
+     * cutout right now, so "Automatically hide status bar icons" can follow the pill.
+     *
+     * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
+     * before the pill covers them, while narrowing waits out the collapse animation so they don't
+     * reappear under a pill that is still shrinking.
+     */
+    private fun publishCutoutWidth() {
+        val widened = isWiderThanUsual()
+        cutoutWidthJob?.cancel()
+        if (widened || !CutoutWidthBus.widened.value) {
+            CutoutWidthBus.update(widened)
+            return
+        }
+        cutoutWidthJob = scope.launch {
+            delay(WINDOW_SHRINK_DELAY_MS)
+            CutoutWidthBus.update(false)
+        }
+    }
+
+    /**
+     * Whether the state being drawn is wider than the normal collapsed pill — the expanded island
+     * or one of the fuller call cutouts. Compares against [effectiveDims] rather than listing the
+     * states by hand, so the tiny "Mini call" / "Mini player" cutouts correctly read as narrower.
+     */
+    private fun isWiderThanUsual(): Boolean =
+        effectiveDims(layoutState.value, expanded).widthPercent > layoutState.value.collapsed.widthPercent
 
     /**
      * Resizes the window to fit, growing at once but shrinking only after [WINDOW_SHRINK_DELAY_MS].
