@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.3.0-beta",
+    "description": "Music and call tile rework, translations and status-bar automation",
+    "features": [
+      "Reworked music tile: customisable buttons (colour, text), wavy progress bar, cover art as the background, a mini player, a right-hand button on the normal cutout, and optimisations throughout",
+      "Reworked call tile: customisable buttons (colour, text), mini call, and a whole new normal cutout UI",
+      "Titles and UI improvements",
+      "Translations (EN, FR, TR)",
+      "Shevery support (to be user tested)",
+      "The notification icons, system icons and clock can each be hidden always, or automatically while the cutout is wider than usual"
+    ],
+    "bugfixes": [
+      "The call tile now closes when the call ends"
+    ]
+  },
+  {
     "version": "0.2.0-beta",
     "description": "Shizuku, adaptive colours and permission dots",
     "features": [
