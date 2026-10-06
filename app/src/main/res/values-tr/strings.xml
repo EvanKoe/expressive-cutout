@@ -553,7 +553,7 @@
     <string name="profile_export_export">Dışa aktar</string>
     <string name="profile_export_import">İçe aktar</string>
     <string name="version_beta">Beta</string>
-    <string name="changelog_title">Yenilikler</string>
+    <string name="changelog_title">Sürümler</string>
     <string name="changelog_subtitle">En yeniden en eskiye. Uygulama beta aşamasındadır — 0.1.0\'ın altındaki sürümler geliştirme derlemeleriydi ve hiç yayımlanmadı.</string>
     <string name="changelog_features">Özellikler</string>
     <string name="changelog_fixes">Hata düzeltmeleri</string>

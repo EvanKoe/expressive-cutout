@@ -39,11 +39,6 @@ be uploaded: no accounts, no analytics, no tracking.
 ## Screenshots
 
 <!-- Screenshots go here. -->
-| | | |
-|-|-|-|
-|<img width="864" height="1939" alt="Screenshot_20260729-153011" src="https://github.com/user-attachments/assets/9f7e4724-bd91-4486-8f0e-9500906024d2" />|<img width="1080" height="2424" alt="Screenshot_20260729-153006" src="https://github.com/user-attachments/assets/e803d2a2-8e9b-41e0-8688-54affaefa355" />|<img width="864" height="1939" alt="Screenshot_20260729-153043" src="https://github.com/user-attachments/assets/84f40ce3-7ef0-41b4-9d89-3790008de5bc" />|
-| <img width="1080" height="2424" alt="Screenshot_20260807-111655" src="https://github.com/user-attachments/assets/7c4b132c-54ec-471b-a4c3-bf7ddc7d8846" /> | <img width="1080" height="2424" alt="Screenshot_20260807-111746" src="https://github.com/user-attachments/assets/1d59ac95-0dfb-4b4b-9b8c-2814eb436da1" /> | <img width="1080" height="2424" alt="Screenshot_20260807-112035" src="https://github.com/user-attachments/assets/33542dec-9d6b-456a-bc14-c779c1d07a00" /> |
- | <img width="1080" height="2424" alt="Screenshot_20260807-112215" src="https://github.com/user-attachments/assets/e33224c9-fe29-4fa2-b580-e0e8a10c7237" /> |
 
 ---
 
@@ -61,6 +56,42 @@ things it needs: notification access (to mirror notifications), the accessibilit
 optimisation so the island stays reliable in the background.
 
 Join our [Discord server](https://discord.gg/SNfcuuJeYF) for feedback, feature requests, bug report and share with the Expressive by Evan community!
+
+<table>
+ <tr>
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105109" src="https://github.com/user-attachments/assets/a8baa083-8ae0-400e-8c64-be51dde517dd" />
+   <sub><b>Settings tab</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105118" src="https://github.com/user-attachments/assets/fc0cb5d9-268f-446c-9404-01523cb73ef3" />
+   <sub><b>Home screen</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105209" src="https://github.com/user-attachments/assets/4edac07d-a49b-4f41-b18c-d59769098495" />
+   <sub><b>Appearance settings</b></sub>
+  </td>
+ </tr>
+
+ <tr>
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105513" src="https://github.com/user-attachments/assets/2233784a-1be2-4814-ac25-b3b7d72720d2" />
+   <sub><b>Music tile</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105542" src="https://github.com/user-attachments/assets/b54b2d1b-24f9-4672-b3b9-8d12ac41d876" />
+   <sub><b>Call tile</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105619" src="https://github.com/user-attachments/assets/7719a864-651e-4c39-ad4b-6939938d5b87" />
+   <sub><b>Reply to messages</b></sub>
+  </td>
+ </tr>
+</table>
 
 ---
 

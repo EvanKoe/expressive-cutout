@@ -594,7 +594,7 @@
     <string name="profile_export_export">Export</string>
     <string name="profile_export_import">Import</string>
     <string name="version_beta">Beta</string>
-    <string name="changelog_title">What\'s new</string>
+    <string name="changelog_title">Versions</string>
     <string name="changelog_subtitle">Newest first. The app is in beta — versions below 0.1.0 were development builds and were never published.</string>
     <string name="changelog_features">Features</string>
     <string name="changelog_fixes">Bug fixes</string>
