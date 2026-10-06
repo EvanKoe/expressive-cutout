@@ -588,7 +588,7 @@
     <string name="profile_export_export">Exporter</string>
     <string name="profile_export_import">Importer</string>
     <string name="version_beta">Bêta</string>
-    <string name="changelog_title">Nouveautés</string>
+    <string name="changelog_title">Versions</string>
     <string name="changelog_subtitle">Les plus récentes d’abord. L’application est en bêta — les versions antérieures à 0.1.0 étaient des versions de développement et n’ont jamais été publiées.</string>
     <string name="changelog_features">Fonctionnalités</string>
     <string name="changelog_fixes">Corrections de bugs</string>
