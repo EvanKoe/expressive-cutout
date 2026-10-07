@@ -196,9 +196,13 @@ internal fun SizePositionScreen(
                     onChange = if (targetPosture == 1) {
                         { dimensions ->
                             viewModel.setClosedLayout(closedLayout.copy(collapsed = dimensions))
+                            Unit
                         }
                     } else {
-                        viewModel::setCollapsedDimensions
+                        { dimensions ->
+                            viewModel.setCollapsedDimensions(dimensions)
+                            Unit
+                        }
                     },
                 )
 
@@ -210,9 +214,13 @@ internal fun SizePositionScreen(
                     onChange = if (targetPosture == 1) {
                         { dimensions ->
                             viewModel.setClosedLayout(closedLayout.copy(expanded = dimensions))
+                            Unit
                         }
                     } else {
-                        viewModel::setExpandedDimensions
+                        { dimensions ->
+                            viewModel.setExpandedDimensions(dimensions)
+                            Unit
+                        }
                     },
                 )
             }

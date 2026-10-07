@@ -52,7 +52,7 @@ jobs:
             -alias test-release \
             -keyalg RSA \
             -keysize 2048 \
-            -validity 2 \
+            -validity 10000 \
             -dname "CN=Expressive Cutout Test Build"
           build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           mkdir -p app/build/test-release
@@ -76,6 +76,7 @@ jobs:
           EOF
 
       - name: Lint
+        if: github.event_name != 'workflow_dispatch' || inputs.build_variant == 'debug'
         run: ./gradlew lintDebug --no-daemon
 
       - name: Upload debug APK

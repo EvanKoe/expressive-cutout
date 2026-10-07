@@ -144,9 +144,9 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
 
     /** Resets all geometry settings while retaining the latest detected device posture. */
     suspend fun reset() = context.layoutDataStore.edit {
-        val deviceClosed = this[Keys.DeviceClosed]
-        clear()
-        if (deviceClosed != null) this[Keys.DeviceClosed] = deviceClosed
+        val deviceClosed = it[Keys.DeviceClosed]
+        it.clear()
+        if (deviceClosed != null) it[Keys.DeviceClosed] = deviceClosed
     }
 
     private fun Preferences.readDimensions(keys: Keys, default: IslandDimensions) =
