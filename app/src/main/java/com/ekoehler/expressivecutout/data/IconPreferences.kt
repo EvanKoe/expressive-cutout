@@ -15,16 +15,26 @@ import org.json.JSONObject
 
 /** Backing store for the user's per-event icon overrides. */
 private val Context.iconDataStore: DataStore<Preferences> by preferencesDataStore(name = "icon_prefs")
+private val Context.iconClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "icon_prefs_closed")
 
 /**
  * Persists the user's per-event icon overrides as tagged [IconSource] strings. An absent
  * entry means "use the built-in default icon" for that event type.
  */
-class IconPreferences(private val context: Context) : JsonSerializable {
+class IconPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.iconDataStore,
+        context.iconClosedDataStore,
+        profile,
+    )
+
 
     /** Emits the current map of overridden event types to their chosen icon source. */
     val customIcons: Flow<Map<SystemEventType, IconSource>> =
-        context.iconDataStore.data.map { prefs ->
+        preferencesStore.data.map { prefs ->
             SystemEventType.entries.mapNotNull { type ->
                 prefs[type.preferenceKey]?.let(IconSource::decode)?.let { source -> type to source }
             }.toMap()
@@ -63,7 +73,7 @@ class IconPreferences(private val context: Context) : JsonSerializable {
                 put(type, source)
             }
         }
-        context.iconDataStore.edit { prefs ->
+        preferencesStore.edit { prefs ->
             SystemEventType.entries.forEach { type ->
                 val source = decoded[type]
                 if (source != null) prefs[type.preferenceKey] = source.encode()
@@ -74,12 +84,12 @@ class IconPreferences(private val context: Context) : JsonSerializable {
 
     /** Overrides the icon shown for [type]. Paired with [clearIcon]. */
     suspend fun setIcon(type: SystemEventType, source: IconSource) {
-        context.iconDataStore.edit { prefs -> prefs[type.preferenceKey] = source.encode() }
+        preferencesStore.edit { prefs -> prefs[type.preferenceKey] = source.encode() }
     }
 
     /** Drops the override for [type], so the event falls back to its built-in icon. */
     suspend fun clearIcon(type: SystemEventType) {
-        context.iconDataStore.edit { prefs -> prefs.remove(type.preferenceKey) }
+        preferencesStore.edit { prefs -> prefs.remove(type.preferenceKey) }
     }
 
     private val SystemEventType.preferenceKey: Preferences.Key<String>

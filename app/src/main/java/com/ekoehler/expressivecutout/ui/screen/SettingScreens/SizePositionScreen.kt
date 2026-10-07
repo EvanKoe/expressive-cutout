@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.data.FoldableIslandLayout
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.permissions.Permissions
@@ -79,6 +82,7 @@ internal fun SizePositionScreen(
 ) {
     val context = LocalContext.current
     val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val editingClosed by viewModel.editingClosed.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     // Cutout-aware defaults: centre the pill behind the physical camera and match the expanded
@@ -116,7 +120,6 @@ internal fun SizePositionScreen(
         }
         d
     }
-
     // Pin the real overlay open only on this screen, gated on accessibility. The pinned island
     // mirrors the tab being edited (collapsed vs expanded).
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -135,10 +138,12 @@ internal fun SizePositionScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
             IslandPreviewBus.setActive(false)
             IslandPreviewBus.setExpandedPreview(false)
+            IslandPreviewBus.setClosedPreview(null)
         }
     }
     // Mirror which tab is being edited (collapsed vs expanded) in the pinned live preview.
     LaunchedEffect(tab) { IslandPreviewBus.setExpandedPreview(tab == 1) }
+    LaunchedEffect(editingClosed) { IslandPreviewBus.setClosedPreview(editingClosed) }
 
     Column(
         modifier = Modifier
@@ -148,6 +153,12 @@ internal fun SizePositionScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PageTitle(text = stringResource(R.string.appearance_title))
+        Text(
+            text = stringResource(R.string.appearance_animation_origin_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
 
         ExpressivePillRow(
             options = listOf(
@@ -162,25 +173,49 @@ internal fun SizePositionScreen(
         // Cross-fade the editor while its height settles, so swapping tabs doesn't snap the sliders
         // in and out — the expanded tab carries one card more than the normal one.
         AnimatedContent(
-            targetState = tab,
+            targetState = editingClosed to tab,
             transitionSpec = { cardStackTransition() },
             label = "dimensionsEditor",
-        ) { targetTab ->
+        ) { (targetPosture, targetTab) ->
+            val closedLayout = layout.closed
+                ?: FoldableIslandLayout(layout.collapsed, layout.expanded)
+            val selectedCollapsed = if (targetPosture) closedLayout.collapsed else layout.collapsed
+            val selectedExpanded = if (targetPosture) closedLayout.expanded else layout.expanded
             when (targetTab) {
                 // Normal cutout
                 0 -> DimensionsEditor(
-                    dimensions = layout.collapsed,
+                    dimensions = selectedCollapsed,
                     defaults = collapsedDefaults,
                     expandedPreview = false,
-                    onChange = viewModel::setCollapsedDimensions,
+                    onChange = if (targetPosture) {
+                        { dimensions ->
+                            viewModel.setClosedLayout(closedLayout.copy(collapsed = dimensions))
+                            Unit
+                        }
+                    } else {
+                        { dimensions ->
+                            viewModel.setCollapsedDimensions(dimensions)
+                            Unit
+                        }
+                    },
                 )
 
                 // Expanded cutout
                 else -> DimensionsEditor(
-                    dimensions = layout.expanded,
+                    dimensions = selectedExpanded,
                     defaults = expandedDefaults,
                     expandedPreview = true,
-                    onChange = viewModel::setExpandedDimensions,
+                    onChange = if (targetPosture) {
+                        { dimensions ->
+                            viewModel.setClosedLayout(closedLayout.copy(expanded = dimensions))
+                            Unit
+                        }
+                    } else {
+                        { dimensions ->
+                            viewModel.setExpandedDimensions(dimensions)
+                            Unit
+                        }
+                    },
                 )
             }
         }

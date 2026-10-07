@@ -17,12 +17,14 @@ private val Context.appDataStore: DataStore<Preferences> by preferencesDataStore
 
 /** Persists the selected [AppTheme], defaulting to [AppTheme.SYSTEM]. */
 class ThemePreferences(private val context: Context) : JsonSerializable {
-    val theme: Flow<AppTheme> = context.appDataStore.data.map { prefs ->
+    private val preferencesStore = context.appDataStore
+
+    val theme: Flow<AppTheme> = preferencesStore.data.map { prefs ->
         prefs[THEME]?.let { runCatching { AppTheme.valueOf(it) }.getOrNull() } ?: AppTheme.SYSTEM
     }
 
     /** Sets the theme using AppTheme class */
-    suspend fun setTheme(theme: AppTheme) = context.appDataStore.edit { prefs ->
+    suspend fun setTheme(theme: AppTheme) = preferencesStore.edit { prefs ->
         prefs[THEME] = theme.name
     }
 

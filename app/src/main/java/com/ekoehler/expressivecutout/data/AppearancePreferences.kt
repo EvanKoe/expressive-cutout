@@ -93,8 +93,10 @@ data class AppearanceSettings(
 
 /** Persists [AppearanceSettings], always emitting a clamped stroke width. */
 class AppearancePreferences(private val context: Context) : JsonSerializable {
+    private val preferencesStore = context.appearanceDataStore
 
-    val settings: Flow<AppearanceSettings> = context.appearanceDataStore.data.map { prefs ->
+
+    val settings: Flow<AppearanceSettings> = preferencesStore.data.map { prefs ->
         AppearanceSettings(
             shadowEnabled = prefs[SHADOW_ENABLED] ?: AppearanceSettings.DEFAULT_SHADOW_ENABLED,
             strokeEnabled = prefs[STROKE_ENABLED] ?: AppearanceSettings.DEFAULT_STROKE_ENABLED,
@@ -169,7 +171,7 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.appearanceDataStore.edit {
+        preferencesStore.edit {
             if (obj.has("shadowEnabled")) it[SHADOW_ENABLED] = obj.getBoolean("shadowEnabled")
             if (obj.has("strokeEnabled")) it[STROKE_ENABLED] = obj.getBoolean("strokeEnabled")
             if (obj.has("strokeWidthDp")) it[STROKE_WIDTH] = obj.getInt("strokeWidthDp")
@@ -229,11 +231,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) remove(key) else this[key] = color.serialize()
     }
 
-    suspend fun setShadowEnabled(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setShadowEnabled(enabled: Boolean) = preferencesStore.edit {
         it[SHADOW_ENABLED] = enabled
     }
 
-    suspend fun setStrokeEnabled(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setStrokeEnabled(enabled: Boolean) = preferencesStore.edit {
         it[STROKE_ENABLED] = enabled
     }
 
@@ -241,66 +243,66 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the settings slider offers, so an imported settings file can't leave a
      * stroke width the UI has no way to correct.
      */
-    suspend fun setStrokeWidth(widthDp: Int) = context.appearanceDataStore.edit {
+    suspend fun setStrokeWidth(widthDp: Int) = preferencesStore.edit {
         it[STROKE_WIDTH] = widthDp.coerceIn(
             AppearanceSettings.MIN_STROKE_WIDTH_DP,
             AppearanceSettings.MAX_STROKE_WIDTH_DP,
         )
     }
 
-    suspend fun setStrokeOpacity(opacity: Float) = context.appearanceDataStore.edit {
+    suspend fun setStrokeOpacity(opacity: Float) = preferencesStore.edit {
         it[STROKE_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
-    suspend fun setStrokeColor(color: CutoutColor) = context.appearanceDataStore.edit {
+    suspend fun setStrokeColor(color: CutoutColor) = preferencesStore.edit {
         it[STROKE_COLOR] = color.serialize()
     }
 
     /** A null [color] clears the override, restoring automatic contrast-based text color. */
-    suspend fun setTextColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+    suspend fun setTextColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
     }
 
-    suspend fun setShowSourceAppName(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setShowSourceAppName(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_SOURCE_APP_NAME] = enabled
     }
 
-    suspend fun setShowTimestamp(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setShowTimestamp(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_TIMESTAMP] = enabled
     }
 
-    suspend fun setShowFullNotificationText(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setShowFullNotificationText(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_FULL_NOTIFICATION_TEXT] = enabled
     }
 
-    suspend fun setPreferDynamicIconColor(enabled: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setPreferDynamicIconColor(enabled: Boolean) = preferencesStore.edit {
         it[PREFER_DYNAMIC_ICON_COLOR] = enabled
     }
 
-    suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
+    suspend fun setBackgroundNormal(fill: CutoutFill) = preferencesStore.edit {
         it[BACKGROUND_NORMAL] = fill.serialize()
     }
 
-    suspend fun setBackgroundExpanded(fill: CutoutFill) = context.appearanceDataStore.edit {
+    suspend fun setBackgroundExpanded(fill: CutoutFill) = preferencesStore.edit {
         it[BACKGROUND_EXPANDED] = fill.serialize()
     }
 
     /** A null [color] clears the override, restoring the accent-following default. */
-    suspend fun setSendButtonColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+    suspend fun setSendButtonColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(SEND_BUTTON_COLOR) else it[SEND_BUTTON_COLOR] = color.serialize()
     }
 
     /** A null [color] clears the override, restoring the neutral default. */
-    suspend fun setCancelButtonColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+    suspend fun setCancelButtonColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(CANCEL_BUTTON_COLOR) else it[CANCEL_BUTTON_COLOR] = color.serialize()
     }
 
-    suspend fun setActionButtonStyle(style: ActionButtonStyle) = context.appearanceDataStore.edit {
+    suspend fun setActionButtonStyle(style: ActionButtonStyle) = preferencesStore.edit {
         it[ACTION_BUTTON_STYLE] = style.name
     }
 
     /** A null [color] clears the override, restoring the accent-following default. */
-    suspend fun setActionButtonColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+    suspend fun setActionButtonColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(ACTION_BUTTON_COLOR) else it[ACTION_BUTTON_COLOR] = color.serialize()
     }
 
@@ -308,31 +310,31 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the settings slider offers, so an imported settings file can't leave a
      * button height the UI has no way to correct.
      */
-    suspend fun setActionButtonHeight(heightDp: Int) = context.appearanceDataStore.edit {
+    suspend fun setActionButtonHeight(heightDp: Int) = preferencesStore.edit {
         it[ACTION_BUTTON_HEIGHT] = heightDp.coerceIn(
             AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP,
             AppearanceSettings.MAX_ACTION_BUTTON_HEIGHT_DP,
         )
     }
 
-    suspend fun setActionButtonAlignment(alignment: ActionButtonAlignment) = context.appearanceDataStore.edit {
+    suspend fun setActionButtonAlignment(alignment: ActionButtonAlignment) = preferencesStore.edit {
         it[ACTION_BUTTON_ALIGNMENT] = alignment.name
     }
 
-    suspend fun setReplyInputStyle(style: ReplyInputStyle) = context.appearanceDataStore.edit {
+    suspend fun setReplyInputStyle(style: ReplyInputStyle) = preferencesStore.edit {
         it[REPLY_INPUT_STYLE] = style.name
     }
 
-    suspend fun setCancelButtonOnLeft(onLeft: Boolean) = context.appearanceDataStore.edit {
+    suspend fun setCancelButtonOnLeft(onLeft: Boolean) = preferencesStore.edit {
         it[CANCEL_ON_LEFT] = onLeft
     }
 
-    suspend fun setSentAlignment(alignment: SentAlignment) = context.appearanceDataStore.edit {
+    suspend fun setSentAlignment(alignment: SentAlignment) = preferencesStore.edit {
         it[SENT_ALIGNMENT] = alignment.name
     }
 
     /** Persists the page transition style used by in-app navigation. */
-    suspend fun setPageTransitionStyle(style: PageTransitionStyle) = context.appearanceDataStore.edit {
+    suspend fun setPageTransitionStyle(style: PageTransitionStyle) = preferencesStore.edit {
         it[PAGE_TRANSITION_STYLE] = style.name
     }
 

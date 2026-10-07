@@ -146,10 +146,15 @@
 
     <!-- Size &amp; position -->
     <string name="appearance_title">Boyut ve konum</string>
+    <string name="appearance_animation_origin_hint">Çentik animasyonunun başlangıç noktasını Animasyonlar bölümünden ayarlayın.</string>
     <string name="appearance_preview">Önizleme</string>
     <string name="appearance_width">Genişlik</string>
     <string name="appearance_height">Yükseklik</string>
     <string name="appearance_top_margin">Üst kenar boşluğu</string>
+    <string name="appearance_animation_origin_title">Animasyon başlangıç noktası</string>
+    <string name="appearance_animation_origin_desc">Çentik animasyonunun nereden başlayacağını belirleyin. Bu ayar normal veya genişletilmiş çentiğin boyutunu ya da son konumunu değiştirmez. Varsayılan olarak kamera konumu algılanır.</string>
+    <string name="appearance_animation_origin_vertical">Dikey başlangıç noktası</string>
+    <string name="appearance_animation_origin_reset">Algılanan kamerayı kullan</string>
     <string name="appearance_corner">Köşe yarıçapı</string>
     <string name="corner_mode_all">Tümü</string>
     <string name="corner_mode_split">Üst / Alt</string>
@@ -163,6 +168,9 @@
     <string name="appearance_corner_br">Sağ alt</string>
     <string name="tab_normal">Normal</string>
     <string name="tab_expanded">Genişletilmiş</string>
+    <string name="foldable_open">Açık</string>
+    <string name="foldable_closed">Kapalı</string>
+    <string name="foldable_settings_profile">Şunun ayarları</string>
     <string name="appearance_vertical">Dikey konum</string>
     <string name="appearance_horizontal">Yatay konum</string>
     <string name="action_reset_layout">Varsayılana sıfırla</string>
@@ -273,9 +281,16 @@
     <string name="shizuku_options_title">Shizuku seçenekleri</string>
     <string name="settings_shizuku_subtitle">Durum çubuğu simgelerini gizle ve sistem uyarılarını sessize al</string>
     <string name="status_bar_hide_mode_off">Kapalı</string>
-    <string name="status_bar_hide_mode_auto">Oto</string>
+    <string name="status_bar_hide_mode_normal">Normal</string>
+    <string name="status_bar_hide_mode_expanded">Genişletilmiş</string>
+    <string name="status_bar_hide_mode_both">Her ikisi</string>
     <string name="status_bar_hide_mode_always">Her zaman</string>
-    <string name="status_bar_hide_mode_note">“Oto” yalnızca çentik normalden genişken gizler — bir arama sırasında ya da ada genişletildiğinde. “Her zaman” ise sürekli gizler; çubuğun o ucunu zaten kaplayan bir ada için uygundur.</string>
+    <string name="status_bar_hide_mode_note">Her grubun ne zaman gizleneceğini seçin. Her ikisi, kesit görünür olduğunda her iki durumda da gizler.</string>
+    <string name="status_bar_hide_mode_off_desc">Bu öğeleri sistem durum çubuğunda görünür bırakır.</string>
+    <string name="status_bar_hide_mode_normal_desc">Kesit daraltılmış durumdayken bu öğeleri gizler.</string>
+    <string name="status_bar_hide_mode_expanded_desc">Bu öğeleri yalnızca kesit genişletilmiş durumdayken gizler.</string>
+    <string name="status_bar_hide_mode_both_desc">Kesit daraltılmış veya genişletilmiş olarak görünürken bu öğeleri gizler.</string>
+    <string name="status_bar_hide_mode_always_desc">Kesit görünür olmasa bile bu öğeleri her zaman gizler.</string>
     <string name="status_bar_hide_icons_title">Bildirim simgelerini gizle</string>
     <string name="status_bar_hide_icons_desc">Bildirim simgelerini sistem durum çubuğundan temizler, böylece onları yalnızca ada bildirir.</string>
     <string name="status_bar_hide_icons_note">Android bunu yeniden başlatmada unutur. Geri getirmek için Shizuku\'yu yeniden başlatıp bu uygulamayı bir kez açın.</string>
@@ -438,6 +453,8 @@
     <string name="horizontal_cutout_stick_to_camera_desc">Dikey moddaki gibi kamera üzerinde kalır</string>
     <string name="horizontal_cutout_center">Orta</string>
     <string name="horizontal_cutout_center_desc">Yatay ekranın üst ortasına gider</string>
+    <string name="horizontal_cutout_forced_center">Zorunlu orta</string>
+    <string name="horizontal_cutout_forced_center_desc">Yatay modda konum kaydırmalarını yok sayarak çentiği üst ortaya sabitler</string>
     <string name="behaviour_animation_duration">Animasyon süresi</string>
     <string name="behaviour_normal_duration">Normal çentik süresi</string>
     <string name="behaviour_auto_collapse">Otomatik olarak küçül</string>

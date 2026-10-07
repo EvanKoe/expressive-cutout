@@ -19,6 +19,7 @@ import org.json.JSONObject
 
 /** Backing store for the music tile's settings. */
 private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs")
+private val Context.musicTileClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "music_tile_prefs_closed")
 
 /**
  * The look of one of the music tile's transport buttons. [color] is null to keep the button's
@@ -167,9 +168,18 @@ data class MusicTileSettings(
 }
 
 /** Persists the music tile's display options (album art, expanded controls) and button styling. */
-class MusicTilePreferences(private val context: Context) : JsonSerializable {
+class MusicTilePreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.musicTileDataStore,
+        context.musicTileClosedDataStore,
+        profile,
+    )
 
-    val settings: Flow<MusicTileSettings> = context.musicTileDataStore.data.map { prefs ->
+
+    val settings: Flow<MusicTileSettings> = preferencesStore.data.map { prefs ->
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             showAlbumBackground = prefs[SHOW_ALBUM_BACKGROUND] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_BACKGROUND,
@@ -262,7 +272,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.musicTileDataStore.edit { prefs ->
+        preferencesStore.edit { prefs ->
             if (obj.has("showAlbumArt")) prefs[SHOW_ALBUM_ART] = obj.getBoolean("showAlbumArt")
             if (obj.has("showAlbumBackground")) prefs[SHOW_ALBUM_BACKGROUND] = obj.getBoolean("showAlbumBackground")
             if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
@@ -326,28 +336,28 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         if (has("filled")) prefs[filledKey] = getBoolean("filled")
     }
 
-    suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setShowAlbumArt(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_ALBUM_ART] = enabled
     }
 
-    suspend fun setShowAlbumBackground(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setShowAlbumBackground(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_ALBUM_BACKGROUND] = enabled
     }
 
-    suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setRotateAlbumArt(enabled: Boolean) = preferencesStore.edit {
         it[ROTATE_ALBUM_ART] = enabled
     }
 
-    suspend fun setCircleCover(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setCircleCover(enabled: Boolean) = preferencesStore.edit {
         it[CIRCLE_COVER] = enabled
     }
 
-    suspend fun setAlbumArtStroke(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setAlbumArtStroke(enabled: Boolean) = preferencesStore.edit {
         it[ALBUM_ART_STROKE] = enabled
     }
 
     /** A null [color] clears the override, restoring the ring's tile-accent default. */
-    suspend fun setAlbumArtStrokeColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+    suspend fun setAlbumArtStrokeColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) {
             it.remove(ALBUM_ART_STROKE_COLOR)
         } else {
@@ -356,7 +366,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     }
 
     /** A null [color] clears the override, restoring the glyph's faint accent-tinted disc. */
-    suspend fun setCoverFallbackColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+    suspend fun setCoverFallbackColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) {
             it.remove(COVER_FALLBACK_COLOR)
         } else {
@@ -364,25 +374,25 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         }
     }
 
-    suspend fun setExpandOnPlay(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setExpandOnPlay(enabled: Boolean) = preferencesStore.edit {
         it[EXPAND_ON_PLAY] = enabled
     }
 
-    suspend fun setVisibleInPlayerApp(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setVisibleInPlayerApp(enabled: Boolean) = preferencesStore.edit {
         it[VISIBLE_IN_PLAYER_APP] = enabled
     }
 
-    suspend fun setShowControls(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setShowControls(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_CONTROLS] = enabled
     }
 
     /** A null [color] clears the override, restoring the skip buttons' plain default look. */
-    suspend fun setSkipColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+    suspend fun setSkipColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(SKIP_COLOR) else it[SKIP_COLOR] = color.serialize()
     }
 
     /** Clamps to 0f..1f, the range the opacity slider offers. */
-    suspend fun setSkipOpacity(opacity: Float) = context.musicTileDataStore.edit {
+    suspend fun setSkipOpacity(opacity: Float) = preferencesStore.edit {
         it[SKIP_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
@@ -390,40 +400,40 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the corner slider offers, so an imported settings file can't leave a
      * shape the UI has no way to correct.
      */
-    suspend fun setSkipCornerPercent(percent: Int) = context.musicTileDataStore.edit {
+    suspend fun setSkipCornerPercent(percent: Int) = preferencesStore.edit {
         it[SKIP_CORNER] = percent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,
             MusicButtonStyle.MAX_CORNER_PERCENT,
         )
     }
 
-    suspend fun setSkipFilled(filled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setSkipFilled(filled: Boolean) = preferencesStore.edit {
         it[SKIP_FILLED] = filled
     }
 
     /** A null [color] clears the override, restoring the play/pause button's accent default. */
-    suspend fun setPlayPauseColor(color: CutoutColor?) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(PLAY_PAUSE_COLOR) else it[PLAY_PAUSE_COLOR] = color.serialize()
     }
 
     /** Clamps to 0f..1f, the range the opacity slider offers. */
-    suspend fun setPlayPauseOpacity(opacity: Float) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseOpacity(opacity: Float) = preferencesStore.edit {
         it[PLAY_PAUSE_OPACITY] = opacity.coerceIn(0f, 1f)
     }
 
-    suspend fun setShowProgress(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setShowProgress(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_PROGRESS] = enabled
     }
 
-    suspend fun setMiniPlayer(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setMiniPlayer(enabled: Boolean) = preferencesStore.edit {
         it[MINI_PLAYER] = enabled
     }
 
-    suspend fun setRightButton(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setRightButton(enabled: Boolean) = preferencesStore.edit {
         it[RIGHT_BUTTON] = enabled
     }
 
-    suspend fun setRightButtonAction(action: MusicRightButtonAction) = context.musicTileDataStore.edit {
+    suspend fun setRightButtonAction(action: MusicRightButtonAction) = preferencesStore.edit {
         it[RIGHT_BUTTON_ACTION] = action.name
     }
 
@@ -431,67 +441,67 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the corner slider offers, so an imported settings file can't leave a
      * shape the UI has no way to correct.
      */
-    suspend fun setPlayPauseCornerPercent(percent: Int) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseCornerPercent(percent: Int) = preferencesStore.edit {
         it[PLAY_PAUSE_CORNER] = percent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,
             MusicButtonStyle.MAX_CORNER_PERCENT,
         )
     }
 
-    suspend fun setPreviousExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setPreviousExpand(enabled: Boolean) = preferencesStore.edit {
         it[PREVIOUS_EXPAND] = enabled
     }
 
-    suspend fun setPreviousText(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setPreviousText(enabled: Boolean) = preferencesStore.edit {
         it[PREVIOUS_TEXT] = enabled
     }
 
     /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
-    suspend fun setPreviousTextWidth(width: Float) = context.musicTileDataStore.edit {
+    suspend fun setPreviousTextWidth(width: Float) = preferencesStore.edit {
         it[PREVIOUS_TEXT_WIDTH] = width.coerceIn(
             MusicTileSettings.MIN_TEXT_WIDTH,
             MusicTileSettings.MAX_TEXT_WIDTH,
         )
     }
 
-    suspend fun setNextExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setNextExpand(enabled: Boolean) = preferencesStore.edit {
         it[NEXT_EXPAND] = enabled
     }
 
-    suspend fun setNextText(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setNextText(enabled: Boolean) = preferencesStore.edit {
         it[NEXT_TEXT] = enabled
     }
 
     /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
-    suspend fun setNextTextWidth(width: Float) = context.musicTileDataStore.edit {
+    suspend fun setNextTextWidth(width: Float) = preferencesStore.edit {
         it[NEXT_TEXT_WIDTH] = width.coerceIn(
             MusicTileSettings.MIN_TEXT_WIDTH,
             MusicTileSettings.MAX_TEXT_WIDTH,
         )
     }
 
-    suspend fun setPlayPauseExpand(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseExpand(enabled: Boolean) = preferencesStore.edit {
         it[PLAY_PAUSE_EXPAND] = enabled
     }
 
-    suspend fun setPlayPauseText(enabled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseText(enabled: Boolean) = preferencesStore.edit {
         it[PLAY_PAUSE_TEXT] = enabled
     }
 
     /** Clamps to the Roboto Flex `wdth` axis range the slider offers. */
-    suspend fun setPlayPauseTextWidth(width: Float) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseTextWidth(width: Float) = preferencesStore.edit {
         it[PLAY_PAUSE_TEXT_WIDTH] = width.coerceIn(
             MusicTileSettings.MIN_TEXT_WIDTH,
             MusicTileSettings.MAX_TEXT_WIDTH,
         )
     }
 
-    suspend fun setPlayPauseFilled(filled: Boolean) = context.musicTileDataStore.edit {
+    suspend fun setPlayPauseFilled(filled: Boolean) = preferencesStore.edit {
         it[PLAY_PAUSE_FILLED] = filled
     }
 
     /** Applies a preset's shape and fill to the skip buttons, keeping their current colour. */
-    suspend fun applySkipPreset(preset: MusicButtonStyle) = context.musicTileDataStore.edit {
+    suspend fun applySkipPreset(preset: MusicButtonStyle) = preferencesStore.edit {
         it[SKIP_OPACITY] = preset.opacity.coerceIn(0f, 1f)
         it[SKIP_CORNER] = preset.cornerPercent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,
@@ -501,7 +511,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     }
 
     /** Applies a preset's shape and fill to the play/pause button, keeping its current colour. */
-    suspend fun applyPlayPausePreset(preset: MusicButtonStyle) = context.musicTileDataStore.edit {
+    suspend fun applyPlayPausePreset(preset: MusicButtonStyle) = preferencesStore.edit {
         it[PLAY_PAUSE_OPACITY] = preset.opacity.coerceIn(0f, 1f)
         it[PLAY_PAUSE_CORNER] = preset.cornerPercent.coerceIn(
             MusicButtonStyle.MIN_CORNER_PERCENT,

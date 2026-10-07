@@ -9,14 +9,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import android.graphics.Point
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.telecom.TelecomManager
 import android.util.Log
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
@@ -38,7 +41,8 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
-import com.ekoehler.expressivecutout.core.CutoutWidthBus
+import com.ekoehler.expressivecutout.core.CutoutVisibilityBus
+import com.ekoehler.expressivecutout.core.AnimationOriginPreviewBus
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
@@ -71,6 +75,7 @@ import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.AssistantTilePreferences
+import com.ekoehler.expressivecutout.data.AnimationOrigin
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
@@ -120,30 +125,38 @@ class IslandOverlayController(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
+    private val displayManager = requireNotNull(context.getSystemService<DisplayManager>())
     private val keyguardManager = context.getSystemService<KeyguardManager>()
     private val lifecycleOwner = OverlayLifecycleOwner()
     private val resolver = IconResolver(context)
-    private val iconPreferences = IconPreferences(context)
     private val layoutPreferences = LayoutPreferences(context)
-    private val behaviourPreferences = BehaviourPreferences(context)
+    private val preferencePosture = combine(
+        layoutPreferences.deviceClosed,
+        IslandPreviewBus.active,
+        IslandPreviewBus.closedPreview,
+    ) { isClosed, previewActive, previewClosed ->
+        if (previewActive) previewClosed ?: isClosed else isClosed
+    }
+    private val iconPreferences = IconPreferences(context, preferencePosture)
+    private val behaviourPreferences = BehaviourPreferences(context, preferencePosture)
     private val appearancePreferences = AppearancePreferences(context)
-    private val eventPreferences = EventPreferences(context)
-    private val dynamicTilePreferences = DynamicTilePreferences(context)
-    private val musicTilePreferences = MusicTilePreferences(context)
-    private val phoneTilePreferences = PhoneTilePreferences(context)
-    private val timerTilePreferences = TimerTilePreferences(context)
-    private val assistantTilePreferences = AssistantTilePreferences(context)
-    private val appPreferences = AppPreferences(context)
-    private val permissionDotPreferences = PermissionDotPreferences(context)
+    private val eventPreferences = EventPreferences(context, preferencePosture)
+    private val dynamicTilePreferences = DynamicTilePreferences(context, preferencePosture)
+    private val musicTilePreferences = MusicTilePreferences(context, preferencePosture)
+    private val phoneTilePreferences = PhoneTilePreferences(context, preferencePosture)
+    private val timerTilePreferences = TimerTilePreferences(context, preferencePosture)
+    private val assistantTilePreferences = AssistantTilePreferences(context, preferencePosture)
+    private val appPreferences = AppPreferences(context, preferencePosture)
+    private val permissionDotPreferences = PermissionDotPreferences(context, preferencePosture)
     private val density = context.resources.displayMetrics.density
 
     /**
      * Full display width, used by the island to size itself as a percentage of the screen. Read
-     * from the *current* window metrics so it follows the device between portrait and landscape —
-     * recomputed on rotation by [onOrientationChanged]. (maximumWindowMetrics would stay pinned to
-     * the natural orientation, leaving the landscape pill and its touchable-region carve-out
-     * mis-sized.) The px value is read live by the touchable region; the dp value is a flow so the
-     * pill re-sizes on rotation without recreating the ComposeView.
+     * from the *current* window metrics so it follows the device between portrait and landscape
+     * and fold postures. (maximumWindowMetrics would stay pinned to the natural orientation, leaving
+     * the landscape pill and its touchable-region carve-out mis-sized.) The px value is read live by
+     * the touchable region; the dp value is a flow so the pill re-sizes without recreating the
+     * ComposeView.
      */
     private var displayWidthPx: Int = computeDisplayWidthPx()
     private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
@@ -323,9 +336,11 @@ class IslandOverlayController(private val context: Context) {
 
     private var composeView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
+    private var animationOriginMarkerView: AnimationOriginMarkerView? = null
+    private var animationOriginAnchorOnScreen: Point? = null
     private var dismissJob: Job? = null
     private var windowResizeJob: Job? = null
-    private var cutoutWidthJob: Job? = null
+    private var cutoutVisibilityJob: Job? = null
     private val collapseTrigger = MutableStateFlow(0L)
 
     /**
@@ -339,6 +354,7 @@ class IslandOverlayController(private val context: Context) {
      * is active. Guards signal handling and drives whether the window currently exists.
      */
     private var overlayHidden = false
+    private val overlayHiddenState = MutableStateFlow(false)
     private var savedEventBeforeHide: IslandEvent? = null
 
     /**
@@ -350,11 +366,26 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
+     * A fold changes the active display bounds without necessarily changing orientation, so listen
+     * for display changes as well as the service's orientation callback.
+     */
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == Display.DEFAULT_DISPLAY) refreshDisplayGeometry()
+        }
+    }
+
+    /**
      * Brings the island up: the fake lifecycle, the overlay window, the lock receiver, and one
      * collector per preference group. Mirrored by [stop].
      */
     fun start() {
         lifecycleOwner.onCreate()
+        displayManager.registerDisplayListener(displayListener, null)
         addOverlay()
         registerLockReceiver()
         observeIconPreferences()
@@ -380,6 +411,7 @@ class IslandOverlayController(private val context: Context) {
         observeOnCall()
         observeRunningTimer()
         observePreviewPin()
+        observeAnimationOriginPreview()
         observeSignals()
         observeVisibility()
         observeMirroredKey()
@@ -399,9 +431,11 @@ class IslandOverlayController(private val context: Context) {
         windowResizeJob?.cancel()
         // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
         // blank for as long as the service stays off.
-        cutoutWidthJob?.cancel()
-        CutoutWidthBus.update(false)
+        cutoutVisibilityJob?.cancel()
+        CutoutVisibilityBus.update(false)
+        displayManager.unregisterDisplayListener(displayListener)
         runCatching { context.unregisterReceiver(lockReceiver) }
+        removeAnimationOriginMarker()
         removeOverlay()
         lifecycleOwner.onDestroy()
         scope.cancel()
@@ -442,6 +476,8 @@ class IslandOverlayController(private val context: Context) {
         when {
             shouldHide && !overlayHidden -> {
                 overlayHidden = true
+                overlayHiddenState.value = true
+                removeAnimationOriginMarker()
                 dismissJob?.cancel()
                 windowResizeJob?.cancel()
                 if (currentEvent.value != null) {
@@ -453,6 +489,7 @@ class IslandOverlayController(private val context: Context) {
 
             !shouldHide && overlayHidden -> {
                 overlayHidden = false
+                overlayHiddenState.value = false
                 addOverlay()
                 syncWindowSize()
                 restoreActiveState()
@@ -558,6 +595,22 @@ class IslandOverlayController(private val context: Context) {
         } else {
             width
         }
+    }
+
+    /** Recompute the pill geometry when the active display bounds change without rotating. */
+    private fun refreshDisplayGeometry() {
+        val orientation = context.resources.configuration.orientation
+        val rotation = currentDisplayRotation()
+        if (orientation != currentOrientation || rotation != currentRotation) {
+            onOrientationChanged(orientation)
+            return
+        }
+        val widthPx = computeDisplayWidthPx()
+        if (widthPx == displayWidthPx) return
+        displayWidthPx = widthPx
+        displayWidthDp.value = (widthPx / density).toInt()
+        cameraRightEdgeDp.value = measureCameraRightEdgeDp()
+        syncWindowSize()
     }
 
     /**
@@ -679,6 +732,8 @@ class IslandOverlayController(private val context: Context) {
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
                         cameraRightEdgeDp = cameraRightDp,
+                        animationOrigin = layout.animationOrigin,
+                        onAnimationOriginAnchorChanged = { animationOriginAnchorOnScreen = it },
                         forcedExpanded = effectiveForced,
                         collapseTrigger = collapse,
                         isStickToCamera = isStickToCamera,
@@ -745,6 +800,86 @@ class IslandOverlayController(private val context: Context) {
         composeView?.let { windowManager.removeViewImmediate(it) }
         composeView = null
         insetsListener = null
+    }
+
+    /** Mirrors the settings marker onto a full-screen, non-touchable accessibility overlay. */
+    private fun observeAnimationOriginPreview() = scope.launch {
+        AnimationOriginPreviewBus.origin.collect { origin ->
+            if (origin == null) {
+                fadeOutAnimationOriginMarker()
+            } else {
+                showAnimationOriginMarker(origin)
+            }
+        }
+    }
+
+    /** Adds or moves the temporary animation-origin marker above the current screen. */
+    private fun showAnimationOriginMarker(origin: AnimationOrigin) {
+        val islandView = composeView ?: return
+        val view = animationOriginMarkerView ?: AnimationOriginMarkerView(context).also { marker ->
+            animationOriginMarkerView = marker
+            try {
+                windowManager.addView(marker, buildAnimationOriginMarkerLayoutParams())
+            } catch (error: Exception) {
+                animationOriginMarkerView = null
+                Log.w(TAG, "Failed to show animation-origin marker", error)
+                return
+            }
+        }
+        view.animate().cancel()
+        view.alpha = 1f
+        val anchor = animationOriginAnchorOnScreen ?: run {
+            val islandWindowPosition = IntArray(2)
+            islandView.getLocationOnScreen(islandWindowPosition)
+            Point(islandWindowPosition[0] + islandView.width / 2, islandWindowPosition[1])
+        }
+        view.targetScreenPosition = Point(
+            anchor.x + (origin.offsetXDp * density).roundToInt(),
+            anchor.y + (origin.offsetYDp * density).roundToInt(),
+        )
+    }
+
+    /** Fades the marker away after the settings screen stops requesting its preview. */
+    private fun fadeOutAnimationOriginMarker() {
+        val view = animationOriginMarkerView ?: return
+        view.animate()
+            .alpha(0f)
+            .setDuration(ORIGIN_MARKER_FADE_MS)
+            .withEndAction {
+                if (animationOriginMarkerView === view) removeAnimationOriginMarker()
+            }
+            .start()
+    }
+
+    /** Detaches the temporary marker window immediately. */
+    private fun removeAnimationOriginMarker() {
+        val view = animationOriginMarkerView ?: return
+        view.animate().cancel()
+        runCatching { windowManager.removeViewImmediate(view) }
+            .onFailure { Log.w(TAG, "Failed to remove animation-origin marker", it) }
+        animationOriginMarkerView = null
+    }
+
+    /** Builds a full-screen, non-touchable window for the temporary target marker. */
+    private fun buildAnimationOriginMarkerLayoutParams(): WindowManager.LayoutParams {
+        @Suppress("DEPRECATION")
+        val overlayType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
+        }
     }
 
     /** Mirrors the user's per-event icon overrides into [customIcons]. */
@@ -1108,8 +1243,32 @@ class IslandOverlayController(private val context: Context) {
      * is visible live.
      */
     private fun observeLayout() = scope.launch {
-        layoutPreferences.layout.collect { layout ->
-            layoutState.value = layout
+        val activeLayouts = combine(
+            layoutPreferences.layout,
+            layoutPreferences.deviceClosed,
+            IslandPreviewBus.active,
+            IslandPreviewBus.closedPreview,
+        ) { layout, isClosed, previewActive, previewClosed ->
+            layout.forPosture(
+                if (previewActive) previewClosed ?: isClosed else isClosed,
+            )
+        }
+        combine(activeLayouts, behaviourState, orientationState) { activeLayout, behaviour, orientation ->
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                behaviour.horizontalCutoutMode == HorizontalCutoutMode.FORCED_CENTER
+            ) {
+                activeLayout.copy(
+                    collapsed = activeLayout.collapsed.copy(offsetXDp = 0, offsetYDp = 0),
+                    expanded = activeLayout.expanded.copy(offsetXDp = 0, offsetYDp = 0),
+                )
+            } else {
+                activeLayout
+            }
+        }.collect { layout ->
+            val resolvedLayout = layout.copy(
+                animationOrigin = layout.animationOrigin ?: measureAnimationOrigin(),
+            )
+            layoutState.value = resolvedLayout
             syncWindowSize()
         }
     }
@@ -1122,11 +1281,15 @@ class IslandOverlayController(private val context: Context) {
      * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
+        combine(currentEvent, satelliteEvent, behaviourState, overlayHiddenState) {
+                event, satellite, behaviour, hidden ->
+            !hidden && behaviour.cutoutEnabled &&
+                (event != null || satellite != null || behaviour.showsWhenEmpty)
+        }.collect { visible ->
             setTouchable(
-                !previewPinned && (event != null || satelliteEvent.value != null ||
-                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
+                !previewPinned && visible,
             )
+            publishCutoutVisibility(visible)
         }
     }
 
@@ -1172,37 +1335,23 @@ class IslandOverlayController(private val context: Context) {
             windowWidthPx(layoutState.value),
             windowHeightPx(layoutState.value, expanded),
         )
-        publishCutoutWidth()
     }
 
     /**
-     * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
-     * cutout right now, so "Automatically hide status bar icons" can follow the pill.
-     *
-     * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
-     * before the pill covers them, while narrowing waits out the collapse animation so they don't
-     * reappear under a pill that is still shrinking.
+     * Follows the pill's visible state, hiding status-bar content immediately and restoring it after
+     * the exit animation so it does not appear underneath a disappearing cutout.
      */
-    private fun publishCutoutWidth() {
-        val widened = isWiderThanUsual()
-        cutoutWidthJob?.cancel()
-        if (widened || !CutoutWidthBus.widened.value) {
-            CutoutWidthBus.update(widened)
+    private fun publishCutoutVisibility(visible: Boolean) {
+        cutoutVisibilityJob?.cancel()
+        if (visible || !CutoutVisibilityBus.state.value.visible) {
+            CutoutVisibilityBus.update(visible, expanded)
             return
         }
-        cutoutWidthJob = scope.launch {
+        cutoutVisibilityJob = scope.launch {
             delay(WINDOW_SHRINK_DELAY_MS)
-            CutoutWidthBus.update(false)
+            CutoutVisibilityBus.update(false)
         }
     }
-
-    /**
-     * Whether the state being drawn is wider than the normal collapsed pill — the expanded island
-     * or one of the fuller call cutouts. Compares against [effectiveDims] rather than listing the
-     * states by hand, so the tiny "Mini call" / "Mini player" cutouts correctly read as narrower.
-     */
-    private fun isWiderThanUsual(): Boolean =
-        effectiveDims(layoutState.value, expanded).widthPercent > layoutState.value.collapsed.widthPercent
 
     /**
      * Resizes the window to fit, growing at once but shrinking only after [WINDOW_SHRINK_DELAY_MS].
@@ -1761,13 +1910,26 @@ class IslandOverlayController(private val context: Context) {
             expanded -> layout.expanded
             // "Mini player" / "Mini call" shrink the normal cutout to the tiny pill, so the window
             // and the touchable region have to shrink with it.
-            isTinyTile() -> layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
+            isTinyTile() -> {
+                val tiny = layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
+                if (event?.call != null) {
+                    tiny.copy(
+                        offsetXDp = layout.collapsed.offsetXDp,
+                        offsetYDp = layout.collapsed.offsetYDp,
+                    )
+                } else {
+                    tiny
+                }
+            }
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false
                 if (isTwoRowCall()) {
                     // The two-row incoming layout starts from the expanded cutout (grown by the button
                     // row via currentHeightBonusDp).
-                    layout.expanded
+                    layout.expanded.copy(
+                        offsetXDp = layout.collapsed.offsetXDp,
+                        offsetYDp = layout.collapsed.offsetYDp,
+                    )
                 } else if (isSplitCall()) {
                     // The split connected call keeps the normal pill's height and corners, sized and
                     // placed around the camera hole; its hang-up button lives in a capsule beside it.
@@ -1779,6 +1941,9 @@ class IslandOverlayController(private val context: Context) {
                             longClock = callClockCarriesHours(OnCallBus.state.value?.startTimeMs),
                         ),
                         cameraRightEdgeDp = cameraRightEdgeDp.value,
+                    ).copy(
+                        offsetXDp = layout.collapsed.offsetXDp,
+                        offsetYDp = layout.collapsed.offsetYDp,
                     )
                 } else {
                     // Match the pill's name-driven width so the trailing call button(s) stay tappable:
@@ -2148,6 +2313,7 @@ class IslandOverlayController(private val context: Context) {
             (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
              behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
         val targetExpanded = if (isNoExpandLandscape) false else isExpanded
+        CutoutVisibilityBus.update(CutoutVisibilityBus.state.value.visible, targetExpanded)
         // The resting empty pill's "center" has no event to dismiss — just keep the window and
         // touchable region sized to whatever it's showing (collapsed pill vs. expanded grid).
         if (currentEvent.value == null) {
@@ -2581,6 +2747,19 @@ class IslandOverlayController(private val context: Context) {
         return (bounds.right - widthPx / 2f) / density
     }
 
+    /** Finds the detected camera point in the overlay's screen-relative dp coordinate system. */
+    private fun measureAnimationOrigin(): AnimationOrigin {
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context)
+            ?: return AnimationOrigin(0, IslandLayout.DEFAULT_COLLAPSED.offsetYDp)
+        val (widthPx, _) = currentScreenSizePx()
+        return AnimationOrigin(
+            offsetXDp = ((bounds.centerX() - widthPx / 2f) / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_OFFSET_X_DP, IslandDimensions.MAX_OFFSET_X_DP),
+            offsetYDp = (bounds.centerY() / density).roundToInt()
+                .coerceIn(IslandDimensions.MIN_OFFSET_Y_DP, IslandDimensions.MAX_OFFSET_Y_DP),
+        )
+    }
+
     private fun getLandscapeCameraGravity(): Int {
         val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) }
         if (center != null) {
@@ -2664,6 +2843,9 @@ class IslandOverlayController(private val context: Context) {
             isExpanded && !previewPinned
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
+
+        /** Duration of the animation-origin marker's fade after the editor stops updating it. */
+        const val ORIGIN_MARKER_FADE_MS = 350L
 
         /** Half-length of the rotation cross-fade: island fades out, snaps, then fades back in. */
         const val ROTATION_FADE_MS = 150L

@@ -58,6 +58,7 @@ private val HorizontalCutoutMode.titleRes: Int
         HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only
         HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera
         HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center
+        HorizontalCutoutMode.FORCED_CENTER -> R.string.horizontal_cutout_forced_center
     }
 
 /** One-line explanation shown under each landscape cutout mode. */
@@ -67,6 +68,7 @@ private val HorizontalCutoutMode.descriptionRes: Int
         HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only_desc
         HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera_desc
         HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center_desc
+        HorizontalCutoutMode.FORCED_CENTER -> R.string.horizontal_cutout_forced_center_desc
     }
 
 @Composable
