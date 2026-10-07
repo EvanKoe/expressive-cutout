@@ -40,6 +40,7 @@ import com.ekoehler.expressivecutout.data.JsonSerializable
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.FoldableIslandLayout
 import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
@@ -216,6 +217,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = IslandLayout.DEFAULT,
+        )
+
+    val deviceClosed: StateFlow<Boolean> =
+        layoutPreferences.deviceClosed.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
         )
 
     val theme: StateFlow<AppTheme> =
@@ -600,6 +608,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setExpandedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
         layoutPreferences.setExpanded(dimensions)
+    }
+
+    /** Saves both geometry states for the foldable's closed posture. */
+    fun setClosedLayout(layout: FoldableIslandLayout) = viewModelScope.launch {
+        layoutPreferences.setClosed(layout)
     }
 
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }

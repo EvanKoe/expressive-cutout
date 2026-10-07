@@ -12,11 +12,13 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.telecom.TelecomManager
 import android.util.Log
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
@@ -120,6 +122,7 @@ class IslandOverlayController(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
+    private val displayManager = requireNotNull(context.getSystemService<DisplayManager>())
     private val keyguardManager = context.getSystemService<KeyguardManager>()
     private val lifecycleOwner = OverlayLifecycleOwner()
     private val resolver = IconResolver(context)
@@ -139,11 +142,11 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * Full display width, used by the island to size itself as a percentage of the screen. Read
-     * from the *current* window metrics so it follows the device between portrait and landscape —
-     * recomputed on rotation by [onOrientationChanged]. (maximumWindowMetrics would stay pinned to
-     * the natural orientation, leaving the landscape pill and its touchable-region carve-out
-     * mis-sized.) The px value is read live by the touchable region; the dp value is a flow so the
-     * pill re-sizes on rotation without recreating the ComposeView.
+     * from the *current* window metrics so it follows the device between portrait and landscape
+     * and fold postures. (maximumWindowMetrics would stay pinned to the natural orientation, leaving
+     * the landscape pill and its touchable-region carve-out mis-sized.) The px value is read live by
+     * the touchable region; the dp value is a flow so the pill re-sizes without recreating the
+     * ComposeView.
      */
     private var displayWidthPx: Int = computeDisplayWidthPx()
     private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
@@ -350,11 +353,26 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
+     * A fold changes the active display bounds without necessarily changing orientation, so listen
+     * for display changes as well as the service's orientation callback.
+     */
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == Display.DEFAULT_DISPLAY) refreshDisplayGeometry()
+        }
+    }
+
+    /**
      * Brings the island up: the fake lifecycle, the overlay window, the lock receiver, and one
      * collector per preference group. Mirrored by [stop].
      */
     fun start() {
         lifecycleOwner.onCreate()
+        displayManager.registerDisplayListener(displayListener, null)
         addOverlay()
         registerLockReceiver()
         observeIconPreferences()
@@ -401,6 +419,7 @@ class IslandOverlayController(private val context: Context) {
         // blank for as long as the service stays off.
         cutoutWidthJob?.cancel()
         CutoutWidthBus.update(false)
+        displayManager.unregisterDisplayListener(displayListener)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -558,6 +577,22 @@ class IslandOverlayController(private val context: Context) {
         } else {
             width
         }
+    }
+
+    /** Recompute the pill geometry when the active display bounds change without rotating. */
+    private fun refreshDisplayGeometry() {
+        val orientation = context.resources.configuration.orientation
+        val rotation = currentDisplayRotation()
+        if (orientation != currentOrientation || rotation != currentRotation) {
+            onOrientationChanged(orientation)
+            return
+        }
+        val widthPx = computeDisplayWidthPx()
+        if (widthPx == displayWidthPx) return
+        displayWidthPx = widthPx
+        displayWidthDp.value = (widthPx / density).toInt()
+        cameraRightEdgeDp.value = measureCameraRightEdgeDp()
+        syncWindowSize()
     }
 
     /**
@@ -1108,7 +1143,14 @@ class IslandOverlayController(private val context: Context) {
      * is visible live.
      */
     private fun observeLayout() = scope.launch {
-        layoutPreferences.layout.collect { layout ->
+        combine(
+            layoutPreferences.layout,
+            layoutPreferences.deviceClosed,
+            IslandPreviewBus.active,
+            IslandPreviewBus.closedPreview,
+        ) { layout, isClosed, previewActive, previewClosed ->
+            layout.forPosture(if (previewActive) previewClosed ?: isClosed else isClosed)
+        }.collect { layout ->
             layoutState.value = layout
             syncWindowSize()
         }

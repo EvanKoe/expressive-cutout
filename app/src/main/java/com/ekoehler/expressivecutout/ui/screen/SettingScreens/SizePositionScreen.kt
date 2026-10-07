@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.data.FoldableIslandLayout
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.permissions.Permissions
@@ -79,7 +80,11 @@ internal fun SizePositionScreen(
 ) {
     val context = LocalContext.current
     val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val deviceClosed by viewModel.deviceClosed.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var postureTab by rememberSaveable(deviceClosed) {
+        mutableIntStateOf(if (deviceClosed) 1 else 0)
+    }
 
     // Cutout-aware defaults: centre the pill behind the physical camera and match the expanded
     // island's corners to the device's own rounded corners. Falls back to the static defaults when
@@ -135,10 +140,12 @@ internal fun SizePositionScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
             IslandPreviewBus.setActive(false)
             IslandPreviewBus.setExpandedPreview(false)
+            IslandPreviewBus.setClosedPreview(null)
         }
     }
     // Mirror which tab is being edited (collapsed vs expanded) in the pinned live preview.
     LaunchedEffect(tab) { IslandPreviewBus.setExpandedPreview(tab == 1) }
+    LaunchedEffect(postureTab) { IslandPreviewBus.setClosedPreview(postureTab == 1) }
 
     Column(
         modifier = Modifier
@@ -148,6 +155,16 @@ internal fun SizePositionScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PageTitle(text = stringResource(R.string.appearance_title))
+
+        ExpressivePillRow(
+            options = listOf(
+                stringResource(R.string.foldable_open),
+                stringResource(R.string.foldable_closed),
+            ),
+            selectedIndex = postureTab,
+            onSelect = { postureTab = it },
+            fillWidth = true,
+        )
 
         ExpressivePillRow(
             options = listOf(
@@ -162,25 +179,41 @@ internal fun SizePositionScreen(
         // Cross-fade the editor while its height settles, so swapping tabs doesn't snap the sliders
         // in and out — the expanded tab carries one card more than the normal one.
         AnimatedContent(
-            targetState = tab,
+            targetState = postureTab to tab,
             transitionSpec = { cardStackTransition() },
             label = "dimensionsEditor",
-        ) { targetTab ->
+        ) { (targetPosture, targetTab) ->
+            val closedLayout = layout.closed
+                ?: FoldableIslandLayout(layout.collapsed, layout.expanded)
+            val selectedCollapsed = if (targetPosture == 1) closedLayout.collapsed else layout.collapsed
+            val selectedExpanded = if (targetPosture == 1) closedLayout.expanded else layout.expanded
             when (targetTab) {
                 // Normal cutout
                 0 -> DimensionsEditor(
-                    dimensions = layout.collapsed,
+                    dimensions = selectedCollapsed,
                     defaults = collapsedDefaults,
                     expandedPreview = false,
-                    onChange = viewModel::setCollapsedDimensions,
+                    onChange = if (targetPosture == 1) {
+                        { dimensions ->
+                            viewModel.setClosedLayout(closedLayout.copy(collapsed = dimensions))
+                        }
+                    } else {
+                        viewModel::setCollapsedDimensions
+                    },
                 )
 
                 // Expanded cutout
                 else -> DimensionsEditor(
-                    dimensions = layout.expanded,
+                    dimensions = selectedExpanded,
                     defaults = expandedDefaults,
                     expandedPreview = true,
-                    onChange = viewModel::setExpandedDimensions,
+                    onChange = if (targetPosture == 1) {
+                        { dimensions ->
+                            viewModel.setClosedLayout(closedLayout.copy(expanded = dimensions))
+                        }
+                    } else {
+                        viewModel::setExpandedDimensions
+                    },
                 )
             }
         }

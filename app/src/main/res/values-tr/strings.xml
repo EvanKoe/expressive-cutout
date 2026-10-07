@@ -163,6 +163,8 @@
     <string name="appearance_corner_br">Sağ alt</string>
     <string name="tab_normal">Normal</string>
     <string name="tab_expanded">Genişletilmiş</string>
+    <string name="foldable_open">Açık</string>
+    <string name="foldable_closed">Kapalı</string>
     <string name="appearance_vertical">Dikey konum</string>
     <string name="appearance_horizontal">Yatay konum</string>
     <string name="action_reset_layout">Varsayılana sıfırla</string>

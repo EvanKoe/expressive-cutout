@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
@@ -16,39 +18,63 @@ import org.json.JSONObject
 private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataStore(name = "layout_prefs")
 
 /**
- * Persists the collapsed and expanded island geometry independently, always emitting values
- * clamped to valid ranges.
+ * Persists collapsed and expanded geometry for the regular layout and an optional closed-device
+ * profile, always emitting values clamped to valid ranges.
  */
 class LayoutPreferences(private val context: Context) : JsonSerializable {
 
+    /** The latest fold posture reported by the activity, retained while the overlay runs alone. */
+    val deviceClosed: Flow<Boolean> = context.layoutDataStore.data
+        .map { it[Keys.DeviceClosed] ?: false }
+        .distinctUntilChanged()
+
+    /** The open-device geometries and optional closed-device profile. */
     val layout: Flow<IslandLayout> = context.layoutDataStore.data.map { prefs ->
         IslandLayout(
             collapsed = prefs.readDimensions(Keys.Collapsed, IslandLayout.DEFAULT_COLLAPSED),
             expanded = prefs.readDimensions(Keys.Expanded, IslandLayout.DEFAULT_EXPANDED),
+            closed = if (prefs[Keys.ClosedEnabled] == true) {
+                FoldableIslandLayout(
+                    collapsed = prefs.readDimensions(Keys.ClosedCollapsed, IslandLayout.DEFAULT_COLLAPSED),
+                    expanded = prefs.readDimensions(Keys.ClosedExpanded, IslandLayout.DEFAULT_EXPANDED),
+                )
+            } else {
+                null
+            },
         )
     }
 
     /**
-     * Exports the layout to a JSON string { collapsed: {...}, expanded: {...} }, each state a nested
-     * object of its geometry. [IslandDimensions] has no serializer of its own, so build it here.
+     * Exports the regular layout and optional closed-device profile as nested geometry objects.
+     * [IslandDimensions] has no serializer of its own, so build it here.
      */
     override suspend fun toJson(): String {
         val l = layout.first()
         return JSONObject().apply {
             put("collapsed", l.collapsed.toJsonObject())
             put("expanded", l.expanded.toJsonObject())
+            l.closed?.let { closed ->
+                put(
+                    "closed",
+                    JSONObject().apply {
+                        put("collapsed", closed.collapsed.toJsonObject())
+                        put("expanded", closed.expanded.toJsonObject())
+                    },
+                )
+            }
         }.toString()
     }
 
     /**
-     * Applies { collapsed: {...}, expanded: {...} } exported by [toJson]. Either state is optional;
-     * a state whose object is missing a field is skipped whole (rather than half-applied), and
-     * [IslandDimensions.of] clamps whatever does come through.
+     * Applies layout JSON exported by [toJson]. Each state is optional; a state whose object is
+     * missing a field is skipped whole rather than half-applied, and [IslandDimensions.of] clamps
+     * whatever does come through.
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
         obj.optJSONObject("collapsed")?.toDimensionsOrNull()?.let { setCollapsed(it) }
         obj.optJSONObject("expanded")?.toDimensionsOrNull()?.let { setExpanded(it) }
+        obj.optJSONObject("closed")?.toFoldableLayoutOrNull()?.let { setClosed(it) }
     }
 
     /**
@@ -69,6 +95,16 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             topMarginDp = optInt("topMarginDp", IslandDimensions.DEFAULT_TOP_MARGIN_DP),
         )
     }.getOrNull()
+
+    /**
+     * Reads both geometries in a closed-device profile, leaving the profile unchanged if either is
+     * missing or malformed.
+     */
+    private fun JSONObject.toFoldableLayoutOrNull(): FoldableIslandLayout? {
+        val collapsed = optJSONObject("collapsed")?.toDimensionsOrNull() ?: return null
+        val expanded = optJSONObject("expanded")?.toDimensionsOrNull() ?: return null
+        return FoldableIslandLayout(collapsed, expanded)
+    }
 
     /**
      * Writes one island geometry for export, field by field so the JSON stays readable and
@@ -94,7 +130,24 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         it.writeDimensions(Keys.Expanded, dimensions)
     }
 
-    suspend fun reset() = context.layoutDataStore.edit { it.clear() }
+    /** Persists both geometries for the foldable's closed posture. */
+    suspend fun setClosed(layout: FoldableIslandLayout) = context.layoutDataStore.edit {
+        it[Keys.ClosedEnabled] = true
+        it.writeDimensions(Keys.ClosedCollapsed, layout.collapsed)
+        it.writeDimensions(Keys.ClosedExpanded, layout.expanded)
+    }
+
+    /** Remembers the most recently detected fold posture for the overlay service. */
+    suspend fun setDeviceClosed(isClosed: Boolean) = context.layoutDataStore.edit {
+        it[Keys.DeviceClosed] = isClosed
+    }
+
+    /** Resets all geometry settings while retaining the latest detected device posture. */
+    suspend fun reset() = context.layoutDataStore.edit {
+        val deviceClosed = this[Keys.DeviceClosed]
+        clear()
+        if (deviceClosed != null) this[Keys.DeviceClosed] = deviceClosed
+    }
 
     private fun Preferences.readDimensions(keys: Keys, default: IslandDimensions) =
         IslandDimensions.of(
@@ -140,6 +193,10 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         companion object {
             val Collapsed = Keys("collapsed")
             val Expanded = Keys("expanded")
+            val ClosedCollapsed = Keys("closed_collapsed")
+            val ClosedExpanded = Keys("closed_expanded")
+            val ClosedEnabled = booleanPreferencesKey("closed_enabled")
+            val DeviceClosed = booleanPreferencesKey("device_closed")
         }
     }
 }

@@ -173,11 +173,21 @@ private const val TINY_CAMERA_GAP_DP = 4f
 /** Half a typical punch-hole, standing in when the device won't report its cutout. */
 internal const val DEFAULT_CAMERA_RADIUS_DP = 16f
 
-/** The two independently configurable island states. */
+/**
+ * The open-device island geometries and the optional independent closed-device profile.
+ */
 data class IslandLayout(
     val collapsed: IslandDimensions = DEFAULT_COLLAPSED,
     val expanded: IslandDimensions = DEFAULT_EXPANDED,
+    val closed: FoldableIslandLayout? = null,
 ) {
+    /**
+     * Returns the geometry for the active posture, falling back to the regular layout until a
+     * closed-device profile has been saved.
+     */
+    fun forPosture(isClosed: Boolean): IslandLayout =
+        if (isClosed && closed != null) IslandLayout(closed.collapsed, closed.expanded) else this
+
     companion object {
         val DEFAULT_COLLAPSED = IslandDimensions(
             widthPercent = 38,
@@ -205,3 +215,11 @@ data class IslandLayout(
         val DEFAULT = IslandLayout()
     }
 }
+
+/**
+ * The independently configurable collapsed and expanded geometries used while a foldable is closed.
+ */
+data class FoldableIslandLayout(
+    val collapsed: IslandDimensions,
+    val expanded: IslandDimensions,
+)

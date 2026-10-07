@@ -165,6 +165,8 @@
     <string name="appearance_corner_br">En bas à droite</string>
     <string name="tab_normal">Normale</string>
     <string name="tab_expanded">Étendue</string>
+    <string name="foldable_open">Ouvert</string>
+    <string name="foldable_closed">Fermé</string>
     <string name="appearance_vertical">Position verticale</string>
     <string name="appearance_horizontal">Position horizontale</string>
     <string name="action_reset_layout">Réinitialiser par défaut</string>

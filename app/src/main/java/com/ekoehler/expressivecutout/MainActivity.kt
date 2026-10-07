@@ -1,6 +1,8 @@
 package com.ekoehler.expressivecutout
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,8 +10,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.window.layout.FoldingFeature
+import androidx.window.layout.WindowInfoTracker
+import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.system.AppLocale
@@ -17,6 +23,8 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.MainScreen
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import com.ekoehler.expressivecutout.ui.theme.isDark
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /** Single-activity host. The overlay itself runs independently in the services. */
 class MainActivity : ComponentActivity() {
@@ -43,6 +51,25 @@ class MainActivity : ComponentActivity() {
             ExpressiveCutoutTheme(appTheme = theme) {
                 MainScreen(viewModel)
             }
+        }
+        observeFoldablePosture()
+    }
+
+    /**
+     * Uses the window's fold feature when available; a hinge sensor with no reported fold means the
+     * device is on its closed display.
+     */
+    private fun observeFoldablePosture() {
+        val hasHingeSensor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE)
+        val layoutPreferences = LayoutPreferences(this)
+        lifecycleScope.launch {
+            WindowInfoTracker.getOrCreate(this@MainActivity)
+                .windowLayoutInfo(this@MainActivity)
+                .collect { layoutInfo ->
+                    val hasFold = layoutInfo.displayFeatures.any { it is FoldingFeature }
+                    layoutPreferences.setDeviceClosed(hasHingeSensor && !hasFold)
+                }
         }
     }
 
