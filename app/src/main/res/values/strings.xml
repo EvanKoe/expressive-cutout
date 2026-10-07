@@ -148,6 +148,7 @@
 
     <!-- Size &amp; position -->
     <string name="appearance_title">Size &amp; position</string>
+    <string name="appearance_animation_origin_hint">Adjust where the cutout animation starts in Animations.</string>
     <string name="appearance_preview">Preview</string>
     <string name="appearance_width">Width</string>
     <string name="appearance_height">Height</string>
@@ -316,8 +317,14 @@
     <string name="status_bar_hide_mode_off">Off</string>
     <string name="status_bar_hide_mode_normal">Normal</string>
     <string name="status_bar_hide_mode_expanded">Expanded</string>
+    <string name="status_bar_hide_mode_both">Both</string>
     <string name="status_bar_hide_mode_always">Always</string>
-    <string name="status_bar_hide_mode_note">Choose to hide each group only while the cutout is normal, only while expanded, or always.</string>
+    <string name="status_bar_hide_mode_note">Choose when each group is hidden. Both hides it while the cutout is visible in either state.</string>
+    <string name="status_bar_hide_mode_off_desc">Keep these items visible in the system status bar.</string>
+    <string name="status_bar_hide_mode_normal_desc">Hide these items while the cutout is collapsed.</string>
+    <string name="status_bar_hide_mode_expanded_desc">Hide these items only while the cutout is expanded.</string>
+    <string name="status_bar_hide_mode_both_desc">Hide these items whenever the cutout is visible, collapsed or expanded.</string>
+    <string name="status_bar_hide_mode_always_desc">Keep these items hidden, even when the cutout is not visible.</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>

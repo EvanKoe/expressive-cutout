@@ -100,6 +100,7 @@ fun SettingsTab(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isPreviewRoute = route == SettingsRoute.SizePosition ||
+        route == SettingsRoute.Animation ||
         route == SettingsRoute.Appearance ||
         route == SettingsRoute.Background
 

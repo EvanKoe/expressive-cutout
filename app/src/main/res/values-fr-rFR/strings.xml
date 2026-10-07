@@ -148,6 +148,7 @@
 
     <!-- Size &amp; position -->
     <string name="appearance_title">Taille &amp; position</string>
+    <string name="appearance_animation_origin_hint">Réglez le point de départ de l’animation de l’encoche dans Animations.</string>
     <string name="appearance_preview">Aperçu</string>
     <string name="appearance_width">Largeur</string>
     <string name="appearance_height">Hauteur</string>
@@ -316,8 +317,14 @@
     <string name="status_bar_hide_mode_off">Jamais</string>
     <string name="status_bar_hide_mode_normal">Normal</string>
     <string name="status_bar_hide_mode_expanded">Déployée</string>
+    <string name="status_bar_hide_mode_both">Les deux</string>
     <string name="status_bar_hide_mode_always">Toujours</string>
-    <string name="status_bar_hide_mode_note">Choisissez de masquer chaque groupe uniquement en mode normal, uniquement en mode déployé ou en permanence.</string>
+    <string name="status_bar_hide_mode_note">Choisissez quand masquer chaque groupe. « Les deux » le masque lorsque l’encoche est visible, dans les deux états.</string>
+    <string name="status_bar_hide_mode_off_desc">Laisser ces éléments visibles dans la barre d’état système.</string>
+    <string name="status_bar_hide_mode_normal_desc">Masquer ces éléments lorsque l’encoche est réduite.</string>
+    <string name="status_bar_hide_mode_expanded_desc">Masquer ces éléments uniquement lorsque l’encoche est déployée.</string>
+    <string name="status_bar_hide_mode_both_desc">Masquer ces éléments lorsque l’encoche est visible, réduite ou déployée.</string>
+    <string name="status_bar_hide_mode_always_desc">Toujours masquer ces éléments, même lorsque l’encoche est invisible.</string>
     <string name="status_bar_hide_icons_title">Masquer les icônes de notification</string>
     <string name="status_bar_hide_icons_desc">Retire les icônes de notification de la barre d’état système, pour que seule l’île les signale.</string>
     <string name="status_bar_hide_icons_note">Android oublie ce réglage au redémarrage. Relancez Shizuku et ouvrez cette application une fois pour le remettre.</string>

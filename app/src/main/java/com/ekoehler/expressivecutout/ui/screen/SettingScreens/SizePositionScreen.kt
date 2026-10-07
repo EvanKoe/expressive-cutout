@@ -47,13 +47,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.delay
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutMetrics
-import com.ekoehler.expressivecutout.core.AnimationOriginPreviewBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.FoldableIslandLayout
-import com.ekoehler.expressivecutout.data.AnimationOrigin
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.permissions.Permissions
@@ -123,21 +120,6 @@ internal fun SizePositionScreen(
         }
         d
     }
-    val detectedAnimationOrigin = remember(view, density, cutoutOffsetXDp) {
-        CutoutMetrics.cutoutCenterPx(view)?.let { center ->
-            AnimationOrigin(
-                offsetXDp = ((center.x - view.resources.displayMetrics.widthPixels / 2f) / density)
-                    .roundToInt()
-                    .coerceIn(AnimationOrigin.MIN_OFFSET_X_DP, AnimationOrigin.MAX_OFFSET_X_DP),
-                offsetYDp = (center.y / density).roundToInt()
-                    .coerceIn(IslandDimensions.MIN_OFFSET_Y_DP, IslandDimensions.MAX_OFFSET_Y_DP),
-            )
-        } ?: AnimationOrigin(
-            offsetXDp = cutoutOffsetXDp ?: 0,
-            offsetYDp = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
-        )
-    }
-
     // Pin the real overlay open only on this screen, gated on accessibility. The pinned island
     // mirrors the tab being edited (collapsed vs expanded).
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -146,10 +128,7 @@ internal fun SizePositionScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> refresh()
-                Lifecycle.Event.ON_PAUSE -> {
-                    IslandPreviewBus.setActive(false)
-                    AnimationOriginPreviewBus.setOrigin(null)
-                }
+                Lifecycle.Event.ON_PAUSE -> IslandPreviewBus.setActive(false)
                 else -> Unit
             }
         }
@@ -158,7 +137,6 @@ internal fun SizePositionScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             IslandPreviewBus.setActive(false)
-            AnimationOriginPreviewBus.setOrigin(null)
             IslandPreviewBus.setExpandedPreview(false)
             IslandPreviewBus.setClosedPreview(null)
         }
@@ -175,6 +153,12 @@ internal fun SizePositionScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PageTitle(text = stringResource(R.string.appearance_title))
+        Text(
+            text = stringResource(R.string.appearance_animation_origin_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
 
         ExpressivePillRow(
             options = listOf(
@@ -233,107 +217,6 @@ internal fun SizePositionScreen(
                         }
                     },
                 )
-            }
-        }
-
-        val closedLayout = layout.closed ?: FoldableIslandLayout(layout.collapsed, layout.expanded)
-        val savedOrigin = if (editingClosed) closedLayout.animationOrigin else layout.animationOrigin
-        AnimationOriginEditor(
-            origin = savedOrigin ?: detectedAnimationOrigin,
-            detectedOrigin = detectedAnimationOrigin,
-            hasCustomOrigin = savedOrigin != null,
-            onChange = { origin -> viewModel.setAnimationOrigin(origin, editingClosed) },
-        )
-    }
-}
-
-/** Edits the camera-relative point used only as the island's animation starting location. */
-@Composable
-private fun AnimationOriginEditor(
-    origin: AnimationOrigin,
-    detectedOrigin: AnimationOrigin,
-    hasCustomOrigin: Boolean,
-    onChange: (AnimationOrigin?) -> Unit,
-) {
-    var offsetX by remember(origin.offsetXDp) { mutableStateOf(origin.offsetXDp.toFloat()) }
-    var offsetY by remember(origin.offsetYDp) { mutableStateOf(origin.offsetYDp.toFloat()) }
-    var previewChange by remember { mutableIntStateOf(0) }
-
-    DisposableEffect(Unit) {
-        onDispose { AnimationOriginPreviewBus.setOrigin(null) }
-    }
-
-    LaunchedEffect(previewChange) {
-        if (previewChange > 0) {
-            delay(3_000L)
-            AnimationOriginPreviewBus.setOrigin(null)
-        }
-    }
-
-    fun showOriginPreview() {
-        previewChange++
-        AnimationOriginPreviewBus.setOrigin(
-            AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()),
-        )
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = stringResource(R.string.appearance_animation_origin_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        Text(
-            text = stringResource(R.string.appearance_animation_origin_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        MaterialCard(shape = groupedShape(isFirst = true)) {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_horizontal),
-                valueText = "${offsetX.roundToInt()} dp",
-                value = offsetX,
-                valueRange = AnimationOrigin.MIN_OFFSET_X_DP.toFloat()..AnimationOrigin.MAX_OFFSET_X_DP.toFloat(),
-                step = 2f,
-                onValueChange = {
-                    offsetX = it
-                    showOriginPreview()
-                },
-                onCommit = {
-                    showOriginPreview()
-                    onChange(AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()))
-                },
-            )
-        }
-        MaterialCard(shape = groupedShape(isLast = true)) {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_animation_origin_vertical),
-                valueText = "${offsetY.roundToInt()} dp",
-                value = offsetY,
-                valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
-                step = 2f,
-                onValueChange = {
-                    offsetY = it
-                    showOriginPreview()
-                },
-                onCommit = {
-                    showOriginPreview()
-                    onChange(AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()))
-                },
-            )
-        }
-        if (hasCustomOrigin) {
-            Button(
-                onClick = {
-                    offsetX = detectedOrigin.offsetXDp.toFloat()
-                    offsetY = detectedOrigin.offsetYDp.toFloat()
-                    onChange(null)
-                    showOriginPreview()
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.appearance_animation_origin_reset))
             }
         }
     }

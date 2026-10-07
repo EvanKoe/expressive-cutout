@@ -11,6 +11,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.window.layout.FoldingFeature
@@ -19,15 +21,19 @@ import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.system.AppLocale
+import com.ekoehler.expressivecutout.system.FoldablePostureMonitor
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.MainScreen
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import com.ekoehler.expressivecutout.ui.theme.isDark
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 
 /** Single-activity host. The overlay itself runs independently in the services. */
 class MainActivity : ComponentActivity() {
+    private var foldablePostureMonitor: FoldablePostureMonitor? = null
 
     /** Localises the whole settings UI to the picked language. See [AppLocale]. */
     override fun attachBaseContext(newBase: Context) =
@@ -52,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 MainScreen(viewModel)
             }
         }
+        foldablePostureMonitor = FoldablePostureMonitor(this).also { it.start() }
         observeFoldablePosture()
     }
 
@@ -59,18 +66,35 @@ class MainActivity : ComponentActivity() {
      * Uses the window's fold feature when available; a hinge sensor with no reported fold means the
      * device is on its closed display.
      */
+    @OptIn(FlowPreview::class)
     private fun observeFoldablePosture() {
         val hasHingeSensor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
             packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE)
         val layoutPreferences = LayoutPreferences(this)
         lifecycleScope.launch {
-            WindowInfoTracker.getOrCreate(this@MainActivity)
-                .windowLayoutInfo(this@MainActivity)
-                .collect { layoutInfo ->
-                    val hasFold = layoutInfo.displayFeatures.any { it is FoldingFeature }
-                    layoutPreferences.setDeviceClosed(hasHingeSensor && !hasFold)
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                WindowInfoTracker.getOrCreate(this@MainActivity)
+                    .windowLayoutInfo(this@MainActivity)
+                    .debounce(250L)
+                    .collect { layoutInfo ->
+                        val hasFold = layoutInfo.displayFeatures.any { it is FoldingFeature }
+                        when {
+                            hasFold -> layoutPreferences.setDeviceClosed(false)
+                            !hasHingeSensor -> layoutPreferences.setDeviceClosed(true)
+                        }
+                    }
                 }
         }
+    }
+
+    /**
+     * Releases the activity's sensor listener; the accessibility service keeps its own monitor
+     * alive while the overlay remains active.
+     */
+    override fun onDestroy() {
+        foldablePostureMonitor?.stop()
+        foldablePostureMonitor = null
+        super.onDestroy()
     }
 
     /**

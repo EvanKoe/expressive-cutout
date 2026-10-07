@@ -24,8 +24,6 @@ import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material.icons.rounded.NetworkWifi
 import androidx.compose.material.icons.rounded.ShapeLine
 import androidx.compose.material.icons.rounded.Square
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,16 +48,9 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
-
-/** Grouped-list item shape: rounded at the group's outer edges, tight between stacked items. */
-private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
-    topStart = if (isFirst) 24.dp else 4.dp,
-    topEnd = if (isFirst) 24.dp else 4.dp,
-    bottomStart = if (isLast) 24.dp else 4.dp,
-    bottomEnd = if (isLast) 24.dp else 4.dp,
-)
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 
 /**
  * "Shizuku options" screen (reached from the settings list). Houses the tweaks that need shell
@@ -143,25 +133,20 @@ internal fun ShizukuScreen(
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             StatusBarHideModeCard(
-                shape = groupedShape(isFirst = true, isLast = false),
                 title = stringResource(R.string.status_bar_hide_icons_title),
                 description = stringResource(R.string.status_bar_hide_icons_desc),
                 selected = iconsMode,
                 onSelect = viewModel::setNotificationIconsMode,
                 enabled = ready,
             )
-
             StatusBarHideModeCard(
-                shape = groupedShape(isFirst = false, isLast = false),
                 title = stringResource(R.string.status_bar_hide_system_info_title),
                 description = stringResource(R.string.status_bar_hide_system_info_desc),
                 selected = systemInfoMode,
                 onSelect = viewModel::setSystemInfoMode,
                 enabled = ready,
             )
-
             StatusBarHideModeCard(
-                shape = groupedShape(isFirst = false, isLast = true),
                 title = stringResource(R.string.status_bar_hide_clock_title),
                 description = stringResource(R.string.status_bar_hide_clock_desc),
                 selected = clockMode,
@@ -192,63 +177,50 @@ internal fun ShizukuScreen(
 
 /**
  * One status-bar hiding setting, picked as a [StatusBarHideMode] rather than switched on and off.
- * Modes can target the normal or expanded state, or remain active all the time.
- *
- * [StatusBarHideMode]'s declaration order is the option order, so the two can't drift apart.
+ * Each mode is shown with its full label and explanation.
  */
 @Composable
 private fun StatusBarHideModeCard(
-    shape: Shape,
     title: String,
     description: String,
     selected: StatusBarHideMode,
     onSelect: (StatusBarHideMode) -> Unit,
     enabled: Boolean,
 ) {
-    val modes = StatusBarHideMode.entries
-    val labels = modes.map {
-        stringResource(
-            when (it) {
-                StatusBarHideMode.OFF -> R.string.status_bar_hide_mode_off
-                StatusBarHideMode.NORMAL -> R.string.status_bar_hide_mode_normal
-                StatusBarHideMode.EXPANDED -> R.string.status_bar_hide_mode_expanded
-                StatusBarHideMode.ALWAYS -> R.string.status_bar_hide_mode_always
-            }
-        )
-    }
-    val contentAlpha = if (enabled) 1f else 0.38f
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+    OptionSelectionCard(
+        title = title,
+        options = StatusBarHideMode.entries.map { mode ->
+            SelectableOption(
+                value = mode,
+                title = stringResource(mode.titleRes),
+                description = stringResource(mode.descriptionRes),
             )
-
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            )
-
-            ExpressiveSegmentedRow(
-                options = labels,
-                selectedIndex = modes.indexOf(selected),
-                onSelect = { onSelect(modes[it]) },
-                modifier = Modifier.fillMaxWidth(),
-                disabledIndices = if (enabled) emptySet() else modes.indices.toSet(),
-            )
-        }
-    }
+        },
+        selectedValue = selected,
+        onSelectionChange = onSelect,
+        enabled = enabled,
+    )
 }
+
+/** The localized title shown for a status-bar hiding mode. */
+private val StatusBarHideMode.titleRes: Int
+    get() = when (this) {
+        StatusBarHideMode.OFF -> R.string.status_bar_hide_mode_off
+        StatusBarHideMode.NORMAL -> R.string.status_bar_hide_mode_normal
+        StatusBarHideMode.EXPANDED -> R.string.status_bar_hide_mode_expanded
+        StatusBarHideMode.BOTH -> R.string.status_bar_hide_mode_both
+        StatusBarHideMode.ALWAYS -> R.string.status_bar_hide_mode_always
+    }
+
+/** The localized explanation shown under a status-bar hiding mode. */
+private val StatusBarHideMode.descriptionRes: Int
+    get() = when (this) {
+        StatusBarHideMode.OFF -> R.string.status_bar_hide_mode_off_desc
+        StatusBarHideMode.NORMAL -> R.string.status_bar_hide_mode_normal_desc
+        StatusBarHideMode.EXPANDED -> R.string.status_bar_hide_mode_expanded_desc
+        StatusBarHideMode.BOTH -> R.string.status_bar_hide_mode_both_desc
+        StatusBarHideMode.ALWAYS -> R.string.status_bar_hide_mode_always_desc
+    }
 
 /**
  * A mock status bar showing what the chosen hiding options will actually look like, so the user can

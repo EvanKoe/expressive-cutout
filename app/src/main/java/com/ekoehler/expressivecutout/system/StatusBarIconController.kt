@@ -49,9 +49,9 @@ object StatusBarIconController {
 
     /**
      * Keeps the system status bar in sync with the saved wish, re-applying whenever Shizuku becomes
-     * reachable again — after a reboot, or after the user starts Shizuku for the first time. A
-     * [StatusBarHideMode.NORMAL] and [StatusBarHideMode.EXPANDED] select which visible state hides
-     * the icons.
+     * reachable again — after a reboot, or after the user starts Shizuku for the first time.
+     * [StatusBarHideMode.NORMAL], [StatusBarHideMode.EXPANDED], and [StatusBarHideMode.BOTH] select
+     * which visible states hide the icons.
      *
      * There is deliberately no `stop()`, and adding one would be a mistake: releasing [token] is
      * what restores the system icons, so a public stop would be a way to silently undo the user's

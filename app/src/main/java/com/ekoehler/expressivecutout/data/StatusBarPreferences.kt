@@ -72,8 +72,8 @@ class StatusBarPreferences(
 
     /**
      * Reads [modeKey], falling back to the booleans these settings were stored as before they grew
-     * multiple visibility modes, so an existing install keeps behaving the way the user left it: the old
-     * "hide automatically" switch maps to normal-only, and a plain on/off wish becomes
+     * multiple visibility modes, so an existing install keeps behaving the way the user left it:
+     * the old "hide automatically" switch maps to normal-only, and a plain on/off wish becomes
      * [StatusBarHideMode.ALWAYS] or [StatusBarHideMode.OFF].
      */
     private fun Preferences.hideMode(
@@ -105,7 +105,7 @@ class StatusBarPreferences(
 
     /**
      * Exports the status-bar settings in a JSON string
-     * { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "ALWAYS",
+     * { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "BOTH" | "ALWAYS",
      * silenceAlerts: boolean }
      */
     override suspend fun toJson(): String {
@@ -122,7 +122,7 @@ class StatusBarPreferences(
     }
 
     /**
-     * Applies { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "ALWAYS",
+     * Applies { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "BOTH" | "ALWAYS",
      * silenceAlerts: boolean } exported by [toJson], also accepting the booleans older documents
      * carry. Each missing field leaves its setting untouched — importing a document from a build
      * without this section shouldn't silently flip any flag.

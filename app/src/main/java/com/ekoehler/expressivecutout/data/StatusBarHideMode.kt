@@ -14,6 +14,9 @@ enum class StatusBarHideMode {
     /** Hidden only while the cutout is expanded. */
     EXPANDED,
 
+    /** Hidden whenever the cutout is visible, whether collapsed or expanded. */
+    BOTH,
+
     /** Hidden the whole time, whatever the island is doing. */
     ALWAYS;
 
@@ -22,6 +25,7 @@ enum class StatusBarHideMode {
         OFF -> false
         NORMAL -> visible && !expanded
         EXPANDED -> visible && expanded
+        BOTH -> visible
         ALWAYS -> true
     }
 }

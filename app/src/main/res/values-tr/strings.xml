@@ -146,6 +146,7 @@
 
     <!-- Size &amp; position -->
     <string name="appearance_title">Boyut ve konum</string>
+    <string name="appearance_animation_origin_hint">Çentik animasyonunun başlangıç noktasını Animasyonlar bölümünden ayarlayın.</string>
     <string name="appearance_preview">Önizleme</string>
     <string name="appearance_width">Genişlik</string>
     <string name="appearance_height">Yükseklik</string>
@@ -282,8 +283,14 @@
     <string name="status_bar_hide_mode_off">Kapalı</string>
     <string name="status_bar_hide_mode_normal">Normal</string>
     <string name="status_bar_hide_mode_expanded">Genişletilmiş</string>
+    <string name="status_bar_hide_mode_both">Her ikisi</string>
     <string name="status_bar_hide_mode_always">Her zaman</string>
-    <string name="status_bar_hide_mode_note">Her grubu yalnızca normal durumda, yalnızca genişletilmiş durumda veya her zaman gizlemeyi seçin.</string>
+    <string name="status_bar_hide_mode_note">Her grubun ne zaman gizleneceğini seçin. Her ikisi, kesit görünür olduğunda her iki durumda da gizler.</string>
+    <string name="status_bar_hide_mode_off_desc">Bu öğeleri sistem durum çubuğunda görünür bırakır.</string>
+    <string name="status_bar_hide_mode_normal_desc">Kesit daraltılmış durumdayken bu öğeleri gizler.</string>
+    <string name="status_bar_hide_mode_expanded_desc">Bu öğeleri yalnızca kesit genişletilmiş durumdayken gizler.</string>
+    <string name="status_bar_hide_mode_both_desc">Kesit daraltılmış veya genişletilmiş olarak görünürken bu öğeleri gizler.</string>
+    <string name="status_bar_hide_mode_always_desc">Kesit görünür olmasa bile bu öğeleri her zaman gizler.</string>
     <string name="status_bar_hide_icons_title">Bildirim simgelerini gizle</string>
     <string name="status_bar_hide_icons_desc">Bildirim simgelerini sistem durum çubuğundan temizler, böylece onları yalnızca ada bildirir.</string>
     <string name="status_bar_hide_icons_note">Android bunu yeniden başlatmada unutur. Geri getirmek için Shizuku\'yu yeniden başlatıp bu uygulamayı bir kez açın.</string>
