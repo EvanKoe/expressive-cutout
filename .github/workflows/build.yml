@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      build_variant:
+        description: APK variant to build for download
+        required: true
+        type: choice
+        options:
+          - release
+          - debug
+        default: release
 
 concurrency:
   group: build-${{ github.ref }}
@@ -28,16 +37,61 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Assemble debug
+        if: github.event_name != 'workflow_dispatch' || inputs.build_variant == 'debug'
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Assemble and sign test release
+        if: github.event_name == 'workflow_dispatch' && inputs.build_variant == 'release'
+        shell: bash
+        run: |
+          ./gradlew assembleRelease --no-daemon
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/test-release.keystore" \
+            -storepass test-only-password \
+            -keypass test-only-password \
+            -alias test-release \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=Expressive Cutout Test Build"
+          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          mkdir -p app/build/test-release
+          "$build_tools/apksigner" sign \
+            --ks "$RUNNER_TEMP/test-release.keystore" \
+            --ks-key-alias test-release \
+            --ks-pass pass:test-only-password \
+            --key-pass pass:test-only-password \
+            --out app/build/test-release/expressive-cutout-test-release.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "$build_tools/apksigner" verify app/build/test-release/expressive-cutout-test-release.apk
+          cat > app/build/test-release/RELEASE-NOTES.txt <<'EOF'
+          TEST BUILD — NOT A FORMAL RELEASE
+
+          Changes:
+          - Fixed island width not updating correctly when a foldable switches between its larger and smaller displays.
+          - Added independent open- and closed-device position, width, and height settings.
+          - The closed-device settings are applied automatically when the foldable is closed.
+
+          This test APK is signed with a temporary CI key. Uninstall a previous test build before installing a new one if its signing key differs.
+          EOF
 
       - name: Lint
         run: ./gradlew lintDebug --no-daemon
 
       - name: Upload debug APK
+        if: github.event_name != 'workflow_dispatch' || inputs.build_variant == 'debug'
         uses: actions/upload-artifact@v4
         with:
           name: expressive-cutout-debug
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload test release APK and notes
+        if: github.event_name == 'workflow_dispatch' && inputs.build_variant == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: expressive-cutout-test-release
+          path: app/build/test-release/*
           if-no-files-found: error
 
       - name: Upload lint report
