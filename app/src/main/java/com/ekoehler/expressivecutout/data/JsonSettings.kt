@@ -20,7 +20,7 @@ object JsonSettings {
     const val FORMAT_KEY = "format"
     const val FORMAT_VALUE = "expressive-cutout-settings"
     const val VERSION_KEY = "version"
-    const val VERSION = 1
+    const val VERSION = 2
 
     /** Section labels — also the keys of the store map AppViewModel builds. */
     const val THEME = "theme"
@@ -59,6 +59,38 @@ object JsonSettings {
     }
 
     /**
+     * Exports shared settings once and each posture-scoped section into a separate profile object.
+     */
+    suspend fun exportProfiles(
+        sharedSections: Map<String, JsonSerializable>,
+        profiles: Map<String, Map<String, JsonSerializable>>,
+    ): String {
+        val root = JSONObject().apply {
+            put(FORMAT_KEY, FORMAT_VALUE)
+            put(VERSION_KEY, VERSION)
+        }
+        for ((label, store) in sharedSections) {
+            root.put(label, JSONObject(store.toJson()))
+        }
+        root.put(
+            "profiles",
+            JSONObject().apply {
+                for ((profile, sections) in profiles) {
+                    put(
+                        profile,
+                        JSONObject().apply {
+                            for ((label, store) in sections) {
+                                put(label, JSONObject(store.toJson()))
+                            }
+                        },
+                    )
+                }
+            },
+        )
+        return root.toString()
+    }
+
+    /**
      * Parses [json] and applies each recognised section to its store. A section absent from the
      * document is left as-is, and one store failing to apply its own section doesn't abort the
      * others. Returns [ImportResult.NOT_A_SETTINGS_FILE] when [json] can't be parsed or doesn't look
@@ -73,6 +105,55 @@ object JsonSettings {
             for ((label, store) in sections) {
                 val section = root.optJSONObject(label) ?: continue
                 runCatching { store.fromJson(section.toString()) }
+            }
+            ImportResult.SUCCESS
+        } catch (e: Exception) {
+            ImportResult.ERROR
+        }
+    }
+
+    /**
+     * Imports shared settings and posture profiles, treating a legacy flat document as the open
+     * profile so existing exports remain usable.
+     */
+    suspend fun importProfiles(
+        json: String,
+        sharedSections: Map<String, JsonSerializable>,
+        profiles: Map<String, Map<String, JsonSerializable>>,
+        legacyProfile: String,
+        sharedSectionFallbackProfiles: Map<String, String> = emptyMap(),
+    ): ImportResult {
+        val root = runCatching { JSONObject(json) }.getOrNull()
+            ?: return ImportResult.NOT_A_SETTINGS_FILE
+        val knownSections = sharedSections.keys + profiles.values.flatMap { it.keys }
+        if (!looksLikeOurs(root, knownSections)) return ImportResult.NOT_A_SETTINGS_FILE
+
+        return try {
+            val profileData = root.optJSONObject("profiles")
+            for ((label, store) in sharedSections) {
+                val section = root.optJSONObject(label)
+                    ?: sharedSectionFallbackProfiles[label]
+                        ?.let { profile -> profileData?.optJSONObject(profile)?.optJSONObject(label) }
+                section?.let {
+                    runCatching { store.fromJson(it.toString()) }
+                }
+            }
+            if (profileData == null) {
+                val legacySections = profiles[legacyProfile].orEmpty()
+                for ((label, store) in legacySections) {
+                    root.optJSONObject(label)?.let { section ->
+                        runCatching { store.fromJson(section.toString()) }
+                    }
+                }
+            } else {
+                for ((profile, sections) in profiles) {
+                    val savedProfile = profileData.optJSONObject(profile) ?: continue
+                    for ((label, store) in sections) {
+                        savedProfile.optJSONObject(label)?.let { section ->
+                            runCatching { store.fromJson(section.toString()) }
+                        }
+                    }
+                }
             }
             ImportResult.SUCCESS
         } catch (e: Exception) {

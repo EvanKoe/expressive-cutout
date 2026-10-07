@@ -40,6 +40,8 @@ import com.ekoehler.expressivecutout.data.JsonSerializable
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.FoldableIslandLayout
+import com.ekoehler.expressivecutout.data.AnimationOrigin
 import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
@@ -66,6 +68,7 @@ import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,22 +80,22 @@ import java.io.IOException
  * and survives configuration changes.
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-    private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
+    private val preferences = IconPreferences(application, layoutPreferences.editingClosed)
     private val themePreferences = ThemePreferences(application)
     private val languagePreferences = LanguagePreferences(application)
-    private val behaviourPreferences = BehaviourPreferences(application)
+    private val behaviourPreferences = BehaviourPreferences(application, layoutPreferences.editingClosed)
     private val appearancePreferences = AppearancePreferences(application)
-    private val eventPreferences = EventPreferences(application)
-    private val dynamicTilePreferences = DynamicTilePreferences(application)
-    private val musicTilePreferences = MusicTilePreferences(application)
-    private val phoneTilePreferences = PhoneTilePreferences(application)
-    private val timerTilePreferences = TimerTilePreferences(application)
-    private val assistantTilePreferences = AssistantTilePreferences(application)
-    private val appPreferences = AppPreferences(application)
+    private val eventPreferences = EventPreferences(application, layoutPreferences.editingClosed)
+    private val dynamicTilePreferences = DynamicTilePreferences(application, layoutPreferences.editingClosed)
+    private val musicTilePreferences = MusicTilePreferences(application, layoutPreferences.editingClosed)
+    private val phoneTilePreferences = PhoneTilePreferences(application, layoutPreferences.editingClosed)
+    private val timerTilePreferences = TimerTilePreferences(application, layoutPreferences.editingClosed)
+    private val assistantTilePreferences = AssistantTilePreferences(application, layoutPreferences.editingClosed)
+    private val appPreferences = AppPreferences(application, layoutPreferences.editingClosed)
     private val recentColorPreferences = RecentColorPreferences(application)
-    private val statusBarPreferences = StatusBarPreferences(application)
-    private val permissionDotPreferences = PermissionDotPreferences(application)
+    private val statusBarPreferences = StatusBarPreferences(application, layoutPreferences.editingClosed)
+    private val permissionDotPreferences = PermissionDotPreferences(application, layoutPreferences.editingClosed)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -218,6 +221,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = IslandLayout.DEFAULT,
         )
 
+    val deviceClosed: StateFlow<Boolean> =
+        layoutPreferences.deviceClosed.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    val editingClosed: StateFlow<Boolean> =
+        layoutPreferences.editingClosed.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
     val theme: StateFlow<AppTheme> =
         themePreferences.theme.stateIn(
             scope = viewModelScope,
@@ -241,32 +258,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = AppearanceSettings(),
         )
 
-    /**
-     * Every settings store keyed by its section label, in the order they're written to and read
-     * from the export document. This single list is the source of truth for both export and import —
-     * adding a new store is one extra line here (and its own [JsonSerializable] implementation).
-     */
-    private val jsonSections: Map<String, JsonSerializable> = mapOf(
-        JsonSettings.THEME to themePreferences,
+    /** Settings that are shared between postures and written once in each settings export. */
+    private val sharedJsonSections: Map<String, JsonSerializable> = mapOf(
         JsonSettings.LANGUAGE to languagePreferences,
         JsonSettings.LAYOUT to layoutPreferences,
-        JsonSettings.ICONS to preferences,
-        JsonSettings.BEHAVIOUR to behaviourPreferences,
+        JsonSettings.THEME to themePreferences,
         JsonSettings.APPEARANCE to appearancePreferences,
-        JsonSettings.EVENTS to eventPreferences,
-        JsonSettings.DYNAMIC_TILES to dynamicTilePreferences,
-        JsonSettings.MUSIC_TILE to musicTilePreferences,
-        JsonSettings.PHONE_TILE to phoneTilePreferences,
-        JsonSettings.TIMER_TILE to timerTilePreferences,
-        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
-        JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
-        JsonSettings.STATUS_BAR to statusBarPreferences,
-        JsonSettings.PERMISSION_DOT to permissionDotPreferences,
     )
 
-    /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
-    suspend fun getSettingsAsJsonString(): String = JsonSettings.export(jsonSections)
+    /** Both complete island-configuration profiles, kept together in exported settings. */
+    private val profileJsonSections: Map<String, Map<String, JsonSerializable>> = mapOf(
+        "open" to createProfileJsonSections(application, flowOf(false)),
+        "closed" to createProfileJsonSections(application, flowOf(true)),
+    )
+
+    /** Exports shared settings and both device-posture profiles in one JSON document. */
+    suspend fun getSettingsAsJsonString(): String =
+        JsonSettings.exportProfiles(sharedJsonSections, profileJsonSections)
+
+    /**
+     * Creates the stores that belong to one fold posture for settings import and export.
+     */
+    private fun createProfileJsonSections(
+        context: Application,
+        profile: kotlinx.coroutines.flow.Flow<Boolean>,
+    ): Map<String, JsonSerializable> = mapOf(
+        JsonSettings.ICONS to IconPreferences(context, profile),
+        JsonSettings.BEHAVIOUR to BehaviourPreferences(context, profile),
+        JsonSettings.EVENTS to EventPreferences(context, profile),
+        JsonSettings.DYNAMIC_TILES to DynamicTilePreferences(context, profile),
+        JsonSettings.MUSIC_TILE to MusicTilePreferences(context, profile),
+        JsonSettings.PHONE_TILE to PhoneTilePreferences(context, profile),
+        JsonSettings.TIMER_TILE to TimerTilePreferences(context, profile),
+        JsonSettings.ASSISTANT_TILE to AssistantTilePreferences(context, profile),
+        JsonSettings.APPS to AppPreferences(context, profile),
+        JsonSettings.STATUS_BAR to StatusBarPreferences(context, profile),
+        JsonSettings.PERMISSION_DOT to PermissionDotPreferences(context, profile),
+    )
 
     /**
      * This method uses exportSettingsToJson() but is not suspend and
@@ -320,7 +349,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         .openInputStream(uri)
                         ?.use { it.readBytes().toString(Charsets.UTF_8) }
                         ?: return@withContext JsonSettings.ImportResult.ERROR
-                    JsonSettings.import(json, jsonSections)
+                    JsonSettings.importProfiles(
+                        json,
+                        sharedJsonSections,
+                        profileJsonSections,
+                        legacyProfile = "open",
+                        sharedSectionFallbackProfiles = mapOf(
+                            JsonSettings.THEME to "open",
+                            JsonSettings.APPEARANCE to "open",
+                        ),
+                    )
                 } catch (e: Exception) {
                     Log.w("Error", "starting import ${e.message}")
                     JsonSettings.ImportResult.ERROR
@@ -600,6 +638,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setExpandedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
         layoutPreferences.setExpanded(dimensions)
+    }
+
+    /** Saves both geometry states for the foldable's closed posture. */
+    fun setClosedLayout(layout: FoldableIslandLayout) = viewModelScope.launch {
+        layoutPreferences.setClosed(layout)
+    }
+
+    /** Saves the independent animation starting point for the posture being edited. */
+    fun setAnimationOrigin(origin: AnimationOrigin?, closed: Boolean) = viewModelScope.launch {
+        layoutPreferences.setAnimationOrigin(origin, closed)
+    }
+
+    fun setEditingClosed(isClosed: Boolean) = viewModelScope.launch {
+        layoutPreferences.setEditingClosed(isClosed)
     }
 
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }

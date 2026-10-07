@@ -8,16 +8,24 @@ enum class StatusBarHideMode {
     /** Never hidden — the system status bar draws it as usual. */
     OFF,
 
-    /** Hidden only while the island is drawn wider than its normal collapsed cutout. */
-    AUTO,
+    /** Hidden while the cutout is visible in its collapsed state. */
+    NORMAL,
+
+    /** Hidden only while the cutout is expanded. */
+    EXPANDED,
+
+    /** Hidden whenever the cutout is visible, whether collapsed or expanded. */
+    BOTH,
 
     /** Hidden the whole time, whatever the island is doing. */
     ALWAYS;
 
-    /** Whether this mode hides right now, given whether the cutout is currently [widened]. */
-    fun hides(widened: Boolean): Boolean = when (this) {
+    /** Whether this mode hides right now, given the cutout's current [visible] and [expanded] state. */
+    fun hides(visible: Boolean, expanded: Boolean = false): Boolean = when (this) {
         OFF -> false
-        AUTO -> widened
+        NORMAL -> visible && !expanded
+        EXPANDED -> visible && expanded
+        BOTH -> visible
         ALWAYS -> true
     }
 }

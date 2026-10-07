@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 /** Backing store for the phone tile's settings. */
 private val Context.phoneTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "phone_tile_prefs")
+private val Context.phoneTileClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "phone_tile_prefs_closed")
 
 /** The phone tile's own settings, edited on its dedicated settings screen. */
 data class PhoneTileSettings(
@@ -76,9 +77,18 @@ data class PhoneTileSettings(
 }
 
 /** Persists the phone tile's display options (contact photo, duration, action buttons). */
-class PhoneTilePreferences(private val context: Context) : JsonSerializable {
+class PhoneTilePreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.phoneTileDataStore,
+        context.phoneTileClosedDataStore,
+        profile,
+    )
 
-    val settings: Flow<PhoneTileSettings> = context.phoneTileDataStore.data.map { prefs ->
+
+    val settings: Flow<PhoneTileSettings> = preferencesStore.data.map { prefs ->
         PhoneTileSettings(
             showPhoto = prefs[SHOW_PHOTO] ?: PhoneTileSettings.DEFAULT_SHOW_PHOTO,
             showDuration = prefs[SHOW_DURATION] ?: PhoneTileSettings.DEFAULT_SHOW_DURATION,
@@ -122,7 +132,7 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
     /** Applies the [PhoneTileSettings] object exported by [toJson]; absent fields are left as-is. */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.phoneTileDataStore.edit {
+        preferencesStore.edit {
             if (obj.has("showPhoto")) it[SHOW_PHOTO] = obj.getBoolean("showPhoto")
             if (obj.has("showDuration")) it[SHOW_DURATION] = obj.getBoolean("showDuration")
             if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
@@ -152,52 +162,52 @@ class PhoneTilePreferences(private val context: Context) : JsonSerializable {
         }
     }
 
-    suspend fun setShowPhoto(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setShowPhoto(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_PHOTO] = enabled
     }
 
-    suspend fun setShowDuration(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setShowDuration(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_DURATION] = enabled
     }
 
-    suspend fun setShowActions(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setShowActions(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_ACTIONS] = enabled
     }
 
-    suspend fun setShowButtonLabels(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setShowButtonLabels(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_BUTTON_LABELS] = enabled
     }
 
-    suspend fun setExpandedIncomingLayout(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setExpandedIncomingLayout(enabled: Boolean) = preferencesStore.edit {
         it[EXPANDED_INCOMING] = enabled
     }
 
-    suspend fun setMiniCall(enabled: Boolean) = context.phoneTileDataStore.edit {
+    suspend fun setMiniCall(enabled: Boolean) = preferencesStore.edit {
         it[MINI_CALL] = enabled
     }
 
     /** A null [color] clears the override, restoring the default accent-tinted icon container. */
-    suspend fun setIconContainerColor(color: CutoutColor?) = context.phoneTileDataStore.edit {
+    suspend fun setIconContainerColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }
 
-    suspend fun setHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+    suspend fun setHangUpColor(color: CutoutColor) = preferencesStore.edit {
         it[HANG_UP_COLOR] = color.serialize()
     }
 
-    suspend fun setOtherButtonColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+    suspend fun setOtherButtonColor(color: CutoutColor) = preferencesStore.edit {
         it[OTHER_BUTTON_COLOR] = color.serialize()
     }
 
-    suspend fun setIncomingAnswerColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+    suspend fun setIncomingAnswerColor(color: CutoutColor) = preferencesStore.edit {
         it[INCOMING_ANSWER_COLOR] = color.serialize()
     }
 
-    suspend fun setIncomingHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+    suspend fun setIncomingHangUpColor(color: CutoutColor) = preferencesStore.edit {
         it[INCOMING_HANG_UP_COLOR] = color.serialize()
     }
 
-    suspend fun setExpandedHangUpColor(color: CutoutColor) = context.phoneTileDataStore.edit {
+    suspend fun setExpandedHangUpColor(color: CutoutColor) = preferencesStore.edit {
         it[EXPANDED_HANG_UP_COLOR] = color.serialize()
     }
 

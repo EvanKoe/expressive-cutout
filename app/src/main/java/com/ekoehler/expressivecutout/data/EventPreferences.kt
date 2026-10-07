@@ -17,14 +17,24 @@ import org.json.JSONObject
 
 /** Backing store for the per-event settings: enabled, duration, colour and animated icon. */
 private val Context.eventDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs")
+private val Context.eventClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs_closed")
 
 /**
  * Persists whether each system event is allowed to appear on the island. Absent means enabled,
  * so events show by default and only explicit opt-outs are stored.
  */
-class EventPreferences(private val context: Context) : JsonSerializable {
+class EventPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.eventDataStore,
+        context.eventClosedDataStore,
+        profile,
+    )
 
-    val enabled: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+
+    val enabled: Flow<Map<SystemEventType, Boolean>> = preferencesStore.data.map { prefs ->
         SystemEventType.entries.associateWith { type -> prefs[type.key] ?: true }
     }
 
@@ -32,7 +42,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * When on, every event drops its own accent colour and is drawn with the theme's primary /
      * on-primary pair instead. Absent means off.
      */
-    val dynamicColor: Flow<Boolean> = context.eventDataStore.data.map { prefs ->
+    val dynamicColor: Flow<Boolean> = preferencesStore.data.map { prefs ->
         prefs[DYNAMIC_COLOR_KEY] ?: false
     }
 
@@ -40,7 +50,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * Which Material You role (primary / secondary / tertiary) tints the badge when [dynamicColor]
      * is on. Absent means primary.
      */
-    val dynamicColorRole: Flow<DynamicRole> = context.eventDataStore.data.map { prefs ->
+    val dynamicColorRole: Flow<DynamicRole> = preferencesStore.data.map { prefs ->
         prefs[DYNAMIC_COLOR_ROLE_KEY]?.let { name ->
             runCatching { DynamicRole.valueOf(name) }.getOrNull()
         } ?: DynamicRole.PRIMARY
@@ -50,7 +60,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * Opacity (0..1) of the role-coloured badge background painted when [dynamicColor] is on.
      * Absent means fully opaque.
      */
-    val dynamicColorOpacity: Flow<Float> = context.eventDataStore.data.map { prefs ->
+    val dynamicColorOpacity: Flow<Float> = preferencesStore.data.map { prefs ->
         prefs[DYNAMIC_COLOR_OPACITY_KEY]?.coerceIn(0f, 1f) ?: 1f
     }
 
@@ -59,7 +69,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * the user has explicitly tuned appear here; an absent entry means the event follows the global
      * "normal cutout duration" from Behaviour.
      */
-    val durations: Flow<Map<SystemEventType, Int>> = context.eventDataStore.data.map { prefs ->
+    val durations: Flow<Map<SystemEventType, Int>> = preferencesStore.data.map { prefs ->
         SystemEventType.entries.mapNotNull { type ->
             prefs[type.durationKey]?.let { seconds -> type to seconds }
         }.toMap()
@@ -69,7 +79,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * Per-event choice (for events that ship a Lottie animation) between the animated icon and the
      * plain default glyph. Only events the user has explicitly toggled appear here; absent means on.
      */
-    val animatedIcons: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+    val animatedIcons: Flow<Map<SystemEventType, Boolean>> = preferencesStore.data.map { prefs ->
         SystemEventType.entries.mapNotNull { type ->
             prefs[type.animatedKey]?.let { enabled -> type to enabled }
         }.toMap()
@@ -79,7 +89,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * Per-event choice for whether the animated icon loops (else it plays once and holds). Absent
      * means the event's own built-in default (see [animationLoopsByDefault]).
      */
-    val animatedIconLoops: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+    val animatedIconLoops: Flow<Map<SystemEventType, Boolean>> = preferencesStore.data.map { prefs ->
         SystemEventType.entries.mapNotNull { type ->
             prefs[type.loopKey]?.let { loop -> type to loop }
         }.toMap()
@@ -90,7 +100,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
      * "Dynamic color for all events" role. Only events the user has explicitly recoloured appear
      * here; an absent entry means the event follows the default accent (or the dynamic role).
      */
-    val colors: Flow<Map<SystemEventType, CutoutColor>> = context.eventDataStore.data.map { prefs ->
+    val colors: Flow<Map<SystemEventType, CutoutColor>> = preferencesStore.data.map { prefs ->
         SystemEventType.entries.mapNotNull { type ->
             CutoutColor.deserialize(prefs[type.colorKey])?.let { color -> type to color }
         }.toMap()
@@ -132,7 +142,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         val loops = obj.optJSONObject("animatedIconLoops")
         val colors = obj.optJSONObject("colors")
 
-        context.eventDataStore.edit { prefs ->
+        preferencesStore.edit { prefs ->
             SystemEventType.entries.forEach { type ->
                 val name = type.name
                 enabled?.let { prefs[type.key] = it.optBoolean(name, true) }
@@ -161,46 +171,46 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
-    suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
+    suspend fun setEnabled(type: SystemEventType, enabled: Boolean) = preferencesStore.edit {
         it[type.key] = enabled
     }
 
-    suspend fun setDuration(type: SystemEventType, seconds: Int) = context.eventDataStore.edit {
+    suspend fun setDuration(type: SystemEventType, seconds: Int) = preferencesStore.edit {
         it[type.durationKey] = seconds
     }
 
     /** Drop the override so the event falls back to the global normal cutout duration. */
-    suspend fun clearDuration(type: SystemEventType) = context.eventDataStore.edit {
+    suspend fun clearDuration(type: SystemEventType) = preferencesStore.edit {
         it.remove(type.durationKey)
     }
 
-    suspend fun setColor(type: SystemEventType, color: CutoutColor) = context.eventDataStore.edit {
+    suspend fun setColor(type: SystemEventType, color: CutoutColor) = preferencesStore.edit {
         it[type.colorKey] = color.serialize()
     }
 
     /** Drop the override so the event falls back to its default accent (or the dynamic role). */
-    suspend fun clearColor(type: SystemEventType) = context.eventDataStore.edit {
+    suspend fun clearColor(type: SystemEventType) = preferencesStore.edit {
         it.remove(type.colorKey)
     }
 
-    suspend fun setAnimatedIcon(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
+    suspend fun setAnimatedIcon(type: SystemEventType, enabled: Boolean) = preferencesStore.edit {
         it[type.animatedKey] = enabled
     }
 
-    suspend fun setAnimatedIconLoop(type: SystemEventType, loop: Boolean) = context.eventDataStore.edit {
+    suspend fun setAnimatedIconLoop(type: SystemEventType, loop: Boolean) = preferencesStore.edit {
         it[type.loopKey] = loop
     }
 
-    suspend fun setDynamicColor(enabled: Boolean) = context.eventDataStore.edit {
+    suspend fun setDynamicColor(enabled: Boolean) = preferencesStore.edit {
         it[DYNAMIC_COLOR_KEY] = enabled
     }
 
-    suspend fun setDynamicColorRole(role: DynamicRole) = context.eventDataStore.edit {
+    suspend fun setDynamicColorRole(role: DynamicRole) = preferencesStore.edit {
         it[DYNAMIC_COLOR_ROLE_KEY] = role.name
     }
 
     /** Clamps to 0f..1f, the range the opacity slider offers. */
-    suspend fun setDynamicColorOpacity(opacity: Float) = context.eventDataStore.edit {
+    suspend fun setDynamicColorOpacity(opacity: Float) = preferencesStore.edit {
         it[DYNAMIC_COLOR_OPACITY_KEY] = opacity.coerceIn(0f, 1f)
     }
 

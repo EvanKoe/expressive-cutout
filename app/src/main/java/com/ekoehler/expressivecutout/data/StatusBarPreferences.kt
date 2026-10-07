@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 /** Backing store for the status-bar hiding settings. */
 private val Context.statusBarDataStore: DataStore<Preferences> by preferencesDataStore(name = "status_bar_prefs")
+private val Context.statusBarClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "status_bar_prefs_closed")
 
 /**
  * What the user wants done to the system status bar, applied through Shizuku by
@@ -23,57 +24,68 @@ private val Context.statusBarDataStore: DataStore<Preferences> by preferencesDat
  * are lost whenever our process dies or the device reboots. Keeping the wish here is what lets the
  * controller re-apply it once Shizuku is reachable again.
  *
- * Each of the three hiding settings is a [StatusBarHideMode] rather than a switch, because a pill
- * wide enough to cover the notification icons at rest may still leave the system icons alone — so
- * the two want different rules on the same device.
+ * Each hiding setting is a [StatusBarHideMode], allowing notification, system-info and clock icons
+ * to follow different normal-versus-expanded rules.
  */
-class StatusBarPreferences(private val context: Context) : JsonSerializable {
+class StatusBarPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.statusBarDataStore,
+        context.statusBarClosedDataStore,
+        profile,
+    )
 
-    val notificationIconsMode: Flow<StatusBarHideMode> = context.statusBarDataStore.data.map { prefs ->
+
+    val notificationIconsMode: Flow<StatusBarHideMode> = preferencesStore.data.map { prefs ->
         prefs.hideMode(NOTIFICATION_ICONS_MODE, HIDE_NOTIFICATION_ICONS)
     }
 
-    val systemInfoMode: Flow<StatusBarHideMode> = context.statusBarDataStore.data.map { prefs ->
+    val systemInfoMode: Flow<StatusBarHideMode> = preferencesStore.data.map { prefs ->
         prefs.hideMode(SYSTEM_INFO_MODE, HIDE_SYSTEM_INFO)
     }
 
-    val clockMode: Flow<StatusBarHideMode> = context.statusBarDataStore.data.map { prefs ->
+    val clockMode: Flow<StatusBarHideMode> = preferencesStore.data.map { prefs ->
         prefs.hideMode(CLOCK_MODE, HIDE_CLOCK)
     }
 
-    val silenceAlerts: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
+    val silenceAlerts: Flow<Boolean> = preferencesStore.data.map { prefs ->
         prefs[SILENCE_ALERTS] ?: false
     }
 
-    suspend fun setNotificationIconsMode(mode: StatusBarHideMode) = context.statusBarDataStore.edit { prefs ->
+    suspend fun setNotificationIconsMode(mode: StatusBarHideMode) = preferencesStore.edit { prefs ->
         prefs[NOTIFICATION_ICONS_MODE] = mode.name
     }
 
-    suspend fun setSystemInfoMode(mode: StatusBarHideMode) = context.statusBarDataStore.edit { prefs ->
+    suspend fun setSystemInfoMode(mode: StatusBarHideMode) = preferencesStore.edit { prefs ->
         prefs[SYSTEM_INFO_MODE] = mode.name
     }
 
-    suspend fun setClockMode(mode: StatusBarHideMode) = context.statusBarDataStore.edit { prefs ->
+    suspend fun setClockMode(mode: StatusBarHideMode) = preferencesStore.edit { prefs ->
         prefs[CLOCK_MODE] = mode.name
     }
 
-    suspend fun setSilenceAlerts(silence: Boolean) = context.statusBarDataStore.edit { prefs ->
+    suspend fun setSilenceAlerts(silence: Boolean) = preferencesStore.edit { prefs ->
         prefs[SILENCE_ALERTS] = silence
     }
 
     /**
      * Reads [modeKey], falling back to the booleans these settings were stored as before they grew
-     * a third state, so an existing install keeps behaving the way the user left it: the old
-     * "hide automatically" switch covered all three at once and becomes [StatusBarHideMode.AUTO],
-     * and a plain on/off wish becomes [StatusBarHideMode.ALWAYS] or [StatusBarHideMode.OFF].
+     * multiple visibility modes, so an existing install keeps behaving the way the user left it:
+     * the old "hide automatically" switch maps to normal-only, and a plain on/off wish becomes
+     * [StatusBarHideMode.ALWAYS] or [StatusBarHideMode.OFF].
      */
     private fun Preferences.hideMode(
         modeKey: Preferences.Key<String>,
         legacyKey: Preferences.Key<Boolean>,
     ): StatusBarHideMode {
-        val stored = this[modeKey]?.let { runCatching { StatusBarHideMode.valueOf(it) }.getOrNull() }
+        val stored = this[modeKey]?.let {
+            if (it == LEGACY_AUTO_MODE) StatusBarHideMode.NORMAL
+            else runCatching { StatusBarHideMode.valueOf(it) }.getOrNull()
+        }
         if (stored != null) return stored
-        if (this[LEGACY_AUTO_HIDE] == true) return StatusBarHideMode.AUTO
+        if (this[LEGACY_AUTO_HIDE] == true) return StatusBarHideMode.NORMAL
         return if (this[legacyKey] == true) StatusBarHideMode.ALWAYS else StatusBarHideMode.OFF
     }
 
@@ -88,11 +100,13 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         val HIDE_SYSTEM_INFO = booleanPreferencesKey("hide_system_info")
         val HIDE_CLOCK = booleanPreferencesKey("hide_clock")
         val LEGACY_AUTO_HIDE = booleanPreferencesKey("auto_hide_with_cutout")
+        const val LEGACY_AUTO_MODE = "AUTO"
     }
 
     /**
      * Exports the status-bar settings in a JSON string
-     * { notificationIcons, systemInfo, clock: "OFF" | "AUTO" | "ALWAYS", silenceAlerts: boolean }
+     * { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "BOTH" | "ALWAYS",
+     * silenceAlerts: boolean }
      */
     override suspend fun toJson(): String {
         val notificationIcons = notificationIconsMode.first()
@@ -108,7 +122,7 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
     }
 
     /**
-     * Applies { notificationIcons, systemInfo, clock: "OFF" | "AUTO" | "ALWAYS",
+     * Applies { notificationIcons, systemInfo, clock: "OFF" | "NORMAL" | "EXPANDED" | "BOTH" | "ALWAYS",
      * silenceAlerts: boolean } exported by [toJson], also accepting the booleans older documents
      * carry. Each missing field leaves its setting untouched — importing a document from a build
      * without this section shouldn't silently flip any flag.
@@ -129,7 +143,9 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
      */
     private fun JSONObject.hideMode(name: String, legacyName: String): StatusBarHideMode? {
         if (has(name)) {
-            return runCatching { StatusBarHideMode.valueOf(optString(name)) }.getOrNull()
+            val value = optString(name)
+            if (value == LEGACY_AUTO_MODE) return StatusBarHideMode.NORMAL
+            return runCatching { StatusBarHideMode.valueOf(value) }.getOrNull()
         }
         if (has(legacyName)) {
             return if (optBoolean(legacyName, false)) StatusBarHideMode.ALWAYS else StatusBarHideMode.OFF

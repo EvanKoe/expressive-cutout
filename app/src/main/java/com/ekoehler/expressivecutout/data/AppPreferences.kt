@@ -16,6 +16,7 @@ import org.json.JSONObject
 // over the same file throws "multiple DataStores active for the same file" on first read.
 /** Backing store for the per-app island overrides. */
 private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataStore(name = "per_app_prefs")
+private val Context.perAppClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "per_app_prefs_closed")
 
 /**
  * Per-app overrides set on the Apps screen:
@@ -29,13 +30,22 @@ private val Context.perAppDataStore: DataStore<Preferences> by preferencesDataSt
  * Both store only the opt-outs (absent means the default), so newly installed apps behave normally
  * and the sets stay small, mirroring [DynamicTilePreferences].
  */
-class AppPreferences(private val context: Context) : JsonSerializable {
+class AppPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.perAppDataStore,
+        context.perAppClosedDataStore,
+        profile,
+    )
 
-    val disabledPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
+
+    val disabledPackages: Flow<Set<String>> = preferencesStore.data.map { prefs ->
         prefs[DISABLED_KEY].orEmpty()
     }
 
-    val normalOnlyPackages: Flow<Set<String>> = context.perAppDataStore.data.map { prefs ->
+    val normalOnlyPackages: Flow<Set<String>> = preferencesStore.data.map { prefs ->
         prefs[NORMAL_ONLY_KEY].orEmpty()
     }
 
@@ -44,7 +54,7 @@ class AppPreferences(private val context: Context) : JsonSerializable {
      * app the user has never opened the settings for is enabled by default and newly installed apps
      * need no migration.
      */
-    suspend fun setEnabled(packageName: String, enabled: Boolean) = context.perAppDataStore.edit { prefs ->
+    suspend fun setEnabled(packageName: String, enabled: Boolean) = preferencesStore.edit { prefs ->
         val current = prefs[DISABLED_KEY].orEmpty()
         prefs[DISABLED_KEY] = if (enabled) current - packageName else current + packageName
     }
@@ -54,7 +64,7 @@ class AppPreferences(private val context: Context) : JsonSerializable {
      * covers a few hundred apps, and looping [setEnabled] over them would queue that many separate
      * DataStore writes and emissions.
      */
-    suspend fun setEnabled(packageNames: Collection<String>, enabled: Boolean) = context.perAppDataStore.edit { prefs ->
+    suspend fun setEnabled(packageNames: Collection<String>, enabled: Boolean) = preferencesStore.edit { prefs ->
         val current = prefs[DISABLED_KEY].orEmpty()
         prefs[DISABLED_KEY] = if (enabled) current - packageNames else current + packageNames
     }
@@ -63,7 +73,7 @@ class AppPreferences(private val context: Context) : JsonSerializable {
      * Adds or removes [packageName] from the normal-only set: apps listed here still get the
      * collapsed cutout, but never the expanded island.
      */
-    suspend fun setNormalOnly(packageName: String, normalOnly: Boolean) = context.perAppDataStore.edit { prefs ->
+    suspend fun setNormalOnly(packageName: String, normalOnly: Boolean) = preferencesStore.edit { prefs ->
         val current = prefs[NORMAL_ONLY_KEY].orEmpty()
         prefs[NORMAL_ONLY_KEY] = if (normalOnly) current + packageName else current - packageName
     }
@@ -94,7 +104,7 @@ class AppPreferences(private val context: Context) : JsonSerializable {
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.perAppDataStore.edit {
+        preferencesStore.edit {
             it[DISABLED_KEY] = obj.optJSONArray("disabledPackages").toStringSet()
             it[NORMAL_ONLY_KEY] = obj.optJSONArray("normalOnlyPackages").toStringSet()
         }

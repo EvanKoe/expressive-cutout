@@ -15,6 +15,7 @@ import org.json.JSONObject
 
 /** Backing store for the permission-dot settings. */
 private val Context.permissionDotDataStore: DataStore<Preferences> by preferencesDataStore(name = "permission_dot_prefs")
+private val Context.permissionDotClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "permission_dot_prefs_closed")
 
 /**
  * Which end of the collapsed pill the permission dots sit on: [LEFT] tucks them between the pill's
@@ -62,14 +63,23 @@ val DEFAULT_MICROPHONE_DOT_COLOR: CutoutColor = CutoutColor.Solid(0xFFE5484D)
  * Shizuku is reachable. Leaving the wish saved is what lets the dots come back on their own after a
  * reboot has stopped Shizuku.
  */
-class PermissionDotPreferences(private val context: Context) : JsonSerializable {
+class PermissionDotPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.permissionDotDataStore,
+        context.permissionDotClosedDataStore,
+        profile,
+    )
 
-    val enabled: Flow<Boolean> = context.permissionDotDataStore.data.map { prefs ->
+
+    val enabled: Flow<Boolean> = preferencesStore.data.map { prefs ->
         prefs[ENABLED] ?: false
     }
 
     /** The chosen end of the pill, falling back to [DEFAULT_POSITION] for an unreadable value. */
-    val position: Flow<PermissionDotPosition> = context.permissionDotDataStore.data.map { prefs ->
+    val position: Flow<PermissionDotPosition> = preferencesStore.data.map { prefs ->
         prefs[POSITION]?.let { runCatching { PermissionDotPosition.valueOf(it) }.getOrNull() }
             ?: DEFAULT_POSITION
     }
@@ -78,7 +88,7 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
      * Which resources are watched, each defaulting to on so an existing install that only ever saw
      * the single switch keeps marking all three.
      */
-    val kinds: Flow<PermissionDotKinds> = context.permissionDotDataStore.data.map { prefs ->
+    val kinds: Flow<PermissionDotKinds> = preferencesStore.data.map { prefs ->
         PermissionDotKinds(
             location = prefs[LOCATION] ?: true,
             camera = prefs[CAMERA] ?: true,
@@ -91,7 +101,7 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
      * unreadable value. Kept apart from [kinds] so recolouring a dot doesn't restart the app-op
      * polling loop that flow gates.
      */
-    val colors: Flow<PermissionDotColors> = context.permissionDotDataStore.data.map { prefs ->
+    val colors: Flow<PermissionDotColors> = preferencesStore.data.map { prefs ->
         PermissionDotColors(
             location = CutoutColor.deserialize(prefs[LOCATION_COLOR]) ?: DEFAULT_LOCATION_DOT_COLOR,
             camera = CutoutColor.deserialize(prefs[CAMERA_COLOR]) ?: DEFAULT_CAMERA_DOT_COLOR,
@@ -100,43 +110,43 @@ class PermissionDotPreferences(private val context: Context) : JsonSerializable 
     }
 
     /** Whether the dots stack in a column instead of running along the pill. */
-    val vertical: Flow<Boolean> = context.permissionDotDataStore.data.map { prefs ->
+    val vertical: Flow<Boolean> = preferencesStore.data.map { prefs ->
         prefs[VERTICAL] ?: false
     }
 
-    suspend fun setEnabled(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setEnabled(enabled: Boolean) = preferencesStore.edit { prefs ->
         prefs[ENABLED] = enabled
     }
 
-    suspend fun setPosition(position: PermissionDotPosition) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setPosition(position: PermissionDotPosition) = preferencesStore.edit { prefs ->
         prefs[POSITION] = position.name
     }
 
-    suspend fun setVertical(vertical: Boolean) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setVertical(vertical: Boolean) = preferencesStore.edit { prefs ->
         prefs[VERTICAL] = vertical
     }
 
-    suspend fun setLocation(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setLocation(enabled: Boolean) = preferencesStore.edit { prefs ->
         prefs[LOCATION] = enabled
     }
 
-    suspend fun setCamera(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setCamera(enabled: Boolean) = preferencesStore.edit { prefs ->
         prefs[CAMERA] = enabled
     }
 
-    suspend fun setMicrophone(enabled: Boolean) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setMicrophone(enabled: Boolean) = preferencesStore.edit { prefs ->
         prefs[MICROPHONE] = enabled
     }
 
-    suspend fun setLocationColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setLocationColor(color: CutoutColor) = preferencesStore.edit { prefs ->
         prefs[LOCATION_COLOR] = color.serialize()
     }
 
-    suspend fun setCameraColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setCameraColor(color: CutoutColor) = preferencesStore.edit { prefs ->
         prefs[CAMERA_COLOR] = color.serialize()
     }
 
-    suspend fun setMicrophoneColor(color: CutoutColor) = context.permissionDotDataStore.edit { prefs ->
+    suspend fun setMicrophoneColor(color: CutoutColor) = preferencesStore.edit { prefs ->
         prefs[MICROPHONE_COLOR] = color.serialize()
     }
 

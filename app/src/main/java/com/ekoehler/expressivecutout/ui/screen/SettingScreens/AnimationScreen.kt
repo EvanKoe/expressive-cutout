@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,26 +31,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.AnimationOriginPreviewBus
+import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.AnimationBounce
+import com.ekoehler.expressivecutout.data.AnimationOrigin
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.FoldableIslandLayout
+import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.overlay.IslandMotion
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.MaterialCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /** Grouped-list item shape: large outer corners at the group ends, small between items. */
-private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
+private fun animationGroupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
     topStart = if (isFirst) 32.dp else 4.dp,
     topEnd = if (isFirst) 32.dp else 4.dp,
     bottomStart = if (isLast) 32.dp else 4.dp,
@@ -67,10 +78,30 @@ internal fun AnimationScreen(
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val editingClosed by viewModel.editingClosed.collectAsStateWithLifecycle()
     var animationMs by remember(behaviour.animationDurationMs) {
         mutableStateOf(behaviour.animationDurationMs.toFloat())
     }
     val expressive = behaviour.animationStyle == AnimationStyle.EXPRESSIVE
+    val view = LocalView.current
+    val density = LocalDensity.current.density
+    val detectedOrigin = remember(view, density) {
+        CutoutMetrics.cutoutCenterPx(view)?.let { center ->
+            AnimationOrigin(
+                offsetXDp = ((center.x - view.resources.displayMetrics.widthPixels / 2f) / density)
+                    .roundToInt()
+                    .coerceIn(AnimationOrigin.MIN_OFFSET_X_DP, AnimationOrigin.MAX_OFFSET_X_DP),
+                offsetYDp = (center.y / density).roundToInt()
+                    .coerceIn(IslandDimensions.MIN_OFFSET_Y_DP, IslandDimensions.MAX_OFFSET_Y_DP),
+            )
+        } ?: AnimationOrigin(
+            offsetXDp = 0,
+            offsetYDp = IslandLayout.DEFAULT_COLLAPSED.offsetYDp,
+        )
+    }
+    val closedLayout = layout.closed ?: FoldableIslandLayout(layout.collapsed, layout.expanded)
+    val savedOrigin = if (editingClosed) closedLayout.animationOrigin else layout.animationOrigin
 
     Column(
         modifier = Modifier
@@ -82,10 +113,17 @@ internal fun AnimationScreen(
         PageTitle(text = stringResource(R.string.animation_title))
 
         AnimationExampleCard(
-            shape = groupedShape(isFirst = true, isLast = true),
+            shape = animationGroupedShape(isFirst = true, isLast = true),
             speed = behaviour.animationSpeed,
             bounce = behaviour.animationBounce,
             durationMs = behaviour.animationDurationMs,
+        )
+
+        AnimationOriginEditor(
+            origin = savedOrigin ?: detectedOrigin,
+            detectedOrigin = detectedOrigin,
+            hasCustomOrigin = savedOrigin != null,
+            onChange = { origin -> viewModel.setAnimationOrigin(origin, editingClosed) },
         )
 
         Column(
@@ -93,7 +131,7 @@ internal fun AnimationScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             AnimationSegmentedRow(
-                shape = groupedShape(isFirst = true, isLast = false),
+                shape = animationGroupedShape(isFirst = true, isLast = false),
                 label = stringResource(R.string.animation_style),
                 options = listOf(
                     stringResource(R.string.animation_style_expressive),
@@ -108,7 +146,7 @@ internal fun AnimationScreen(
             AnimatedVisibility(visible = expressive) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     AnimationSegmentedRow(
-                        shape = groupedShape(isFirst = false, isLast = false),
+                        shape = animationGroupedShape(isFirst = false, isLast = false),
                         label = stringResource(R.string.animation_speed),
                         options = listOf(
                             stringResource(R.string.animation_speed_slow),
@@ -119,7 +157,7 @@ internal fun AnimationScreen(
                         onSelect = { viewModel.setAnimationSpeed(AnimationSpeed.entries[it]) },
                     )
                     AnimationSegmentedRow(
-                        shape = groupedShape(isFirst = false, isLast = true),
+                        shape = animationGroupedShape(isFirst = false, isLast = true),
                         label = stringResource(R.string.animation_bounce),
                         options = listOf(
                             stringResource(R.string.animation_bounce_big),
@@ -135,7 +173,7 @@ internal fun AnimationScreen(
             AnimatedVisibility(visible = !expressive) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = groupedShape(isFirst = false, isLast = true),
+                    shape = animationGroupedShape(isFirst = false, isLast = true),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
                     Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -157,7 +195,7 @@ internal fun AnimationScreen(
         // The press reaction of the action / reply buttons is independent of the primary motion
         // style above, so it lives in its own group.
         AnimationSegmentedRow(
-            shape = groupedShape(isFirst = true, isLast = true),
+            shape = animationGroupedShape(isFirst = true, isLast = true),
             label = stringResource(R.string.animation_button),
             options = listOf(
                 stringResource(R.string.animation_button_scale),
@@ -170,7 +208,7 @@ internal fun AnimationScreen(
         // In-app navigation motion. Unlike everything above it does not touch the island, so it
         // sits last, in its own group.
         AnimationSegmentedRow(
-            shape = groupedShape(isFirst = true, isLast = true),
+            shape = animationGroupedShape(isFirst = true, isLast = true),
             label = stringResource(R.string.appearance_page_transition_title),
             description = stringResource(R.string.appearance_page_transition_desc),
             options = listOf(
@@ -180,6 +218,100 @@ internal fun AnimationScreen(
             selectedIndex = PageTransitionStyle.entries.indexOf(appearance.pageTransitionStyle),
             onSelect = { viewModel.setPageTransitionStyle(PageTransitionStyle.entries[it]) },
         )
+    }
+}
+
+/** Edits the camera-relative point used only as the island's animation starting location. */
+@Composable
+private fun AnimationOriginEditor(
+    origin: AnimationOrigin,
+    detectedOrigin: AnimationOrigin,
+    hasCustomOrigin: Boolean,
+    onChange: (AnimationOrigin?) -> Unit,
+) {
+    var offsetX by remember(origin.offsetXDp) { mutableStateOf(origin.offsetXDp.toFloat()) }
+    var offsetY by remember(origin.offsetYDp) { mutableStateOf(origin.offsetYDp.toFloat()) }
+    var previewChange by remember { mutableStateOf(0) }
+
+    DisposableEffect(Unit) {
+        onDispose { AnimationOriginPreviewBus.setOrigin(null) }
+    }
+
+    LaunchedEffect(previewChange) {
+        if (previewChange > 0) {
+            delay(3_000L)
+            AnimationOriginPreviewBus.setOrigin(null)
+        }
+    }
+
+    fun showOriginPreview() {
+        previewChange++
+        AnimationOriginPreviewBus.setOrigin(
+            AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()),
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = stringResource(R.string.appearance_animation_origin_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Text(
+            text = stringResource(R.string.appearance_animation_origin_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        MaterialCard(shape = animationGroupedShape(isFirst = true, isLast = false)) {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_horizontal),
+                valueText = "${offsetX.roundToInt()} dp",
+                value = offsetX,
+                valueRange = AnimationOrigin.MIN_OFFSET_X_DP.toFloat()..
+                    AnimationOrigin.MAX_OFFSET_X_DP.toFloat(),
+                step = 2f,
+                onValueChange = {
+                    offsetX = it
+                    showOriginPreview()
+                },
+                onCommit = {
+                    showOriginPreview()
+                    onChange(AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()))
+                },
+            )
+        }
+        MaterialCard(shape = animationGroupedShape(isFirst = false, isLast = true)) {
+            AdjustableSlider(
+                label = stringResource(R.string.appearance_animation_origin_vertical),
+                valueText = "${offsetY.roundToInt()} dp",
+                value = offsetY,
+                valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..
+                    IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
+                step = 2f,
+                onValueChange = {
+                    offsetY = it
+                    showOriginPreview()
+                },
+                onCommit = {
+                    showOriginPreview()
+                    onChange(AnimationOrigin(offsetX.roundToInt(), offsetY.roundToInt()))
+                },
+            )
+        }
+        if (hasCustomOrigin) {
+            Button(
+                onClick = {
+                    offsetX = detectedOrigin.offsetXDp.toFloat()
+                    offsetY = detectedOrigin.offsetYDp.toFloat()
+                    onChange(null)
+                    showOriginPreview()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.appearance_animation_origin_reset))
+            }
+        }
     }
 }
 

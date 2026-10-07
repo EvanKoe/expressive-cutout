@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.Point
 import android.os.Build
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
@@ -97,6 +98,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -177,6 +179,7 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.AnimationOrigin
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
@@ -456,6 +459,8 @@ fun DynamicIsland(
      * the music tile's tiny "Mini player" pill off the hole. Null when the device reports no cutout.
      */
     cameraRightEdgeDp: Float? = null,
+    animationOrigin: AnimationOrigin? = null,
+    onAnimationOriginAnchorChanged: (Point) -> Unit = {},
     forcedExpanded: Boolean?,
     collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
@@ -613,13 +618,17 @@ fun DynamicIsland(
 
     val dims = when {
         emptyPill && !isExpanded -> collapsed
-        isTiny -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
-        callTwoRow -> expanded
+        isTiny -> {
+            val tiny = collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
+            if (isCall) tiny.copy(offsetXDp = collapsed.offsetXDp, offsetYDp = collapsed.offsetYDp) else tiny
+        }
+        callTwoRow -> expanded.copy(offsetXDp = collapsed.offsetXDp, offsetYDp = collapsed.offsetYDp)
         // A tapped-open connected call takes the full expanded cutout for its controls.
         isCall && isExpanded -> expanded
         // The split call keeps the normal pill's own height and corners, but is sized and placed
         // around the camera hole so its badge and clock never end up behind it.
         callSplit -> collapsed.asSplitCallCutout(displayWidthDp, callSplitContentDp, cameraRightEdgeDp)
+            .copy(offsetXDp = collapsed.offsetXDp, offsetYDp = collapsed.offsetYDp)
         isCall -> collapsed.asCallCutout(callWidthPercent)
         // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
         // content — see [mediaExpandedBaseHeightDp].
@@ -834,6 +843,20 @@ fun DynamicIsland(
         spec, label = "islandOffsetX"
     )
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
+    val animationOffsetX = if (animationOrigin != null && !isStickToCamera) {
+        lerpDp(animationOrigin.offsetXDp.dp, offsetX, reveal.value)
+    } else {
+        offsetX
+    }
+    val animationOffsetY = if (animationOrigin != null && !isStickToCamera) {
+        lerpDp(
+            animationOrigin.offsetYDp.dp - collapsed.heightDp.dp / 2,
+            offsetY,
+            reveal.value,
+        )
+    } else {
+        offsetY
+    }
     val topLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
     val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
     val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
@@ -892,6 +915,10 @@ fun DynamicIsland(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onGloballyPositioned { coordinates ->
+                val anchor = coordinates.localToScreen(Offset(coordinates.size.width / 2f, 0f))
+                onAnimationOriginAnchorChanged(Point(anchor.x.roundToInt(), anchor.y.roundToInt()))
+            }
             .pointerInput(isExpanded, forcedExpanded) {
                 if (!isExpanded || forcedExpanded != null) return@pointerInput
                 detectTapGestures(
@@ -910,7 +937,10 @@ fun DynamicIsland(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
-                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
+                .offset(
+                    x = if (isStickToCamera) 0.dp else animationOffsetX,
+                    y = if (isStickToCamera) 0.dp else animationOffsetY,
+                ),
         ) {
             if (present || reveal.value > 0f) {
                 IslandSurface(

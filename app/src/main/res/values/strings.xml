@@ -148,10 +148,15 @@
 
     <!-- Size &amp; position -->
     <string name="appearance_title">Size &amp; position</string>
+    <string name="appearance_animation_origin_hint">Adjust where the cutout animation starts in Animations.</string>
     <string name="appearance_preview">Preview</string>
     <string name="appearance_width">Width</string>
     <string name="appearance_height">Height</string>
     <string name="appearance_top_margin">Top Margin</string>
+    <string name="appearance_animation_origin_title">Animation origin</string>
+    <string name="appearance_animation_origin_desc">Set where the cutout animation starts. This does not change the normal or expanded cutout size or final position. By default, the camera position is detected.</string>
+    <string name="appearance_animation_origin_vertical">Vertical origin</string>
+    <string name="appearance_animation_origin_reset">Reset to detected camera</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="corner_mode_all">All</string>
     <string name="corner_mode_split">T/B</string>
@@ -165,6 +170,9 @@
     <string name="appearance_corner_br">Bottom right</string>
     <string name="tab_normal">Normal</string>
     <string name="tab_expanded">Expanded</string>
+    <string name="foldable_open">Open</string>
+    <string name="foldable_closed">Closed</string>
+    <string name="foldable_settings_profile">Settings for</string>
     <string name="appearance_vertical">Vertical position</string>
     <string name="appearance_horizontal">Horizontal position</string>
     <string name="action_reset_layout">Reset to default</string>
@@ -307,9 +315,16 @@
     <string name="shizuku_options_title">Shizuku options</string>
     <string name="settings_shizuku_subtitle">Hide status bar icons and silence system alerts</string>
     <string name="status_bar_hide_mode_off">Off</string>
-    <string name="status_bar_hide_mode_auto">Auto</string>
+    <string name="status_bar_hide_mode_normal">Normal</string>
+    <string name="status_bar_hide_mode_expanded">Expanded</string>
+    <string name="status_bar_hide_mode_both">Both</string>
     <string name="status_bar_hide_mode_always">Always</string>
-    <string name="status_bar_hide_mode_note">“Auto” hides only while the cutout is wider than usual — during a call, or while the island is expanded. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
+    <string name="status_bar_hide_mode_note">Choose when each group is hidden. Both hides it while the cutout is visible in either state.</string>
+    <string name="status_bar_hide_mode_off_desc">Keep these items visible in the system status bar.</string>
+    <string name="status_bar_hide_mode_normal_desc">Hide these items while the cutout is collapsed.</string>
+    <string name="status_bar_hide_mode_expanded_desc">Hide these items only while the cutout is expanded.</string>
+    <string name="status_bar_hide_mode_both_desc">Hide these items whenever the cutout is visible, collapsed or expanded.</string>
+    <string name="status_bar_hide_mode_always_desc">Keep these items hidden, even when the cutout is not visible.</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>
@@ -475,6 +490,8 @@
     <string name="horizontal_cutout_stick_to_camera_desc">Stays like in vertical mode, on the camera</string>
     <string name="horizontal_cutout_center">Center</string>
     <string name="horizontal_cutout_center_desc">Goes to the top center of the horizontal screen</string>
+    <string name="horizontal_cutout_forced_center">Forced center</string>
+    <string name="horizontal_cutout_forced_center_desc">Pins the cutout to the top center in landscape, ignoring its position offsets</string>
     <string name="behaviour_animation_duration">Animation duration</string>
     <string name="behaviour_normal_duration">Normal cutout duration</string>
     <string name="behaviour_auto_collapse">Collapse automatically</string>
