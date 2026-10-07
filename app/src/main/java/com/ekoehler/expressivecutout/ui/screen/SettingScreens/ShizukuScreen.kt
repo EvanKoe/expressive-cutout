@@ -120,11 +120,11 @@ internal fun ShizukuScreen(
             )
         }
 
-        // The preview stands for the resting status bar, so "Auto" reads as nothing hidden yet.
+        // The preview shows the normal cutout state so normal-only rules are visible here.
         StatusBarPreview(
-            hideIcons = ready && iconsMode.hides(widened = false),
-            hideSystem = ready && systemInfoMode.hides(widened = false),
-            hideClock = ready && clockMode.hides(widened = false),
+            hideIcons = ready && iconsMode.hides(visible = true, expanded = false),
+            hideSystem = ready && systemInfoMode.hides(visible = true, expanded = false),
+            hideClock = ready && clockMode.hides(visible = true, expanded = false),
         )
 
         Text(
@@ -192,9 +192,7 @@ internal fun ShizukuScreen(
 
 /**
  * One status-bar hiding setting, picked as a [StatusBarHideMode] rather than switched on and off.
- * Three states are needed because the island's resting width covers the two ends of the bar
- * unequally: a pill wide enough to sit over the notification icons all the time may still leave the
- * battery and Wi-Fi alone until it grows, so each end wants its own rule.
+ * Modes can target the normal or expanded state, or remain active all the time.
  *
  * [StatusBarHideMode]'s declaration order is the option order, so the two can't drift apart.
  */
@@ -212,7 +210,8 @@ private fun StatusBarHideModeCard(
         stringResource(
             when (it) {
                 StatusBarHideMode.OFF -> R.string.status_bar_hide_mode_off
-                StatusBarHideMode.AUTO -> R.string.status_bar_hide_mode_auto
+                StatusBarHideMode.NORMAL -> R.string.status_bar_hide_mode_normal
+                StatusBarHideMode.EXPANDED -> R.string.status_bar_hide_mode_expanded
                 StatusBarHideMode.ALWAYS -> R.string.status_bar_hide_mode_always
             }
         )

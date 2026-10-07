@@ -180,13 +180,22 @@ data class IslandLayout(
     val collapsed: IslandDimensions = DEFAULT_COLLAPSED,
     val expanded: IslandDimensions = DEFAULT_EXPANDED,
     val closed: FoldableIslandLayout? = null,
+    val animationOrigin: AnimationOrigin? = null,
 ) {
     /**
      * Returns the geometry for the active posture, falling back to the regular layout until a
      * closed-device profile has been saved.
      */
     fun forPosture(isClosed: Boolean): IslandLayout =
-        if (isClosed && closed != null) IslandLayout(closed.collapsed, closed.expanded) else this
+        if (isClosed && closed != null) {
+            IslandLayout(
+                collapsed = closed.collapsed,
+                expanded = closed.expanded,
+                animationOrigin = closed.animationOrigin,
+            )
+        } else {
+            this
+        }
 
     companion object {
         val DEFAULT_COLLAPSED = IslandDimensions(
@@ -222,4 +231,22 @@ data class IslandLayout(
 data class FoldableIslandLayout(
     val collapsed: IslandDimensions,
     val expanded: IslandDimensions,
+    val animationOrigin: AnimationOrigin? = null,
 )
+
+/**
+ * A screen-relative point the island animates from when it appears or changes state, independent of
+ * the configured pill dimensions and final position.
+ */
+data class AnimationOrigin(
+    val offsetXDp: Int,
+    val offsetYDp: Int,
+) {
+   companion object {
+       /** The horizontal range for the camera-relative animation origin, independent of pill position. */
+       const val MIN_OFFSET_X_DP = -500
+
+       /** The horizontal range for the camera-relative animation origin, independent of pill position. */
+       const val MAX_OFFSET_X_DP = 500
+   }
+}

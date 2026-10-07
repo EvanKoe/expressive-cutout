@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 /** Backing store for the timer tile's settings. */
 private val Context.timerTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_tile_prefs")
+private val Context.timerTileClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_tile_prefs_closed")
 
 /** The timer tile's own settings, edited on its dedicated settings screen. */
 data class TimerTileSettings(
@@ -38,9 +39,18 @@ data class TimerTileSettings(
 }
 
 /** Persists the timer tile's display options (action buttons and their colours). */
-class TimerTilePreferences(private val context: Context) : JsonSerializable {
+class TimerTilePreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.timerTileDataStore,
+        context.timerTileClosedDataStore,
+        profile,
+    )
 
-    val settings: Flow<TimerTileSettings> = context.timerTileDataStore.data.map { prefs ->
+
+    val settings: Flow<TimerTileSettings> = preferencesStore.data.map { prefs ->
         TimerTileSettings(
             showActions = prefs[SHOW_ACTIONS] ?: TimerTileSettings.DEFAULT_SHOW_ACTIONS,
             iconContainerColor = CutoutColor.deserialize(prefs[ICON_CONTAINER_COLOR]),
@@ -65,7 +75,7 @@ class TimerTilePreferences(private val context: Context) : JsonSerializable {
     /** Applies the [TimerTileSettings] object exported by [toJson]; absent fields are left as-is. */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.timerTileDataStore.edit {
+        preferencesStore.edit {
             if (obj.has("showActions")) it[SHOW_ACTIONS] = obj.getBoolean("showActions")
             if (obj.has("iconContainerColor")) {
                 val raw = if (obj.isNull("iconContainerColor")) null else obj.optString("iconContainerColor")
@@ -81,20 +91,20 @@ class TimerTilePreferences(private val context: Context) : JsonSerializable {
         }
     }
 
-    suspend fun setShowActions(enabled: Boolean) = context.timerTileDataStore.edit {
+    suspend fun setShowActions(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_ACTIONS] = enabled
     }
 
     /** A null [color] clears the override, restoring the default accent-tinted icon container. */
-    suspend fun setIconContainerColor(color: CutoutColor?) = context.timerTileDataStore.edit {
+    suspend fun setIconContainerColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }
 
-    suspend fun setResetColor(color: CutoutColor) = context.timerTileDataStore.edit {
+    suspend fun setResetColor(color: CutoutColor) = preferencesStore.edit {
         it[RESET_COLOR] = color.serialize()
     }
 
-    suspend fun setAddButtonColor(color: CutoutColor) = context.timerTileDataStore.edit {
+    suspend fun setAddButtonColor(color: CutoutColor) = preferencesStore.edit {
         it[ADD_BUTTON_COLOR] = color.serialize()
     }
 

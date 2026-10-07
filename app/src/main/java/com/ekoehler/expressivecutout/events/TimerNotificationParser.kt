@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import java.util.Locale
 
 /**
  * Everything the timer tile needs, pulled out of a clock app's ongoing count-down notification.
@@ -28,20 +29,23 @@ data class ParsedTimer(
  *    `pausedDuration` while paused) — not in any title/text or the classic chronometer extras.
  *  - **Classic chronometer:** the older format that sets a *counting-down* chronometer anchored to
  *    the notification's `when`. Kept as a fallback for clock apps that still use it.
+ *  - **Samsung Clock:** its ongoing timer shows a countdown string with Pause/Cancel actions instead
+ *    of the standard chronometer metadata.
  *
- * Keying off "a counting-down time" (rather than a package allow-list) works across clock apps and
- * never mistakes a call, whose chronometer counts *up*, for a timer.
+ * The standard formats key off a counting-down time rather than a package allow-list, so calls whose
+ * chronometers count up are never mistaken for timers.
  */
 object TimerNotificationParser {
 
     /**
-     * Whether this notification is a countdown timer, by either the modern metric extras or the
-     * classic count-down chronometer.
+     * Whether this notification is a countdown timer in one of the supported clock formats.
      */
     fun isTimer(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification ?: return false
         val extras = notification.extras ?: return false
-        return readMetricCountdown(extras) != null || isClassicCountdown(notification, extras)
+        return readMetricCountdown(extras) != null ||
+            isClassicCountdown(notification, extras) ||
+            readSamsungClockCountdown(sbn) != null
     }
 
     /**
@@ -63,6 +67,17 @@ object TimerNotificationParser {
                 endElapsedRealtimeMs = metric.endElapsedRealtimeMs,
                 pausedRemainingMs = metric.pausedRemainingMs,
                 label = metric.label ?: extras.notificationTitle(),
+                actions = actions,
+            )
+        }
+
+        val samsungCountdown = readSamsungClockCountdown(sbn)
+        if (samsungCountdown != null) {
+            return ParsedTimer(
+                endElapsedRealtimeMs = samsungCountdown.endElapsedRealtimeMs,
+                pausedRemainingMs = samsungCountdown.pausedRemainingMs,
+                label = samsungCountdown.label ?: extras?.notificationTitle()
+                    ?.takeUnless { parseCountdownDuration(it) != null },
                 actions = actions,
             )
         }
@@ -112,6 +127,77 @@ object TimerNotificationParser {
         return countsDown && showsChronometer && notification.`when` > 0L
     }
 
+    /**
+     * Reads Samsung Clock's ongoing timer, which publishes a visible countdown and Pause/Cancel
+     * actions instead of the standard chronometer metadata.
+     */
+    private fun readSamsungClockCountdown(sbn: StatusBarNotification): MetricCountdown? {
+        if (sbn.packageName != SAMSUNG_CLOCK_PACKAGE) return null
+
+        val notification = sbn.notification ?: return null
+
+        val extras = notification.extras ?: return null
+        val actionLabels = notification.actions.orEmpty()
+            .mapNotNull { it.title?.toString()?.lowercase(Locale.ROOT) }
+        val hasPauseOrResume = actionLabels.any { "pause" in it || "resume" in it }
+        val hasCancel = actionLabels.any { "cancel" in it }
+        if (!hasPauseOrResume || !hasCancel) return null
+
+        val remainingMs = extras.timerTextValues()
+            .firstNotNullOfOrNull(::parseCountdownDuration) ?: return null
+        val paused = actionLabels.any { "resume" in it }
+        return MetricCountdown(
+            endElapsedRealtimeMs = if (paused) null else SystemClock.elapsedRealtime() + remainingMs,
+            pausedRemainingMs = remainingMs.takeIf { paused },
+            label = extras.notificationTitle()?.takeUnless { parseCountdownDuration(it) != null },
+        )
+    }
+
+    /**
+     * Parses the visible minute/second or hour/minute/second value without interpreting any other
+     * notification text as a countdown.
+     */
+    private fun parseCountdownDuration(text: CharSequence): Long? {
+        val parts = text.toString().trim().split(':')
+        if (parts.size !in 2..3 || parts.any { part ->
+                part.isEmpty() || part.any { !it.isDigit() }
+            }) {
+            return null
+        }
+
+        val values = parts.map { it.toLongOrNull() ?: return null }
+        val seconds = values.last()
+        val minutes = values[values.lastIndex - 1]
+        if (seconds >= SECONDS_PER_MINUTE || (parts.size == 3 && minutes >= MINUTES_PER_HOUR)) {
+            return null
+        }
+
+        val hours = if (parts.size == 3) values.first() else 0L
+        val totalSeconds = hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds
+        return totalSeconds * MILLIS_PER_SECOND
+    }
+
+    /**
+     * Returns the text-bearing fields Samsung Clock uses for its timer countdown.
+     */
+    private fun Bundle.timerTextValues(): List<String> {
+        val values = mutableListOf<String>()
+        listOf(
+            Notification.EXTRA_TITLE,
+            Notification.EXTRA_TEXT,
+            Notification.EXTRA_BIG_TEXT,
+            Notification.EXTRA_SUB_TEXT,
+            Notification.EXTRA_INFO_TEXT,
+            Notification.EXTRA_SUMMARY_TEXT,
+        ).forEach { key ->
+            getCharSequence(key)?.toString()?.let(values::add)
+        }
+        getCharSequenceArrayList(Notification.EXTRA_TEXT_LINES)
+            .orEmpty()
+            .mapTo(values) { it.toString() }
+        return values
+    }
+
     private fun Bundle.notificationTitle(): String? =
         getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
 
@@ -137,4 +223,9 @@ object TimerNotificationParser {
     private const val KEY_COUNT_DOWN = "countDown"
     private const val KEY_ZERO_ELAPSED = "zeroElapsedRealtime"
     private const val KEY_PAUSED_DURATION = "pausedDuration"
+    private const val SAMSUNG_CLOCK_PACKAGE = "com.sec.android.app.clockpackage"
+    private const val MILLIS_PER_SECOND = 1_000L
+    private const val SECONDS_PER_MINUTE = 60L
+    private const val MINUTES_PER_HOUR = 60L
+    private const val SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
 }

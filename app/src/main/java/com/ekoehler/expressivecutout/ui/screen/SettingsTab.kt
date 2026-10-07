@@ -34,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -53,6 +54,7 @@ import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpressivePillRow
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.pageTransition
 import com.ekoehler.expressivecutout.ui.screen.tiles.TileSettingsScreen
@@ -94,6 +96,7 @@ fun SettingsTab(
     onOpenEvent: (SystemEventType) -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val editingClosed by viewModel.editingClosed.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isPreviewRoute = route == SettingsRoute.SizePosition ||
@@ -104,9 +107,11 @@ fun SettingsTab(
         fun refresh() {
             if (isPreviewRoute) {
                 IslandPreviewBus.setActive(Permissions.isAccessibilityGranted(context))
+                IslandPreviewBus.setClosedPreview(editingClosed)
             } else {
                 IslandPreviewBus.setActive(false)
                 IslandPreviewBus.setExpandedPreview(false)
+                IslandPreviewBus.setClosedPreview(null)
             }
         }
         val observer = LifecycleEventObserver { _, event ->
@@ -126,6 +131,9 @@ fun SettingsTab(
             }
         }
     }
+    LaunchedEffect(editingClosed, isPreviewRoute) {
+        if (isPreviewRoute) IslandPreviewBus.setClosedPreview(editingClosed)
+    }
 
     // Routing (and back navigation, via the bottom bar) is owned by MainScreen.
     AnimatedContent(
@@ -143,7 +151,9 @@ fun SettingsTab(
                 SettingsList(
                     contentPadding = contentPadding,
                     cutoutEnabled = behaviour.cutoutEnabled,
+                    editingClosed = editingClosed,
                     onCutoutEnabledChange = viewModel::setCutoutEnabled,
+                    onEditingClosedChange = viewModel::setEditingClosed,
                     onOpenSizePosition = onOpenSizePosition,
                     onOpenDynamicTiles = onOpenDynamicTiles,
                     onOpenApps = onOpenApps,
@@ -208,7 +218,9 @@ val SettingsRoute.depth: Int
 private fun SettingsList(
     contentPadding: PaddingValues,
     cutoutEnabled: Boolean,
+    editingClosed: Boolean,
     onCutoutEnabledChange: (Boolean) -> Unit,
+    onEditingClosedChange: (Boolean) -> Unit,
     onOpenSizePosition: () -> Unit,
     onOpenDynamicTiles: () -> Unit,
     onOpenApps: () -> Unit,
@@ -239,6 +251,21 @@ private fun SettingsList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PageTitle(text = appName)
+
+        Text(
+            text = stringResource(R.string.foldable_settings_profile),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ExpressivePillRow(
+            options = listOf(
+                stringResource(R.string.foldable_open),
+                stringResource(R.string.foldable_closed),
+            ),
+            selectedIndex = if (editingClosed) 1 else 0,
+            onSelect = { onEditingClosedChange(it == 1) },
+            fillWidth = true,
+        )
 
         // Accessibility access permission request if needed
         AnimatedVisibility(

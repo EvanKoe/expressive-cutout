@@ -152,6 +152,10 @@
     <string name="appearance_width">Largeur</string>
     <string name="appearance_height">Hauteur</string>
     <string name="appearance_top_margin">Marge haute</string>
+    <string name="appearance_animation_origin_title">Origine de l’animation</string>
+    <string name="appearance_animation_origin_desc">Définissez le point de départ de l’animation. Cela ne modifie ni la taille ni la position finale de l’encoche normale ou déployée. La position de la caméra est détectée par défaut.</string>
+    <string name="appearance_animation_origin_vertical">Origine verticale</string>
+    <string name="appearance_animation_origin_reset">Rétablir la caméra détectée</string>
     <string name="appearance_corner">Rayon des coins</string>
     <string name="corner_mode_all">Tous</string>
     <string name="corner_mode_split">H/B</string>
@@ -167,6 +171,7 @@
     <string name="tab_expanded">Étendue</string>
     <string name="foldable_open">Ouvert</string>
     <string name="foldable_closed">Fermé</string>
+    <string name="foldable_settings_profile">Paramètres pour</string>
     <string name="appearance_vertical">Position verticale</string>
     <string name="appearance_horizontal">Position horizontale</string>
     <string name="action_reset_layout">Réinitialiser par défaut</string>
@@ -309,9 +314,10 @@
     <string name="shizuku_options_title">Options Shizuku</string>
     <string name="settings_shizuku_subtitle">Masquer les icônes de la barre d’état et couper les alertes système</string>
     <string name="status_bar_hide_mode_off">Jamais</string>
-    <string name="status_bar_hide_mode_auto">Auto</string>
+    <string name="status_bar_hide_mode_normal">Normal</string>
+    <string name="status_bar_hide_mode_expanded">Déployée</string>
     <string name="status_bar_hide_mode_always">Toujours</string>
-    <string name="status_bar_hide_mode_note">« Auto » masque uniquement lorsque l’encoche est plus large que d’habitude — pendant un appel, ou quand l’île est déployée. « Toujours » masque en permanence, pour une île qui recouvre déjà ce côté de la barre au repos.</string>
+    <string name="status_bar_hide_mode_note">Choisissez de masquer chaque groupe uniquement en mode normal, uniquement en mode déployé ou en permanence.</string>
     <string name="status_bar_hide_icons_title">Masquer les icônes de notification</string>
     <string name="status_bar_hide_icons_desc">Retire les icônes de notification de la barre d’état système, pour que seule l’île les signale.</string>
     <string name="status_bar_hide_icons_note">Android oublie ce réglage au redémarrage. Relancez Shizuku et ouvrez cette application une fois pour le remettre.</string>
@@ -477,6 +483,8 @@
     <string name="horizontal_cutout_stick_to_camera_desc">Reste comme en mode vertical, sur la caméra</string>
     <string name="horizontal_cutout_center">Centre</string>
     <string name="horizontal_cutout_center_desc">Se place en haut au centre de l’écran horizontal</string>
+    <string name="horizontal_cutout_forced_center">Centre forcé</string>
+    <string name="horizontal_cutout_forced_center_desc">Place l’encoche en haut au centre en paysage, sans tenir compte de ses décalages</string>
     <string name="behaviour_animation_duration">Durée d’animation</string>
     <string name="behaviour_normal_duration">Durée de l’encoche normale</string>
     <string name="behaviour_auto_collapse">Refermer automatiquement</string>

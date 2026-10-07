@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
-import com.ekoehler.expressivecutout.core.CutoutWidthBus
+import com.ekoehler.expressivecutout.core.CutoutVisibilityBus
 import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -50,8 +50,8 @@ object StatusBarIconController {
     /**
      * Keeps the system status bar in sync with the saved wish, re-applying whenever Shizuku becomes
      * reachable again — after a reboot, or after the user starts Shizuku for the first time. A
-     * setting left on [StatusBarHideMode.AUTO] takes its wish from the island's own width, read
-     * from [CutoutWidthBus], so the bar empties and refills as the cutout grows and shrinks.
+     * [StatusBarHideMode.NORMAL] and [StatusBarHideMode.EXPANDED] select which visible state hides
+     * the icons.
      *
      * There is deliberately no `stop()`, and adding one would be a mistake: releasing [token] is
      * what restores the system icons, so a public stop would be a way to silently undo the user's
@@ -73,9 +73,9 @@ object StatusBarIconController {
                 modes,
                 preferences.silenceAlerts,
                 ShizukuState.status,
-                CutoutWidthBus.widened,
-            ) { chosen, silenceAlerts, status, widened ->
-                Wish(chosen.resolve(widened), silenceAlerts, status)
+                CutoutVisibilityBus.state,
+            ) { chosen, silenceAlerts, status, cutout ->
+                Wish(chosen.resolve(cutout.visible, cutout.expanded), silenceAlerts, status)
             }
                 .collect { wish ->
                     if (wish.status != ShizukuStatus.READY) {
@@ -128,8 +128,7 @@ object StatusBarIconController {
     }
 
     /**
-     * The three hiding wishes as the user set them, plus whether they asked for the island's width
-     * to drive them instead of being held on permanently.
+     * The independent icon-group hiding wishes chosen by the user.
      */
     /** The three hiding settings as the user chose them, combined for [start]. */
     private data class Modes(
@@ -137,11 +136,11 @@ object StatusBarIconController {
         val systemInfo: StatusBarHideMode,
         val clock: StatusBarHideMode,
     ) {
-        /** What each setting works out to right now, given whether the cutout is [widened]. */
-        fun resolve(widened: Boolean) = Hiding(
-            hideIcons = notificationIcons.hides(widened),
-            hideSystemInfo = systemInfo.hides(widened),
-            hideClock = clock.hides(widened),
+        /** What each setting works out to right now, given whether the cutout is [visible]. */
+        fun resolve(visible: Boolean, expanded: Boolean) = Hiding(
+            hideIcons = notificationIcons.hides(visible, expanded),
+            hideSystemInfo = systemInfo.hides(visible, expanded),
+            hideClock = clock.hides(visible, expanded),
         )
     }
 

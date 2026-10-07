@@ -15,9 +15,10 @@ import org.json.JSONObject
 
 /** Backing store for every behaviour setting. */
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
+private val Context.behaviourClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs_closed")
 
 /** How the cutout behaves when the device is in horizontal/landscape orientation. */
-enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER }
+enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER, FORCED_CENTER }
 
 /** Which horizontal swipe directions dismiss the cutout, when swipe-to-dismiss is enabled. */
 enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
@@ -161,9 +162,18 @@ data class BehaviourSettings(
 }
 
 /** Persists [BehaviourSettings], always emitting a clamped collapse delay. */
-class BehaviourPreferences(private val context: Context) : JsonSerializable {
+class BehaviourPreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.behaviourDataStore,
+        context.behaviourClosedDataStore,
+        profile,
+    )
 
-    val settings: Flow<BehaviourSettings> = context.behaviourDataStore.data.map { prefs ->
+
+    val settings: Flow<BehaviourSettings> = preferencesStore.data.map { prefs ->
         val rawMode = prefs[HORIZONTAL_CUTOUT_MODE]
         val hideLandscape = prefs[HIDE_IN_LANDSCAPE] ?: BehaviourSettings.DEFAULT_HIDE_IN_LANDSCAPE
         val horizontalCutoutMode = if (rawMode != null) {
@@ -295,13 +305,13 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.behaviourDataStore.edit {
+        preferencesStore.edit {
             if (obj.has("cutoutEnabled")) it[CUTOUT_ENABLED] = obj.getBoolean("cutoutEnabled")
             if (obj.has("hideOnLockscreen")) it[HIDE_ON_LOCKSCREEN] = obj.getBoolean("hideOnLockscreen")
             if (obj.has("hideInLandscape")) it[HIDE_IN_LANDSCAPE] = obj.getBoolean("hideInLandscape")
             parseEnum<HorizontalCutoutMode>(obj, "horizontalCutoutMode")?.let { mode ->
                 it[HORIZONTAL_CUTOUT_MODE] = mode.name
-                it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN) || (it[HIDE_IN_LANDSCAPE] ?: false)
+                it[HIDE_IN_LANDSCAPE] = mode == HorizontalCutoutMode.HIDDEN
             }
             parseEnum<AnimationStyle>(obj, "animationStyle")?.let { s -> it[ANIMATION_STYLE] = s.name }
             parseEnum<AnimationSpeed>(obj, "animationSpeed")?.let { s -> it[ANIMATION_SPEED] = s.name }
@@ -364,11 +374,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         return runCatching { enumValueOf<T>(obj.optString(field)) }.getOrNull()
     }
 
-    suspend fun setCutoutEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setCutoutEnabled(enabled: Boolean) = preferencesStore.edit {
         it[CUTOUT_ENABLED] = enabled
     }
 
-    suspend fun setHideOnLockscreen(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setHideOnLockscreen(enabled: Boolean) = preferencesStore.edit {
         it[HIDE_ON_LOCKSCREEN] = enabled
     }
 
@@ -377,7 +387,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * to [HorizontalCutoutMode.HIDDEN], since "hide in landscape" is that mode under an older name.
      * Mirrored by [setHorizontalCutoutMode].
      */
-    suspend fun setHideInLandscape(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setHideInLandscape(enabled: Boolean) = preferencesStore.edit {
         it[HIDE_IN_LANDSCAPE] = enabled
         if (enabled) {
             it[HORIZONTAL_CUTOUT_MODE] = HorizontalCutoutMode.HIDDEN.name
@@ -388,24 +398,24 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Keeps [HorizontalCutoutMode] and the older landscape switch in step, so a reader of either
      * sees the same thing. Mirrors [setHideInLandscape].
      */
-    suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = context.behaviourDataStore.edit {
+    suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = preferencesStore.edit {
         it[HORIZONTAL_CUTOUT_MODE] = mode.name
         it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN)
     }
 
-    suspend fun setAnimationStyle(style: AnimationStyle) = context.behaviourDataStore.edit {
+    suspend fun setAnimationStyle(style: AnimationStyle) = preferencesStore.edit {
         it[ANIMATION_STYLE] = style.name
     }
 
-    suspend fun setAnimationSpeed(speed: AnimationSpeed) = context.behaviourDataStore.edit {
+    suspend fun setAnimationSpeed(speed: AnimationSpeed) = preferencesStore.edit {
         it[ANIMATION_SPEED] = speed.name
     }
 
-    suspend fun setAnimationBounce(bounce: AnimationBounce) = context.behaviourDataStore.edit {
+    suspend fun setAnimationBounce(bounce: AnimationBounce) = preferencesStore.edit {
         it[ANIMATION_BOUNCE] = bounce.name
     }
 
-    suspend fun setActionButtonAnimation(animation: ActionButtonAnimation) = context.behaviourDataStore.edit {
+    suspend fun setActionButtonAnimation(animation: ActionButtonAnimation) = preferencesStore.edit {
         it[ACTION_BUTTON_ANIMATION] = animation.name
     }
 
@@ -413,7 +423,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the settings slider offers, so an imported settings file can't leave an
      * animation length the UI has no way to correct.
      */
-    suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
+    suspend fun setAnimationDurationMs(ms: Int) = preferencesStore.edit {
         it[ANIMATION_DURATION_MS] = ms.coerceIn(
             BehaviourSettings.MIN_ANIMATION_DURATION_MS,
             BehaviourSettings.MAX_ANIMATION_DURATION_MS,
@@ -421,7 +431,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
     }
 
     /** If enabled, dismiss notifications automatically */
-    suspend fun setDismissNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setDismissNotifications(enabled: Boolean) = preferencesStore.edit {
         it[DISMISS_NOTIFICATIONS] = enabled
     }
 
@@ -429,14 +439,14 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the settings slider offers, so an imported settings file can't leave a
      * duration the UI has no way to correct.
      */
-    suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
+    suspend fun setNormalDurationSeconds(seconds: Int) = preferencesStore.edit {
         it[NORMAL_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_NORMAL_SECONDS,
             BehaviourSettings.MAX_NORMAL_SECONDS,
         )
     }
 
-    suspend fun setAutoCollapse(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setAutoCollapse(enabled: Boolean) = preferencesStore.edit {
         it[AUTO_COLLAPSE] = enabled
     }
 
@@ -444,75 +454,75 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Clamps to the range the settings slider offers, so an imported settings file can't leave a
      * collapse delay the UI has no way to correct.
      */
-    suspend fun setCollapseSeconds(seconds: Int) = context.behaviourDataStore.edit {
+    suspend fun setCollapseSeconds(seconds: Int) = preferencesStore.edit {
         it[COLLAPSE_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_COLLAPSE_SECONDS,
             BehaviourSettings.MAX_COLLAPSE_SECONDS,
         )
     }
 
-    suspend fun setDisappearOnShrink(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setDisappearOnShrink(enabled: Boolean) = preferencesStore.edit {
         it[DISAPPEAR_ON_SHRINK] = enabled
     }
 
-    suspend fun setNotificationsAutoExpand(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setNotificationsAutoExpand(enabled: Boolean) = preferencesStore.edit {
         it[NOTIF_AUTO_EXPAND] = enabled
     }
 
-    suspend fun setIgnoreSilentNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setIgnoreSilentNotifications(enabled: Boolean) = preferencesStore.edit {
         it[IGNORE_SILENT_NOTIFICATIONS] = enabled
     }
 
-    suspend fun setShowActionButtons(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setShowActionButtons(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_ACTION_BUTTONS] = enabled
     }
 
-    suspend fun setToastOnAction(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setToastOnAction(enabled: Boolean) = preferencesStore.edit {
         it[TOAST_ON_ACTION] = enabled
     }
 
-    suspend fun setShrinkOnSwipeUp(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setShrinkOnSwipeUp(enabled: Boolean) = preferencesStore.edit {
         it[SHRINK_ON_SWIPE_UP] = enabled
     }
 
-    suspend fun setSwipeToDismiss(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setSwipeToDismiss(enabled: Boolean) = preferencesStore.edit {
         it[SWIPE_TO_DISMISS] = enabled
     }
 
-    suspend fun setSwipeDismissDirection(direction: SwipeDismissDirection) = context.behaviourDataStore.edit {
+    suspend fun setSwipeDismissDirection(direction: SwipeDismissDirection) = preferencesStore.edit {
         it[SWIPE_DISMISS_DIRECTION] = direction.name
     }
 
-    suspend fun setSwipeDismissTarget(target: SwipeDismissTarget) = context.behaviourDataStore.edit {
+    suspend fun setSwipeDismissTarget(target: SwipeDismissTarget) = preferencesStore.edit {
         it[SWIPE_DISMISS_TARGET] = target.name
     }
 
-    suspend fun setSplitIslandEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setSplitIslandEnabled(enabled: Boolean) = preferencesStore.edit {
         it[SPLIT_ISLAND_ENABLED] = enabled
     }
 
-    suspend fun setSatellitePosition(position: SatellitePosition) = context.behaviourDataStore.edit {
+    suspend fun setSatellitePosition(position: SatellitePosition) = preferencesStore.edit {
         it[SATELLITE_POSITION] = position.name
     }
 
-    suspend fun setShowsWhenEmpty(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmpty(enabled: Boolean) = preferencesStore.edit {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
 
-    suspend fun setShowStatusDot(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setShowStatusDot(enabled: Boolean) = preferencesStore.edit {
         it[SHOW_STATUS_DOT] = enabled
     }
 
-    suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = preferencesStore.edit {
         it[SHOWS_WHEN_EMPTY_SHOW_ICON] = enabled
     }
 
-    suspend fun setShowsWhenEmptyIcon(icon: IconSource) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmptyIcon(icon: IconSource) = preferencesStore.edit {
         it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
     }
 
     /** Drop the chosen icon so the empty pill shows no glyph. */
-    suspend fun clearShowsWhenEmptyIcon() = context.behaviourDataStore.edit {
+    suspend fun clearShowsWhenEmptyIcon() = preferencesStore.edit {
         it.remove(SHOWS_WHEN_EMPTY_ICON)
     }
 
@@ -520,12 +530,12 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Stores the empty pill's icon colour, or removes the key entirely for null so the icon falls
      * back to the theme default.
      */
-    suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
         else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
     }
 
-    suspend fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = preferencesStore.edit {
         it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
     }
 
@@ -533,48 +543,48 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
      * Stores the package the empty pill opens, or removes the key entirely for null so no app is
      * bound to the tap.
      */
-    suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = context.behaviourDataStore.edit {
+    suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = preferencesStore.edit {
         if (packageName == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE)
         else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName
     }
 
     /** Persist the ordered set of shortcuts shown in the expanded "center". */
-    suspend fun setCenterShortcuts(shortcuts: List<CenterShortcut>) = context.behaviourDataStore.edit {
+    suspend fun setCenterShortcuts(shortcuts: List<CenterShortcut>) = preferencesStore.edit {
         it[CENTER_SHORTCUTS] = CenterShortcut.encodeList(shortcuts)
     }
 
     /** Whether each center shortcut shows its name beneath it. */
-    suspend fun setCenterShowLabels(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setCenterShowLabels(enabled: Boolean) = preferencesStore.edit {
         it[CENTER_SHOW_LABELS] = enabled
     }
 
     /** Whether each center shortcut's coloured container fills its slot (pill) or stays a disc. */
-    suspend fun setCenterFillContainers(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setCenterFillContainers(enabled: Boolean) = preferencesStore.edit {
         it[CENTER_FILL_CONTAINERS] = enabled
     }
 
     /** Whether app shortcuts in the center use their themed (monochrome) icon. */
-    suspend fun setCenterThemedIcons(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setCenterThemedIcons(enabled: Boolean) = preferencesStore.edit {
         it[CENTER_THEMED_ICONS] = enabled
     }
 
     /** Sets whether the cutout vibrates on tap */
-    suspend fun setVibrateOnTap(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setVibrateOnTap(enabled: Boolean) = preferencesStore.edit {
         it[VIBRATE_ON_TAP] = enabled
     }
 
     /** Sets whether haptic feedback fires when the cutout appears and disappears */
-    suspend fun setHapticsOnPop(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setHapticsOnPop(enabled: Boolean) = preferencesStore.edit {
         it[HAPTICS_ON_POP] = enabled
     }
 
     /** Set if notifications appear while Do not disturb is on */
-    suspend fun setDisplayWhileDnd(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setDisplayWhileDnd(enabled: Boolean) = preferencesStore.edit {
         it[DISPLAY_WHILE_DND] = enabled
     }
 
     /** If enabled, the island rings/vibrates itself when a new notification surfaces */
-    suspend fun setAlertOnNotification(enabled: Boolean) = context.behaviourDataStore.edit {
+    suspend fun setAlertOnNotification(enabled: Boolean) = preferencesStore.edit {
         it[ALERT_ON_NOTIFICATION] = enabled
     }
 

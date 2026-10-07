@@ -14,19 +14,29 @@ import org.json.JSONObject
 
 /** Backing store for which dynamic tiles the user has enabled. */
 private val Context.dynamicTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "dynamic_tile_prefs")
+private val Context.dynamicTileClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "dynamic_tile_prefs_closed")
 
 /**
  * Persists whether each dynamic tile is allowed to appear on the cutout. Absent means enabled,
  * so tiles show by default and only explicit opt-outs are stored — mirroring [EventPreferences]
  * but kept separate because tiles are a distinct concept from system events.
  */
-class DynamicTilePreferences(private val context: Context) : JsonSerializable {
+class DynamicTilePreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.dynamicTileDataStore,
+        context.dynamicTileClosedDataStore,
+        profile,
+    )
 
-    val enabled: Flow<Map<DynamicTile, Boolean>> = context.dynamicTileDataStore.data.map { prefs ->
+
+    val enabled: Flow<Map<DynamicTile, Boolean>> = preferencesStore.data.map { prefs ->
         DynamicTile.entries.associateWith { tile -> prefs[tile.key] ?: true }
     }
 
-    suspend fun setEnabled(tile: DynamicTile, enabled: Boolean) = context.dynamicTileDataStore.edit {
+    suspend fun setEnabled(tile: DynamicTile, enabled: Boolean) = preferencesStore.edit {
         it[tile.key] = enabled
     }
 
@@ -48,7 +58,7 @@ class DynamicTilePreferences(private val context: Context) : JsonSerializable {
      */
     override suspend fun fromJson(json: String) {
         val enabledObj = JSONObject(json).optJSONObject("enabled") ?: return
-        context.dynamicTileDataStore.edit { prefs ->
+        preferencesStore.edit { prefs ->
             DynamicTile.entries.forEach { tile ->
                 prefs[tile.key] = enabledObj.optBoolean(tile.name, true)
             }

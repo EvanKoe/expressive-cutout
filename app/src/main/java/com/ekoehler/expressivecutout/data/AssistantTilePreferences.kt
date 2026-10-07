@@ -15,6 +15,7 @@ import org.json.JSONObject
 
 /** Backing store for the assistant tile's settings. */
 private val Context.assistantTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "assistant_tile_prefs")
+private val Context.assistantTileClosedDataStore: DataStore<Preferences> by preferencesDataStore(name = "assistant_tile_prefs_closed")
 
 /** The assistant tile's settings, edited on its dedicated settings screen. */
 data class AssistantTileSettings(
@@ -35,9 +36,18 @@ data class AssistantTileSettings(
 }
 
 /** Persists the assistant tile's options (answer display, max cutout height, container colour). */
-class AssistantTilePreferences(private val context: Context) : JsonSerializable {
+class AssistantTilePreferences(
+    private val context: Context,
+    profile: kotlinx.coroutines.flow.Flow<Boolean> = LayoutPreferences(context).deviceClosed,
+) : JsonSerializable {
+    private val preferencesStore = PosturePreferencesStore(
+        context.assistantTileDataStore,
+        context.assistantTileClosedDataStore,
+        profile,
+    )
 
-    val settings: Flow<AssistantTileSettings> = context.assistantTileDataStore.data.map { prefs ->
+
+    val settings: Flow<AssistantTileSettings> = preferencesStore.data.map { prefs ->
         AssistantTileSettings(
             displayAnswerInCutout = prefs[DISPLAY_ANSWER_IN_CUTOUT] ?: AssistantTileSettings.DEFAULT_DISPLAY_ANSWER_IN_CUTOUT,
             maxCutoutHeightPercent = prefs[MAX_CUTOUT_HEIGHT_PERCENT] ?: AssistantTileSettings.DEFAULT_MAX_CUTOUT_HEIGHT_PERCENT,
@@ -60,7 +70,7 @@ class AssistantTilePreferences(private val context: Context) : JsonSerializable 
     /** Applies the [AssistantTileSettings] object exported by [toJson]; absent fields are left as-is. */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
-        context.assistantTileDataStore.edit {
+        preferencesStore.edit {
             if (obj.has("displayAnswerInCutout")) it[DISPLAY_ANSWER_IN_CUTOUT] = obj.getBoolean("displayAnswerInCutout")
             if (obj.has("maxCutoutHeightPercent")) it[MAX_CUTOUT_HEIGHT_PERCENT] = obj.getInt("maxCutoutHeightPercent").coerceIn(10, 80)
             if (obj.has("useAnimatedIcon")) it[USE_ANIMATED_ICON] = obj.getBoolean("useAnimatedIcon")
@@ -72,7 +82,7 @@ class AssistantTilePreferences(private val context: Context) : JsonSerializable 
         }
     }
 
-    suspend fun setDisplayAnswerInCutout(enabled: Boolean) = context.assistantTileDataStore.edit {
+    suspend fun setDisplayAnswerInCutout(enabled: Boolean) = preferencesStore.edit {
         it[DISPLAY_ANSWER_IN_CUTOUT] = enabled
     }
 
@@ -80,7 +90,7 @@ class AssistantTilePreferences(private val context: Context) : JsonSerializable 
      * Clamps to 10..80 percent: below that the tile has no room to draw, above it the island would
      * swallow most of the screen.
      */
-    suspend fun setMaxCutoutHeightPercent(percent: Int) = context.assistantTileDataStore.edit {
+    suspend fun setMaxCutoutHeightPercent(percent: Int) = preferencesStore.edit {
         it[MAX_CUTOUT_HEIGHT_PERCENT] = percent.coerceIn(10, 80)
     }
 
@@ -88,11 +98,11 @@ class AssistantTilePreferences(private val context: Context) : JsonSerializable 
      * Stores the icon container colour, or removes the key entirely for null so the tile falls back
      * to the theme default.
      */
-    suspend fun setIconContainerColor(color: CutoutColor?) = context.assistantTileDataStore.edit {
+    suspend fun setIconContainerColor(color: CutoutColor?) = preferencesStore.edit {
         if (color == null) it.remove(ICON_CONTAINER_COLOR) else it[ICON_CONTAINER_COLOR] = color.serialize()
     }
 
-    suspend fun setUseAnimatedIcon(enabled: Boolean) = context.assistantTileDataStore.edit {
+    suspend fun setUseAnimatedIcon(enabled: Boolean) = preferencesStore.edit {
         it[USE_ANIMATED_ICON] = enabled
     }
 
