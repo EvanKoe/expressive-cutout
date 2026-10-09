@@ -162,11 +162,14 @@ fun IslandEvent.primaryColor(): Color = when {
     else -> accent
 }
 
-/** The Material You [role] colour (dark/light to match the phone) on Android 12+, else a fallback. */
+/**
+ * The Material You [role] colour on Android 12+, else a fallback. The scheme matches the phone's
+ * light/dark setting, unless the role is one that [DynamicRole.forcesDarkScheme].
+ */
 @Composable
 internal fun dynamicRole(role: DynamicRole): Color {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
+    val dark = role.forcesDarkScheme || isSystemInDarkTheme()
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         scheme.forRole(role)
@@ -185,7 +188,7 @@ internal fun dynamicRole(role: DynamicRole): Color {
 @Composable
 fun onDynamicRole(role: DynamicRole): Color {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
+    val dark = role.forcesDarkScheme || isSystemInDarkTheme()
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         scheme.onForRole(role)
@@ -203,6 +206,17 @@ internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary
     DynamicRole.TERTIARY -> tertiary
+    // A _DARK tier reads the same slot; it is the scheme it was looked up in that differs.
+    DynamicRole.SURFACE_CONTAINER_LOWEST,
+    DynamicRole.SURFACE_CONTAINER_LOWEST_DARK -> surfaceContainerLowest
+    DynamicRole.SURFACE_CONTAINER_LOW,
+    DynamicRole.SURFACE_CONTAINER_LOW_DARK -> surfaceContainerLow
+    DynamicRole.SURFACE_CONTAINER,
+    DynamicRole.SURFACE_CONTAINER_DARK -> surfaceContainer
+    DynamicRole.SURFACE_CONTAINER_HIGH,
+    DynamicRole.SURFACE_CONTAINER_HIGH_DARK -> surfaceContainerHigh
+    DynamicRole.SURFACE_CONTAINER_HIGHEST,
+    DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK -> surfaceContainerHighest
 }
 
 /** The matching "on" colour for [role], for legible ink on a [forRole] fill. */
@@ -210,4 +224,15 @@ internal fun ColorScheme.onForRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> onPrimary
     DynamicRole.SECONDARY -> onSecondary
     DynamicRole.TERTIARY -> onTertiary
+    // Every surface-container tier shares one ink, as Material intends.
+    DynamicRole.SURFACE_CONTAINER_LOWEST,
+    DynamicRole.SURFACE_CONTAINER_LOW,
+    DynamicRole.SURFACE_CONTAINER,
+    DynamicRole.SURFACE_CONTAINER_HIGH,
+    DynamicRole.SURFACE_CONTAINER_HIGHEST,
+    DynamicRole.SURFACE_CONTAINER_LOWEST_DARK,
+    DynamicRole.SURFACE_CONTAINER_LOW_DARK,
+    DynamicRole.SURFACE_CONTAINER_DARK,
+    DynamicRole.SURFACE_CONTAINER_HIGH_DARK,
+    DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK -> onSurface
 }

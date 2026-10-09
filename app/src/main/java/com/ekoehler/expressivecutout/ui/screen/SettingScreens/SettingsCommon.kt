@@ -1,5 +1,7 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,27 +36,39 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.AppearanceSettings
+import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandPreview
+import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
+import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
+import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.components.groupedShape
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // Shared building blocks used by more than one settings sub-screen. Kept `internal` so each
 // screen file (same package, split across the SettingScreens/ folder) can reach them.
@@ -197,6 +212,9 @@ internal fun SettingsToggleCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    /** Ink for the title; the description takes it at 80% opacity. Null keeps the neutral pair. */
+    contentColor: Color? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
@@ -204,7 +222,7 @@ internal fun SettingsToggleCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Row(
             modifier = Modifier
@@ -216,12 +234,13 @@ internal fun SettingsToggleCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                    color = (contentColor ?: MaterialTheme.colorScheme.onSurface).copy(alpha = contentAlpha),
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                    color = (contentColor?.copy(alpha = 0.8f) ?: MaterialTheme.colorScheme.onSurfaceVariant)
+                        .copy(alpha = contentAlpha),
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -471,6 +490,68 @@ internal fun SettingsListItem(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
                 tint = fgColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * A round badge previewing a chosen icon: a [containerColor] disc (a faint neutral one when unset)
+ * behind the glyph — a picked image, a Material vector, or [placeholder] when no icon has been
+ * chosen yet. [glyphColor] overrides the ink the vector is drawn in, which otherwise contrasts
+ * with the disc. Mirrors how the overlay draws the icon on the island.
+ */
+@Composable
+internal fun EmptyIconThumbnail(
+    source: IconSource?,
+    containerColor: CutoutColor?,
+    size: Dp = 48.dp,
+    glyphColor: CutoutColor? = null,
+    placeholder: ImageVector = Icons.Rounded.Edit,
+) {
+    val context = LocalContext.current
+    val disc = containerColor?.resolve() ?: MaterialTheme.colorScheme.surfaceVariant
+    // Ink that reads on the disc: dark on a light fill, light on a dark one.
+    val glyph = glyphColor?.resolve()
+        ?: if (disc.luminance() > 0.5f) Color.Black.copy(alpha = 0.75f) else Color.White
+
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {
+        value = when (val current = source) {
+            is IconSource.Image -> withContext(Dispatchers.IO) {
+                Uri.parse(current.uri).loadImageBitmapOrNull(context)
+            }
+            is IconSource.Material, null -> null
+        }
+    }
+    val materialIcon = (source as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(disc),
+        contentAlignment = Alignment.Center,
+    ) {
+        val loaded = bitmap
+        when {
+            loaded != null -> Image(
+                bitmap = loaded,
+                contentDescription = null,
+                modifier = Modifier.size(size * 0.66f).clip(CircleShape),
+            )
+
+            materialIcon != null -> Icon(
+                imageVector = materialIcon,
+                contentDescription = null,
+                tint = glyph,
+                modifier = Modifier.size(size * 0.5f),
+            )
+
+            else -> Icon(
+                imageVector = placeholder,
+                contentDescription = null,
+                tint = glyph.copy(alpha = 0.5f),
+                modifier = Modifier.size(size * 0.4f),
             )
         }
     }

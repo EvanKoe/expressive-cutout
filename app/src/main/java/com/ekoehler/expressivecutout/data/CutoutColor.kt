@@ -3,8 +3,29 @@ package com.ekoehler.expressivecutout.data
 import androidx.compose.runtime.Immutable
 import kotlin.math.roundToInt
 
-/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
-enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
+/**
+ * Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows:
+ * the three accents, then the neutral surface-container tiers from lowest to highest. A tier comes
+ * in two forms — one following the phone's light/dark setting, and a `_DARK` one that resolves
+ * against the dark scheme whatever the phone is set to, since the island is usually dark on a light
+ * home screen. Each picker chooses which roles it offers, so the tiers only show where a neutral
+ * fill belongs.
+ */
+enum class DynamicRole(val forcesDarkScheme: Boolean = false) {
+    PRIMARY,
+    SECONDARY,
+    TERTIARY,
+    SURFACE_CONTAINER_LOWEST,
+    SURFACE_CONTAINER_LOW,
+    SURFACE_CONTAINER,
+    SURFACE_CONTAINER_HIGH,
+    SURFACE_CONTAINER_HIGHEST,
+    SURFACE_CONTAINER_LOWEST_DARK(forcesDarkScheme = true),
+    SURFACE_CONTAINER_LOW_DARK(forcesDarkScheme = true),
+    SURFACE_CONTAINER_DARK(forcesDarkScheme = true),
+    SURFACE_CONTAINER_HIGH_DARK(forcesDarkScheme = true),
+    SURFACE_CONTAINER_HIGHEST_DARK(forcesDarkScheme = true),
+}
 
 /** Fallback color strategy when AppIcon color is chosen but no app notification is active. */
 enum class AppColorFallback {

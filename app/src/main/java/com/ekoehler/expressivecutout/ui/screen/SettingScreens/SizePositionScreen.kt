@@ -205,7 +205,14 @@ private fun DimensionsEditor(
     var cornerBr by remember(dimensions.cornerBottomRightDp) { mutableStateOf(dimensions.cornerBottomRightDp.toFloat()) }
     // Start on the mode that matches the saved radii (re-derived when the persisted dimensions
     // load in or the tab switches), so opening the screen reflects the current shape.
-    var cornerMode by remember(dimensions) { mutableStateOf(cornerModeFor(dimensions)) }
+    var cornerMode by remember(dimensions) { mutableStateOf(
+        cornerModeFor(
+            dimensions.cornerTopLeftDp,
+            dimensions.cornerTopRightDp,
+            dimensions.cornerBottomLeftDp,
+            dimensions.cornerBottomRightDp,
+        )
+    ) }
 
     fun commit() = onChange(
         IslandDimensions.of(
@@ -337,25 +344,21 @@ private fun DimensionsEditor(
  * How many corner radii the user is editing at once: one for all four, one per side pair, or each
  * corner on its own.
  */
-private enum class CornerMode { All, TopBottom, Each }
+internal enum class CornerMode { All, TopBottom, Each }
 
 /**
- * The narrowest [CornerMode] that can represent [d]'s radii: [CornerMode.All] when all four match,
- * [CornerMode.TopBottom] when the top pair and bottom pair each match, otherwise [CornerMode.Each].
+ * The narrowest [CornerMode] that can represent the four radii: [CornerMode.All] when all of them
+ * match, [CornerMode.TopBottom] when the top pair and bottom pair each match, otherwise
+ * [CornerMode.Each].
  */
-private fun cornerModeFor(d: IslandDimensions): CornerMode = when {
-    d.cornerTopLeftDp == d.cornerTopRightDp &&
-        d.cornerBottomLeftDp == d.cornerBottomRightDp &&
-        d.cornerTopLeftDp == d.cornerBottomLeftDp -> CornerMode.All
-
-    d.cornerTopLeftDp == d.cornerTopRightDp &&
-        d.cornerBottomLeftDp == d.cornerBottomRightDp -> CornerMode.TopBottom
-
+internal fun cornerModeFor(topLeft: Int, topRight: Int, bottomLeft: Int, bottomRight: Int): CornerMode = when {
+    topLeft == topRight && bottomLeft == bottomRight && topLeft == bottomLeft -> CornerMode.All
+    topLeft == topRight && bottomLeft == bottomRight -> CornerMode.TopBottom
     else -> CornerMode.Each
 }
 
 @Composable
-private fun CornerRadiusControls(
+internal fun CornerRadiusControls(
     cornerTl: Float,
     cornerTr: Float,
     cornerBl: Float,

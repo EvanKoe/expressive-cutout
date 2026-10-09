@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
@@ -103,9 +104,12 @@ internal fun AppearanceScreen(
     contentPadding: PaddingValues,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenDismissWindow: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
     var strokeOpacity by remember(appearance.strokeOpacity) { mutableStateOf(appearance.strokeOpacity) }
 
@@ -227,6 +231,17 @@ internal fun AppearanceScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Dismiss window screen navigation
+        DismissWindowCard(
+            shape = groupedShape(isFirst = true, isLast = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenDismissWindow()
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Background color screen navigation
         BackgroundCard(
             shape = groupedShape(isFirst = true),
@@ -244,6 +259,52 @@ internal fun AppearanceScreen(
                 onOpenActionButtons()
             }
         )
+    }
+}
+
+/** A clickable card that navigates to the dedicated dismiss-window screen. */
+@Composable
+private fun DismissWindowCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.appearance_window_dismiss_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.appearance_window_dismiss_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -346,6 +407,16 @@ fun DynamicRole.dynamicDescription(): String = stringResource(
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary
         DynamicRole.TERTIARY -> R.string.cd_color_dynamic_tertiary
+        DynamicRole.SURFACE_CONTAINER_LOWEST -> R.string.cd_color_dynamic_surface_lowest
+        DynamicRole.SURFACE_CONTAINER_LOW -> R.string.cd_color_dynamic_surface_low
+        DynamicRole.SURFACE_CONTAINER -> R.string.cd_color_dynamic_surface
+        DynamicRole.SURFACE_CONTAINER_HIGH -> R.string.cd_color_dynamic_surface_high
+        DynamicRole.SURFACE_CONTAINER_HIGHEST -> R.string.cd_color_dynamic_surface_highest
+        DynamicRole.SURFACE_CONTAINER_LOWEST_DARK -> R.string.cd_color_dynamic_surface_lowest_dark
+        DynamicRole.SURFACE_CONTAINER_LOW_DARK -> R.string.cd_color_dynamic_surface_low_dark
+        DynamicRole.SURFACE_CONTAINER_DARK -> R.string.cd_color_dynamic_surface_dark
+        DynamicRole.SURFACE_CONTAINER_HIGH_DARK -> R.string.cd_color_dynamic_surface_high_dark
+        DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK -> R.string.cd_color_dynamic_surface_highest_dark
     },
 )
 
