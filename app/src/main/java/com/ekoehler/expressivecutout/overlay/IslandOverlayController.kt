@@ -400,7 +400,7 @@ class IslandOverlayController(private val context: Context) {
         // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
         // blank for as long as the service stays off.
         cutoutWidthJob?.cancel()
-        CutoutWidthBus.update(false)
+        CutoutWidthBus.update(widened = false, grownForDots = false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -1179,20 +1179,27 @@ class IslandOverlayController(private val context: Context) {
      * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
      * cutout right now, so "Automatically hide status bar icons" can follow the pill.
      *
+     * Also reports whether the pill is grown on its trailing edge to seat the permission dots,
+     * which the system icons sit behind: the pill only widens by a few dp there, so it is published
+     * on its own rather than as the whole cutout being wider.
+     *
      * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
      * before the pill covers them, while narrowing waits out the collapse animation so they don't
-     * reappear under a pill that is still shrinking.
+     * reappear under a pill that is still shrinking. Publishing the OR of old and new is what makes
+     * a flag that just came on land at once while one that just went off waits for the delay.
      */
     private fun publishCutoutWidth() {
         val widened = isWiderThanUsual()
+        val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0
         cutoutWidthJob?.cancel()
-        if (widened || !CutoutWidthBus.widened.value) {
-            CutoutWidthBus.update(widened)
-            return
-        }
+        CutoutWidthBus.update(
+            widened = widened || CutoutWidthBus.widened.value,
+            grownForDots = grownForDots || CutoutWidthBus.grownForDots.value,
+        )
+        if (widened == CutoutWidthBus.widened.value && grownForDots == CutoutWidthBus.grownForDots.value) return
         cutoutWidthJob = scope.launch {
             delay(WINDOW_SHRINK_DELAY_MS)
-            CutoutWidthBus.update(false)
+            CutoutWidthBus.update(widened, grownForDots)
         }
     }
 
@@ -1478,7 +1485,8 @@ class IslandOverlayController(private val context: Context) {
         val event = currentEvent.value
         if (event?.call != null) return 0
         // Only grown for a tile that writes on the trailing edge; elsewhere the dots fit as they are.
-        if (event == null || (event.timer == null && event.progressData == null)) return 0
+        if (event == null) return 0
+        if (!event.hasCollapsedTrailingContent(behaviourState.value.showStatusDot)) return 0
         return permissionDotTrailingInsetDp(
             PermissionUsageMonitor.usage.value,
             layoutState.value.collapsed.heightDp,
