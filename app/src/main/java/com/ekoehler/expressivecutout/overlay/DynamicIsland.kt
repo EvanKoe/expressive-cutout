@@ -958,6 +958,9 @@ fun DynamicIsland(
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
         val windowed = windowDismiss && (isExpanded || sliding)
+        // The outline belongs to whichever shape the user actually sees the edge of.
+        val outline = appearance.outlineStroke(surfaceColor, surfaceColor)
+        val windowStroke = outline.takeIf { windowed }
 
         Box(
             modifier = Modifier
@@ -966,32 +969,39 @@ fun DynamicIsland(
                 .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY)
                 .then(
                     if (windowed) {
-                        Modifier.graphicsLayer {
-                            shape = windowShape
-                            clip = true
-                            // The island's own shadow is cut away by the clip, so the window casts
-                            // it instead, fading out with the reveal rather than popping.
-                            shadowElevation = if (appearance.shadowEnabled) {
-                                ISLAND_SHADOW_ELEVATION_DP.dp.toPx() * (reveal.value / 0.2f).coerceIn(0f, 1f)
-                            } else {
-                                0f
+                        Modifier
+                            .graphicsLayer {
+                                shape = windowShape
+                                // One fade for the whole window: the island, the backdrop behind it,
+                                // the stroke and this layer's own shadow.
+                                alpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
+                                // The island's shadow is cut away by the clip below, so the window
+                                // casts it instead.
+                                shadowElevation = if (appearance.shadowEnabled) {
+                                    ISLAND_SHADOW_ELEVATION_DP.dp.toPx()
+                                } else {
+                                    0f
+                                }
                             }
-                        }
+                            // Outside the clip, so the stroke keeps its full width on the curve.
+                            .then(windowStroke?.let { Modifier.border(it, windowShape) } ?: Modifier)
+                            .graphicsLayer {
+                                shape = windowShape
+                                clip = true
+                            }
                     } else {
                         Modifier
                     }
                 ),
         ) {
             if (present || reveal.value > 0f) {
-                if (windowed) {
+                if (windowed && sliding) {
                     DismissBackdrop(
                         appearance = appearance,
                         appColor = surfaceColor,
                         iconSize = badgeIconSizeFor(collapsed.heightDp),
                         gapOnStart = dismissGapOnStart,
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer { alpha = (reveal.value / 0.2f).coerceIn(0f, 1f) },
+                        modifier = Modifier.matchParentSize(),
                     )
                 }
                 IslandSurface(
@@ -1007,7 +1017,8 @@ fun DynamicIsland(
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             val fade = if (windowDismiss) 1f else (1f - travel).coerceIn(0.25f, 1f)
-                            alpha = fade * revealAlpha
+                            // The window layer fades everything inside it, so this must not fade twice.
+                            alpha = if (windowed) 1f else fade * revealAlpha
                         }
                         .islandTapGestures(
                             event = shownEvent,
@@ -1052,6 +1063,7 @@ fun DynamicIsland(
                         ),
                     shape = islandShape,
                     appearance = appearance,
+                    drawStroke = !windowed,
                     progress = expandProgress,
                     appColor = surfaceColor,
                     adaptiveColor = surfaceColor,
@@ -1570,6 +1582,20 @@ fun IslandPreview(
 }
 
 /**
+ * The island's outline stroke, or null when the user has it switched off. The stroke's own opacity
+ * folds into the colour's alpha.
+ */
+@Composable
+internal fun AppearanceSettings.outlineStroke(appColor: Color?, adaptiveColor: Color?): BorderStroke? {
+    if (!strokeEnabled) return null
+    val baseColor = strokeColor.resolve(appColor, adaptiveColor)
+    return BorderStroke(
+        width = strokeWidthDp.dp,
+        color = baseColor.copy(alpha = (baseColor.alpha * strokeOpacity).coerceIn(0f, 1f)),
+    )
+}
+
+/**
  * The island's surface: shadow, optional stroke and the background fill. [progress] (0 = collapsed,
  * 1 = expanded) cross-fades the normal fill into the expanded fill, so if the two states use
  * different colours (or gradients) the background morphs in lockstep with the size animation.
@@ -1582,6 +1608,7 @@ internal fun IslandSurface(
     progress: Float,
     appColor: Color? = null,
     adaptiveColor: Color? = null,
+    drawStroke: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
@@ -1598,13 +1625,7 @@ internal fun IslandSurface(
 
     val autoContentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     val contentColor = appearance.textColor?.resolve(appColor, adaptiveColor) ?: autoContentColor
-    val border = if (appearance.strokeEnabled) {
-        val baseColor = appearance.strokeColor.resolve(appColor, adaptiveColor)
-        val strokeFinalColor = baseColor.copy(alpha = (baseColor.alpha * appearance.strokeOpacity).coerceIn(0f, 1f))
-        BorderStroke(appearance.strokeWidthDp.dp, strokeFinalColor)
-    } else {
-        null
-    }
+    val border = if (drawStroke) appearance.outlineStroke(appColor, adaptiveColor) else null
 
     Surface(
         modifier = modifier.background(currentBaseColor, shape),
