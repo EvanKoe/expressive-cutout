@@ -775,9 +775,10 @@ fun DynamicIsland(
     val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
         !isTiny
     val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
-    // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring —
-    // has anything for the dots to collide with. Everything else has empty pill there, so the dots
-    // fit as they are and the pill is left at the width the user chose.
+    // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring,
+    // a battery percentage, the status dot — has anything for the dots to collide with. Everything
+    // else has empty pill there, so the dots fit as they are and the pill is left at the width the
+    // user chose.
     //
     // Dropped for the resting pill, which is nobody's event: [shownEvent] outlives the cutout being
     // cleared, so an adaptive fill would keep wearing the last app's colour until something replaced it.
@@ -787,7 +788,8 @@ fun DynamicIsland(
     // or fading out, but clears it for the resting empty pill.
     val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let {
         it.timer != null || it.progressData != null ||
-            (it.media?.rightButton == true && !it.media.miniPlayer)
+            (it.media?.rightButton == true && !it.media.miniPlayer) ||
+            it.trailingText != null || (statusDotEnabled && it.statusDotColor != null)
     } == true
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
@@ -1705,7 +1707,7 @@ private fun CollapsedContent(
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.20f).dp),
+                        .padding(end = (heightDp * 0.20f).dp + trailingInsetDp.dp),
                 )
             } else if (statusDotEnabled && event.statusDotColor != null) {
                 RadiatingStatusDot(
@@ -1713,7 +1715,7 @@ private fun CollapsedContent(
                     sizeDp = (heightDp * 0.18f).dp,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.20f).dp),
+                        .padding(end = (heightDp * 0.20f).dp + trailingInsetDp.dp),
                 )
             }
         }
