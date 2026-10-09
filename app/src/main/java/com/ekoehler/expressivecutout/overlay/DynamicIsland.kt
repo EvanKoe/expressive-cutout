@@ -1707,7 +1707,7 @@ private fun CollapsedContent(
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.20f).dp + trailingInsetDp.dp),
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
             } else if (statusDotEnabled && event.statusDotColor != null) {
                 RadiatingStatusDot(
@@ -1715,7 +1715,7 @@ private fun CollapsedContent(
                     sizeDp = (heightDp * 0.18f).dp,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.20f).dp + trailingInsetDp.dp),
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
             }
         }
