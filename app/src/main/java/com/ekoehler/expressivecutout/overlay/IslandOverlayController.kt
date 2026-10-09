@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.notchOverhangDp
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
@@ -1336,7 +1337,7 @@ class IslandOverlayController(private val context: Context) {
         val dims = effectiveDims(layoutState.value, expanded = false)
         val gapPx = (CALL_SPLIT_GAP_DP * density).toInt()
         val capsuleWidthPx = (callSplitHangUpWidthDp(dims.heightDp) * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         val pillCenterX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
         val capsuleCenterX = pillCenterX + pillWidthPx / 2 + gapPx + capsuleWidthPx / 2
@@ -1367,7 +1368,8 @@ class IslandOverlayController(private val context: Context) {
         val gapPx = (SATELLITE_GAP_DP * density).toInt()
         val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+            notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
             satelliteShiftPx(splitPx)
@@ -1402,7 +1404,8 @@ class IslandOverlayController(private val context: Context) {
         val bonusDp = currentHeightBonusDp(expanded)
         val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+            notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         // The pill grows to the right for the dots, so its centre moves with it; a bubble beside it
         // pushes the centre the other way by half of the width it gave up.
@@ -1469,9 +1472,17 @@ class IslandOverlayController(private val context: Context) {
         // The window is centred on the screen, so a pill pushed off-centre (the tiny "Mini player"
         // parked beside the camera) needs twice its offset of extra width or it is clipped.
         val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
-            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2
+            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2 +
+            dims.notchOverhangDp * 2
         return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
     }
+
+    /**
+     * The ears a notch hangs off each side, in pixels — the amount every touch rectangle has to grow
+     * by so what is tappable still matches what [DynamicIsland] draws.
+     */
+    private fun notchOverhangPx(dims: IslandDimensions): Int =
+        (dims.notchOverhangDp * 2 * density).toInt()
 
     /**
      * How much wider the collapsed pill is drawn to fit the permission dots on its trailing edge, so

@@ -153,6 +153,9 @@
     <string name="appearance_height">Hauteur</string>
     <string name="appearance_top_margin">Marge haute</string>
     <string name="appearance_corner">Rayon des coins</string>
+    <string name="appearance_notch">Encoche</string>
+    <string name="appearance_notch_desc">Accroche la découpe au bord supérieur, avec des coins incurvés vers l’extérieur</string>
+    <string name="appearance_notch_flare">Rayon inversé</string>
     <string name="corner_mode_all">Tous</string>
     <string name="corner_mode_split">H/B</string>
     <string name="corner_mode_each">Chacun</string>

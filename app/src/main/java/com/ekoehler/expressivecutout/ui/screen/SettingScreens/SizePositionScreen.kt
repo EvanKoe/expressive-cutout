@@ -203,6 +203,8 @@ private fun DimensionsEditor(
     var cornerTr by remember(dimensions.cornerTopRightDp) { mutableStateOf(dimensions.cornerTopRightDp.toFloat()) }
     var cornerBl by remember(dimensions.cornerBottomLeftDp) { mutableStateOf(dimensions.cornerBottomLeftDp.toFloat()) }
     var cornerBr by remember(dimensions.cornerBottomRightDp) { mutableStateOf(dimensions.cornerBottomRightDp.toFloat()) }
+    var notch by remember(dimensions.isNotch) { mutableStateOf(dimensions.isNotch) }
+    var notchFlare by remember(dimensions.notchFlareDp) { mutableStateOf(dimensions.notchFlareDp.toFloat()) }
     // Start on the mode that matches the saved radii (re-derived when the persisted dimensions
     // load in or the tab switches), so opening the screen reflects the current shape.
     var cornerMode by remember(dimensions) { mutableStateOf(
@@ -225,6 +227,8 @@ private fun DimensionsEditor(
             cornerBottomLeftDp = cornerBl.roundToInt(),
             cornerBottomRightDp = cornerBr.roundToInt(),
             topMarginDp = topMargin.roundToInt(),
+            isNotch = notch,
+            notchFlareDp = notchFlare.roundToInt(),
         ),
     )
 
@@ -270,17 +274,19 @@ private fun DimensionsEditor(
             }
         }
 
-        // Vertical position
-        MaterialCard {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_vertical),
-                valueText = "${offsetY.roundToInt()} dp",
-                value = offsetY,
-                valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
-                step = 2f,
-                onValueChange = { offsetY = it },
-                onCommit = { commit() },
-            )
+        // Vertical position - a notch hangs off the top edge, so it has none to offer
+        if (!notch) {
+            MaterialCard {
+                AdjustableSlider(
+                    label = stringResource(R.string.appearance_vertical),
+                    valueText = "${offsetY.roundToInt()} dp",
+                    value = offsetY,
+                    valueRange = IslandDimensions.MIN_OFFSET_Y_DP.toFloat()..IslandDimensions.MAX_OFFSET_Y_DP.toFloat(),
+                    step = 2f,
+                    onValueChange = { offsetY = it },
+                    onCommit = { commit() },
+                )
+            }
         }
 
         // Horizontal position
@@ -296,6 +302,28 @@ private fun DimensionsEditor(
             )
         }
 
+        // Notch mode
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = true, isLast = !notch),
+            title = stringResource(R.string.appearance_notch),
+            description = stringResource(R.string.appearance_notch_desc),
+            checked = notch,
+            onCheckedChange = { notch = it; commit() },
+        ) {
+            if (notch) {
+                AdjustableSlider(
+                    label = stringResource(R.string.appearance_notch_flare),
+                    valueText = "${notchFlare.roundToInt()} dp",
+                    value = notchFlare,
+                    valueRange = IslandDimensions.MIN_NOTCH_FLARE_DP.toFloat()..
+                        IslandDimensions.MAX_NOTCH_FLARE_DP.toFloat(),
+                    step = 1f,
+                    onValueChange = { notchFlare = it },
+                    onCommit = { commit() },
+                )
+            }
+        }
+
         // Corner radius settings
         CornerRadiusControls(
             cornerTl = cornerTl,
@@ -309,6 +337,7 @@ private fun DimensionsEditor(
             onBlChange = { cornerBl = it },
             onBrChange = { cornerBr = it },
             onCommit = { commit() },
+            topCornersEditable = !notch,
         )
 
         Spacer(Modifier.size(4.dp))
@@ -325,6 +354,8 @@ private fun DimensionsEditor(
                 cornerTr = defaults.cornerTopRightDp.toFloat()
                 cornerBl = defaults.cornerBottomLeftDp.toFloat()
                 cornerBr = defaults.cornerBottomRightDp.toFloat()
+                notch = defaults.isNotch
+                notchFlare = defaults.notchFlareDp.toFloat()
                 onChange(defaults)
             },
             modifier = Modifier.fillMaxWidth(),
@@ -357,6 +388,11 @@ internal fun cornerModeFor(topLeft: Int, topRight: Int, bottomLeft: Int, bottomR
     else -> CornerMode.Each
 }
 
+/**
+ * The corner-radius editor: a mode picker over one, two or four radius sliders. Pass
+ * [topCornersEditable] = false for a notch, whose flare replaces the top corners entirely — the
+ * mode picker then drops away and only the bottom pair is left to round.
+ */
 @Composable
 internal fun CornerRadiusControls(
     cornerTl: Float,
@@ -370,6 +406,7 @@ internal fun CornerRadiusControls(
     onBlChange: (Float) -> Unit,
     onBrChange: (Float) -> Unit,
     onCommit: () -> Unit,
+    topCornersEditable: Boolean = true,
 ) {
     val range = IslandDimensions.MIN_CORNER_DP.toFloat()..IslandDimensions.MAX_CORNER_DP.toFloat()
     val modes = CornerMode.entries
@@ -390,6 +427,19 @@ internal fun CornerRadiusControls(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (!topCornersEditable) {
+            MaterialCard(shape = groupedShape(isLast = true)) {
+                CornerSlider(
+                    label = stringResource(R.string.appearance_corner_bottom),
+                    value = cornerBl,
+                    range = range,
+                    onValueChange = { onCornerChanged(onBlChange, it); onCornerChanged(onBrChange, it) },
+                    onCommit = onCommit,
+                )
+            }
+            return@Column
+        }
+
         ExpressivePillRow(
             options = modes.map { cornerMode ->
                 when (cornerMode) {

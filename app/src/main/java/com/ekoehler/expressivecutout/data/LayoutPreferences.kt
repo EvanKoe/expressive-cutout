@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -67,6 +68,8 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerBottomLeftDp = getInt("cornerBottomLeftDp"),
             cornerBottomRightDp = getInt("cornerBottomRightDp"),
             topMarginDp = optInt("topMarginDp", IslandDimensions.DEFAULT_TOP_MARGIN_DP),
+            isNotch = optBoolean("isNotch", false),
+            notchFlareDp = optInt("notchFlareDp", IslandDimensions.DEFAULT_NOTCH_FLARE_DP),
         )
     }.getOrNull()
 
@@ -84,6 +87,8 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         put("cornerBottomLeftDp", cornerBottomLeftDp)
         put("cornerBottomRightDp", cornerBottomRightDp)
         put("topMarginDp", topMarginDp)
+        put("isNotch", isNotch)
+        put("notchFlareDp", notchFlareDp)
     }
 
     suspend fun setCollapsed(dimensions: IslandDimensions) = context.layoutDataStore.edit {
@@ -107,6 +112,8 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerBottomLeftDp = this[keys.cornerBottomLeft] ?: default.cornerBottomLeftDp,
             cornerBottomRightDp = this[keys.cornerBottomRight] ?: default.cornerBottomRightDp,
             topMarginDp = this[keys.topMargin] ?: default.topMarginDp,
+            isNotch = this[keys.notch] ?: default.isNotch,
+            notchFlareDp = this[keys.notchFlare] ?: default.notchFlareDp,
         )
 
     /**
@@ -123,6 +130,8 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         this[keys.cornerBottomLeft] = dimensions.cornerBottomLeftDp
         this[keys.cornerBottomRight] = dimensions.cornerBottomRightDp
         this[keys.topMargin] = dimensions.topMarginDp
+        this[keys.notch] = dimensions.isNotch
+        this[keys.notchFlare] = dimensions.notchFlareDp
     }
 
     /** The preference keys backing one island state. */
@@ -136,6 +145,8 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         val cornerBottomLeft = intPreferencesKey("${prefix}_corner_bl")
         val cornerBottomRight = intPreferencesKey("${prefix}_corner_br")
         val topMargin = intPreferencesKey("${prefix}_top_margin")
+        val notch = booleanPreferencesKey("${prefix}_notch")
+        val notchFlare = intPreferencesKey("${prefix}_notch_flare")
 
         companion object {
             val Collapsed = Keys("collapsed")
