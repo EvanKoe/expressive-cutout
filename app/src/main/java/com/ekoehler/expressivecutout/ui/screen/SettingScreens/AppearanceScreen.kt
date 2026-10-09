@@ -91,6 +91,7 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -112,6 +113,7 @@ internal fun AppearanceScreen(
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
     var strokeOpacity by remember(appearance.strokeOpacity) { mutableStateOf(appearance.strokeOpacity) }
     var showDismissIconSheet by remember { mutableStateOf(false) }
@@ -287,8 +289,16 @@ internal fun AppearanceScreen(
                     onSelect = viewModel::setDismissBackdropColor,
                     defaultLabel = stringResource(R.string.label_default),
                     dynamicRoles = BACKDROP_DYNAMIC_ROLES,
-                    shape = groupedShape(isLast = true),
+                    shape = groupedShape(),
                     allowAppIcon = true,
+                )
+
+                // Sliding island corner radii
+                DismissCornerCard(
+                    appearance = appearance,
+                    expanded = layout.expanded,
+                    onCommit = viewModel::setDismissCorners,
+                    onReset = viewModel::resetDismissCorners,
                 )
             }
         }
@@ -364,6 +374,77 @@ private val BACKDROP_DYNAMIC_ROLES = listOf(
     DynamicRole.SURFACE_CONTAINER_HIGH_DARK,
     DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK,
 )
+
+/**
+ * The corner radii of the island that slides inside the dismiss window, with the same all /
+ * top-bottom / each control the cutout's own corners get in Size & position. Until the user touches
+ * it, each radius follows [expanded]'s matching corner, and [onReset] hands them back to it.
+ */
+@Composable
+private fun DismissCornerCard(
+    appearance: AppearanceSettings,
+    expanded: IslandDimensions,
+    onCommit: (Int, Int, Int, Int) -> Unit,
+    onReset: () -> Unit,
+) {
+    val tlDp = appearance.dismissCornerTopLeftDp ?: expanded.cornerTopLeftDp
+    val trDp = appearance.dismissCornerTopRightDp ?: expanded.cornerTopRightDp
+    val blDp = appearance.dismissCornerBottomLeftDp ?: expanded.cornerBottomLeftDp
+    val brDp = appearance.dismissCornerBottomRightDp ?: expanded.cornerBottomRightDp
+
+    var cornerTl by remember(tlDp) { mutableStateOf(tlDp.toFloat()) }
+    var cornerTr by remember(trDp) { mutableStateOf(trDp.toFloat()) }
+    var cornerBl by remember(blDp) { mutableStateOf(blDp.toFloat()) }
+    var cornerBr by remember(brDp) { mutableStateOf(brDp.toFloat()) }
+    var cornerMode by remember(tlDp, trDp, blDp, brDp) {
+        mutableStateOf(cornerModeFor(tlDp, trDp, blDp, brDp))
+    }
+
+    val overridden = appearance.dismissCornerTopLeftDp != null
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = groupedShape(isLast = true),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.appearance_dismiss_corners),
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            CornerRadiusControls(
+                cornerTl = cornerTl,
+                cornerTr = cornerTr,
+                cornerBl = cornerBl,
+                cornerBr = cornerBr,
+                mode = cornerMode,
+                onModeChange = { cornerMode = it },
+                onTlChange = { cornerTl = it },
+                onTrChange = { cornerTr = it },
+                onBlChange = { cornerBl = it },
+                onBrChange = { cornerBr = it },
+                onCommit = {
+                    onCommit(
+                        cornerTl.roundToInt(),
+                        cornerTr.roundToInt(),
+                        cornerBl.roundToInt(),
+                        cornerBr.roundToInt(),
+                    )
+                },
+            )
+
+            AnimatedVisibility(visible = overridden) {
+                TextButton(onClick = onReset) {
+                    Text(stringResource(R.string.appearance_dismiss_corners_follow))
+                }
+            }
+        }
+    }
+}
 
 /** A clickable card opening the picker for the glyph drawn on the dismiss backdrop. */
 @Composable

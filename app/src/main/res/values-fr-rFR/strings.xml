@@ -287,6 +287,8 @@
     <string name="appearance_dismiss_icon_desc">Le symbole découvert derrière l’îlot</string>
     <string name="appearance_dismiss_icon_color">Couleur de l’icône de fermeture</string>
     <string name="appearance_dismiss_backdrop_color">Couleur du fond de fermeture</string>
+    <string name="appearance_dismiss_corners">Coins de l’îlot qui glisse</string>
+    <string name="appearance_dismiss_corners_follow">Suivre les coins de l’îlot</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Préférer la couleur d’icône dynamique</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Utiliser l’icône Material You dynamique quand elle existe, ou l’icône simple sinon</string>
     <string name="appearance_show_full_notification_text_title">Afficher tout le texte de la notification</string>

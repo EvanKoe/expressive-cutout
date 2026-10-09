@@ -287,6 +287,8 @@
     <string name="appearance_dismiss_icon_desc">The glyph uncovered behind the cutout</string>
     <string name="appearance_dismiss_icon_color">Dismiss icon color</string>
     <string name="appearance_dismiss_backdrop_color">Dismiss backdrop color</string>
+    <string name="appearance_dismiss_corners">Sliding cutout corners</string>
+    <string name="appearance_dismiss_corners_follow">Follow the cutout’s own corners</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Prefer dynamic icon color</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Use dynamic Material You app icon when available, or plain icon when off</string>
     <string name="appearance_show_full_notification_text_title">Show full notification text</string>

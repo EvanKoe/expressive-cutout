@@ -253,6 +253,8 @@
     <string name="appearance_dismiss_icon_desc">Adacığın altından çıkan simge</string>
     <string name="appearance_dismiss_icon_color">Kapatma simgesi rengi</string>
     <string name="appearance_dismiss_backdrop_color">Kapatma arka planı rengi</string>
+    <string name="appearance_dismiss_corners">Kayan adacık köşeleri</string>
+    <string name="appearance_dismiss_corners_follow">Adacığın kendi köşelerini kullan</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Dinamik simge rengini tercih et</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Mevcut olduğunda dinamik Material You uygulama simgesini kullan, kapalıyken düz simgeyi kullan</string>
     <string name="appearance_show_full_notification_text_title">Bildirimin tam metnini göster</string>

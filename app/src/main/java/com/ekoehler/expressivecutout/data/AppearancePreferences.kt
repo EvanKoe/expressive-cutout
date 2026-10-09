@@ -25,9 +25,10 @@ private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDa
  * The action-button block ([actionButtonStyle] … [cancelButtonOnLeft]) styles the chips and inline
  * reply field shown in the expanded cutout; whether they appear at all is [BehaviourSettings.showActionButtons].
  *
- * The dismiss block ([windowDismiss] … [dismissBackdropColor]) styles the swipe-to-dismiss gesture:
- * with [windowDismiss] on, the island slides inside its own clipped box and uncovers a backdrop
- * carrying the dismiss icon, instead of sliding away and fading out.
+ * The dismiss block ([windowDismiss] … [dismissCornerBottomRightDp]) styles the swipe-to-dismiss
+ * gesture: with [windowDismiss] on, the island slides inside its own clipped box and uncovers a
+ * backdrop carrying the dismiss icon, instead of sliding away and fading out. The four corner
+ * radii round the sliding island itself, and a null one follows the expanded cutout's own corner.
  */
 data class AppearanceSettings(
     val shadowEnabled: Boolean = DEFAULT_SHADOW_ENABLED,
@@ -56,6 +57,10 @@ data class AppearanceSettings(
     val dismissIcon: IconSource? = DEFAULT_DISMISS_ICON,
     val dismissIconColor: CutoutColor? = DEFAULT_DISMISS_ICON_COLOR,
     val dismissBackdropColor: CutoutColor? = DEFAULT_DISMISS_BACKDROP_COLOR,
+    val dismissCornerTopLeftDp: Int? = null,
+    val dismissCornerTopRightDp: Int? = null,
+    val dismissCornerBottomLeftDp: Int? = null,
+    val dismissCornerBottomRightDp: Int? = null,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -151,6 +156,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             dismissIcon = prefs[DISMISS_ICON]?.let { IconSource.decode(it) },
             dismissIconColor = CutoutColor.deserialize(prefs[DISMISS_ICON_COLOR]),
             dismissBackdropColor = CutoutColor.deserialize(prefs[DISMISS_BACKDROP_COLOR]),
+            dismissCornerTopLeftDp = prefs[DISMISS_CORNER_TL]?.coerceIn(CORNER_RANGE),
+            dismissCornerTopRightDp = prefs[DISMISS_CORNER_TR]?.coerceIn(CORNER_RANGE),
+            dismissCornerBottomLeftDp = prefs[DISMISS_CORNER_BL]?.coerceIn(CORNER_RANGE),
+            dismissCornerBottomRightDp = prefs[DISMISS_CORNER_BR]?.coerceIn(CORNER_RANGE),
         )
     }
 
@@ -184,6 +193,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("dismissIcon", s.dismissIcon?.encode() ?: JSONObject.NULL)
             put("dismissIconColor", s.dismissIconColor?.serialize() ?: JSONObject.NULL)
             put("dismissBackdropColor", s.dismissBackdropColor?.serialize() ?: JSONObject.NULL)
+            put("dismissCornerTopLeftDp", s.dismissCornerTopLeftDp ?: JSONObject.NULL)
+            put("dismissCornerTopRightDp", s.dismissCornerTopRightDp ?: JSONObject.NULL)
+            put("dismissCornerBottomLeftDp", s.dismissCornerBottomLeftDp ?: JSONObject.NULL)
+            put("dismissCornerBottomRightDp", s.dismissCornerBottomRightDp ?: JSONObject.NULL)
         }.toString()
     }
 
@@ -247,6 +260,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             }
             it.applyNullableColor(obj, "dismissIconColor", DISMISS_ICON_COLOR)
             it.applyNullableColor(obj, "dismissBackdropColor", DISMISS_BACKDROP_COLOR)
+            it.applyNullableCorner(obj, "dismissCornerTopLeftDp", DISMISS_CORNER_TL)
+            it.applyNullableCorner(obj, "dismissCornerTopRightDp", DISMISS_CORNER_TR)
+            it.applyNullableCorner(obj, "dismissCornerBottomLeftDp", DISMISS_CORNER_BL)
+            it.applyNullableCorner(obj, "dismissCornerBottomRightDp", DISMISS_CORNER_BR)
         }
     }
 
@@ -260,6 +277,16 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val raw = if (obj.isNull(field)) null else obj.optString(field)
         val color = CutoutColor.deserialize(raw)
         if (color == null) remove(key) else this[key] = color.serialize()
+    }
+
+    /** Sets [key] from a nullable corner field: a JSON null (or missing radius) clears the override. */
+    private fun MutablePreferences.applyNullableCorner(
+        obj: JSONObject,
+        field: String,
+        key: Preferences.Key<Int>,
+    ) {
+        if (!obj.has(field)) return
+        if (obj.isNull(field)) remove(key) else this[key] = obj.getInt(field).coerceIn(CORNER_RANGE)
     }
 
     suspend fun setShadowEnabled(enabled: Boolean) = context.appearanceDataStore.edit {
@@ -393,7 +420,27 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(DISMISS_BACKDROP_COLOR) else it[DISMISS_BACKDROP_COLOR] = color.serialize()
     }
 
+    /** Rounds the sliding island's four corners, clamped to the range the sliders offer. */
+    suspend fun setDismissCorners(topLeft: Int, topRight: Int, bottomLeft: Int, bottomRight: Int) =
+        context.appearanceDataStore.edit {
+            it[DISMISS_CORNER_TL] = topLeft.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_TR] = topRight.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_BL] = bottomLeft.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_BR] = bottomRight.coerceIn(CORNER_RANGE)
+        }
+
+    /** Drops the override, so the sliding island follows the expanded cutout's own corners again. */
+    suspend fun clearDismissCorners() = context.appearanceDataStore.edit {
+        it.remove(DISMISS_CORNER_TL)
+        it.remove(DISMISS_CORNER_TR)
+        it.remove(DISMISS_CORNER_BL)
+        it.remove(DISMISS_CORNER_BR)
+    }
+
     private companion object {
+        /** The radii the corner sliders offer, shared by the store's clamping. */
+        val CORNER_RANGE = IslandDimensions.MIN_CORNER_DP..IslandDimensions.MAX_CORNER_DP
+
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
@@ -424,5 +471,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val DISMISS_ICON = stringPreferencesKey("dismiss_icon")
         val DISMISS_ICON_COLOR = stringPreferencesKey("dismiss_icon_color")
         val DISMISS_BACKDROP_COLOR = stringPreferencesKey("dismiss_backdrop_color")
+        val DISMISS_CORNER_TL = intPreferencesKey("dismiss_corner_top_left_dp")
+        val DISMISS_CORNER_TR = intPreferencesKey("dismiss_corner_top_right_dp")
+        val DISMISS_CORNER_BL = intPreferencesKey("dismiss_corner_bottom_left_dp")
+        val DISMISS_CORNER_BR = intPreferencesKey("dismiss_corner_bottom_right_dp")
     }
 }

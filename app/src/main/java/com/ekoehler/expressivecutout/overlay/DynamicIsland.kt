@@ -543,7 +543,7 @@ fun DynamicIsland(
     val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
-    val windowDismiss = appearance.windowDismiss && (isExpanded || !showsWhenEmpty)
+    val windowDismiss = appearance.windowDismiss && !emptyPill && (isExpanded || !showsWhenEmpty)
     // Derived so only these two flips recompose, not every frame of the slide.
     val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
     val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
@@ -842,10 +842,40 @@ fun DynamicIsland(
         spec, label = "islandOffsetX"
     )
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
-    val topLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
-    val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
-    val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
-    val bottomRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
+    // In window mode the sliding island rounds itself; the window it slides in keeps the corners the
+    // cutout was given in Size & position.
+    fun innerCorner(override: Int?, own: Int) =
+        (if (windowDismiss && isExpanded) override ?: own else own).dp
+
+    val topLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp),
+        spec, label = "cornerTL"
+    )
+    val topRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp),
+        spec, label = "cornerTR"
+    )
+    val bottomLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerBottomLeftDp, dims.cornerBottomLeftDp),
+        spec, label = "cornerBL"
+    )
+    val bottomRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerBottomRightDp, dims.cornerBottomRightDp),
+        spec, label = "cornerBR"
+    )
+
+    val windowTopLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "windowCornerTL"
+    )
+    val windowTopRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "windowCornerTR"
+    )
+    val windowBottomLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "windowCornerBL"
+    )
+    val windowBottomRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "windowCornerBR"
+    )
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
@@ -860,6 +890,10 @@ fun DynamicIsland(
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
+    val revealWindowTopLeft = lerpDp(dotCorner, windowTopLeft, reveal.value)
+    val revealWindowTopRight = lerpDp(dotCorner, windowTopRight, reveal.value)
+    val revealWindowBottomLeft = lerpDp(dotCorner, windowBottomLeft, reveal.value)
+    val revealWindowBottomRight = lerpDp(dotCorner, windowBottomRight, reveal.value)
 
     // The bubble is hidden whenever the expanded card is up (it would claim the same room), during a
     // call (the call cutout fills its own trailing edge) and when stuck to the camera. Kept in a
@@ -915,15 +949,38 @@ fun DynamicIsland(
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
         val islandShape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight)
-        // Clipped only off the rest position: a permanent clip would swallow the surface's shadow.
-        val windowed = windowDismiss && sliding
+        val windowShape = cornerShape(
+            revealWindowTopLeft,
+            revealWindowTopRight,
+            revealWindowBottomLeft,
+            revealWindowBottomRight,
+        )
+        // The expanded island stays truncated by the window even at rest, which is the whole point
+        // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
+        val windowed = windowDismiss && (isExpanded || sliding)
 
         Box(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
                 .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY)
-                .then(if (windowed) Modifier.clip(islandShape) else Modifier),
+                .then(
+                    if (windowed) {
+                        Modifier.graphicsLayer {
+                            shape = windowShape
+                            clip = true
+                            // The island's own shadow is cut away by the clip, so the window casts
+                            // it instead, fading out with the reveal rather than popping.
+                            shadowElevation = if (appearance.shadowEnabled) {
+                                ISLAND_SHADOW_ELEVATION_DP.dp.toPx() * (reveal.value / 0.2f).coerceIn(0f, 1f)
+                            } else {
+                                0f
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+                ),
         ) {
             if (present || reveal.value > 0f) {
                 if (windowed) {
@@ -1389,6 +1446,9 @@ private fun Modifier.islandSwipeToDismiss(
 }
 
 
+/** The elevation the island casts when its shadow is switched on. */
+private const val ISLAND_SHADOW_ELEVATION_DP = 6
+
 /** How far the dismiss glyph sits from the window edge it is pinned to. */
 private const val DISMISS_GLYPH_INSET_DP = 20
 
@@ -1551,7 +1611,7 @@ internal fun IslandSurface(
         shape = shape,
         color = currentBaseColor,
         contentColor = contentColor,
-        shadowElevation = if (appearance.shadowEnabled) 6.dp else 0.dp,
+        shadowElevation = if (appearance.shadowEnabled) ISLAND_SHADOW_ELEVATION_DP.dp else 0.dp,
         tonalElevation = 0.dp,
         border = border,
     ) {

@@ -800,6 +800,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setDismissBackdropColor(color)
     }
 
+    fun setDismissCorners(topLeft: Int, topRight: Int, bottomLeft: Int, bottomRight: Int) = viewModelScope.launch {
+        appearancePreferences.setDismissCorners(topLeft, topRight, bottomLeft, bottomRight)
+    }
+
+    fun resetDismissCorners() = viewModelScope.launch {
+        appearancePreferences.clearDismissCorners()
+    }
+
     /**
      * When the system status bar's notification icons are hidden: never, only while the island is
      * drawn wider than its normal cutout, or the whole time. Saved even while Shizuku is
