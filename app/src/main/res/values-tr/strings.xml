@@ -248,6 +248,7 @@
     <string name="appearance_show_timestamp_title">Zaman damgasını göster</string>
     <string name="appearance_show_timestamp_desc">Bildirimin şu ana göre ne zaman geldiğini göster</string>
     <string name="appearance_window_dismiss_title">Pencere içinde kapat</string>
+    <string name="appearance_window_dismiss_enable">Pencere içinde kapatmayı etkinleştir</string>
     <string name="appearance_window_dismiss_desc">Kaydırma, adacığı kendi çerçevesi içinde kaydırıp altındaki simgeyi gösterir; sönümleyerek kaybolmaz</string>
     <string name="appearance_dismiss_icon">Kapatma simgesi</string>
     <string name="appearance_dismiss_icon_desc">Adacığın altından çıkan simge</string>

@@ -282,6 +282,7 @@
     <string name="appearance_show_timestamp_title">Afficher l’horodatage</string>
     <string name="appearance_show_timestamp_desc">Afficher quand la notification est arrivée, par rapport à maintenant</string>
     <string name="appearance_window_dismiss_title">Fermer dans une fenêtre</string>
+    <string name="appearance_window_dismiss_enable">Activer la fermeture dans une fenêtre</string>
     <string name="appearance_window_dismiss_desc">Le balayage fait glisser l’îlot à l’intérieur de son propre cadre et découvre une icône, au lieu de l’emporter en fondu</string>
     <string name="appearance_dismiss_icon">Icône de fermeture</string>
     <string name="appearance_dismiss_icon_desc">Le symbole découvert derrière l’îlot</string>

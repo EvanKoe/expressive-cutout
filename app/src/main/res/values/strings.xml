@@ -282,6 +282,7 @@
     <string name="appearance_show_timestamp_title">Show timestamp</string>
     <string name="appearance_show_timestamp_desc">Display when the notification arrived relative to now</string>
     <string name="appearance_window_dismiss_title">Dismiss inside a window</string>
+    <string name="appearance_window_dismiss_enable">Enable dismiss inside a window</string>
     <string name="appearance_window_dismiss_desc">Swiping slides the cutout inside its own box, uncovering an icon, instead of sliding it away and fading it out</string>
     <string name="appearance_dismiss_icon">Dismiss icon</string>
     <string name="appearance_dismiss_icon_desc">The glyph uncovered behind the cutout</string>

@@ -1472,7 +1472,7 @@ private const val DISMISS_GLYPH_INSET_DP = 20
  * to a single colour would destroy it, so the icon colour reaches Material glyphs only.
  */
 @Composable
-private fun DismissBackdrop(
+internal fun DismissBackdrop(
     appearance: AppearanceSettings,
     appColor: Color?,
     iconSize: Dp,

@@ -225,6 +225,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                             onOpenBackground = { settingsRoute = SettingsRoute.Background },
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
+                            onOpenDismissWindow = { settingsRoute = SettingsRoute.DismissWindow },
                             onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
                             onOpenPermissionDot = { settingsRoute = SettingsRoute.PermissionDot },
                             onOpenSystemEvents = { settingsRoute = SettingsRoute.SystemEvents },
@@ -305,6 +306,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                         SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
                         SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
+                        SettingsRoute.DismissWindow -> stringResource(R.string.appearance_window_dismiss_title)
                         SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
                         SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
                         SettingsRoute.SystemEvents -> stringResource(R.string.integrations_system_events_title)

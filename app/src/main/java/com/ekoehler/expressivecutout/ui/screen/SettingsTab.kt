@@ -88,6 +88,7 @@ fun SettingsTab(
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenDismissWindow: () -> Unit,
     onOpenShizuku: () -> Unit,
     onOpenPermissionDot: () -> Unit,
     onOpenSystemEvents: () -> Unit,
@@ -164,9 +165,16 @@ fun SettingsTab(
             SettingsRoute.ShowsWhenEmpty -> ShowsWhenEmptyScreen(viewModel, contentPadding)
             SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
             SettingsRoute.Appearance ->
-                AppearanceScreen(viewModel, contentPadding, onOpenBackground, onOpenActionButtons)
+                AppearanceScreen(
+                    viewModel,
+                    contentPadding,
+                    onOpenBackground,
+                    onOpenActionButtons,
+                    onOpenDismissWindow,
+                )
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
+            SettingsRoute.DismissWindow -> DismissWindowScreen(viewModel, contentPadding)
             SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding, onOpenPermissionDot)
             SettingsRoute.PermissionDot -> PermissionDotScreen(viewModel, contentPadding)
             SettingsRoute.SystemEvents -> SystemEventsScreen(viewModel, contentPadding, onOpenEvent)
@@ -178,7 +186,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, Shizuku, PermissionDot, SystemEvents, EventDetail }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, DismissWindow, Shizuku, PermissionDot, SystemEvents, EventDetail }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -186,7 +194,7 @@ enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, 
  */
 val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
-        SettingsRoute.Background, SettingsRoute.ActionButtons ->
+        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DismissWindow ->
             SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
@@ -199,8 +207,9 @@ val SettingsRoute.parent: SettingsRoute
 val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
-        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DynamicTileDetail,
-        SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot, SettingsRoute.EventDetail -> 2
+        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DismissWindow,
+        SettingsRoute.DynamicTileDetail, SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot,
+        SettingsRoute.EventDetail -> 2
         else -> 1
     }
 

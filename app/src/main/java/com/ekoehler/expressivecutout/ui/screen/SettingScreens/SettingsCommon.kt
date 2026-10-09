@@ -212,6 +212,9 @@ internal fun SettingsToggleCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    /** Ink for the title; the description takes it at 80% opacity. Null keeps the neutral pair. */
+    contentColor: Color? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
@@ -219,7 +222,7 @@ internal fun SettingsToggleCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Row(
             modifier = Modifier
@@ -231,12 +234,13 @@ internal fun SettingsToggleCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                    color = (contentColor ?: MaterialTheme.colorScheme.onSurface).copy(alpha = contentAlpha),
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                    color = (contentColor?.copy(alpha = 0.8f) ?: MaterialTheme.colorScheme.onSurfaceVariant)
+                        .copy(alpha = contentAlpha),
                 )
             }
             Spacer(Modifier.width(12.dp))
