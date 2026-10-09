@@ -1,11 +1,9 @@
 package com.ekoehler.expressivecutout.ui.screen
 
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
@@ -59,24 +57,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.CenterShortcut
-import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.CenterShortcutCatalog
-import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
-import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.AppViewModel
@@ -689,63 +681,4 @@ private fun rememberAppLabel(packageName: String): String {
         }
     }
     return label
-}
-
-/**
- * A round badge previewing the empty pill's chosen icon: a [containerColor] disc (a faint neutral
- * one when unset) behind the glyph — a picked image, a Material vector, or a placeholder when no
- * icon has been chosen yet. Mirrors how the overlay draws it on the resting pill.
- */
-@Composable
-private fun EmptyIconThumbnail(
-    source: IconSource?,
-    containerColor: CutoutColor?,
-    size: Dp = 48.dp,
-) {
-    val context = LocalContext.current
-    val disc = containerColor?.resolve() ?: MaterialTheme.colorScheme.surfaceVariant
-    // Ink that reads on the disc: dark on a light fill, light on a dark one.
-    val glyph = if (disc.luminance() > 0.5f) Color.Black.copy(alpha = 0.75f) else Color.White
-
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = source) {
-        value = when (val current = source) {
-            is IconSource.Image -> withContext(Dispatchers.IO) {
-                Uri.parse(current.uri).loadImageBitmapOrNull(context)
-            }
-            is IconSource.Material, null -> null
-        }
-    }
-    val materialIcon = (source as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(disc),
-        contentAlignment = Alignment.Center,
-    ) {
-        val loaded = bitmap
-        when {
-            loaded != null -> Image(
-                bitmap = loaded,
-                contentDescription = null,
-                modifier = Modifier.size(size * 0.66f).clip(CircleShape),
-            )
-
-            materialIcon != null -> Icon(
-                imageVector = materialIcon,
-                contentDescription = null,
-                tint = glyph,
-                modifier = Modifier.size(size * 0.5f),
-            )
-
-            // No icon picked yet: a faint "add an image" hint glyph.
-            else -> Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = null,
-                tint = glyph.copy(alpha = 0.5f),
-                modifier = Modifier.size(size * 0.4f),
-            )
-        }
-    }
 }

@@ -24,6 +24,10 @@ private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDa
  *
  * The action-button block ([actionButtonStyle] … [cancelButtonOnLeft]) styles the chips and inline
  * reply field shown in the expanded cutout; whether they appear at all is [BehaviourSettings.showActionButtons].
+ *
+ * The dismiss block ([windowDismiss] … [dismissBackdropColor]) styles the swipe-to-dismiss gesture:
+ * with [windowDismiss] on, the island slides inside its own clipped box and uncovers a backdrop
+ * carrying the dismiss icon, instead of sliding away and fading out.
  */
 data class AppearanceSettings(
     val shadowEnabled: Boolean = DEFAULT_SHADOW_ENABLED,
@@ -48,6 +52,10 @@ data class AppearanceSettings(
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
     val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
     val pageTransitionStyle: PageTransitionStyle = DEFAULT_PAGE_TRANSITION_STYLE,
+    val windowDismiss: Boolean = DEFAULT_WINDOW_DISMISS,
+    val dismissIcon: IconSource? = DEFAULT_DISMISS_ICON,
+    val dismissIconColor: CutoutColor? = DEFAULT_DISMISS_ICON_COLOR,
+    val dismissBackdropColor: CutoutColor? = DEFAULT_DISMISS_BACKDROP_COLOR,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -85,6 +93,15 @@ data class AppearanceSettings(
         /** The confirmation historically hugged the leading edge. */
         val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
         val DEFAULT_PAGE_TRANSITION_STYLE = PageTransitionStyle.FADE
+
+        /** The historical dismiss animation — slide away and fade out — stays the default. */
+        const val DEFAULT_WINDOW_DISMISS = false
+        /** null draws the built-in trash glyph. */
+        val DEFAULT_DISMISS_ICON: IconSource? = null
+        /** null picks the icon colour for contrast against whatever the backdrop resolves to. */
+        val DEFAULT_DISMISS_ICON_COLOR: CutoutColor? = null
+        /** null falls back to the theme's own raised surface. */
+        val DEFAULT_DISMISS_BACKDROP_COLOR: CutoutColor? = null
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
@@ -130,6 +147,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             pageTransitionStyle = PageTransitionStyle.entries.firstOrNull {
                 it.name == prefs[PAGE_TRANSITION_STYLE]
             } ?: AppearanceSettings.DEFAULT_PAGE_TRANSITION_STYLE,
+            windowDismiss = prefs[WINDOW_DISMISS] ?: AppearanceSettings.DEFAULT_WINDOW_DISMISS,
+            dismissIcon = prefs[DISMISS_ICON]?.let { IconSource.decode(it) },
+            dismissIconColor = CutoutColor.deserialize(prefs[DISMISS_ICON_COLOR]),
+            dismissBackdropColor = CutoutColor.deserialize(prefs[DISMISS_BACKDROP_COLOR]),
         )
     }
 
@@ -159,6 +180,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
             put("pageTransitionStyle", s.pageTransitionStyle.name)
+            put("windowDismiss", s.windowDismiss)
+            put("dismissIcon", s.dismissIcon?.encode() ?: JSONObject.NULL)
+            put("dismissIconColor", s.dismissIconColor?.serialize() ?: JSONObject.NULL)
+            put("dismissBackdropColor", s.dismissBackdropColor?.serialize() ?: JSONObject.NULL)
         }.toString()
     }
 
@@ -214,6 +239,14 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
                 PageTransitionStyle.entries.firstOrNull { it.name == obj.optString("pageTransitionStyle") }
                     ?.let { style -> it[PAGE_TRANSITION_STYLE] = style.name }
             }
+            if (obj.has("windowDismiss")) it[WINDOW_DISMISS] = obj.getBoolean("windowDismiss")
+            if (obj.has("dismissIcon")) {
+                val raw = if (obj.isNull("dismissIcon")) null else obj.optString("dismissIcon")
+                val icon = raw?.let { s -> IconSource.decode(s) }
+                if (icon == null) it.remove(DISMISS_ICON) else it[DISMISS_ICON] = icon.encode()
+            }
+            it.applyNullableColor(obj, "dismissIconColor", DISMISS_ICON_COLOR)
+            it.applyNullableColor(obj, "dismissBackdropColor", DISMISS_BACKDROP_COLOR)
         }
     }
 
@@ -336,6 +369,30 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[PAGE_TRANSITION_STYLE] = style.name
     }
 
+    suspend fun setWindowDismiss(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[WINDOW_DISMISS] = enabled
+    }
+
+    /** Overrides the glyph on the dismiss backdrop. Paired with [clearDismissIcon]. */
+    suspend fun setDismissIcon(icon: IconSource) = context.appearanceDataStore.edit {
+        it[DISMISS_ICON] = icon.encode()
+    }
+
+    /** Drops the override, so the backdrop falls back to the built-in trash glyph. */
+    suspend fun clearDismissIcon() = context.appearanceDataStore.edit {
+        it.remove(DISMISS_ICON)
+    }
+
+    /** A null [color] clears the override, restoring automatic contrast against the backdrop. */
+    suspend fun setDismissIconColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(DISMISS_ICON_COLOR) else it[DISMISS_ICON_COLOR] = color.serialize()
+    }
+
+    /** A null [color] clears the override, restoring the theme-driven default. */
+    suspend fun setDismissBackdropColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(DISMISS_BACKDROP_COLOR) else it[DISMISS_BACKDROP_COLOR] = color.serialize()
+    }
+
     private companion object {
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
@@ -363,5 +420,9 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
         val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
         val PAGE_TRANSITION_STYLE = stringPreferencesKey("page_transition_style")
+        val WINDOW_DISMISS = booleanPreferencesKey("window_dismiss")
+        val DISMISS_ICON = stringPreferencesKey("dismiss_icon")
+        val DISMISS_ICON_COLOR = stringPreferencesKey("dismiss_icon_color")
+        val DISMISS_BACKDROP_COLOR = stringPreferencesKey("dismiss_backdrop_color")
     }
 }

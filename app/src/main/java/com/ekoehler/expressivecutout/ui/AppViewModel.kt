@@ -775,6 +775,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setPageTransitionStyle(style)
     }
 
+    /** Switches the dismiss swipe between sliding the island away and sliding it inside its own box. */
+    fun setWindowDismiss(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setWindowDismiss(enabled)
+    }
+
+    fun setDismissImageIcon(uri: String) = viewModelScope.launch {
+        appearancePreferences.setDismissIcon(IconSource.Image(uri))
+    }
+
+    fun setDismissMaterialIcon(iconName: String) = viewModelScope.launch {
+        appearancePreferences.setDismissIcon(IconSource.Material(iconName))
+    }
+
+    fun resetDismissIcon() = viewModelScope.launch {
+        appearancePreferences.clearDismissIcon()
+    }
+
+    fun setDismissIconColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setDismissIconColor(color)
+    }
+
+    fun setDismissBackdropColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setDismissBackdropColor(color)
+    }
+
     /**
      * When the system status bar's notification icons are hidden: never, only while the island is
      * drawn wider than its normal cutout, or the whole time. Saved even while Shizuku is

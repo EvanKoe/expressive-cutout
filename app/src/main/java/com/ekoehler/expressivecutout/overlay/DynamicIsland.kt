@@ -62,6 +62,7 @@ import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
@@ -85,6 +86,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.key
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
@@ -540,6 +542,11 @@ fun DynamicIsland(
     val pressExpand = remember { Animatable(0f) }
     val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
+    // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
+    val windowDismiss = appearance.windowDismiss && (isExpanded || !showsWhenEmpty)
+    // Derived so only these two flips recompose, not every frame of the slide.
+    val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
+    val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
     val scope = rememberCoroutineScope()
 
     val animScale = animationDurationMs / BASE_TRANSITION_MS.toFloat()
@@ -561,8 +568,10 @@ fun DynamicIsland(
         }
     }
 
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
-        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
+    // Collapsing mid-swipe would shrink the island while it is translated aside, leaving a stray
+    // half-faded pill on the edge of the screen; the timer restarts once it springs back.
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction, sliding) {
+        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent && !sliding) {
             delay(autoCollapseMs)
             tapExpanded = false
         }
@@ -905,13 +914,29 @@ fun DynamicIsland(
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
+        val islandShape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight)
+        // Clipped only off the rest position: a permanent clip would swallow the surface's shadow.
+        val windowed = windowDismiss && sliding
+
         Box(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
-                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
+                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY)
+                .then(if (windowed) Modifier.clip(islandShape) else Modifier),
         ) {
             if (present || reveal.value > 0f) {
+                if (windowed) {
+                    DismissBackdrop(
+                        appearance = appearance,
+                        appColor = surfaceColor,
+                        iconSize = badgeIconSizeFor(collapsed.heightDp),
+                        gapOnStart = dismissGapOnStart,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .graphicsLayer { alpha = (reveal.value / 0.2f).coerceIn(0f, 1f) },
+                    )
+                }
                 IslandSurface(
                     modifier = Modifier
                         .width(revealWidth)
@@ -924,7 +949,8 @@ fun DynamicIsland(
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
-                            alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
+                            val fade = if (windowDismiss) 1f else (1f - travel).coerceIn(0.25f, 1f)
+                            alpha = fade * revealAlpha
                         }
                         .islandTapGestures(
                             event = shownEvent,
@@ -967,7 +993,7 @@ fun DynamicIsland(
                             dismissOffsetX = dismissOffsetX,
                             onDismiss = onDismiss,
                         ),
-                    shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
+                    shape = islandShape,
                     appearance = appearance,
                     progress = expandProgress,
                     appColor = surfaceColor,
@@ -1362,6 +1388,56 @@ private fun Modifier.islandSwipeToDismiss(
     }
 }
 
+
+/** How far the dismiss glyph sits from the window edge it is pinned to. */
+private const val DISMISS_GLYPH_INSET_DP = 20
+
+/**
+ * The panel uncovered behind the island while a window-mode dismiss swipe slides it aside. The
+ * glyph is pinned to the edge the island is leaving ([gapOnStart] when it slides right), so it
+ * always lands in the gap rather than under the island, and defaults to a trash can when the user
+ * has picked no icon of their own. A picked image is drawn untinted: flattening a photo or a logo
+ * to a single colour would destroy it, so the icon colour reaches Material glyphs only.
+ */
+@Composable
+private fun DismissBackdrop(
+    appearance: AppearanceSettings,
+    appColor: Color?,
+    iconSize: Dp,
+    gapOnStart: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val backdrop = appearance.dismissBackdropColor?.resolve(appColor, appColor)
+        ?: MaterialTheme.colorScheme.surfaceContainerHigh
+    val glyphColor = appearance.dismissIconColor?.resolve(appColor, appColor)
+        ?: if (backdrop.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    val resolved = rememberResolvedIcon(appearance.dismissIcon)
+
+    Box(
+        modifier = modifier.background(backdrop),
+        contentAlignment = if (gapOnStart) Alignment.CenterStart else Alignment.CenterEnd,
+    ) {
+        val placement = Modifier
+            .padding(horizontal = DISMISS_GLYPH_INSET_DP.dp)
+            .size(iconSize)
+        val bitmap = resolved.bitmap
+        if (bitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = placement,
+            )
+        } else {
+            Icon(
+                imageVector = resolved.vector ?: Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = glyphColor,
+                modifier = placement,
+            )
+        }
+    }
+}
 
 /** A static, non-interactive pill used by the settings screen for previewing one state. */
 @Composable
@@ -2032,6 +2108,30 @@ private fun RadiatingStatusDot(
 }
 
 /**
+ * A chosen [IconSource] ready to draw: at most one of [bitmap] (a picked image, null while it is
+ * still loading) and [vector] (a Material glyph) is set.
+ */
+private data class ResolvedIcon(val bitmap: ImageBitmap?, val vector: ImageVector?)
+
+/** Resolves [icon] for drawing, loading a picked image off the main thread as the source changes. */
+@Composable
+private fun rememberResolvedIcon(icon: IconSource?): ResolvedIcon {
+    val context = LocalContext.current
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
+        value = when (icon) {
+            is IconSource.Image -> withContext(Dispatchers.IO) {
+                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
+            }
+            is IconSource.Material, null -> null
+        }
+    }
+    return ResolvedIcon(
+        bitmap = bitmap,
+        vector = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) },
+    )
+}
+
+/**
  * The resting (event-less) pill's optional glyph, centred on the collapsed cutout. A user-chosen
  * [containerColor] draws a filled disc with contrasting ink behind the glyph; without one, the glyph
  * sits directly on the pill in its content colour. The glyph is a picked image or a Material icon.
@@ -2043,7 +2143,6 @@ private fun EmptyPillContent(
     heightDp: Int,
     isStickToCamera: Boolean = false,
 ) {
-    val context = LocalContext.current
     val badgeSize = badgeSizeFor(heightDp)
     val iconSize = badgeIconSizeFor(heightDp)
 
@@ -2053,15 +2152,7 @@ private fun EmptyPillContent(
         else -> LocalContentColor.current
     }
 
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
-        value = when (icon) {
-            is IconSource.Image -> withContext(Dispatchers.IO) {
-                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
-            }
-            is IconSource.Material -> null
-        }
-    }
-    val materialIcon = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
+    val resolved = rememberResolvedIcon(icon)
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Sit on the leading edge like the normal cutout's icon (clear of the camera), or centred at
@@ -2079,7 +2170,8 @@ private fun EmptyPillContent(
                 .then(if (disc != null) Modifier.background(disc) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            val loaded = bitmap
+            val loaded = resolved.bitmap
+            val vector = resolved.vector
             when {
                 loaded != null -> androidx.compose.foundation.Image(
                     bitmap = loaded,
@@ -2088,8 +2180,8 @@ private fun EmptyPillContent(
                     modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
                 )
 
-                materialIcon != null -> Icon(
-                    imageVector = materialIcon,
+                vector != null -> Icon(
+                    imageVector = vector,
                     contentDescription = null,
                     tint = glyphColor,
                     modifier = Modifier.size(iconSize),

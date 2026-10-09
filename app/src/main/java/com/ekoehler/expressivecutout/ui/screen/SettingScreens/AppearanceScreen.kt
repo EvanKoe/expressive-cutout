@@ -1,6 +1,9 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.content.Intent
 import android.graphics.drawable.shapes.RoundRectShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
@@ -86,6 +90,7 @@ import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -105,9 +110,25 @@ internal fun AppearanceScreen(
     onOpenActionButtons: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
     var strokeOpacity by remember(appearance.strokeOpacity) { mutableStateOf(appearance.strokeOpacity) }
+    var showDismissIconSheet by remember { mutableStateOf(false) }
+    var showDismissIconPicker by remember { mutableStateOf(false) }
+
+    val dismissImagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            // Without the persisted grant the overlay loses the image the next time it starts.
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+            viewModel.setDismissImageIcon(uri.toString())
+        }
+    }
 
     LaunchedEffect(Unit) {
         IslandPreviewBus.setExpandedPreview(false)
@@ -227,6 +248,53 @@ internal fun AppearanceScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Dismiss animation toggle
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = true, isLast = !appearance.windowDismiss),
+            title = stringResource(R.string.appearance_window_dismiss_title),
+            description = stringResource(R.string.appearance_window_dismiss_desc),
+            checked = appearance.windowDismiss,
+            onCheckedChange = viewModel::setWindowDismiss,
+        )
+
+        AnimatedVisibility(visible = appearance.windowDismiss) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Dismiss icon picker
+                DismissIconCard(
+                    icon = appearance.dismissIcon,
+                    backdropColor = appearance.dismissBackdropColor,
+                    iconColor = appearance.dismissIconColor,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showDismissIconSheet = true
+                    },
+                )
+
+                // Dismiss icon color selector
+                ColorPickerCard(
+                    label = stringResource(R.string.appearance_dismiss_icon_color),
+                    selected = appearance.dismissIconColor,
+                    onSelect = viewModel::setDismissIconColor,
+                    defaultLabel = stringResource(R.string.appearance_text_color_auto),
+                    shape = groupedShape(),
+                    allowAppIcon = true,
+                )
+
+                // Dismiss backdrop color selector
+                ColorPickerCard(
+                    label = stringResource(R.string.appearance_dismiss_backdrop_color),
+                    selected = appearance.dismissBackdropColor,
+                    onSelect = viewModel::setDismissBackdropColor,
+                    defaultLabel = stringResource(R.string.label_default),
+                    dynamicRoles = BACKDROP_DYNAMIC_ROLES,
+                    shape = groupedShape(isLast = true),
+                    allowAppIcon = true,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Background color screen navigation
         BackgroundCard(
             shape = groupedShape(isFirst = true),
@@ -244,6 +312,106 @@ internal fun AppearanceScreen(
                 onOpenActionButtons()
             }
         )
+    }
+
+    if (showDismissIconSheet) {
+        IconChooserSheet(
+            hasOverride = appearance.dismissIcon != null,
+            onChooseImage = {
+                showDismissIconSheet = false
+                dismissImagePicker.launch(arrayOf("image/*"))
+            },
+            onChooseMaterial = {
+                showDismissIconSheet = false
+                showDismissIconPicker = true
+            },
+            onUseDefault = {
+                showDismissIconSheet = false
+                viewModel.resetDismissIcon()
+            },
+            onDismiss = { showDismissIconSheet = false },
+        )
+    }
+
+    if (showDismissIconPicker) {
+        MaterialIconPickerSheet(
+            onPick = { iconName ->
+                showDismissIconPicker = false
+                viewModel.setDismissMaterialIcon(iconName)
+            },
+            onDismiss = { showDismissIconPicker = false },
+        )
+    }
+}
+
+/**
+ * The dynamic roles the dismiss backdrop offers: the three accents, then the neutral surface tiers
+ * from lowest to highest — first the ones that follow the phone's theme, then the always-dark ones,
+ * which is what a panel sitting behind a dark island usually wants on a light home screen.
+ */
+private val BACKDROP_DYNAMIC_ROLES = listOf(
+    DynamicRole.PRIMARY,
+    DynamicRole.SECONDARY,
+    DynamicRole.TERTIARY,
+    DynamicRole.SURFACE_CONTAINER_LOWEST,
+    DynamicRole.SURFACE_CONTAINER_LOW,
+    DynamicRole.SURFACE_CONTAINER,
+    DynamicRole.SURFACE_CONTAINER_HIGH,
+    DynamicRole.SURFACE_CONTAINER_HIGHEST,
+    DynamicRole.SURFACE_CONTAINER_LOWEST_DARK,
+    DynamicRole.SURFACE_CONTAINER_LOW_DARK,
+    DynamicRole.SURFACE_CONTAINER_DARK,
+    DynamicRole.SURFACE_CONTAINER_HIGH_DARK,
+    DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK,
+)
+
+/** A clickable card opening the picker for the glyph drawn on the dismiss backdrop. */
+@Composable
+private fun DismissIconCard(
+    icon: IconSource?,
+    backdropColor: CutoutColor?,
+    iconColor: CutoutColor?,
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape(),
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EmptyIconThumbnail(
+                source = icon,
+                containerColor = backdropColor,
+                size = 40.dp,
+                glyphColor = iconColor,
+                placeholder = Icons.Rounded.Delete,
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.appearance_dismiss_icon),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.appearance_dismiss_icon_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -346,6 +514,16 @@ fun DynamicRole.dynamicDescription(): String = stringResource(
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary
         DynamicRole.TERTIARY -> R.string.cd_color_dynamic_tertiary
+        DynamicRole.SURFACE_CONTAINER_LOWEST -> R.string.cd_color_dynamic_surface_lowest
+        DynamicRole.SURFACE_CONTAINER_LOW -> R.string.cd_color_dynamic_surface_low
+        DynamicRole.SURFACE_CONTAINER -> R.string.cd_color_dynamic_surface
+        DynamicRole.SURFACE_CONTAINER_HIGH -> R.string.cd_color_dynamic_surface_high
+        DynamicRole.SURFACE_CONTAINER_HIGHEST -> R.string.cd_color_dynamic_surface_highest
+        DynamicRole.SURFACE_CONTAINER_LOWEST_DARK -> R.string.cd_color_dynamic_surface_lowest_dark
+        DynamicRole.SURFACE_CONTAINER_LOW_DARK -> R.string.cd_color_dynamic_surface_low_dark
+        DynamicRole.SURFACE_CONTAINER_DARK -> R.string.cd_color_dynamic_surface_dark
+        DynamicRole.SURFACE_CONTAINER_HIGH_DARK -> R.string.cd_color_dynamic_surface_high_dark
+        DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK -> R.string.cd_color_dynamic_surface_highest_dark
     },
 )
 
