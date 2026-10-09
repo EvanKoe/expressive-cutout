@@ -74,8 +74,9 @@ object StatusBarIconController {
                 preferences.silenceAlerts,
                 ShizukuState.status,
                 CutoutWidthBus.widened,
-            ) { chosen, silenceAlerts, status, widened ->
-                Wish(chosen.resolve(widened), silenceAlerts, status)
+                CutoutWidthBus.grownForDots,
+            ) { chosen, silenceAlerts, status, widened, grownForDots ->
+                Wish(chosen.resolve(widened, grownForDots), silenceAlerts, status)
             }
                 .collect { wish ->
                     if (wish.status != ShizukuStatus.READY) {
@@ -137,10 +138,16 @@ object StatusBarIconController {
         val systemInfo: StatusBarHideMode,
         val clock: StatusBarHideMode,
     ) {
-        /** What each setting works out to right now, given whether the cutout is [widened]. */
-        fun resolve(widened: Boolean) = Hiding(
+        /**
+         * What each setting works out to right now, given whether the cutout is [widened].
+         *
+         * [grownForDots] counts for the system icons alone: the pill grows on its trailing edge to
+         * seat the permission dots, which is the end of the bar those icons live at, and nowhere
+         * near the clock or the notification icons opposite them.
+         */
+        fun resolve(widened: Boolean, grownForDots: Boolean) = Hiding(
             hideIcons = notificationIcons.hides(widened),
-            hideSystemInfo = systemInfo.hides(widened),
+            hideSystemInfo = systemInfo.hides(widened || grownForDots),
             hideClock = clock.hides(widened),
         )
     }

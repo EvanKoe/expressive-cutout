@@ -786,11 +786,8 @@ fun DynamicIsland(
 
     // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
     // or fading out, but clears it for the resting empty pill.
-    val hasTrailingContent = !emptyPill && (event ?: shownEvent)?.let {
-        it.timer != null || it.progressData != null ||
-            (it.media?.rightButton == true && !it.media.miniPlayer) ||
-            it.trailingText != null || (statusDotEnabled && it.statusDotColor != null)
-    } == true
+    val hasTrailingContent = !emptyPill &&
+        (event ?: shownEvent)?.hasCollapsedTrailingContent(statusDotEnabled) == true
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.

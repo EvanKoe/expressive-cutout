@@ -289,3 +289,21 @@ data class IslandReply(
  */
 fun IslandEvent.usesTinyCutout(callOngoing: Boolean): Boolean =
     media?.miniPlayer == true || (call?.miniCall == true && callOngoing)
+
+/**
+ * Whether this event writes anything on the collapsed pill's trailing edge: the timer's remaining
+ * time, a progress ring, the music tile's transport button, a trailing text such as the battery
+ * percentage, or the radiating status dot. The permission dots share that edge, so this is what
+ * decides whether the pill has to grow to the right to hold both.
+ *
+ * Shared by the overlay's rendering and its window sizing, exactly as [usesTinyCutout] is, so the
+ * two can't drift apart and leave the dots drawn outside the window that has to contain them.
+ *
+ * @param statusDotEnabled the user's own "status dot" switch, which the dot depends on as well as
+ *   on the event carrying a colour for it.
+ */
+fun IslandEvent.hasCollapsedTrailingContent(statusDotEnabled: Boolean): Boolean =
+    timer != null || progressData != null ||
+        (media?.rightButton == true && !media.miniPlayer) ||
+        trailingText != null ||
+        (statusDotEnabled && statusDotColor != null)
