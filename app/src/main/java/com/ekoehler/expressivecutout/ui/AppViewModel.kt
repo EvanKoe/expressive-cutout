@@ -414,6 +414,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowAlbumBackground(enabled)
     }
 
+    fun setMusicAlbumBackgroundDim(dim: Float) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundDim(dim)
+    }
+
     fun setMusicRotateAlbumArt(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }
@@ -538,6 +542,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setSkipCornerPercent(percent)
     }
 
+    fun setMusicSkipBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setSkipBlur(enabled)
+    }
+
+    fun setMusicSkipBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setSkipBlurRadius(radius)
+    }
+
     fun setMusicPlayPauseColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseColor(color)
     }
@@ -548,6 +560,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicPlayPauseCornerPercent(percent: Int) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseCornerPercent(percent)
+    }
+
+    fun setMusicPlayPauseBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseBlur(enabled)
+    }
+
+    fun setMusicPlayPauseBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseBlurRadius(radius)
     }
 
     fun setMusicPreviousExpand(enabled: Boolean) = viewModelScope.launch {

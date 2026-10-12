@@ -103,6 +103,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
@@ -143,6 +144,9 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import android.net.Uri
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -3314,6 +3318,7 @@ private fun MediaExpandedContent(
         showAppName = appearance.showSourceAppName,
         showTimestamp = appearance.showTimestamp,
     )
+    val backdropState = remember { HazeState() }
 
     Box(
         modifier = Modifier
@@ -3324,13 +3329,13 @@ private fun MediaExpandedContent(
                 bitmap = albumBackground,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.42f,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.48f)),
+                modifier = Modifier.fillMaxSize().hazeSource(backdropState),
+                // Dimmed by darkening rather than fading: the cover must stay opaque, or a blurred
+                // button lets the sharp cover underneath show through its frosted copy.
+                colorFilter = ColorFilter.tint(
+                    Color.Black.copy(alpha = event.media.albumBackgroundDim),
+                    BlendMode.SrcAtop,
+                ),
             )
         }
 
@@ -3413,7 +3418,8 @@ private fun MediaExpandedContent(
                     playPauseExpand = media.playPauseExpand,
                     playPauseText = media.playPauseText,
                     playPauseTextWidth = media.playPauseTextWidth,
-                    onPrevious = { nowPlaying?.transport?.previous() },
+                    backdropState = backdropState,
+                    onPrevious ={ nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
                 )
@@ -3460,7 +3466,8 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         modifier = Modifier.fillMaxWidth(),
         waveColor = color,
         trackColor = trackColor,
-        isWavy = progress.speed != 0f
+        isWavy = progress.speed != 0f,
+        animated = false,
     )
 //    LinearProgressIndicator(
 //        progress = { fraction },
@@ -3475,7 +3482,8 @@ private fun MediaProgressBar(progress: MediaProgress?) {
  * Previous / play‑pause / next. Each button's fill colour, opacity and corner rounding come from the
  * music tile's settings: the skip buttons share [skipStyle] (plain over the pill by default), the
  * centre button uses [playPauseStyle] (the tile accent by default). [eventColor] is what an
- * app/adaptive button colour resolves to, the same colour the island background takes.
+ * app/adaptive button colour resolves to, the same colour the island background takes. A style
+ * with [MusicButtonStyle.blur] frosts the content registered with [backdropState] behind its fill.
  */
 @Composable
 private fun MediaControls(
@@ -3495,6 +3503,7 @@ private fun MediaControls(
     playPauseExpand: Boolean,
     playPauseText: Boolean,
     playPauseTextWidth: Float,
+    backdropState: HazeState,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -3513,6 +3522,8 @@ private fun MediaControls(
             iconSize = 26.dp,
             fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onPrevious,
             label = stringResource(R.string.music_prev_label)
                 .takeIf { previousExpand && previousText },
@@ -3535,6 +3546,8 @@ private fun MediaControls(
             iconSize = 24.dp,
             fill = playPauseStyle.resolveFill(fallback = accent, eventColor = eventColor),
             cornerPercent = playPauseStyle.cornerPercent,
+            blurState = playPauseStyle.blurState(backdropState),
+            blurRadius = playPauseStyle.blurRadius.dp,
             onClick = onPlayPause,
             label = stringResource(
                 if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
@@ -3553,6 +3566,8 @@ private fun MediaControls(
             iconSize = 26.dp,
             fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onNext,
             label = stringResource(R.string.music_next_label)
                 .takeIf { nextExpand && nextText },
@@ -3574,6 +3589,10 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?, eventColor: Color): C
     return base.copy(alpha = opacity)
 }
 
+/** [state] when this style asks for a frosted backdrop its translucent fill would let through, else null. */
+private fun MusicButtonStyle.blurState(state: HazeState): HazeState? =
+    state.takeIf { blur && opacity < 1f }
+
 /**
  * A transport button with the shared press "squish". A null [fill] renders a plain (unfilled) button
  * tinted with the content colour; a non-null [fill] renders a filled button whose corners are rounded
@@ -3581,7 +3600,8 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?, eventColor: Color): C
  * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
  * rectangle — e.g. the 16:9 play/pause button — and [modifier] carrying a width (a row weight)
  * overrides it. A non-null [label] is drawn in place of the icon, at Roboto Flex's [labelWidth]
- * `wdth` axis.
+ * `wdth` axis. A non-null [blurState] frosts that backdrop behind a filled button's shape, [blurRadius]
+ * strong.
  */
 @Composable
 private fun MediaButton(
@@ -3597,12 +3617,34 @@ private fun MediaButton(
     label: String? = null,
     labelWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     expand: Boolean = false,
+    blurState: HazeState? = null,
+    blurRadius: Dp = Dp.Unspecified,
     modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    // Corner radius keyed to height (not width) so a wide button still reads as a clean
+    // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
+    val shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp)
     val sized = modifier
         .then(if (expand) Modifier.height(heightDp.dp) else Modifier.size(width = widthDp.dp, height = heightDp.dp))
         .pressScale(interaction)
+        .then(
+            if (blurState != null && fill != null) {
+                Modifier
+                    .clip(shape)
+                    .hazeEffect(blurState) {
+                        // Haze insists on a colour; the album backdrop is opaque, so this never shows.
+                        backgroundColor = Color.Transparent
+                        this.blurRadius = blurRadius
+                        // Haze's default frosted grain reads as dirt on buttons this small.
+                        noiseFactor = 0f
+                    }
+                    // The button's 48dp minimum touch target would otherwise size the blur past a smaller fill.
+                    .fillMaxSize()
+            } else {
+                Modifier
+            }
+        )
     if (fill == null) {
         IconButton(
             onClick = onClick,
@@ -3617,9 +3659,7 @@ private fun MediaButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            // Corner radius keyed to height (not width) so a wide button still reads as a clean
-            // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
-            shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
+            shape = shape,
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
                 contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,

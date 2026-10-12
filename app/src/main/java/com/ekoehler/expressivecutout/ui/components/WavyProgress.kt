@@ -20,7 +20,8 @@ import kotlin.math.sin
 /**
  * This is a wavy progress bar like in Google's media player.
  * The wavy part covers the elapsed portion, the flat track covers the remaining
- * portion, and a small rounded vertical bar separates the two.
+ * portion, and a small rounded vertical bar separates the two. With [animated] off the wave holds
+ * still instead of travelling along the bar.
  */
 @Composable
 fun WavyProgressBar(
@@ -29,6 +30,7 @@ fun WavyProgressBar(
     waveColor: Color = Color(0xFF4DB6AC),
     trackColor: Color = Color(0xFF90A4AE),
     isWavy: Boolean = true,
+    animated: Boolean = true,
     waveFrequency: Float = 0.04f,
     strokeWidth: Dp = 4.dp,
     separatorWidth: Dp = 4.dp,
@@ -37,16 +39,20 @@ fun WavyProgressBar(
     separatorColor: Color = waveColor
 ) {
     val amplitude: Dp = if (isWavy) 4.dp else 0.dp
-    val infiniteTransition = rememberInfiniteTransition(label = "waveTransition")
-    val phaseShift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phaseShift"
-    )
+    // Only start the endless transition when it's wanted, so a still wave costs no frames.
+    val phaseShift = if (animated) {
+        rememberInfiniteTransition(label = "waveTransition").animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phaseShift"
+        ).value
+    } else {
+        0f
+    }
 
     val barHeight = maxOf(amplitude * 2 + strokeWidth, separatorHeight)
 

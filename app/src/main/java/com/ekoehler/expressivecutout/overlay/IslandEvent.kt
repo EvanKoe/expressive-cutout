@@ -210,6 +210,8 @@ data class MediaTileOptions(
     val showAlbumArt: Boolean,
     /** Draw the album cover behind the expanded music player. */
     val showAlbumBackground: Boolean = false,
+    /** How far that album background darkens towards black: 0 untouched, 1 black. */
+    val albumBackgroundDim: Float,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
     /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */

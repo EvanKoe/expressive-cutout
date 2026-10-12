@@ -252,6 +252,7 @@ class IconResolver(private val context: Context) {
             media = MediaTileOptions(
                 showAlbumArt = settings.showAlbumArt,
                 showAlbumBackground = settings.showAlbumBackground,
+                albumBackgroundDim = settings.albumBackgroundDim,
                 rotateAlbumArt = settings.rotateAlbumArt,
                 circleCover = settings.circleCover,
                 albumArtStroke = settings.albumArtStroke,

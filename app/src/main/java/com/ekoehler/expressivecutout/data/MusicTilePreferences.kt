@@ -26,13 +26,16 @@ private val Context.musicTileDataStore: DataStore<Preferences> by preferencesDat
  * a non-null value fills the button with that colour. [opacity] (0f..1f) scales the fill and
  * [cornerPercent] (0..50) rounds its corners — 50 is a full circle, 0 a square. [filled] forces a
  * fill using the button's own default colour even when the user hasn't picked one, so a preset can
- * ask for a filled look without pinning it to a specific colour.
+ * ask for a filled look without pinning it to a specific colour. [blur] frosts whatever sits
+ * behind a translucent fill, [blurRadius] dp strong; it only has an effect while [opacity] is below 1.
  */
 data class MusicButtonStyle(
     val color: CutoutColor?,
     val opacity: Float,
     val cornerPercent: Int,
     val filled: Boolean = DEFAULT_FILLED,
+    val blur: Boolean = DEFAULT_BLUR,
+    val blurRadius: Int = DEFAULT_BLUR_RADIUS,
 ) {
     companion object {
         const val DEFAULT_OPACITY = 1f
@@ -40,6 +43,12 @@ data class MusicButtonStyle(
         const val MIN_CORNER_PERCENT = 0
         const val MAX_CORNER_PERCENT = 50
         const val DEFAULT_FILLED = false
+        const val DEFAULT_BLUR = false
+
+        /** Blur radius in dp; the default matches Haze's own. */
+        const val DEFAULT_BLUR_RADIUS = 20
+        const val MIN_BLUR_RADIUS = 2
+        const val MAX_BLUR_RADIUS = 100
 
         /** Corner rounding of the [ROUNDED] preset — a soft rounded rectangle rather than a pill. */
         const val ROUNDED_CORNER_PERCENT = 30
@@ -82,6 +91,8 @@ enum class MusicRightButtonAction { PREVIOUS, PLAY_PAUSE, NEXT }
 data class MusicTileSettings(
     val showAlbumArt: Boolean = DEFAULT_SHOW_ALBUM_ART,
     val showAlbumBackground: Boolean = DEFAULT_SHOW_ALBUM_BACKGROUND,
+    /** How far (0f..1f) that album background darkens towards black: 0 untouched, 1 black. */
+    val albumBackgroundDim: Float = DEFAULT_ALBUM_BACKGROUND_DIM,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
     /**
      * Crop the album cover to a full circle rather than a rounded square. Forced on while
@@ -142,6 +153,8 @@ data class MusicTileSettings(
     companion object {
         const val DEFAULT_SHOW_ALBUM_ART = true
         const val DEFAULT_SHOW_ALBUM_BACKGROUND = false
+        /** Matches the old look: the cover at 42% under a 48% black scrim, about 22% strength. */
+        const val DEFAULT_ALBUM_BACKGROUND_DIM = 0.78f
         const val DEFAULT_ROTATE_ALBUM_ART = false
         const val DEFAULT_CIRCLE_COVER = false
         const val DEFAULT_ALBUM_ART_STROKE = false
@@ -173,6 +186,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         MusicTileSettings(
             showAlbumArt = prefs[SHOW_ALBUM_ART] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_ART,
             showAlbumBackground = prefs[SHOW_ALBUM_BACKGROUND] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_BACKGROUND,
+            albumBackgroundDim = (prefs[ALBUM_BACKGROUND_DIM] ?: MusicTileSettings.DEFAULT_ALBUM_BACKGROUND_DIM)
+                .coerceIn(0f, 1f),
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
             circleCover = prefs[CIRCLE_COVER] ?: MusicTileSettings.DEFAULT_CIRCLE_COVER,
             albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
@@ -188,6 +203,9 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
                 cornerPercent = (prefs[SKIP_CORNER] ?: MusicButtonStyle.DEFAULT_CORNER_PERCENT)
                     .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT),
                 filled = prefs[SKIP_FILLED] ?: MusicButtonStyle.DEFAULT_FILLED,
+                blur = prefs[SKIP_BLUR] ?: MusicButtonStyle.DEFAULT_BLUR,
+                blurRadius = (prefs[SKIP_BLUR_RADIUS] ?: MusicButtonStyle.DEFAULT_BLUR_RADIUS)
+                    .coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS),
             ),
             playPauseButton = MusicButtonStyle(
                 color = CutoutColor.deserialize(prefs[PLAY_PAUSE_COLOR]),
@@ -195,6 +213,9 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
                 cornerPercent = (prefs[PLAY_PAUSE_CORNER] ?: MusicButtonStyle.DEFAULT_CORNER_PERCENT)
                     .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT),
                 filled = prefs[PLAY_PAUSE_FILLED] ?: MusicButtonStyle.DEFAULT_FILLED,
+                blur = prefs[PLAY_PAUSE_BLUR] ?: MusicButtonStyle.DEFAULT_BLUR,
+                blurRadius = (prefs[PLAY_PAUSE_BLUR_RADIUS] ?: MusicButtonStyle.DEFAULT_BLUR_RADIUS)
+                    .coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS),
             ),
             showProgress = prefs[SHOW_PROGRESS] ?: MusicTileSettings.DEFAULT_SHOW_PROGRESS,
             miniPlayer = prefs[MINI_PLAYER] ?: MusicTileSettings.DEFAULT_MINI_PLAYER,
@@ -224,12 +245,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("opacity", opacity.toDouble())
             put("cornerPercent", cornerPercent)
             put("filled", filled)
+            put("blur", blur)
+            put("blurRadius", blurRadius)
         }
 
         val s = settings.first()
         return JSONObject().apply {
             put("showAlbumArt", s.showAlbumArt)
             put("showAlbumBackground", s.showAlbumBackground)
+            put("albumBackgroundDim", s.albumBackgroundDim.toDouble())
             put("rotateAlbumArt", s.rotateAlbumArt)
             put("circleCover", s.circleCover)
             put("albumArtStroke", s.albumArtStroke)
@@ -265,6 +289,9 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         context.musicTileDataStore.edit { prefs ->
             if (obj.has("showAlbumArt")) prefs[SHOW_ALBUM_ART] = obj.getBoolean("showAlbumArt")
             if (obj.has("showAlbumBackground")) prefs[SHOW_ALBUM_BACKGROUND] = obj.getBoolean("showAlbumBackground")
+            if (obj.has("albumBackgroundDim")) {
+                prefs[ALBUM_BACKGROUND_DIM] = obj.optDouble("albumBackgroundDim").toFloat().coerceIn(0f, 1f)
+            }
             if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
             if (obj.has("circleCover")) prefs[CIRCLE_COVER] = obj.getBoolean("circleCover")
             if (obj.has("albumArtStroke")) prefs[ALBUM_ART_STROKE] = obj.getBoolean("albumArtStroke")
@@ -297,9 +324,13 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("nextText")) prefs[NEXT_TEXT] = obj.getBoolean("nextText")
             if (obj.has("nextTextWidth")) prefs[NEXT_TEXT_WIDTH] = obj.textWidth("nextTextWidth")
 
-            obj.optJSONObject("skipButton")?.applyButton(prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED)
-            obj.optJSONObject("playPauseButton")
-                ?.applyButton(prefs, PLAY_PAUSE_COLOR, PLAY_PAUSE_OPACITY, PLAY_PAUSE_CORNER, PLAY_PAUSE_FILLED)
+            obj.optJSONObject("skipButton")?.applyButton(
+                prefs, SKIP_COLOR, SKIP_OPACITY, SKIP_CORNER, SKIP_FILLED, SKIP_BLUR, SKIP_BLUR_RADIUS,
+            )
+            obj.optJSONObject("playPauseButton")?.applyButton(
+                prefs, PLAY_PAUSE_COLOR, PLAY_PAUSE_OPACITY, PLAY_PAUSE_CORNER, PLAY_PAUSE_FILLED,
+                PLAY_PAUSE_BLUR, PLAY_PAUSE_BLUR_RADIUS,
+            )
         }
     }
 
@@ -314,6 +345,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         opacityKey: androidx.datastore.preferences.core.Preferences.Key<Float>,
         cornerKey: androidx.datastore.preferences.core.Preferences.Key<Int>,
         filledKey: androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+        blurKey: androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+        blurRadiusKey: androidx.datastore.preferences.core.Preferences.Key<Int>,
     ) {
         if (has("color")) {
             val raw = if (isNull("color")) null else optString("color")
@@ -324,6 +357,9 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         if (has("cornerPercent")) prefs[cornerKey] = getInt("cornerPercent")
             .coerceIn(MusicButtonStyle.MIN_CORNER_PERCENT, MusicButtonStyle.MAX_CORNER_PERCENT)
         if (has("filled")) prefs[filledKey] = getBoolean("filled")
+        if (has("blur")) prefs[blurKey] = getBoolean("blur")
+        if (has("blurRadius")) prefs[blurRadiusKey] = getInt("blurRadius")
+            .coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS)
     }
 
     suspend fun setShowAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -332,6 +368,11 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     suspend fun setShowAlbumBackground(enabled: Boolean) = context.musicTileDataStore.edit {
         it[SHOW_ALBUM_BACKGROUND] = enabled
+    }
+
+    /** Clamps to 0f..1f, the range the dim slider offers. */
+    suspend fun setAlbumBackgroundDim(dim: Float) = context.musicTileDataStore.edit {
+        it[ALBUM_BACKGROUND_DIM] = dim.coerceIn(0f, 1f)
     }
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -399,6 +440,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
 
     suspend fun setSkipFilled(filled: Boolean) = context.musicTileDataStore.edit {
         it[SKIP_FILLED] = filled
+    }
+
+    suspend fun setSkipBlur(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[SKIP_BLUR] = enabled
+    }
+
+    /** Clamps to the range the blur strength slider offers. */
+    suspend fun setSkipBlurRadius(radius: Int) = context.musicTileDataStore.edit {
+        it[SKIP_BLUR_RADIUS] = radius.coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS)
     }
 
     /** A null [color] clears the override, restoring the play/pause button's accent default. */
@@ -490,6 +540,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         it[PLAY_PAUSE_FILLED] = filled
     }
 
+    suspend fun setPlayPauseBlur(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_BLUR] = enabled
+    }
+
+    /** Clamps to the range the blur strength slider offers. */
+    suspend fun setPlayPauseBlurRadius(radius: Int) = context.musicTileDataStore.edit {
+        it[PLAY_PAUSE_BLUR_RADIUS] = radius.coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS)
+    }
+
     /** Applies a preset's shape and fill to the skip buttons, keeping their current colour. */
     suspend fun applySkipPreset(preset: MusicButtonStyle) = context.musicTileDataStore.edit {
         it[SKIP_OPACITY] = preset.opacity.coerceIn(0f, 1f)
@@ -513,6 +572,7 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     private companion object {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val SHOW_ALBUM_BACKGROUND = booleanPreferencesKey("show_album_background")
+        val ALBUM_BACKGROUND_DIM = floatPreferencesKey("album_background_dim")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
         val CIRCLE_COVER = booleanPreferencesKey("circle_cover")
         val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")
@@ -529,6 +589,10 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val PLAY_PAUSE_OPACITY = floatPreferencesKey("play_pause_button_opacity")
         val PLAY_PAUSE_CORNER = intPreferencesKey("play_pause_button_corner_percent")
         val PLAY_PAUSE_FILLED = booleanPreferencesKey("play_pause_button_filled")
+        val SKIP_BLUR = booleanPreferencesKey("skip_button_blur")
+        val PLAY_PAUSE_BLUR = booleanPreferencesKey("play_pause_button_blur")
+        val SKIP_BLUR_RADIUS = intPreferencesKey("skip_button_blur_radius")
+        val PLAY_PAUSE_BLUR_RADIUS = intPreferencesKey("play_pause_button_blur_radius")
         val SHOW_PROGRESS = booleanPreferencesKey("show_current_progress")
         val MINI_PLAYER = booleanPreferencesKey("mini_player")
         val RIGHT_BUTTON = booleanPreferencesKey("right_button")
