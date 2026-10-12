@@ -1694,12 +1694,16 @@ internal fun albumArtFor(
 /**
  * The colour of the ring around the album cover, or null when the user hasn't asked for one. An
  * enabled ring with no colour picked falls back to the tile's own accent, matching what the
- * settings screen offers as its default swatch.
+ * settings screen offers as its default swatch. An app/adaptive colour follows the event's own
+ * colour, like the island background does.
  */
 @Composable
 internal fun albumArtStrokeFor(event: IslandEvent): Color? =
-    event.media?.takeIf { it.albumArtStroke }
-        ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
+    event.media?.takeIf { it.albumArtStroke }?.let { media ->
+        val eventColor = event.primaryColor()
+        media.albumArtStrokeColor?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+            ?: event.accent
+    }
 
 /** The fraction of its container a badge takes, and the fraction the glyph inside it takes. */
 private const val BADGE_SIZE_FRACTION = 0.72f
@@ -3395,6 +3399,7 @@ private fun MediaExpandedContent(
                 MediaControls(
                     isPlaying = nowPlaying?.isPlaying == true,
                     accent = event.accent,
+                    eventColor = event.primaryColor(),
                     enabled = nowPlaying != null,
                     heightDp = buttonHeightDp,
                     skipStyle = media.skipStyle,
@@ -3469,12 +3474,14 @@ private fun MediaProgressBar(progress: MediaProgress?) {
 /**
  * Previous / play‑pause / next. Each button's fill colour, opacity and corner rounding come from the
  * music tile's settings: the skip buttons share [skipStyle] (plain over the pill by default), the
- * centre button uses [playPauseStyle] (the tile accent by default).
+ * centre button uses [playPauseStyle] (the tile accent by default). [eventColor] is what an
+ * app/adaptive button colour resolves to, the same colour the island background takes.
  */
 @Composable
 private fun MediaControls(
     isPlaying: Boolean,
     accent: Color,
+    eventColor: Color,
     enabled: Boolean,
     heightDp: Int,
     skipStyle: MusicButtonStyle,
@@ -3504,7 +3511,7 @@ private fun MediaControls(
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
             onClick = onPrevious,
             label = stringResource(R.string.music_prev_label)
@@ -3526,7 +3533,7 @@ private fun MediaControls(
             // asked to expand — then it takes whatever width the skip buttons leave over.
             widthDp = heightDp * 16 / 9,
             iconSize = 24.dp,
-            fill = playPauseStyle.resolveFill(fallback = accent),
+            fill = playPauseStyle.resolveFill(fallback = accent, eventColor = eventColor),
             cornerPercent = playPauseStyle.cornerPercent,
             onClick = onPlayPause,
             label = stringResource(
@@ -3544,7 +3551,7 @@ private fun MediaControls(
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
             onClick = onNext,
             label = stringResource(R.string.music_next_label)
@@ -3558,10 +3565,12 @@ private fun MediaControls(
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
  *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
- *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha. */
+ *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha.
+ *  An app/adaptive colour resolves to [eventColor]. */
 @Composable
-private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
+private fun MusicButtonStyle.resolveFill(fallback: Color?, eventColor: Color): Color? {
+    val base = color?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+        ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
 
