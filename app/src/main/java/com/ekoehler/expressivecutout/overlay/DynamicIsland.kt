@@ -850,12 +850,21 @@ fun DynamicIsland(
     fun innerCorner(override: Int?, own: Int) =
         (if (windowDismiss && isExpanded) override ?: own else own).dp
 
+    // A notch has no top radius — the flare replaces the corner it sits on — so the stored value is
+    // held at zero while one is up. That is also what makes the morph out of a notch continuous: the
+    // top corners open from nothing exactly as the ears pull in, instead of snapping to a radius
+    // that was animating unseen underneath them.
+    val notched = dims.isNotch && !isStickToCamera
+    fun topCorner(corner: Dp) = if (notched) 0.dp else corner
+
     val topLeft by animateDpAsState(
-        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp),
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp)),
         spec, label = "cornerTL"
     )
     val topRight by animateDpAsState(
-        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp),
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp)),
         spec, label = "cornerTR"
     )
     val bottomLeft by animateDpAsState(
@@ -868,10 +877,10 @@ fun DynamicIsland(
     )
 
     val windowTopLeft by animateDpAsState(
-        if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "windowCornerTL"
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopLeftDp.dp), spec, label = "windowCornerTL"
     )
     val windowTopRight by animateDpAsState(
-        if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "windowCornerTR"
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopRightDp.dp), spec, label = "windowCornerTR"
     )
     val windowBottomLeft by animateDpAsState(
         if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "windowCornerBL"
@@ -881,11 +890,18 @@ fun DynamicIsland(
     )
     // Stuck to the camera the island is a vertical pill down the side of the screen, so it has no top
     // edge to flare into and stays a stadium whatever the state is configured as.
-    val notchFlare by animateDpAsState(
-        if (dims.isNotch && !isStickToCamera) dims.notchFlareDp.dp else 0.dp,
-        spec,
-        label = "notchFlare",
-    )
+    val flareTarget = if (notched) dims.notchFlareDp.dp else 0.dp
+    // The ears are the one part of the silhouette with no counterpart in a plain pill, so there is
+    // nothing for them to morph into — the shape swaps outright the moment the flare leaves or
+    // reaches zero. Running them well ahead of the transition around them keeps that swap short in
+    // both directions: growing or shrinking, the island is only ever briefly between silhouettes.
+    // The reveal is not affected, since it scales the flare itself (see revealFlare).
+    val flareSpec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) {
+        snap()
+    } else {
+        tween(durationMillis = scaled(NOTCH_EAR_TRANSITION_MS))
+    }
+    val notchFlare by animateDpAsState(flareTarget, flareSpec, label = "notchFlare")
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
@@ -1480,6 +1496,14 @@ private fun Modifier.islandSwipeToDismiss(
 
 /** The elevation the island casts when its shadow is switched on. */
 private const val ISLAND_SHADOW_ELEVATION_DP = 6
+
+/**
+ * How long a notch's ears take to grow or pull in when the island morphs between a notch and a state
+ * that isn't one — deliberately shorter than the transition around it, so the ears are settled well
+ * before the body has finished changing shape. Scaled by the user's animation-duration setting like
+ * every other timing.
+ */
+private const val NOTCH_EAR_TRANSITION_MS = 110
 
 /** How far the dismiss glyph sits from the window edge it is pinned to. */
 private const val DISMISS_GLYPH_INSET_DP = 20
