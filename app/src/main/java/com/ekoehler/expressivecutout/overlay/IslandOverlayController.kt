@@ -1335,7 +1335,7 @@ class IslandOverlayController(private val context: Context) {
     private fun callCapsuleTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
         if (!isSplitCall()) return null
         val dims = effectiveDims(layoutState.value, expanded = false)
-        val gapPx = (CALL_SPLIT_GAP_DP * density).toInt()
+        val gapPx = (callSplitGapDp(dims.isNotch) * density).toInt()
         val capsuleWidthPx = (callSplitHangUpWidthDp(dims.heightDp) * density).toInt()
         val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()

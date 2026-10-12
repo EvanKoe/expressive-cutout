@@ -1283,16 +1283,22 @@ fun DynamicIsland(
         val capsuleReveal = minOf(reveal.value, callSplitReveal.value)
         if (capsuleAction != null && capsuleCall != null && capsuleReveal > 0.01f) {
             val capsuleWidthDp = callSplitHangUpWidthDp(dims.heightDp)
-            val step = revealWidth / 2 + CALL_SPLIT_GAP_DP.dp + (capsuleWidthDp / 2).dp
+            val step = revealWidth / 2 + callSplitGapDp(notched).dp + (capsuleWidthDp / 2).dp
+            // Dropped and shortened by the same amount beside a notch, so it keeps the notch's own
+            // bottom line while clearing the screen edge the notch is flush with. The width is left
+            // alone: the capsule stays as wide as the pill is tall, which is what the touchable
+            // region reserves for it.
+            val capsuleInsetDp = if (notched) CALL_SPLIT_NOTCH_INSET_DP else 0
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(x = offsetX + step, y = offsetY),
+                    .offset(x = offsetX + step, y = offsetY + capsuleInsetDp.dp),
             ) {
                 CallHangUpCapsule(
                     call = capsuleCall,
                     hangUp = capsuleAction,
-                    heightDp = dims.heightDp,
+                    heightDp = dims.heightDp - capsuleInsetDp,
+                    widthDp = capsuleWidthDp,
                     onAction = onAction,
                     modifier = Modifier.graphicsLayer {
                         scaleX = capsuleReveal
@@ -3780,6 +3786,24 @@ private const val CALL_NAME_SLACK_DP = 8
 internal const val CALL_SPLIT_GAP_DP = 8
 /** The detached capsule is a stadium twice as wide as the pill is tall. */
 private const val CALL_SPLIT_HANGUP_ASPECT = 2f
+/**
+ * How far the capsule is dropped from the top of the screen, and shortened by, beside a notch. The
+ * notch itself is flush with the screen edge; a free-standing button sitting hard against that edge
+ * reads as part of the bezel, so it is tucked in and left hanging from the notch's own bottom line.
+ * One value for both, which is what keeps that bottom line shared however far it is tucked.
+ */
+private const val CALL_SPLIT_NOTCH_INSET_DP = 8
+
+/**
+ * The gap between a notch and its detached capsule, tighter than [CALL_SPLIT_GAP_DP]: the notch's
+ * ear already curves away from the capsule, so the two read as further apart than they measure.
+ * Shared with [IslandOverlayController], which reserves the same room in the touchable region.
+ */
+internal const val CALL_SPLIT_NOTCH_GAP_DP = 0
+
+/** The room between the pill and its detached capsule, which a notch keeps tighter. */
+internal fun callSplitGapDp(isNotch: Boolean): Int =
+    if (isNotch) CALL_SPLIT_NOTCH_GAP_DP else CALL_SPLIT_GAP_DP
 /** The duration's text size as a share of the pill's height, matching the timer tile's own. */
 private const val CALL_SPLIT_DURATION_FRACTION = 0.34f
 /** Room between the badge and the clock. */
@@ -3996,12 +4020,16 @@ private fun CallSplitRowContent(
  * The connected call's hang-up button, detached from the pill into a capsule of its own beside it.
  * Filled with the tile's hang-up colour and shaped as a stadium of the call cutout's own height, so
  * the two read as one system split in half rather than as a pill with a stray button next to it.
+ *
+ * @param widthDp the capsule's width, which beside a notch no longer follows from [heightDp]: the
+ *   capsule is shortened there but stays as wide as the pill is tall.
  */
 @Composable
 private fun CallHangUpCapsule(
     call: CallTileOptions,
     hangUp: IslandAction,
     heightDp: Int,
+    widthDp: Int,
     modifier: Modifier = Modifier,
     onAction: (IslandAction) -> Unit,
 ) {
@@ -4014,7 +4042,7 @@ private fun CallHangUpCapsule(
         color = fill,
         contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
         modifier = modifier
-            .size(width = callSplitHangUpWidthDp(heightDp).dp, height = heightDp.dp)
+            .size(width = widthDp.dp, height = heightDp.dp)
             .pressScale(interaction),
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
