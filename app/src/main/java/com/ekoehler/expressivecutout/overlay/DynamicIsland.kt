@@ -93,6 +93,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -250,12 +251,6 @@ private const val ALBUM_SPIN_MS = 8000
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
 
-/**
- * How often the music progress bar re-reads its own clock. The media session pushes nothing between
- * real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
- * even a half-second step sub-pixel.
- */
-private const val PROGRESS_TICK_MS = 500L
 
 /**
  * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
@@ -3455,8 +3450,9 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         mutableFloatStateOf(progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f)
     }
     LaunchedEffect(progress) {
+        // Re-read every frame so the cursor glides; the session pushes nothing between real changes.
         while (progress.speed > 0f) {
-            delay(PROGRESS_TICK_MS)
+            withFrameMillis { }
             fraction = progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f
         }
     }

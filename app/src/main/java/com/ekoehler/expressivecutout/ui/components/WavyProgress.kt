@@ -31,7 +31,7 @@ fun WavyProgressBar(
     trackColor: Color = Color(0xFF90A4AE),
     isWavy: Boolean = true,
     animated: Boolean = true,
-    waveFrequency: Float = 0.04f,
+    waveFrequency: Float = 0.08f,
     strokeWidth: Dp = 4.dp,
     separatorWidth: Dp = 4.dp,
     separatorHeight: Dp = 16.dp,
@@ -57,6 +57,9 @@ fun WavyProgressBar(
     val barHeight = maxOf(amplitude * 2 + strokeWidth, separatorHeight)
 
     Canvas(modifier = modifier.fillMaxWidth().height(barHeight)) {
+        // A collapsing island squeezes the bar below the separator's own width, where it can't be placed.
+        if (size.width < separatorWidth.toPx()) return@Canvas
+
         val width = size.width
         val centerY = size.height / 2f
         val strokePx = strokeWidth.toPx()
@@ -86,8 +89,8 @@ fun WavyProgressBar(
             val path = Path()
             path.moveTo(0f, centerY + sin(-phaseShift) * amplitudePx)
 
-            // Draw points across the width, stepping by 5px to save CPU cycles
-            for (x in 5..waveEnd.toInt() step 5) {
+            // Stepping by 2px keeps the narrow waves smooth without a point per pixel
+            for (x in 2..waveEnd.toInt() step 2) {
                 val y = centerY + sin(x * waveFrequency - phaseShift) * amplitudePx
                 path.lineTo(x.toFloat(), y)
             }
