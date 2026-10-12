@@ -209,6 +209,10 @@
     <string name="music_playpause_button_title">Lecture/pause</string>
     <string name="music_button_color">Couleur</string>
     <string name="music_button_corners">Coins</string>
+    <string name="music_button_blur_title">Flouter le fond du bouton</string>
+    <string name="music_button_blur_desc">Givrer ce qui apparaît à travers le bouton translucide</string>
+    <string name="music_button_blur_strength">Intensité</string>
+    <string name="music_album_background_dim">Assombrissement</string>
     <string name="music_playpause_expand_title">Agrandir le bouton</string>
     <string name="music_playpause_expand_desc">Laisser le bouton lecture/pause occuper la place libérée par les boutons de saut</string>
     <string name="music_playpause_text_title">Afficher le texte Lecture/pause</string>

@@ -93,8 +93,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +106,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
@@ -143,6 +147,9 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import android.net.Uri
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -246,12 +253,6 @@ private const val ALBUM_SPIN_MS = 8000
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
 
-/**
- * How often the music progress bar re-reads its own clock. The media session pushes nothing between
- * real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
- * even a half-second step sub-pixel.
- */
-private const val PROGRESS_TICK_MS = 500L
 
 /**
  * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
@@ -544,6 +545,9 @@ fun DynamicIsland(
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
     val windowDismiss = appearance.windowDismiss && !emptyPill && (isExpanded || !showsWhenEmpty)
+    // Set when a window-mode swipe dismisses into the resting pill: the window then outlives the
+    // island and shrinks into the pill, instead of vanishing and popping the pill in from a dot.
+    var windowSettling by remember(shownEvent?.id) { mutableStateOf(false) }
     // Derived so only these two flips recompose, not every frame of the slide.
     val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
     val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
@@ -759,7 +763,7 @@ fun DynamicIsland(
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
             tapExpanded = false
-            if (dismissOffsetX.value != 0f) {
+            if (dismissOffsetX.value != 0f && !windowSettling) {
                 reveal.snapTo(0f)
                 dismissOffsetX.snapTo(0f)
                 reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
@@ -821,17 +825,20 @@ fun DynamicIsland(
         else -> -satelliteSplitDp / 2f
     }
 
-    val width by animateDpAsState(
-        if (isStickToCamera) collapsed.heightDp.dp
-        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp -
-            satelliteSplitDp.dp,
-        spec, label = "islandWidth"
-    )
+    val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
+        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp - satelliteSplitDp.dp
+    val targetHeight = if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp
+        else (dims.heightDp + heightBonus).dp
+    val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
+    val height by animateDpAsState(targetHeight, heightSpec, label = "islandHeight")
 
-    val height by animateDpAsState(
-        if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp else (dims.heightDp + heightBonus).dp,
-        heightSpec, label = "islandHeight"
-    )
+    // The island stays slid aside until the window has fully shrunk, so the pill never shows mid-shrink
+    LaunchedEffect(windowSettling && emptyPill, targetWidth, targetHeight) {
+        if (!windowSettling || !emptyPill) return@LaunchedEffect
+        snapshotFlow { width == targetWidth && height == targetHeight }.first { it }
+        dismissOffsetX.snapTo(0f)
+        windowSettling = false
+    }
 
     val cornerRadius = (collapsed.heightDp / 2f).dp
     // Half the extra width, so the pill grows on its trailing edge only and its leading edge — where
@@ -957,7 +964,7 @@ fun DynamicIsland(
         )
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
-        val windowed = windowDismiss && (isExpanded || sliding)
+        val windowed = (windowDismiss && (isExpanded || sliding)) || windowSettling
         // The outline belongs to whichever shape the user actually sees the edge of.
         val outline = appearance.outlineStroke(surfaceColor, surfaceColor)
         val windowStroke = outline.takeIf { windowed }
@@ -1059,7 +1066,10 @@ fun DynamicIsland(
                             emptyPill = emptyPill,
                             scope = scope,
                             dismissOffsetX = dismissOffsetX,
-                            onDismiss = onDismiss,
+                            onDismiss = {
+                                windowSettling = windowDismiss && showsWhenEmpty
+                                onDismiss()
+                            },
                         ),
                     shape = islandShape,
                     appearance = appearance,
@@ -1694,12 +1704,16 @@ internal fun albumArtFor(
 /**
  * The colour of the ring around the album cover, or null when the user hasn't asked for one. An
  * enabled ring with no colour picked falls back to the tile's own accent, matching what the
- * settings screen offers as its default swatch.
+ * settings screen offers as its default swatch. An app/adaptive colour follows the event's own
+ * colour, like the island background does.
  */
 @Composable
 internal fun albumArtStrokeFor(event: IslandEvent): Color? =
-    event.media?.takeIf { it.albumArtStroke }
-        ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
+    event.media?.takeIf { it.albumArtStroke }?.let { media ->
+        val eventColor = event.primaryColor()
+        media.albumArtStrokeColor?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+            ?: event.accent
+    }
 
 /** The fraction of its container a badge takes, and the fraction the glyph inside it takes. */
 private const val BADGE_SIZE_FRACTION = 0.72f
@@ -3310,6 +3324,7 @@ private fun MediaExpandedContent(
         showAppName = appearance.showSourceAppName,
         showTimestamp = appearance.showTimestamp,
     )
+    val backdropState = remember { HazeState() }
 
     Box(
         modifier = Modifier
@@ -3320,13 +3335,13 @@ private fun MediaExpandedContent(
                 bitmap = albumBackground,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.42f,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.48f)),
+                modifier = Modifier.fillMaxSize().hazeSource(backdropState),
+                // Dimmed by darkening rather than fading: the cover must stay opaque, or a blurred
+                // button lets the sharp cover underneath show through its frosted copy.
+                colorFilter = ColorFilter.tint(
+                    Color.Black.copy(alpha = event.media.albumBackgroundDim),
+                    BlendMode.SrcAtop,
+                ),
             )
         }
 
@@ -3395,6 +3410,7 @@ private fun MediaExpandedContent(
                 MediaControls(
                     isPlaying = nowPlaying?.isPlaying == true,
                     accent = event.accent,
+                    eventColor = event.primaryColor(),
                     enabled = nowPlaying != null,
                     heightDp = buttonHeightDp,
                     skipStyle = media.skipStyle,
@@ -3408,7 +3424,8 @@ private fun MediaExpandedContent(
                     playPauseExpand = media.playPauseExpand,
                     playPauseText = media.playPauseText,
                     playPauseTextWidth = media.playPauseTextWidth,
-                    onPrevious = { nowPlaying?.transport?.previous() },
+                    backdropState = backdropState,
+                    onPrevious ={ nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
                 )
@@ -3444,8 +3461,9 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         mutableFloatStateOf(progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f)
     }
     LaunchedEffect(progress) {
+        // Re-read every frame so the cursor glides; the session pushes nothing between real changes.
         while (progress.speed > 0f) {
-            delay(PROGRESS_TICK_MS)
+            withFrameMillis { }
             fraction = progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f
         }
     }
@@ -3455,7 +3473,8 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         modifier = Modifier.fillMaxWidth(),
         waveColor = color,
         trackColor = trackColor,
-        isWavy = progress.speed != 0f
+        isWavy = progress.speed != 0f,
+        animated = false,
     )
 //    LinearProgressIndicator(
 //        progress = { fraction },
@@ -3469,12 +3488,15 @@ private fun MediaProgressBar(progress: MediaProgress?) {
 /**
  * Previous / play‑pause / next. Each button's fill colour, opacity and corner rounding come from the
  * music tile's settings: the skip buttons share [skipStyle] (plain over the pill by default), the
- * centre button uses [playPauseStyle] (the tile accent by default).
+ * centre button uses [playPauseStyle] (the tile accent by default). [eventColor] is what an
+ * app/adaptive button colour resolves to, the same colour the island background takes. A style
+ * with [MusicButtonStyle.blur] frosts the content registered with [backdropState] behind its fill.
  */
 @Composable
 private fun MediaControls(
     isPlaying: Boolean,
     accent: Color,
+    eventColor: Color,
     enabled: Boolean,
     heightDp: Int,
     skipStyle: MusicButtonStyle,
@@ -3488,6 +3510,7 @@ private fun MediaControls(
     playPauseExpand: Boolean,
     playPauseText: Boolean,
     playPauseTextWidth: Float,
+    backdropState: HazeState,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -3504,8 +3527,10 @@ private fun MediaControls(
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onPrevious,
             label = stringResource(R.string.music_prev_label)
                 .takeIf { previousExpand && previousText },
@@ -3526,8 +3551,10 @@ private fun MediaControls(
             // asked to expand — then it takes whatever width the skip buttons leave over.
             widthDp = heightDp * 16 / 9,
             iconSize = 24.dp,
-            fill = playPauseStyle.resolveFill(fallback = accent),
+            fill = playPauseStyle.resolveFill(fallback = accent, eventColor = eventColor),
             cornerPercent = playPauseStyle.cornerPercent,
+            blurState = playPauseStyle.blurState(backdropState),
+            blurRadius = playPauseStyle.blurRadius.dp,
             onClick = onPlayPause,
             label = stringResource(
                 if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
@@ -3544,8 +3571,10 @@ private fun MediaControls(
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onNext,
             label = stringResource(R.string.music_next_label)
                 .takeIf { nextExpand && nextText },
@@ -3558,12 +3587,18 @@ private fun MediaControls(
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
  *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
- *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha. */
+ *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha.
+ *  An app/adaptive colour resolves to [eventColor]. */
 @Composable
-private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
+private fun MusicButtonStyle.resolveFill(fallback: Color?, eventColor: Color): Color? {
+    val base = color?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+        ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
+
+/** [state] when this style asks for a frosted backdrop its translucent fill would let through, else null. */
+private fun MusicButtonStyle.blurState(state: HazeState): HazeState? =
+    state.takeIf { blur && opacity < 1f }
 
 /**
  * A transport button with the shared press "squish". A null [fill] renders a plain (unfilled) button
@@ -3572,7 +3607,8 @@ private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
  * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
  * rectangle — e.g. the 16:9 play/pause button — and [modifier] carrying a width (a row weight)
  * overrides it. A non-null [label] is drawn in place of the icon, at Roboto Flex's [labelWidth]
- * `wdth` axis.
+ * `wdth` axis. A non-null [blurState] frosts that backdrop behind a filled button's shape, [blurRadius]
+ * strong.
  */
 @Composable
 private fun MediaButton(
@@ -3588,12 +3624,34 @@ private fun MediaButton(
     label: String? = null,
     labelWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     expand: Boolean = false,
+    blurState: HazeState? = null,
+    blurRadius: Dp = Dp.Unspecified,
     modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    // Corner radius keyed to height (not width) so a wide button still reads as a clean
+    // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
+    val shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp)
     val sized = modifier
         .then(if (expand) Modifier.height(heightDp.dp) else Modifier.size(width = widthDp.dp, height = heightDp.dp))
         .pressScale(interaction)
+        .then(
+            if (blurState != null && fill != null) {
+                Modifier
+                    .clip(shape)
+                    .hazeEffect(blurState) {
+                        // Haze insists on a colour; the album backdrop is opaque, so this never shows.
+                        backgroundColor = Color.Transparent
+                        this.blurRadius = blurRadius
+                        // Haze's default frosted grain reads as dirt on buttons this small.
+                        noiseFactor = 0f
+                    }
+                    // The button's 48dp minimum touch target would otherwise size the blur past a smaller fill.
+                    .fillMaxSize()
+            } else {
+                Modifier
+            }
+        )
     if (fill == null) {
         IconButton(
             onClick = onClick,
@@ -3608,9 +3666,7 @@ private fun MediaButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            // Corner radius keyed to height (not width) so a wide button still reads as a clean
-            // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
-            shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
+            shape = shape,
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
                 contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,

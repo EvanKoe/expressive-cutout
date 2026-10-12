@@ -20,7 +20,8 @@ import kotlin.math.sin
 /**
  * This is a wavy progress bar like in Google's media player.
  * The wavy part covers the elapsed portion, the flat track covers the remaining
- * portion, and a small rounded vertical bar separates the two.
+ * portion, and a small rounded vertical bar separates the two. With [animated] off the wave holds
+ * still instead of travelling along the bar. Toggling [isWavy] grows or flattens the wave smoothly.
  */
 @Composable
 fun WavyProgressBar(
@@ -29,28 +30,42 @@ fun WavyProgressBar(
     waveColor: Color = Color(0xFF4DB6AC),
     trackColor: Color = Color(0xFF90A4AE),
     isWavy: Boolean = true,
-    waveFrequency: Float = 0.04f,
+    animated: Boolean = true,
+    waveFrequency: Float = 0.08f,
     strokeWidth: Dp = 4.dp,
     separatorWidth: Dp = 4.dp,
     separatorHeight: Dp = 16.dp,
     separatorGap: Dp = 4.dp,
     separatorColor: Color = waveColor
 ) {
-    val amplitude: Dp = if (isWavy) 4.dp else 0.dp
-    val infiniteTransition = rememberInfiniteTransition(label = "waveTransition")
-    val phaseShift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phaseShift"
+    val maxAmplitude = 4.dp
+    val amplitude by animateDpAsState(
+        targetValue = if (isWavy) maxAmplitude else 0.dp,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "waveAmplitude",
     )
+    // Only start the endless transition when it's wanted, so a still wave costs no frames.
+    val phaseShift = if (animated) {
+        rememberInfiniteTransition(label = "waveTransition").animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phaseShift"
+        ).value
+    } else {
+        0f
+    }
 
-    val barHeight = maxOf(amplitude * 2 + strokeWidth, separatorHeight)
+    // Sized for the full wave even while flat, so growing it never shifts the layout around it.
+    val barHeight = maxOf(maxAmplitude * 2 + strokeWidth, separatorHeight)
 
     Canvas(modifier = modifier.fillMaxWidth().height(barHeight)) {
+        // A collapsing island squeezes the bar below the separator's own width, where it can't be placed.
+        if (size.width < separatorWidth.toPx()) return@Canvas
+
         val width = size.width
         val centerY = size.height / 2f
         val strokePx = strokeWidth.toPx()
@@ -80,8 +95,8 @@ fun WavyProgressBar(
             val path = Path()
             path.moveTo(0f, centerY + sin(-phaseShift) * amplitudePx)
 
-            // Draw points across the width, stepping by 5px to save CPU cycles
-            for (x in 5..waveEnd.toInt() step 5) {
+            // Stepping by 2px keeps the narrow waves smooth without a point per pixel
+            for (x in 2..waveEnd.toInt() step 2) {
                 val y = centerY + sin(x * waveFrequency - phaseShift) * amplitudePx
                 path.lineTo(x.toFloat(), y)
             }

@@ -56,6 +56,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.lottie.compose)
+    implementation(libs.haze)
 
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)

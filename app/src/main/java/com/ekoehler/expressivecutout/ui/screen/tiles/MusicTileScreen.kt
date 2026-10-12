@@ -156,7 +156,18 @@ internal fun MusicTileScreen(
             description = stringResource(R.string.music_album_background_desc),
             checked = settings.showAlbumBackground,
             onCheckedChange = viewModel::setMusicShowAlbumBackground,
-        )
+        ) {
+            AnimatedVisibility(visible = settings.showAlbumBackground) {
+                ToggleCardSlider(
+                    label = stringResource(R.string.music_album_background_dim),
+                    value = settings.albumBackgroundDim,
+                    valueRange = 0f..1f,
+                    step = 0.05f,
+                    valueText = { "${(it * 100).roundToInt()}%" },
+                    onCommit = viewModel::setMusicAlbumBackgroundDim,
+                )
+            }
+        }
 
         // Rotation and the ring only apply to the album cover, so they ride with its toggle.
         AnimatedVisibility(visible = settings.showAlbumArt) {
@@ -319,8 +330,26 @@ internal fun MusicTileScreen(
                             style = settings.skipButton,
                             onOpacityCommit = viewModel::setMusicSkipOpacity,
                             onCornerCommit = viewModel::setMusicSkipCornerPercent,
-                            shape = groupedShape(isLast = true)
+                            shape = groupedShape(isLast = settings.skipButton.opacity >= 1f)
                         )
+
+                        // Blur only shows through a translucent fill.
+                        AnimatedVisibility(visible = settings.skipButton.opacity < 1f) {
+                            SettingsToggleCard(
+                                shape = groupedShape(isLast = true),
+                                title = stringResource(R.string.music_button_blur_title),
+                                description = stringResource(R.string.music_button_blur_desc),
+                                checked = settings.skipButton.blur,
+                                onCheckedChange = viewModel::setMusicSkipBlur,
+                            ) {
+                                AnimatedVisibility(visible = settings.skipButton.blur) {
+                                    BlurStrengthSlider(
+                                        radius = settings.skipButton.blurRadius,
+                                        onCommit = viewModel::setMusicSkipBlurRadius,
+                                    )
+                                }
+                            }
+                        }
 
                         // Previous button settings
                         SectionLabel(stringResource(R.string.music_prev_label))
@@ -414,6 +443,24 @@ internal fun MusicTileScreen(
                             onOpacityCommit = viewModel::setMusicPlayPauseOpacity,
                             onCornerCommit = viewModel::setMusicPlayPauseCornerPercent,
                         )
+
+                        // Blur only shows through a translucent fill.
+                        AnimatedVisibility(visible = settings.playPauseButton.opacity < 1f) {
+                            SettingsToggleCard(
+                                shape = groupedShape(),
+                                title = stringResource(R.string.music_button_blur_title),
+                                description = stringResource(R.string.music_button_blur_desc),
+                                checked = settings.playPauseButton.blur,
+                                onCheckedChange = viewModel::setMusicPlayPauseBlur,
+                            ) {
+                                AnimatedVisibility(visible = settings.playPauseButton.blur) {
+                                    BlurStrengthSlider(
+                                        radius = settings.playPauseButton.blurRadius,
+                                        onCommit = viewModel::setMusicPlayPauseBlurRadius,
+                                    )
+                                }
+                            }
+                        }
 
                         // Stretch the button across the width the skip buttons leave over
                         SettingsToggleCard(
@@ -582,6 +629,51 @@ private fun ButtonShapeCard(
             )
         }
     }
+}
+
+/**
+ * A slider sitting inside a toggle card's content slot, under the switch it refines. Local while
+ * dragging and committed to prefs on release, like [ButtonShapeCard]; [valueText] formats the
+ * readout.
+ */
+@Composable
+private fun ToggleCardSlider(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    step: Float,
+    valueText: (Float) -> String,
+    onCommit: (Float) -> Unit,
+) {
+    var current by remember(value) { mutableFloatStateOf(value) }
+
+    Box(modifier = Modifier.padding(bottom = 16.dp)) {
+        AdjustableSlider(
+            label = label,
+            valueText = valueText(current),
+            value = current,
+            valueRange = valueRange,
+            step = step,
+            onValueChange = { current = it },
+            onCommit = { onCommit(current) },
+        )
+    }
+}
+
+/** The blur strength slider of one button style, in dp of blur radius. */
+@Composable
+private fun BlurStrengthSlider(
+    radius: Int,
+    onCommit: (Int) -> Unit,
+) {
+    ToggleCardSlider(
+        label = stringResource(R.string.music_button_blur_strength),
+        value = radius.toFloat(),
+        valueRange = MusicButtonStyle.MIN_BLUR_RADIUS.toFloat()..MusicButtonStyle.MAX_BLUR_RADIUS.toFloat(),
+        step = 2f,
+        valueText = { "${it.roundToInt()} dp" },
+        onCommit = { onCommit(it.roundToInt()) },
+    )
 }
 
 /**
