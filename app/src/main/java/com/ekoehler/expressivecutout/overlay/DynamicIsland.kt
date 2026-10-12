@@ -96,6 +96,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -543,6 +545,9 @@ fun DynamicIsland(
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
     val windowDismiss = appearance.windowDismiss && !emptyPill && (isExpanded || !showsWhenEmpty)
+    // Set when a window-mode swipe dismisses into the resting pill: the window then outlives the
+    // island and shrinks into the pill, instead of vanishing and popping the pill in from a dot.
+    var windowSettling by remember(shownEvent?.id) { mutableStateOf(false) }
     // Derived so only these two flips recompose, not every frame of the slide.
     val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
     val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
@@ -758,7 +763,7 @@ fun DynamicIsland(
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
             tapExpanded = false
-            if (dismissOffsetX.value != 0f) {
+            if (dismissOffsetX.value != 0f && !windowSettling) {
                 reveal.snapTo(0f)
                 dismissOffsetX.snapTo(0f)
                 reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
@@ -820,17 +825,20 @@ fun DynamicIsland(
         else -> -satelliteSplitDp / 2f
     }
 
-    val width by animateDpAsState(
-        if (isStickToCamera) collapsed.heightDp.dp
-        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp -
-            satelliteSplitDp.dp,
-        spec, label = "islandWidth"
-    )
+    val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
+        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp - satelliteSplitDp.dp
+    val targetHeight = if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp
+        else (dims.heightDp + heightBonus).dp
+    val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
+    val height by animateDpAsState(targetHeight, heightSpec, label = "islandHeight")
 
-    val height by animateDpAsState(
-        if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp else (dims.heightDp + heightBonus).dp,
-        heightSpec, label = "islandHeight"
-    )
+    // The island stays slid aside until the window has fully shrunk, so the pill never shows mid-shrink
+    LaunchedEffect(windowSettling && emptyPill, targetWidth, targetHeight) {
+        if (!windowSettling || !emptyPill) return@LaunchedEffect
+        snapshotFlow { width == targetWidth && height == targetHeight }.first { it }
+        dismissOffsetX.snapTo(0f)
+        windowSettling = false
+    }
 
     val cornerRadius = (collapsed.heightDp / 2f).dp
     // Half the extra width, so the pill grows on its trailing edge only and its leading edge — where
@@ -956,7 +964,7 @@ fun DynamicIsland(
         )
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
-        val windowed = windowDismiss && (isExpanded || sliding)
+        val windowed = (windowDismiss && (isExpanded || sliding)) || windowSettling
         // The outline belongs to whichever shape the user actually sees the edge of.
         val outline = appearance.outlineStroke(surfaceColor, surfaceColor)
         val windowStroke = outline.takeIf { windowed }
@@ -1058,7 +1066,10 @@ fun DynamicIsland(
                             emptyPill = emptyPill,
                             scope = scope,
                             dismissOffsetX = dismissOffsetX,
-                            onDismiss = onDismiss,
+                            onDismiss = {
+                                windowSettling = windowDismiss && showsWhenEmpty
+                                onDismiss()
+                            },
                         ),
                     shape = islandShape,
                     appearance = appearance,
