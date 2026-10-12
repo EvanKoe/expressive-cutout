@@ -21,7 +21,7 @@ import kotlin.math.sin
  * This is a wavy progress bar like in Google's media player.
  * The wavy part covers the elapsed portion, the flat track covers the remaining
  * portion, and a small rounded vertical bar separates the two. With [animated] off the wave holds
- * still instead of travelling along the bar.
+ * still instead of travelling along the bar. Toggling [isWavy] grows or flattens the wave smoothly.
  */
 @Composable
 fun WavyProgressBar(
@@ -38,7 +38,12 @@ fun WavyProgressBar(
     separatorGap: Dp = 4.dp,
     separatorColor: Color = waveColor
 ) {
-    val amplitude: Dp = if (isWavy) 4.dp else 0.dp
+    val maxAmplitude = 4.dp
+    val amplitude by animateDpAsState(
+        targetValue = if (isWavy) maxAmplitude else 0.dp,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "waveAmplitude",
+    )
     // Only start the endless transition when it's wanted, so a still wave costs no frames.
     val phaseShift = if (animated) {
         rememberInfiniteTransition(label = "waveTransition").animateFloat(
@@ -54,7 +59,8 @@ fun WavyProgressBar(
         0f
     }
 
-    val barHeight = maxOf(amplitude * 2 + strokeWidth, separatorHeight)
+    // Sized for the full wave even while flat, so growing it never shifts the layout around it.
+    val barHeight = maxOf(maxAmplitude * 2 + strokeWidth, separatorHeight)
 
     Canvas(modifier = modifier.fillMaxWidth().height(barHeight)) {
         // A collapsing island squeezes the bar below the separator's own width, where it can't be placed.
