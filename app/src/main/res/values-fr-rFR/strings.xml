@@ -626,6 +626,7 @@
     <string name="profile_permissions_subtitle">À quoi sert chaque autorisation, et à quoi elle ne sert pas</string>
     <string name="behaviour_split_island">Diviser l’encoche</string>
     <string name="behaviour_split_island_desc">Quand quelque chose de nouveau arrive, l’évènement qu’il remplace reste visible dans une petite bulle à côté de la pastille au lieu de disparaître. Appuyez sur la bulle pour le ramener au premier plan.</string>
+    <string name="behaviour_split_island_notch">Vous ne pouvez pas diviser l’île quand la notch est activée</string>
     <string name="behaviour_satellite_position">Bulle secondaire</string>
     <string name="satellite_position_left">Gauche</string>
     <string name="satellite_position_right">Droite</string>

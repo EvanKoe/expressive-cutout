@@ -585,6 +585,7 @@
     <string name="profile_permissions_subtitle">Her iznin ne için olduğu ve ne için olmadığı</string>
     <string name="behaviour_split_island">Adayı böl</string>
     <string name="behaviour_split_island_desc">Yeni bir şey geldiğinde, yerini aldığı olay kaybolmak yerine hapın yanında küçük bir baloncukta görünür kalır. Öne getirmek için baloncuğa dokunun.</string>
+    <string name="behaviour_split_island_notch">Çentik modunda ada bölünemez</string>
     <string name="behaviour_satellite_position">İkincil baloncuk</string>
     <string name="satellite_position_left">Sol</string>
     <string name="satellite_position_right">Sağ</string>

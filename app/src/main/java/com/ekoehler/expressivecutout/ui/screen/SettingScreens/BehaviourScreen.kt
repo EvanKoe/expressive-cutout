@@ -76,6 +76,11 @@ internal fun BehaviourScreen(
     onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    // The bubble is parked beside the normal cutout, so it is the notch setting of that state that
+    // rules the split out — see satelliteAllowed in IslandOverlayController, which enforces it.
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val splitLockedByNotch = layout.collapsed.isNotch
+    val splitIsland = behaviour.splitIslandEnabled && !splitLockedByNotch
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
         mutableStateOf(behaviour.normalDurationSeconds.toFloat())
     }
@@ -193,8 +198,10 @@ internal fun BehaviourScreen(
             checked = behaviour.hapticsOnPop,
             onCheckedChange = viewModel::setHapticsOnPop,
         )
+        // The notch hint breaks the stack in two below, so whichever card ends up last above it has
+        // to close its group — this one whenever the swipe sub-options it owns are folded away.
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
+            shape = groupedShape(isFirst = false, isLast = splitLockedByNotch && !behaviour.swipeToDismiss),
             title = stringResource(R.string.behaviour_swipe_dismiss),
             description = stringResource(R.string.behaviour_swipe_dismiss_desc),
             checked = behaviour.swipeToDismiss,
@@ -214,7 +221,7 @@ internal fun BehaviourScreen(
                     onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
                 )
                 BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = false),
+                    shape = groupedShape(isFirst = false, isLast = splitLockedByNotch),
                     label = stringResource(R.string.behaviour_swipe_target),
                     options = listOf(
                         stringResource(R.string.swipe_target_expanded),
@@ -226,14 +233,24 @@ internal fun BehaviourScreen(
                 )
             }
         }
+        // Says why the switch below is greyed out, which it can't say for itself.
+        AnimatedVisibility(visible = splitLockedByNotch) {
+            Text(
+                text = stringResource(R.string.behaviour_split_island_notch),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
+            shape = groupedShape(isFirst = splitLockedByNotch, isLast = false),
             title = stringResource(R.string.behaviour_split_island),
             description = stringResource(R.string.behaviour_split_island_desc),
-            checked = behaviour.splitIslandEnabled,
+            checked = splitIsland,
             onCheckedChange = viewModel::setSplitIslandEnabled,
+            enabled = !splitLockedByNotch,
         )
-        AnimatedVisibility(visible = behaviour.splitIslandEnabled) {
+        AnimatedVisibility(visible = splitIsland) {
             BehaviourSegmentedRow(
                 shape = groupedShape(isFirst = false, isLast = false),
                 label = stringResource(R.string.behaviour_satellite_position),

@@ -1553,6 +1553,9 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
         if (!behaviourState.value.splitIslandEnabled) return false
+        // A notch is one shape cut out of the screen edge; a second bubble floating beside it reads
+        // as a stray dot rather than as part of it, so the setting is locked off in the UI too.
+        if (layoutState.value.collapsed.isNotch) return false
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
         if (isTinyTile(displaced) || isTinyTile(incoming)) return false
