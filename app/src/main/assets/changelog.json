@@ -4,7 +4,8 @@
     "description": "Notch and 0.3.1 fixes",
     "features": [
       "Notch mode: allows you to display a nice notch instead of the island",
-      "Blur cover in music dynamic tile"
+      "Blur cover in music dynamic tile",
+      "Notification icon color: tint the notification icon (and its source app name and timestamp) with the Material color, the app's own color, or a custom color"
     ],
     "bugfixes": [
       "Swiping a notification away on the island now also clears it from the notification panel",

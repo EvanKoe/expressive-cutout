@@ -486,7 +486,7 @@ class IslandOverlayController(private val context: Context) {
             animatedIconEnabled = eventAnimatedIcons,
             animatedIconLoop = eventAnimatedIconLoops,
             eventColorOverrides = eventColors,
-            preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
+            appearance = appearanceState.value,
         ).copy(initiallyExpanded = false, normalOnly = false)
         isDeviceLocked = true
         lastLockEvent = resolved
@@ -895,7 +895,7 @@ class IslandOverlayController(private val context: Context) {
             animatedIconEnabled = eventAnimatedIcons,
             animatedIconLoop = eventAnimatedIconLoops,
             eventColorOverrides = eventColors,
-            preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
+            appearance = appearanceState.value,
         ).copy(
             initiallyExpanded = previous.initiallyExpanded,
             normalOnly = previous.normalOnly,
@@ -2048,7 +2048,7 @@ class IslandOverlayController(private val context: Context) {
                 animatedIconEnabled = eventAnimatedIcons,
                 animatedIconLoop = eventAnimatedIconLoops,
                 eventColorOverrides = eventColors,
-                preferDynamicIconColor = appearanceState.value.preferDynamicIconColor,
+                appearance = appearanceState.value,
             ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
 
             if (overlayHidden) {

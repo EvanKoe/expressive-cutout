@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import com.airbnb.lottie.compose.LottieConstants
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
@@ -16,7 +17,9 @@ import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AssistantTileSettings
+import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
@@ -91,7 +94,7 @@ class IconResolver(private val context: Context) {
         animatedIconEnabled: Map<SystemEventType, Boolean> = emptyMap(),
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
         eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
-        preferDynamicIconColor: Boolean = false,
+        appearance: AppearanceSettings = AppearanceSettings(),
     ): IslandEvent {
         val packageName = when (signal) {
             is CutoutSignal.Notification -> signal.packageName
@@ -111,7 +114,7 @@ class IconResolver(private val context: Context) {
                 dynamicEventColor,
                 dynamicEventColorRole,
                 dynamicEventColorOpacity,
-                preferDynamicIconColor,
+                appearance,
             )
             is CutoutSignal.System -> resolveSystem(
                 signal.payload,
@@ -137,9 +140,15 @@ class IconResolver(private val context: Context) {
         dynamicEventColor: Boolean,
         dynamicEventColorRole: DynamicRole,
         dynamicEventColorOpacity: Float,
-        preferDynamicIconColor: Boolean = false,
+        appearance: AppearanceSettings,
     ): IslandEvent {
-        val icon = signal.notificationIcon(preferDynamicIconColor) ?: IslandIcon.Vector(Icons.Rounded.Notifications)
+        val icon = signal.notificationIcon(appearance.preferDynamicIconColor)
+            ?: IslandIcon.Vector(Icons.Rounded.Notifications)
+        val chosenColor = when (appearance.notificationColorMode) {
+            NotificationColorMode.MATERIAL -> null
+            NotificationColorMode.APP -> appColor
+            NotificationColorMode.OTHER -> appearance.notificationCustomColor?.resolveColor()
+        }
 
         val title = signal.title?.takeIf { it.isNotBlank() }
         val text = signal.text?.takeIf { it.isNotBlank() }
@@ -156,10 +165,14 @@ class IconResolver(private val context: Context) {
             detail = if (title != null) text else null,
             appName = appName,
             postTimeMs = postTimeMs,
-            accent = NOTIFICATION_ACCENT,
+            // The accent drives the badge glyph and the source-app / timestamp header alike
+            accent = chosenColor ?: NOTIFICATION_ACCENT,
             // A notification badge is a monochrome glyph far more often than a system event's is
-            // art, so it follows "Dynamic color for all events" too when that is on.
-            useThemeColor = dynamicEventColor,
+            // art, so it follows "Dynamic color for all events" too when that is on, unless the
+            // user chose an app or custom notification colour.
+            useThemeColor = dynamicEventColor && chosenColor == null,
+            // A filled disc; IconBadge picks black or white ink from its luminance
+            iconContainerColor = chosenColor?.let { CutoutColor.Solid(it.toArgb().toLong() and 0xFFFFFFFFL) },
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
             contentIntent = signal.contentIntent,
