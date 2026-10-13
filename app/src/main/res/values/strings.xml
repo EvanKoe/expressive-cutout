@@ -153,6 +153,9 @@
     <string name="appearance_height">Height</string>
     <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
+    <string name="appearance_notch">Notch</string>
+    <string name="appearance_notch_desc">Hang the cutout off the top edge, with corners curving outwards into it</string>
+    <string name="appearance_notch_flare">Inverted radius</string>
     <string name="corner_mode_all">All</string>
     <string name="corner_mode_split">T/B</string>
     <string name="corner_mode_each">Each</string>
@@ -627,6 +630,7 @@
     <string name="profile_permissions_subtitle">What each permission is for, and what it is not</string>
     <string name="behaviour_split_island">Split the island</string>
     <string name="behaviour_split_island_desc">When something new arrives, the event it replaces stays visible in a small bubble beside the pill instead of disappearing. Tap the bubble to bring it back to the front.</string>
+    <string name="behaviour_split_island_notch">You can’t split the island in notch mode</string>
     <string name="behaviour_satellite_position">Secondary bubble</string>
     <string name="satellite_position_left">Left</string>
     <string name="satellite_position_right">Right</string>

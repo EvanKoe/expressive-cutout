@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.notchOverhangDp
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
@@ -582,6 +583,16 @@ class IslandOverlayController(private val context: Context) {
         // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
         if (view == null || overlayHidden) {
             applyRotation(orientation, rotation)
+            return
+        }
+        // Stuck to the camera the island is pinned to one spot per orientation and is meant to simply
+        // be there, so the cross-fade below is the whole of what reads as it travelling: the fade-out
+        // leaves it sitting at its portrait placement on an already-landscape screen. Swap outright
+        // instead, holding the snap over the frame that adopts the new geometry so nothing springs.
+        if (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA) {
+            rotationSnapState.value = true
+            applyRotation(orientation, rotation)
+            view.post { rotationSnapState.value = false }
             return
         }
         // Cross-fade across the rotation: fade the island out at its old placement, snap to the new
@@ -1334,9 +1345,9 @@ class IslandOverlayController(private val context: Context) {
     private fun callCapsuleTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
         if (!isSplitCall()) return null
         val dims = effectiveDims(layoutState.value, expanded = false)
-        val gapPx = (CALL_SPLIT_GAP_DP * density).toInt()
+        val gapPx = (callSplitGapDp(dims.isNotch) * density).toInt()
         val capsuleWidthPx = (callSplitHangUpWidthDp(dims.heightDp) * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         val pillCenterX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
         val capsuleCenterX = pillCenterX + pillWidthPx / 2 + gapPx + capsuleWidthPx / 2
@@ -1367,7 +1378,8 @@ class IslandOverlayController(private val context: Context) {
         val gapPx = (SATELLITE_GAP_DP * density).toInt()
         val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+            notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
             satelliteShiftPx(splitPx)
@@ -1402,7 +1414,8 @@ class IslandOverlayController(private val context: Context) {
         val bonusDp = currentHeightBonusDp(expanded)
         val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+            notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
         // The pill grows to the right for the dots, so its centre moves with it; a bubble beside it
         // pushes the centre the other way by half of the width it gave up.
@@ -1423,7 +1436,9 @@ class IslandOverlayController(private val context: Context) {
         val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         if (isStickToCamera) {
-            val islandLengthDp = displayWidthDp.value * (layout.collapsed.widthPercent / 100f)
+            // Stuck to the camera the island runs down the screen, so its ears grow this axis.
+            val islandLengthDp = displayWidthDp.value * (layout.collapsed.widthPercent / 100f) +
+                layout.collapsed.notchOverhangDp * 2
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val collapsed = layout.collapsed
@@ -1441,7 +1456,8 @@ class IslandOverlayController(private val context: Context) {
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         val dims = effectiveDims(layout, expanded)
         if (isStickToCamera) {
-            val islandLengthDp = displayWidthDp.value * (dims.widthPercent / 100f)
+            val islandLengthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
+                dims.notchOverhangDp * 2
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val bonus = currentHeightBonusDp(expanded)
@@ -1469,9 +1485,17 @@ class IslandOverlayController(private val context: Context) {
         // The window is centred on the screen, so a pill pushed off-centre (the tiny "Mini player"
         // parked beside the camera) needs twice its offset of extra width or it is clipped.
         val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
-            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2
+            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2 +
+            dims.notchOverhangDp * 2
         return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
     }
+
+    /**
+     * The ears a notch hangs off each side, in pixels — the amount every touch rectangle has to grow
+     * by so what is tappable still matches what [DynamicIsland] draws.
+     */
+    private fun notchOverhangPx(dims: IslandDimensions): Int =
+        (dims.notchOverhangDp * 2 * density).toInt()
 
     /**
      * How much wider the collapsed pill is drawn to fit the permission dots on its trailing edge, so
@@ -1542,6 +1566,9 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
         if (!behaviourState.value.splitIslandEnabled) return false
+        // A notch is one shape cut out of the screen edge; a second bubble floating beside it reads
+        // as a stray dot rather than as part of it, so the setting is locked off in the UI too.
+        if (layoutState.value.collapsed.isNotch) return false
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
         if (isTinyTile(displaced) || isTinyTile(incoming)) return false
@@ -2590,10 +2617,13 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private fun getLandscapeCameraGravity(): Int {
-        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) }
+        // Measured off the display, never off [composeView]: in this very mode the window is a narrow
+        // band already hugging one edge, so its own insets would report the hole relative to wherever
+        // the island was last put rather than to the screen.
+        val center = CutoutMetrics.displayCutoutBoundsPx(context)
         if (center != null) {
             val (widthPx, _) = currentScreenSizePx()
-            return if (center.x < widthPx / 2f) {
+            return if (center.centerX() < widthPx / 2f) {
                 Gravity.LEFT or Gravity.CENTER_VERTICAL
             } else {
                 Gravity.RIGHT or Gravity.CENTER_VERTICAL
@@ -2610,13 +2640,17 @@ class IslandOverlayController(private val context: Context) {
      * hugs a side edge and is centred vertically, so shift it by the cutout's distance from the
      * screen's vertical centre — that plants the pill's midline directly over the physical camera.
      * Zero in every other case (portrait, or non-stick modes, position via gravity alone).
+     *
+     * Read from the display rather than from [composeView]'s insets: the window this offset places is
+     * only as tall as the pill, so an insets-relative centre is measured against the window's own top
+     * and comes out near zero, which then drags the window up by half the screen.
      */
     private fun computeWindowOffsetY(): Int {
         if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) return 0
         if (behaviourState.value.horizontalCutoutMode != HorizontalCutoutMode.STICK_TO_CAMERA) return 0
-        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) } ?: return 0
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return 0
         val (_, heightPx) = currentScreenSizePx()
-        return (center.y - heightPx / 2f).roundToInt()
+        return (bounds.centerY() - heightPx / 2f).roundToInt()
     }
 
     /** How far the island has to be rotated to sit level with the physical camera in landscape. */

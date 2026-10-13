@@ -1,5 +1,26 @@
 [
   {
+    "version": "0.3.2-beta",
+    "description": "Notch and 0.3.1 fixes",
+    "features": [
+      "Notch mode: allows you to display a nice notch instead of the island"
+    ],
+    "bugfixes": []
+  },
+  {
+    "version": "0.3.1-beta",
+    "description": "Music fixes, status bar auto hide and UI animations",
+    "features": [
+      "Customization for the music tile (blur buttons, dim background...)",
+      "Auto-hide system icons when permission dots expand the normal cutout on the right",
+      "DIAW (Dismiss inside a window): a new cool animation when dismissing the expanded cutout"
+    ],
+    "bugfixes": [
+      "Permission dots used to override right icons/texts in the normal cutout. They now expand the cutout to the right",
+      "Adaptive colors used to fallback automatically on the music dynamic tile (buttons, ring, cover fallback...)"
+    ]
+  },
+  {
     "version": "0.3.0-beta",
     "description": "Music and call tile rework, translations and status-bar automation",
     "features": [

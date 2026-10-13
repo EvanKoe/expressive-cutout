@@ -8,6 +8,15 @@ import kotlin.math.roundToInt
  * [offsetXDp]/[offsetYDp] shift it from its top-centre anchor (positive X right, positive Y
  * down); and the four corner radii round each corner independently. All values are clamped to
  * the ranges below.
+ *
+ * [isNotch] turns the state into a notch instead of a floating pill: it hangs from the very top of
+ * the screen and its top corners flare *outwards* into the screen edge by [notchFlareDp], the
+ * inverted (concave) counterpart of a corner radius. A notch is flush by definition, so [of] forces
+ * [offsetYDp] to zero whenever it is set — the fillets would curve into empty space otherwise, and
+ * the overlay window and its touchable region both size themselves off that offset. The two top
+ * radii are kept as the user left them but go unused, since a flare replaces the corner it is on.
+ * The ears sit *outside* [widthPercent], so widening the flare never eats into the body — see
+ * [notchOverhangDp], which every width measurement adds back.
  */
 data class IslandDimensions(
     val widthPercent: Int,
@@ -19,6 +28,8 @@ data class IslandDimensions(
     val cornerBottomLeftDp: Int,
     val cornerBottomRightDp: Int,
     val topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
+    val isNotch: Boolean = false,
+    val notchFlareDp: Int = DEFAULT_NOTCH_FLARE_DP,
 ) {
     companion object {
         const val MIN_WIDTH_PERCENT = 10
@@ -34,7 +45,15 @@ data class IslandDimensions(
         const val MIN_TOP_MARGIN_DP = 0
         const val MAX_TOP_MARGIN_DP = 100
         const val DEFAULT_TOP_MARGIN_DP = 48
+        const val MIN_NOTCH_FLARE_DP = 0
+        const val MAX_NOTCH_FLARE_DP = 48
+        const val DEFAULT_NOTCH_FLARE_DP = 20
 
+        /**
+         * The only way geometry is built from untrusted numbers — sliders, an imported settings
+         * file, the derived call and tiny cutouts — so it is also where a notch's "flush with the
+         * top of the screen" invariant is enforced, once, for every caller.
+         */
         fun of(
             widthPercent: Int,
             heightDp: Int,
@@ -45,19 +64,30 @@ data class IslandDimensions(
             cornerBottomLeftDp: Int,
             cornerBottomRightDp: Int,
             topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
+            isNotch: Boolean = false,
+            notchFlareDp: Int = DEFAULT_NOTCH_FLARE_DP,
         ) = IslandDimensions(
             widthPercent = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT),
             heightDp = heightDp.coerceIn(MIN_HEIGHT_DP, MAX_HEIGHT_DP),
             offsetXDp = offsetXDp.coerceIn(MIN_OFFSET_X_DP, MAX_OFFSET_X_DP),
-            offsetYDp = offsetYDp.coerceIn(MIN_OFFSET_Y_DP, MAX_OFFSET_Y_DP),
+            offsetYDp = if (isNotch) 0 else offsetYDp.coerceIn(MIN_OFFSET_Y_DP, MAX_OFFSET_Y_DP),
             cornerTopLeftDp = cornerTopLeftDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             cornerTopRightDp = cornerTopRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             cornerBottomLeftDp = cornerBottomLeftDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             cornerBottomRightDp = cornerBottomRightDp.coerceIn(MIN_CORNER_DP, MAX_CORNER_DP),
             topMarginDp = topMarginDp.coerceIn(MIN_TOP_MARGIN_DP, MAX_TOP_MARGIN_DP),
+            isNotch = isNotch,
+            notchFlareDp = notchFlareDp.coerceIn(MIN_NOTCH_FLARE_DP, MAX_NOTCH_FLARE_DP),
         )
     }
 }
+
+/**
+ * How far a notch's ears reach past each side of the configured width, so the body always measures
+ * exactly what the width slider says. Zero for every other state, which lets each width measurement
+ * add it unconditionally.
+ */
+val IslandDimensions.notchOverhangDp: Int get() = if (isNotch) notchFlareDp else 0
 
 /**
  * The phone tile is shown as a single, bigger "normal" cutout (it has no expanded state): wider than
@@ -66,7 +96,8 @@ data class IslandDimensions(
  * carries over; the height and (stadium) corners are fixed to this fuller shape. [widthPercent] is
  * the screen-width fraction to span — [CALL_MIN_WIDTH_PERCENT] by default, widened to fit a long
  * caller name (see the overlay's width measurement). Used by both the overlay's rendering and its
- * touch sizing so they always agree on the call cutout's geometry.
+ * touch sizing so they always agree on the call cutout's geometry. A notched normal cutout stays a
+ * notch here, so the shape doesn't change character when a call comes in.
  */
 fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): IslandDimensions =
     IslandDimensions.of(
@@ -79,6 +110,8 @@ fun IslandDimensions.asCallCutout(widthPercent: Int = CALL_MIN_WIDTH_PERCENT): I
         cornerBottomLeftDp = CALL_CORNER_DP,
         cornerBottomRightDp = CALL_CORNER_DP,
         topMarginDp = topMarginDp,
+        isNotch = isNotch,
+        notchFlareDp = notchFlareDp,
     )
 
 /** The call cutout's default width, and the most it will grow to when a caller name is long. */
@@ -127,6 +160,8 @@ fun IslandDimensions.asTinyCutout(
         cornerBottomLeftDp = heightDp / 2,
         cornerBottomRightDp = heightDp / 2,
         topMarginDp = topMarginDp,
+        isNotch = isNotch,
+        notchFlareDp = notchFlareDp,
     )
 }
 
@@ -161,6 +196,8 @@ fun IslandDimensions.asSplitCallCutout(
         cornerBottomLeftDp = cornerBottomLeftDp,
         cornerBottomRightDp = cornerBottomRightDp,
         topMarginDp = topMarginDp,
+        isNotch = isNotch,
+        notchFlareDp = notchFlareDp,
     )
 }
 

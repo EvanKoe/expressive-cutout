@@ -101,7 +101,10 @@ import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -771,11 +774,15 @@ fun DynamicIsland(
         }
     }
 
-    val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
+    // Stuck to the camera the island has exactly one placement and one size for the whole
+    // orientation, so there is never anything to animate towards — and springing into it on arrival
+    // is what reads as the pill sliding in from where it was in portrait.
+    val snapAllGeometry = reveal.value == 0f || snapGeometry || isStickToCamera
+    val spec: AnimationSpec<Dp> = if (snapAllGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
     val heightSpec: AnimationSpec<Dp> = when {
-        reveal.value == 0f || snapGeometry -> snap()
+        snapAllGeometry -> snap()
         isDynamicHeight -> motion.dpSmooth()
         else -> spec
     }
@@ -854,12 +861,29 @@ fun DynamicIsland(
     fun innerCorner(override: Int?, own: Int) =
         (if (windowDismiss && isExpanded) override ?: own else own).dp
 
+    // A notch has no top radius — the flare replaces the corner it sits on — so the stored value is
+    // held at zero while one is up. That is also what makes the morph out of a notch continuous: the
+    // top corners open from nothing exactly as the ears pull in, instead of snapping to a radius
+    // that was animating unseen underneath them.
+    val notched = dims.isNotch
+    fun topCorner(corner: Dp) = if (notched) 0.dp else corner
+
+    // Stuck to the camera the island runs down the side of the screen, so a notch there flares into
+    // that edge instead of the top one — the same shape, a quarter turn round.
+    val notchEdge = when {
+        !isStickToCamera -> NotchEdge.TOP
+        isRotation270 -> NotchEdge.RIGHT
+        else -> NotchEdge.LEFT
+    }
+
     val topLeft by animateDpAsState(
-        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp),
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp)),
         spec, label = "cornerTL"
     )
     val topRight by animateDpAsState(
-        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp),
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp)),
         spec, label = "cornerTR"
     )
     val bottomLeft by animateDpAsState(
@@ -872,10 +896,10 @@ fun DynamicIsland(
     )
 
     val windowTopLeft by animateDpAsState(
-        if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "windowCornerTL"
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopLeftDp.dp), spec, label = "windowCornerTL"
     )
     val windowTopRight by animateDpAsState(
-        if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "windowCornerTR"
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopRightDp.dp), spec, label = "windowCornerTR"
     )
     val windowBottomLeft by animateDpAsState(
         if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "windowCornerBL"
@@ -883,6 +907,18 @@ fun DynamicIsland(
     val windowBottomRight by animateDpAsState(
         if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "windowCornerBR"
     )
+    val flareTarget = if (notched) dims.notchFlareDp.dp else 0.dp
+    // The ears are the one part of the silhouette with no counterpart in a plain pill, so there is
+    // nothing for them to morph into — the shape swaps outright the moment the flare leaves or
+    // reaches zero. Running them well ahead of the transition around them keeps that swap short in
+    // both directions: growing or shrinking, the island is only ever briefly between silhouettes.
+    // The reveal is not affected, since it scales the flare itself (see revealFlare).
+    val flareSpec: AnimationSpec<Dp> = if (snapAllGeometry) {
+        snap()
+    } else {
+        tween(durationMillis = scaled(NOTCH_EAR_TRANSITION_MS))
+    }
+    val notchFlare by animateDpAsState(flareTarget, flareSpec, label = "notchFlare")
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
@@ -890,8 +926,18 @@ fun DynamicIsland(
     )
 
     val dotDp = collapsed.heightDp.dp
-    val revealWidth = lerpDp(dotDp, width, reveal.value)
-    val revealHeight = lerpDp(dotDp, height, reveal.value)
+    // The ears grow with the reveal like the radii do, so a notch unfolds out of the dot rather than
+    // popping in at full width. Clamped non-negative for the same reason the radii are: the spring
+    // undershoots its target, and a negative flare reaches Modifier.padding, which rejects it.
+    val revealFlare = lerpDp(0.dp, notchFlare, reveal.value).coerceAtLeast(0.dp)
+    // The ears hang off the ends rather than eating into the body, so the pill still measures the
+    // width the user chose. Everything downstream — the bubble and the hang-up capsule parked beside
+    // it, the window, the touchable region — steps off this total. Stuck to the camera the island
+    // runs down the screen, so the ears grow it the other way.
+    val earsAlongWidth = if (isStickToCamera) 0.dp else revealFlare * 2
+    val earsAlongHeight = if (isStickToCamera) revealFlare * 2 else 0.dp
+    val revealWidth = lerpDp(dotDp, width, reveal.value) + earsAlongWidth
+    val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight
     val dotCorner = dotDp / 2
     val revealTopLeft = lerpDp(dotCorner, topLeft, reveal.value)
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
@@ -955,12 +1001,21 @@ fun DynamicIsland(
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
-        val islandShape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight)
+        val islandShape = cornerShape(
+            revealTopLeft,
+            revealTopRight,
+            revealBottomLeft,
+            revealBottomRight,
+            revealFlare,
+            notchEdge,
+        )
         val windowShape = cornerShape(
             revealWindowTopLeft,
             revealWindowTopRight,
             revealWindowBottomLeft,
             revealWindowBottomRight,
+            revealFlare,
+            notchEdge,
         )
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
@@ -991,7 +1046,7 @@ fun DynamicIsland(
                                 }
                             }
                             // Outside the clip, so the stroke keeps its full width on the curve.
-                            .then(windowStroke?.let { Modifier.border(it, windowShape) } ?: Modifier)
+                            .then(windowStroke?.let { Modifier.outlineBorder(it, windowShape) } ?: Modifier)
                             .graphicsLayer {
                                 shape = windowShape
                                 clip = true
@@ -1077,6 +1132,8 @@ fun DynamicIsland(
                     progress = expandProgress,
                     appColor = surfaceColor,
                     adaptiveColor = surfaceColor,
+                    contentInsetHorizontal = earsAlongWidth / 2,
+                    contentInsetVertical = earsAlongHeight / 2,
                 ) {
                     Crossfade(
                         targetState = IslandContentKey(
@@ -1257,16 +1314,22 @@ fun DynamicIsland(
         val capsuleReveal = minOf(reveal.value, callSplitReveal.value)
         if (capsuleAction != null && capsuleCall != null && capsuleReveal > 0.01f) {
             val capsuleWidthDp = callSplitHangUpWidthDp(dims.heightDp)
-            val step = revealWidth / 2 + CALL_SPLIT_GAP_DP.dp + (capsuleWidthDp / 2).dp
+            val step = revealWidth / 2 + callSplitGapDp(notched).dp + (capsuleWidthDp / 2).dp
+            // Dropped and shortened by the same amount beside a notch, so it keeps the notch's own
+            // bottom line while clearing the screen edge the notch is flush with. The width is left
+            // alone: the capsule stays as wide as the pill is tall, which is what the touchable
+            // region reserves for it.
+            val capsuleInsetDp = if (notched) CALL_SPLIT_NOTCH_INSET_DP else 0
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(x = offsetX + step, y = offsetY),
+                    .offset(x = offsetX + step, y = offsetY + capsuleInsetDp.dp),
             ) {
                 CallHangUpCapsule(
                     call = capsuleCall,
                     hangUp = capsuleAction,
-                    heightDp = dims.heightDp,
+                    heightDp = dims.heightDp - capsuleInsetDp,
+                    widthDp = capsuleWidthDp,
                     onAction = onAction,
                     modifier = Modifier.graphicsLayer {
                         scaleX = capsuleReveal
@@ -1471,6 +1534,14 @@ private fun Modifier.islandSwipeToDismiss(
 /** The elevation the island casts when its shadow is switched on. */
 private const val ISLAND_SHADOW_ELEVATION_DP = 6
 
+/**
+ * How long a notch's ears take to grow or pull in when the island morphs between a notch and a state
+ * that isn't one — deliberately shorter than the transition around it, so the ears are settled well
+ * before the body has finished changing shape. Scaled by the user's animation-duration setting like
+ * every other timing.
+ */
+private const val NOTCH_EAR_TRANSITION_MS = 110
+
 /** How far the dismiss glyph sits from the window edge it is pinned to. */
 private const val DISMISS_GLYPH_INSET_DP = 20
 
@@ -1609,6 +1680,12 @@ internal fun AppearanceSettings.outlineStroke(appColor: Color?, adaptiveColor: C
  * The island's surface: shadow, optional stroke and the background fill. [progress] (0 = collapsed,
  * 1 = expanded) cross-fades the normal fill into the expanded fill, so if the two states use
  * different colours (or gradients) the background morphs in lockstep with the size animation.
+ *
+ * @param contentInsetHorizontal keeps [content] clear of a shape that doesn't use the full width of
+ *   its box — the flared ears of a [NotchShape]. The fills still cover the whole shape, ears
+ *   included; only the content is pulled in.
+ * @param contentInsetVertical the same, for a notch turned onto a side edge, whose ears run down the
+ *   box rather than across it.
  */
 @Composable
 internal fun IslandSurface(
@@ -1619,6 +1696,8 @@ internal fun IslandSurface(
     appColor: Color? = null,
     adaptiveColor: Color? = null,
     drawStroke: Boolean = true,
+    contentInsetHorizontal: Dp = 0.dp,
+    contentInsetVertical: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
@@ -1636,15 +1715,21 @@ internal fun IslandSurface(
     val autoContentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
     val contentColor = appearance.textColor?.resolve(appColor, adaptiveColor) ?: autoContentColor
     val border = if (drawStroke) appearance.outlineStroke(appColor, adaptiveColor) else null
+    // [Surface] strokes a shape whole, with no way to leave a segment out, so a notch draws its own.
+    val notch = shape as? NotchShape
+    val notchBorder =
+        if (notch != null && border != null) Modifier.notchBorder(border, notch) else Modifier
 
     Surface(
-        modifier = modifier.background(currentBaseColor, shape),
+        modifier = modifier
+            .then(notchBorder)
+            .background(currentBaseColor, shape),
         shape = shape,
         color = currentBaseColor,
         contentColor = contentColor,
         shadowElevation = if (appearance.shadowEnabled) ISLAND_SHADOW_ELEVATION_DP.dp else 0.dp,
         tonalElevation = 0.dp,
-        border = border,
+        border = if (notch == null) border else null,
     ) {
         CompositionLocalProvider(LocalContentColor provides contentColor) {
             Box(modifier = Modifier.fillMaxSize().background(currentBaseColor)) {
@@ -1657,25 +1742,76 @@ internal fun IslandSurface(
                             .background(expandedBrush),
                     )
                 }
-                content()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = contentInsetHorizontal, vertical = contentInsetVertical)
+                ) {
+                    content()
+                }
             }
         }
     }
 }
 
 /**
+ * Strokes a notch's outline everywhere except along its top edge, which lies on the screen's own
+ * edge where a line reads as a stray mark rather than part of the shape. Stroked at double width and
+ * clipped to the silhouette so only the inner half lands, which is what [Modifier.border] does for
+ * every other island shape — the two have to look identical where they do overlap.
+ */
+private fun Modifier.notchBorder(stroke: BorderStroke, shape: NotchShape) = drawWithContent {
+    drawContent()
+    val widthPx = stroke.width.toPx()
+    if (widthPx <= 0f) return@drawWithContent
+    clipPath(shape.path(size, this, includeFlatEdge = true)) {
+        drawPath(
+            path = shape.path(size, this@drawWithContent, includeFlatEdge = false),
+            brush = stroke.brush,
+            style = Stroke(widthPx * 2f),
+        )
+    }
+}
+
+/**
+ * The island's outline: [Modifier.border] for an ordinary rounded shape, and a top-edge-less stroke
+ * for a notch. Lets a call site that doesn't know which shape it has draw the right one.
+ */
+private fun Modifier.outlineBorder(stroke: BorderStroke, shape: Shape): Modifier =
+    if (shape is NotchShape) notchBorder(stroke, shape) else border(stroke, shape)
+
+/**
  * Builds a rounded shape with each corner independently sized (LTR-mapped). Corners are clamped to
  * be non-negative: the spring animation driving the radii overshoots below its target, so easing a
  * corner down to 0 dp momentarily produces a negative value, which Compose refuses to render
  * ("RoundRect with negative corners could not be rendered"). Clamping yields a plain rectangle at 0.
+ *
+ * A positive [flare] swaps in the [NotchShape] instead, whose outward-curving top corners replace
+ * the top radii entirely. At zero flare this returns exactly what it always did, so a state that
+ * isn't a notch renders through the same path as before.
  */
-private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: Dp) =
+private fun cornerShape(
+    topLeft: Dp,
+    topRight: Dp,
+    bottomLeft: Dp,
+    bottomRight: Dp,
+    flare: Dp = 0.dp,
+    edge: NotchEdge = NotchEdge.TOP,
+): Shape = if (flare > 0.dp) {
+    NotchShape(
+        flare = flare,
+        bottomLeft = bottomLeft.coerceAtLeast(0.dp),
+        bottomRight = bottomRight.coerceAtLeast(0.dp),
+        edge = edge,
+    )
+} else {
     RoundedCornerShape(
         topStart = topLeft.coerceAtLeast(0.dp),
         topEnd = topRight.coerceAtLeast(0.dp),
         bottomStart = bottomLeft.coerceAtLeast(0.dp),
         bottomEnd = bottomRight.coerceAtLeast(0.dp),
     )
+}
 
 /**
  * The cover to draw for the music tile, or null to fall back to the note glyph. The media session's
@@ -3736,6 +3872,24 @@ private const val CALL_NAME_SLACK_DP = 8
 internal const val CALL_SPLIT_GAP_DP = 8
 /** The detached capsule is a stadium twice as wide as the pill is tall. */
 private const val CALL_SPLIT_HANGUP_ASPECT = 2f
+/**
+ * How far the capsule is dropped from the top of the screen, and shortened by, beside a notch. The
+ * notch itself is flush with the screen edge; a free-standing button sitting hard against that edge
+ * reads as part of the bezel, so it is tucked in and left hanging from the notch's own bottom line.
+ * One value for both, which is what keeps that bottom line shared however far it is tucked.
+ */
+private const val CALL_SPLIT_NOTCH_INSET_DP = 8
+
+/**
+ * The gap between a notch and its detached capsule, tighter than [CALL_SPLIT_GAP_DP]: the notch's
+ * ear already curves away from the capsule, so the two read as further apart than they measure.
+ * Shared with [IslandOverlayController], which reserves the same room in the touchable region.
+ */
+internal const val CALL_SPLIT_NOTCH_GAP_DP = 0
+
+/** The room between the pill and its detached capsule, which a notch keeps tighter. */
+internal fun callSplitGapDp(isNotch: Boolean): Int =
+    if (isNotch) CALL_SPLIT_NOTCH_GAP_DP else CALL_SPLIT_GAP_DP
 /** The duration's text size as a share of the pill's height, matching the timer tile's own. */
 private const val CALL_SPLIT_DURATION_FRACTION = 0.34f
 /** Room between the badge and the clock. */
@@ -3952,12 +4106,16 @@ private fun CallSplitRowContent(
  * The connected call's hang-up button, detached from the pill into a capsule of its own beside it.
  * Filled with the tile's hang-up colour and shaped as a stadium of the call cutout's own height, so
  * the two read as one system split in half rather than as a pill with a stray button next to it.
+ *
+ * @param widthDp the capsule's width, which beside a notch no longer follows from [heightDp]: the
+ *   capsule is shortened there but stays as wide as the pill is tall.
  */
 @Composable
 private fun CallHangUpCapsule(
     call: CallTileOptions,
     hangUp: IslandAction,
     heightDp: Int,
+    widthDp: Int,
     modifier: Modifier = Modifier,
     onAction: (IslandAction) -> Unit,
 ) {
@@ -3970,7 +4128,7 @@ private fun CallHangUpCapsule(
         color = fill,
         contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
         modifier = modifier
-            .size(width = callSplitHangUpWidthDp(heightDp).dp, height = heightDp.dp)
+            .size(width = widthDp.dp, height = heightDp.dp)
             .pressScale(interaction),
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
