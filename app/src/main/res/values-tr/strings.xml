@@ -631,8 +631,8 @@
     <string name="bgColor_oled_desc">OLED ekranlarda daha az tüketim için saf siyah kullan</string>
     <string name="music_progress_title">İlerlemeyi göster</string>
     <string name="music_progress_description">Kontrollerin altında bir oynatma ilerleme çubuğu göster</string>
-    <string name="behaviour_dismissNotifs_title">Bildirimleri otomatik olarak kapat</string>
-    <string name="behaviour_dismissNotifs_desc">Ada bildirimleri gösterirken onları bildirim çekmecesinden uzak tutar. Birini görmezden gelirseniz bir dakika sonra geri gelir, böylece hiçbir şey kaybolmaz</string>
+    <string name="behaviour_dismissNotifs_title">Bildirimleri çekmecenin dışında tut</string>
+    <string name="behaviour_dismissNotifs_desc">Ada yeni bildirimleri gösterirken onları bildirim çekmecesinden gizler. Birini görmezden gelirseniz ada kaybolduğunda çekmeceye geçer, böylece hiçbir şey kaybolmaz</string>
     <string name="behaviour_displayWhileDnd_title">Rahatsız Etmeyin modundayken göster</string>
     <string name="behaviour_displayWhileDnd_desc">Rahatsız Etmeyin modu etkinken bile bildirimleri göster</string>
     <string name="behaviour_alertOnNotif_title">Bildirimde titret/çal</string>

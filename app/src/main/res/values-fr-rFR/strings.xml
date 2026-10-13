@@ -676,8 +676,8 @@
     <string name="music_right_button_desc">Afficher un bouton de lecture à droite de l’encoche normale</string>
     <string name="music_progress_title">Afficher la progression</string>
     <string name="music_progress_description">Afficher une barre de progression sous les commandes</string>
-    <string name="behaviour_dismissNotifs_title">Masquer automatiquement les notifications</string>
-    <string name="behaviour_dismissNotifs_desc">Garde les notifications hors du volet tant que l’île les affiche. Ignorez-en une et elle revient une minute plus tard : rien n’est perdu</string>
+    <string name="behaviour_dismissNotifs_title">Garder les notifications hors du volet</string>
+    <string name="behaviour_dismissNotifs_desc">Masque les nouvelles notifications du volet tant que l’île les affiche. Ignorez-en une et elle rejoint le volet quand l’île disparaît : rien n’est perdu</string>
     <string name="behaviour_displayWhileDnd_title">Afficher en mode Ne pas déranger</string>
     <string name="behaviour_displayWhileDnd_desc">Afficher les notifications même quand le mode Ne pas déranger est activé</string>
     <string name="behaviour_alertOnNotif_title">Vibrer/sonner à la notification</string>

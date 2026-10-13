@@ -364,15 +364,14 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      * active list and cannot be cancelled by key, so it is fetched back first and cancelled the
      * moment it lands, before any of it is mirrored.
      *
-     * A key we never held is cancelled outright, but only when the user asked for notifications to be
-     * dismissed automatically and this was a swipe: with that setting off the shade is not ours to
-     * touch, and a tap or an action ([onlyIfHeld]) leaves the notification to the app that owns it,
-     * exactly as tapping it in the shade would.
+     * A key we never held is cancelled outright when this was a swipe, exactly as swiping it away in
+     * the shade would. A tap or an action ([onlyIfHeld]) leaves it to the app that owns it, exactly
+     * as tapping it in the shade would.
      */
     private fun discard(key: String, onlyIfHeld: Boolean) {
         val ceiling = held.remove(key)
         if (ceiling == null) {
-            if (onlyIfHeld || !dismissNotifications) return
+            if (onlyIfHeld) return
             cancel(key)
             return
         }
@@ -1021,10 +1020,8 @@ class CutoutNotificationListenerService : NotificationListenerService() {
 
         /**
          * The user swiped the pill mirroring [key] away, so the notification it stands for is thrown
-         * away too — it never reaches the notification panel. Only when the user asked for
-         * notifications to be dismissed automatically: with that setting off the pill is a mirror and
-         * nothing more, and swiping it leaves the real notification exactly where it is. A no-op if
-         * the listener isn't connected (nothing we can do without it).
+         * away too — it never reaches, or is cleared from, the notification panel. A no-op if the
+         * listener isn't connected (nothing we can do without it).
          */
         fun dismiss(key: String) {
             instance?.run { markSuppressed(key); discard(key, onlyIfHeld = false) }

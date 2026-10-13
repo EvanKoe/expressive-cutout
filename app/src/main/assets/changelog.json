@@ -6,7 +6,10 @@
       "Notch mode: allows you to display a nice notch instead of the island",
       "Blur cover in music dynamic tile"
     ],
-    "bugfixes": []
+    "bugfixes": [
+      "Swiping a notification away on the island now also clears it from the notification panel",
+      "\"Automatically dismiss notifications\" is renamed \"Keep notifications out of shade\" to describe what it actually does"
+    ]
   },
   {
     "version": "0.3.1-beta",

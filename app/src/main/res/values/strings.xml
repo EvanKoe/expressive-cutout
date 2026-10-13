@@ -676,8 +676,8 @@
     <string name="music_right_button_desc">Show one playback button on the right of the normal cutout</string>
     <string name="music_progress_title">Show progress</string>
     <string name="music_progress_description">Display a playback progress bar under the controls</string>
-    <string name="behaviour_dismissNotifs_title">Automatically dismiss notifications</string>
-    <string name="behaviour_dismissNotifs_desc">Keep notifications out of the shade while the island shows them. Ignore one and it comes back a minute later, so nothing is lost</string>
+    <string name="behaviour_dismissNotifs_title">Keep notifications out of shade</string>
+    <string name="behaviour_dismissNotifs_desc">Hide new notifications from the shade while the island shows them. Ignore one and it moves to the shade when the island fades, so nothing is lost</string>
     <string name="behaviour_displayWhileDnd_title">Display while Do not disturb</string>
     <string name="behaviour_displayWhileDnd_desc">Display notifications even when do not disturb is enabled</string>
     <string name="behaviour_alertOnNotif_title">Vibrate/rings on notification</string>
