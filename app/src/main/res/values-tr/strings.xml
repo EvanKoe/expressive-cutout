@@ -267,6 +267,10 @@
     <string name="appearance_dismiss_corners_follow">Adacığın kendi köşelerini kullan</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Dinamik simge rengini tercih et</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Mevcut olduğunda dinamik Material You uygulama simgesini kullan, kapalıyken düz simgeyi kullan</string>
+    <string name="appearance_notification_color_title">Bildirim simgesi rengi</string>
+    <string name="appearance_notification_color_material">Material rengi</string>
+    <string name="appearance_notification_color_app">Uygulama rengi</string>
+    <string name="appearance_notification_color_other">Diğer</string>
     <string name="appearance_show_full_notification_text_title">Bildirimin tam metnini göster</string>
     <string name="appearance_show_full_notification_text_desc">Bildirim metninin tüm satırlarını göstermek için ada yüksekliğini dinamik olarak genişletir.</string>
     <string name="appearance_stroke_width">Kenarlık kalınlığı</string>

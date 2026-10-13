@@ -301,6 +301,10 @@
     <string name="appearance_dismiss_corners_follow">Follow the cutout’s own corners</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Prefer dynamic icon color</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Use dynamic Material You app icon when available, or plain icon when off</string>
+    <string name="appearance_notification_color_title">Notification icon color</string>
+    <string name="appearance_notification_color_material">Material color</string>
+    <string name="appearance_notification_color_app">App color</string>
+    <string name="appearance_notification_color_other">Other</string>
     <string name="appearance_show_full_notification_text_title">Show full notification text</string>
     <string name="appearance_show_full_notification_text_desc">Expand the island height dynamically to display all lines of notification text.</string>
     <string name="appearance_stroke_width">Stroke width</string>

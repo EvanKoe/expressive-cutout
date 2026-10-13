@@ -87,6 +87,9 @@ import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.NotificationColorMode
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
@@ -97,6 +100,14 @@ import com.ekoehler.expressivecutout.ui.components.MaterialCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
+
+/** Label shown for each notification colour source in its options card. */
+private val NotificationColorMode.titleRes: Int
+    get() = when (this) {
+        NotificationColorMode.MATERIAL -> R.string.appearance_notification_color_material
+        NotificationColorMode.APP -> R.string.appearance_notification_color_app
+        NotificationColorMode.OTHER -> R.string.appearance_notification_color_other
+    }
 
 @Composable
 internal fun AppearanceScreen(
@@ -209,6 +220,29 @@ internal fun AppearanceScreen(
             checked = appearance.preferDynamicIconColor,
             onCheckedChange = viewModel::setPreferDynamicIconColor,
         )
+
+        // Notification color mode
+        OptionSelectionCard(
+            title = stringResource(R.string.appearance_notification_color_title),
+            options = NotificationColorMode.entries.map { mode ->
+                SelectableOption(value = mode, title = stringResource(mode.titleRes))
+            },
+            selectedValue = appearance.notificationColorMode,
+            onSelectionChange = viewModel::setNotificationColorMode,
+            isFirst = false,
+            isLast = false,
+        )
+
+        // Custom notification color
+        AnimatedVisibility(visible = appearance.notificationColorMode == NotificationColorMode.OTHER) {
+            ColorPickerCard(
+                selected = appearance.notificationCustomColor,
+                onSelect = viewModel::setNotificationCustomColor,
+                dynamicRoles = emptyList(),
+                allowAppIcon = false,
+                shape = groupedShape(),
+            )
+        }
 
         // Text color selector
         ColorPickerCard(
