@@ -216,6 +216,8 @@
     <string name="music_button_blur_desc">Givrer ce qui apparaît à travers le bouton translucide</string>
     <string name="music_button_blur_strength">Intensité</string>
     <string name="music_album_background_dim">Assombrissement</string>
+    <string name="music_album_background_blur_title">Flouter l\'arrière-plan</string>
+    <string name="music_album_background_blur_desc">Flouter la pochette derrière le lecteur de musique étendu.</string>
     <string name="music_playpause_expand_title">Agrandir le bouton</string>
     <string name="music_playpause_expand_desc">Laisser le bouton lecture/pause occuper la place libérée par les boutons de saut</string>
     <string name="music_playpause_text_title">Afficher le texte Lecture/pause</string>

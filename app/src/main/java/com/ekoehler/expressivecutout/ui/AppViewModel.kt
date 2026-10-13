@@ -418,6 +418,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setAlbumBackgroundDim(dim)
     }
 
+    fun setMusicAlbumBackgroundBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundBlur(enabled)
+    }
+
+    fun setMusicAlbumBackgroundBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundBlurRadius(radius)
+    }
+
     fun setMusicRotateAlbumArt(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setRotateAlbumArt(enabled)
     }

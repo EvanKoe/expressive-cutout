@@ -212,6 +212,8 @@ data class MediaTileOptions(
     val showAlbumBackground: Boolean = false,
     /** How far that album background darkens towards black: 0 untouched, 1 black. */
     val albumBackgroundDim: Float,
+    /** Blur radius of that album background in dp; null leaves it sharp. */
+    val albumBackgroundBlurRadius: Int? = null,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
     /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */

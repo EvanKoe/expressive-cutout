@@ -216,6 +216,8 @@
     <string name="music_button_blur_desc">Frost what shows through the translucent button</string>
     <string name="music_button_blur_strength">Strength</string>
     <string name="music_album_background_dim">Dim</string>
+    <string name="music_album_background_blur_title">Blur background</string>
+    <string name="music_album_background_blur_desc">Blur the album cover behind the expanded music player.</string>
     <string name="music_playpause_expand_title">Expand button</string>
     <string name="music_playpause_expand_desc">Let the play/pause button fill the space left by the skip buttons</string>
     <string name="music_playpause_text_title">Display Play/pause text</string>

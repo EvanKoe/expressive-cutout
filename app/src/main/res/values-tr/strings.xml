@@ -209,6 +209,8 @@
     <string name="music_button_blur_desc">Yarı saydam düğmenin arkasında görüneni buzlu yap</string>
     <string name="music_button_blur_strength">Yoğunluk</string>
     <string name="music_album_background_dim">Karartma</string>
+    <string name="music_album_background_blur_title">Arka planı bulanıklaştır</string>
+    <string name="music_album_background_blur_desc">Genişletilmiş müzik çaların arkasındaki albüm kapağını bulanıklaştır.</string>
     <string name="music_button_presets">Hazır ayarlar</string>
     <string name="music_preset_rounded">Yuvarlatılmış</string>
     <string name="music_preset_pill">Hap</string>

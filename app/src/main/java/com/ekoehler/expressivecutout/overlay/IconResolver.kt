@@ -253,6 +253,7 @@ class IconResolver(private val context: Context) {
                 showAlbumArt = settings.showAlbumArt,
                 showAlbumBackground = settings.showAlbumBackground,
                 albumBackgroundDim = settings.albumBackgroundDim,
+                albumBackgroundBlurRadius = settings.albumBackgroundBlurRadius.takeIf { settings.albumBackgroundBlur },
                 rotateAlbumArt = settings.rotateAlbumArt,
                 circleCover = settings.circleCover,
                 albumArtStroke = settings.albumArtStroke,
