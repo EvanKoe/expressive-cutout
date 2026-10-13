@@ -770,11 +770,15 @@ fun DynamicIsland(
         }
     }
 
-    val spec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) snap() else motion.dp()
+    // Stuck to the camera the island has exactly one placement and one size for the whole
+    // orientation, so there is never anything to animate towards — and springing into it on arrival
+    // is what reads as the pill sliding in from where it was in portrait.
+    val snapAllGeometry = reveal.value == 0f || snapGeometry || isStickToCamera
+    val spec: AnimationSpec<Dp> = if (snapAllGeometry) snap() else motion.dp()
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
     val heightSpec: AnimationSpec<Dp> = when {
-        reveal.value == 0f || snapGeometry -> snap()
+        snapAllGeometry -> snap()
         isDynamicHeight -> motion.dpSmooth()
         else -> spec
     }
@@ -902,7 +906,7 @@ fun DynamicIsland(
     // reaches zero. Running them well ahead of the transition around them keeps that swap short in
     // both directions: growing or shrinking, the island is only ever briefly between silhouettes.
     // The reveal is not affected, since it scales the flare itself (see revealFlare).
-    val flareSpec: AnimationSpec<Dp> = if (reveal.value == 0f || snapGeometry) {
+    val flareSpec: AnimationSpec<Dp> = if (snapAllGeometry) {
         snap()
     } else {
         tween(durationMillis = scaled(NOTCH_EAR_TRANSITION_MS))

@@ -585,6 +585,16 @@ class IslandOverlayController(private val context: Context) {
             applyRotation(orientation, rotation)
             return
         }
+        // Stuck to the camera the island is pinned to one spot per orientation and is meant to simply
+        // be there, so the cross-fade below is the whole of what reads as it travelling: the fade-out
+        // leaves it sitting at its portrait placement on an already-landscape screen. Swap outright
+        // instead, holding the snap over the frame that adopts the new geometry so nothing springs.
+        if (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA) {
+            rotationSnapState.value = true
+            applyRotation(orientation, rotation)
+            view.post { rotationSnapState.value = false }
+            return
+        }
         // Cross-fade across the rotation: fade the island out at its old placement, snap to the new
         // geometry while it is invisible (so it never slides from the top band to the side edge),
         // then fade it back in.
@@ -2607,10 +2617,13 @@ class IslandOverlayController(private val context: Context) {
     }
 
     private fun getLandscapeCameraGravity(): Int {
-        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) }
+        // Measured off the display, never off [composeView]: in this very mode the window is a narrow
+        // band already hugging one edge, so its own insets would report the hole relative to wherever
+        // the island was last put rather than to the screen.
+        val center = CutoutMetrics.displayCutoutBoundsPx(context)
         if (center != null) {
             val (widthPx, _) = currentScreenSizePx()
-            return if (center.x < widthPx / 2f) {
+            return if (center.centerX() < widthPx / 2f) {
                 Gravity.LEFT or Gravity.CENTER_VERTICAL
             } else {
                 Gravity.RIGHT or Gravity.CENTER_VERTICAL
@@ -2627,13 +2640,17 @@ class IslandOverlayController(private val context: Context) {
      * hugs a side edge and is centred vertically, so shift it by the cutout's distance from the
      * screen's vertical centre — that plants the pill's midline directly over the physical camera.
      * Zero in every other case (portrait, or non-stick modes, position via gravity alone).
+     *
+     * Read from the display rather than from [composeView]'s insets: the window this offset places is
+     * only as tall as the pill, so an insets-relative centre is measured against the window's own top
+     * and comes out near zero, which then drags the window up by half the screen.
      */
     private fun computeWindowOffsetY(): Int {
         if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) return 0
         if (behaviourState.value.horizontalCutoutMode != HorizontalCutoutMode.STICK_TO_CAMERA) return 0
-        val center = composeView?.let { CutoutMetrics.cutoutCenterPx(it) } ?: return 0
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return 0
         val (_, heightPx) = currentScreenSizePx()
-        return (center.y - heightPx / 2f).roundToInt()
+        return (bounds.centerY() - heightPx / 2f).roundToInt()
     }
 
     /** How far the island has to be rotated to sit level with the physical camera in landscape. */
