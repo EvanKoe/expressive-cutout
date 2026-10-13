@@ -854,8 +854,16 @@ fun DynamicIsland(
     // held at zero while one is up. That is also what makes the morph out of a notch continuous: the
     // top corners open from nothing exactly as the ears pull in, instead of snapping to a radius
     // that was animating unseen underneath them.
-    val notched = dims.isNotch && !isStickToCamera
+    val notched = dims.isNotch
     fun topCorner(corner: Dp) = if (notched) 0.dp else corner
+
+    // Stuck to the camera the island runs down the side of the screen, so a notch there flares into
+    // that edge instead of the top one — the same shape, a quarter turn round.
+    val notchEdge = when {
+        !isStickToCamera -> NotchEdge.TOP
+        isRotation270 -> NotchEdge.RIGHT
+        else -> NotchEdge.LEFT
+    }
 
     val topLeft by animateDpAsState(
         if (isStickToCamera) cornerRadius
@@ -888,8 +896,6 @@ fun DynamicIsland(
     val windowBottomRight by animateDpAsState(
         if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "windowCornerBR"
     )
-    // Stuck to the camera the island is a vertical pill down the side of the screen, so it has no top
-    // edge to flare into and stays a stadium whatever the state is configured as.
     val flareTarget = if (notched) dims.notchFlareDp.dp else 0.dp
     // The ears are the one part of the silhouette with no counterpart in a plain pill, so there is
     // nothing for them to morph into — the shape swaps outright the moment the flare leaves or
@@ -913,11 +919,14 @@ fun DynamicIsland(
     // popping in at full width. Clamped non-negative for the same reason the radii are: the spring
     // undershoots its target, and a negative flare reaches Modifier.padding, which rejects it.
     val revealFlare = lerpDp(0.dp, notchFlare, reveal.value).coerceAtLeast(0.dp)
-    // The ears hang off the sides rather than eating into the body, so the pill still measures the
+    // The ears hang off the ends rather than eating into the body, so the pill still measures the
     // width the user chose. Everything downstream — the bubble and the hang-up capsule parked beside
-    // it, the window, the touchable region — steps off this total.
-    val revealWidth = lerpDp(dotDp, width, reveal.value) + revealFlare * 2
-    val revealHeight = lerpDp(dotDp, height, reveal.value)
+    // it, the window, the touchable region — steps off this total. Stuck to the camera the island
+    // runs down the screen, so the ears grow it the other way.
+    val earsAlongWidth = if (isStickToCamera) 0.dp else revealFlare * 2
+    val earsAlongHeight = if (isStickToCamera) revealFlare * 2 else 0.dp
+    val revealWidth = lerpDp(dotDp, width, reveal.value) + earsAlongWidth
+    val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight
     val dotCorner = dotDp / 2
     val revealTopLeft = lerpDp(dotCorner, topLeft, reveal.value)
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
@@ -981,14 +990,21 @@ fun DynamicIsland(
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
 
-        val islandShape =
-            cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight, revealFlare)
+        val islandShape = cornerShape(
+            revealTopLeft,
+            revealTopRight,
+            revealBottomLeft,
+            revealBottomRight,
+            revealFlare,
+            notchEdge,
+        )
         val windowShape = cornerShape(
             revealWindowTopLeft,
             revealWindowTopRight,
             revealWindowBottomLeft,
             revealWindowBottomRight,
             revealFlare,
+            notchEdge,
         )
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
@@ -1102,7 +1118,8 @@ fun DynamicIsland(
                     progress = expandProgress,
                     appColor = surfaceColor,
                     adaptiveColor = surfaceColor,
-                    contentInsetHorizontal = revealFlare,
+                    contentInsetHorizontal = earsAlongWidth / 2,
+                    contentInsetVertical = earsAlongHeight / 2,
                 ) {
                     Crossfade(
                         targetState = IslandContentKey(
@@ -1653,6 +1670,8 @@ internal fun AppearanceSettings.outlineStroke(appColor: Color?, adaptiveColor: C
  * @param contentInsetHorizontal keeps [content] clear of a shape that doesn't use the full width of
  *   its box — the flared ears of a [NotchShape]. The fills still cover the whole shape, ears
  *   included; only the content is pulled in.
+ * @param contentInsetVertical the same, for a notch turned onto a side edge, whose ears run down the
+ *   box rather than across it.
  */
 @Composable
 internal fun IslandSurface(
@@ -1664,6 +1683,7 @@ internal fun IslandSurface(
     adaptiveColor: Color? = null,
     drawStroke: Boolean = true,
     contentInsetHorizontal: Dp = 0.dp,
+    contentInsetVertical: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
@@ -1708,7 +1728,11 @@ internal fun IslandSurface(
                             .background(expandedBrush),
                     )
                 }
-                Box(modifier = Modifier.fillMaxSize().padding(horizontal = contentInsetHorizontal)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = contentInsetHorizontal, vertical = contentInsetVertical)
+                ) {
                     content()
                 }
             }
@@ -1726,9 +1750,9 @@ private fun Modifier.notchBorder(stroke: BorderStroke, shape: NotchShape) = draw
     drawContent()
     val widthPx = stroke.width.toPx()
     if (widthPx <= 0f) return@drawWithContent
-    clipPath(shape.path(size, this, includeTopEdge = true)) {
+    clipPath(shape.path(size, this, includeFlatEdge = true)) {
         drawPath(
-            path = shape.path(size, this@drawWithContent, includeTopEdge = false),
+            path = shape.path(size, this@drawWithContent, includeFlatEdge = false),
             brush = stroke.brush,
             style = Stroke(widthPx * 2f),
         )
@@ -1758,11 +1782,13 @@ private fun cornerShape(
     bottomLeft: Dp,
     bottomRight: Dp,
     flare: Dp = 0.dp,
+    edge: NotchEdge = NotchEdge.TOP,
 ): Shape = if (flare > 0.dp) {
     NotchShape(
         flare = flare,
         bottomLeft = bottomLeft.coerceAtLeast(0.dp),
         bottomRight = bottomRight.coerceAtLeast(0.dp),
+        edge = edge,
     )
 } else {
     RoundedCornerShape(
