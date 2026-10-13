@@ -93,6 +93,9 @@ data class MusicTileSettings(
     val showAlbumBackground: Boolean = DEFAULT_SHOW_ALBUM_BACKGROUND,
     /** How far (0f..1f) that album background darkens towards black: 0 untouched, 1 black. */
     val albumBackgroundDim: Float = DEFAULT_ALBUM_BACKGROUND_DIM,
+    /** Blur that album background, [albumBackgroundBlurRadius] dp strong; stacks with the dim. */
+    val albumBackgroundBlur: Boolean = DEFAULT_ALBUM_BACKGROUND_BLUR,
+    val albumBackgroundBlurRadius: Int = MusicButtonStyle.DEFAULT_BLUR_RADIUS,
     val rotateAlbumArt: Boolean = DEFAULT_ROTATE_ALBUM_ART,
     /**
      * Crop the album cover to a full circle rather than a rounded square. Forced on while
@@ -155,6 +158,7 @@ data class MusicTileSettings(
         const val DEFAULT_SHOW_ALBUM_BACKGROUND = false
         /** Matches the old look: the cover at 42% under a 48% black scrim, about 22% strength. */
         const val DEFAULT_ALBUM_BACKGROUND_DIM = 0.78f
+        const val DEFAULT_ALBUM_BACKGROUND_BLUR = false
         const val DEFAULT_ROTATE_ALBUM_ART = false
         const val DEFAULT_CIRCLE_COVER = false
         const val DEFAULT_ALBUM_ART_STROKE = false
@@ -188,6 +192,9 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             showAlbumBackground = prefs[SHOW_ALBUM_BACKGROUND] ?: MusicTileSettings.DEFAULT_SHOW_ALBUM_BACKGROUND,
             albumBackgroundDim = (prefs[ALBUM_BACKGROUND_DIM] ?: MusicTileSettings.DEFAULT_ALBUM_BACKGROUND_DIM)
                 .coerceIn(0f, 1f),
+            albumBackgroundBlur = prefs[ALBUM_BACKGROUND_BLUR] ?: MusicTileSettings.DEFAULT_ALBUM_BACKGROUND_BLUR,
+            albumBackgroundBlurRadius = (prefs[ALBUM_BACKGROUND_BLUR_RADIUS] ?: MusicButtonStyle.DEFAULT_BLUR_RADIUS)
+                .coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS),
             rotateAlbumArt = prefs[ROTATE_ALBUM_ART] ?: MusicTileSettings.DEFAULT_ROTATE_ALBUM_ART,
             circleCover = prefs[CIRCLE_COVER] ?: MusicTileSettings.DEFAULT_CIRCLE_COVER,
             albumArtStroke = prefs[ALBUM_ART_STROKE] ?: MusicTileSettings.DEFAULT_ALBUM_ART_STROKE,
@@ -254,6 +261,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             put("showAlbumArt", s.showAlbumArt)
             put("showAlbumBackground", s.showAlbumBackground)
             put("albumBackgroundDim", s.albumBackgroundDim.toDouble())
+            put("albumBackgroundBlur", s.albumBackgroundBlur)
+            put("albumBackgroundBlurRadius", s.albumBackgroundBlurRadius)
             put("rotateAlbumArt", s.rotateAlbumArt)
             put("circleCover", s.circleCover)
             put("albumArtStroke", s.albumArtStroke)
@@ -291,6 +300,11 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("showAlbumBackground")) prefs[SHOW_ALBUM_BACKGROUND] = obj.getBoolean("showAlbumBackground")
             if (obj.has("albumBackgroundDim")) {
                 prefs[ALBUM_BACKGROUND_DIM] = obj.optDouble("albumBackgroundDim").toFloat().coerceIn(0f, 1f)
+            }
+            if (obj.has("albumBackgroundBlur")) prefs[ALBUM_BACKGROUND_BLUR] = obj.getBoolean("albumBackgroundBlur")
+            if (obj.has("albumBackgroundBlurRadius")) {
+                prefs[ALBUM_BACKGROUND_BLUR_RADIUS] = obj.getInt("albumBackgroundBlurRadius")
+                    .coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS)
             }
             if (obj.has("rotateAlbumArt")) prefs[ROTATE_ALBUM_ART] = obj.getBoolean("rotateAlbumArt")
             if (obj.has("circleCover")) prefs[CIRCLE_COVER] = obj.getBoolean("circleCover")
@@ -373,6 +387,15 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
     /** Clamps to 0f..1f, the range the dim slider offers. */
     suspend fun setAlbumBackgroundDim(dim: Float) = context.musicTileDataStore.edit {
         it[ALBUM_BACKGROUND_DIM] = dim.coerceIn(0f, 1f)
+    }
+
+    suspend fun setAlbumBackgroundBlur(enabled: Boolean) = context.musicTileDataStore.edit {
+        it[ALBUM_BACKGROUND_BLUR] = enabled
+    }
+
+    /** Clamps to the range the blur strength slider offers. */
+    suspend fun setAlbumBackgroundBlurRadius(radius: Int) = context.musicTileDataStore.edit {
+        it[ALBUM_BACKGROUND_BLUR_RADIUS] = radius.coerceIn(MusicButtonStyle.MIN_BLUR_RADIUS, MusicButtonStyle.MAX_BLUR_RADIUS)
     }
 
     suspend fun setRotateAlbumArt(enabled: Boolean) = context.musicTileDataStore.edit {
@@ -573,6 +596,8 @@ class MusicTilePreferences(private val context: Context) : JsonSerializable {
         val SHOW_ALBUM_ART = booleanPreferencesKey("show_album_art")
         val SHOW_ALBUM_BACKGROUND = booleanPreferencesKey("show_album_background")
         val ALBUM_BACKGROUND_DIM = floatPreferencesKey("album_background_dim")
+        val ALBUM_BACKGROUND_BLUR = booleanPreferencesKey("album_background_blur")
+        val ALBUM_BACKGROUND_BLUR_RADIUS = intPreferencesKey("album_background_blur_radius")
         val ROTATE_ALBUM_ART = booleanPreferencesKey("rotate_album_art")
         val CIRCLE_COVER = booleanPreferencesKey("circle_cover")
         val ALBUM_ART_STROKE = booleanPreferencesKey("album_art_stroke")

@@ -100,6 +100,8 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
@@ -3467,11 +3469,17 @@ private fun MediaExpandedContent(
             .fillMaxSize()
     ) {
         if (albumBackground != null && event.media?.showAlbumBackground == true) {
+            val blurRadius = event.media.albumBackgroundBlurRadius
             Image(
                 bitmap = albumBackground,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().hazeSource(backdropState),
+                // The source wraps the blur, so frosted buttons sample the blurred cover, not the sharp one.
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(backdropState)
+                    // Rectangle edges clamp instead of fading the cover's rim to transparent.
+                    .then(if (blurRadius != null) Modifier.blur(blurRadius.dp, BlurredEdgeTreatment.Rectangle) else Modifier),
                 // Dimmed by darkening rather than fading: the cover must stay opaque, or a blurred
                 // button lets the sharp cover underneath show through its frosted copy.
                 colorFilter = ColorFilter.tint(

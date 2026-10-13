@@ -169,6 +169,24 @@ internal fun MusicTileScreen(
             }
         }
 
+        // Album background blur, alongside the dim
+        AnimatedVisibility(visible = settings.showAlbumBackground) {
+            SettingsToggleCard(
+                shape = groupedShape(),
+                title = stringResource(R.string.music_album_background_blur_title),
+                description = stringResource(R.string.music_album_background_blur_desc),
+                checked = settings.albumBackgroundBlur,
+                onCheckedChange = viewModel::setMusicAlbumBackgroundBlur,
+            ) {
+                AnimatedVisibility(visible = settings.albumBackgroundBlur) {
+                    BlurStrengthSlider(
+                        radius = settings.albumBackgroundBlurRadius,
+                        onCommit = viewModel::setMusicAlbumBackgroundBlurRadius,
+                    )
+                }
+            }
+        }
+
         // Rotation and the ring only apply to the album cover, so they ride with its toggle.
         AnimatedVisibility(visible = settings.showAlbumArt) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -660,7 +678,7 @@ private fun ToggleCardSlider(
     }
 }
 
-/** The blur strength slider of one button style, in dp of blur radius. */
+/** A blur strength slider (a button style's or the album background's), in dp of blur radius. */
 @Composable
 private fun BlurStrengthSlider(
     radius: Int,

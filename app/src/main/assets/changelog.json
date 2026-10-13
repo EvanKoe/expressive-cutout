@@ -3,7 +3,8 @@
     "version": "0.3.2-beta",
     "description": "Notch and 0.3.1 fixes",
     "features": [
-      "Notch mode: allows you to display a nice notch instead of the island"
+      "Notch mode: allows you to display a nice notch instead of the island",
+      "Blur cover in music dynamic tile"
     ],
     "bugfixes": []
   },
