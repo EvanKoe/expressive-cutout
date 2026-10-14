@@ -950,7 +950,17 @@ fun DynamicIsland(
     val earsAlongHeight = if (isStickToCamera) revealFlare * 2 else 0.dp
     val revealEarLeft = lerpDp(0.dp, bottomEarLeft, reveal.value).coerceAtLeast(0.dp)
     val revealEarRight = lerpDp(0.dp, bottomEarRight, reveal.value).coerceAtLeast(0.dp)
-    val earsBelow = maxOf(revealEarLeft, revealEarRight)
+    // The ears only read as part of the screen edge while the card sits on it. As a swipe slides it
+    // away they shrink to nothing over the first half of the dismiss threshold, and the stored
+    // bottom radii round in over the second — a corner can't carry both at once, so one follows the
+    // other. In window mode the card slides inside a static window, which keeps its ears instead.
+    val slide = if (windowDismiss) 0f else {
+        (abs(dismissOffsetX.value) / (SWIPE_DISMISS_THRESHOLD_DP * density)).coerceIn(0f, 1f)
+    }
+    val slidEarLeft = revealEarLeft * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidEarRight = revealEarRight * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidBottomGrow = if (eared) (slide * 2f - 1f).coerceAtLeast(0f) else 1f
+    val earsBelow = maxOf(slidEarLeft, slidEarRight)
     val revealWidth = lerpDp(dotDp, width, reveal.value) + earsAlongWidth
     val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight + earsBelow
     val dotCorner = dotDp / 2
@@ -1019,12 +1029,12 @@ fun DynamicIsland(
         val islandShape = cornerShape(
             revealTopLeft,
             revealTopRight,
-            revealBottomLeft,
-            revealBottomRight,
+            revealBottomLeft * slidBottomGrow,
+            revealBottomRight * slidBottomGrow,
             revealFlare,
             notchEdge,
-            revealEarLeft,
-            revealEarRight,
+            slidEarLeft,
+            slidEarRight,
         )
         val windowShape = cornerShape(
             revealWindowTopLeft,
