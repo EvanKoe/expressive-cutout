@@ -17,6 +17,10 @@ import kotlin.math.roundToInt
  * radii are kept as the user left them but go unused, since a flare replaces the corner it is on.
  * The ears sit *outside* [widthPercent], so widening the flare never eats into the body — see
  * [notchOverhangDp], which every width measurement adds back.
+ *
+ * [bottomEars] is the notch-like expanded design: the bottom corners become concave ears hanging
+ * *below* the body, sized by [cornerBottomLeftDp] / [cornerBottomRightDp]. It is only ever set by
+ * [asNotchLikeExpanded], never stored; see [bottomEarDp] for the height the ears add.
  */
 data class IslandDimensions(
     val widthPercent: Int,
@@ -30,6 +34,7 @@ data class IslandDimensions(
     val topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
     val isNotch: Boolean = false,
     val notchFlareDp: Int = DEFAULT_NOTCH_FLARE_DP,
+    val bottomEars: Boolean = false,
 ) {
     companion object {
         const val MIN_WIDTH_PERCENT = 10
@@ -66,6 +71,7 @@ data class IslandDimensions(
             topMarginDp: Int = DEFAULT_TOP_MARGIN_DP,
             isNotch: Boolean = false,
             notchFlareDp: Int = DEFAULT_NOTCH_FLARE_DP,
+            bottomEars: Boolean = false,
         ) = IslandDimensions(
             widthPercent = widthPercent.coerceIn(MIN_WIDTH_PERCENT, MAX_WIDTH_PERCENT),
             heightDp = heightDp.coerceIn(MIN_HEIGHT_DP, MAX_HEIGHT_DP),
@@ -78,6 +84,7 @@ data class IslandDimensions(
             topMarginDp = topMarginDp.coerceIn(MIN_TOP_MARGIN_DP, MAX_TOP_MARGIN_DP),
             isNotch = isNotch,
             notchFlareDp = notchFlareDp.coerceIn(MIN_NOTCH_FLARE_DP, MAX_NOTCH_FLARE_DP),
+            bottomEars = bottomEars,
         )
     }
 }
@@ -88,6 +95,31 @@ data class IslandDimensions(
  * add it unconditionally.
  */
 val IslandDimensions.notchOverhangDp: Int get() = if (isNotch) notchFlareDp else 0
+
+/**
+ * How far the bottom ears of the notch-like design hang below the body — the larger of the two lower
+ * corner radii. Zero for every other state, so each height measurement can add it unconditionally.
+ */
+val IslandDimensions.bottomEarDp: Int
+    get() = if (bottomEars) maxOf(cornerBottomLeftDp, cornerBottomRightDp) else 0
+
+/**
+ * The expanded state as the notch-like design draws it: the full screen width, flush with the top
+ * edge and centred. The two lower corner radii become the ears' radii and the top-edge notch is off,
+ * since this design replaces it.
+ */
+fun IslandDimensions.asNotchLikeExpanded(): IslandDimensions = IslandDimensions.of(
+    widthPercent = IslandDimensions.MAX_WIDTH_PERCENT,
+    heightDp = heightDp,
+    offsetXDp = 0,
+    offsetYDp = 0,
+    cornerTopLeftDp = cornerTopLeftDp,
+    cornerTopRightDp = cornerTopRightDp,
+    cornerBottomLeftDp = cornerBottomLeftDp,
+    cornerBottomRightDp = cornerBottomRightDp,
+    topMarginDp = topMarginDp,
+    bottomEars = true,
+)
 
 /**
  * The phone tile is shown as a single, bigger "normal" cutout (it has no expanded state): wider than
@@ -210,11 +242,22 @@ private const val TINY_CAMERA_GAP_DP = 4f
 /** Half a typical punch-hole, standing in when the device won't report its cutout. */
 internal const val DEFAULT_CAMERA_RADIUS_DP = 16f
 
-/** The two independently configurable island states. */
+/**
+ * The two independently configurable island states, plus the [expandedDesign] the expanded one is
+ * drawn in. The stored [expanded] geometry is what the user edits; [rendered] is what is drawn.
+ */
 data class IslandLayout(
     val collapsed: IslandDimensions = DEFAULT_COLLAPSED,
     val expanded: IslandDimensions = DEFAULT_EXPANDED,
+    val expandedDesign: ExpandedDesign = ExpandedDesign.ISLAND,
 ) {
+    /**
+     * This layout with the expanded geometry resolved for [expandedDesign], so the overlay's drawing,
+     * window and touch sizing all read one consistent set of numbers.
+     */
+    fun rendered(): IslandLayout =
+        if (expandedDesign == ExpandedDesign.NOTCH_LIKE) copy(expanded = expanded.asNotchLikeExpanded()) else this
+
     companion object {
         val DEFAULT_COLLAPSED = IslandDimensions(
             widthPercent = 38,

@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.bottomEarDp
 import com.ekoehler.expressivecutout.data.notchOverhangDp
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
@@ -148,6 +149,12 @@ class IslandOverlayController(private val context: Context) {
      */
     private var displayWidthPx: Int = computeDisplayWidthPx()
     private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
+
+    /**
+     * The screen width in dp *without* the truncation of [displayWidthDp]. A full-width island sized
+     * from the truncated value falls up to a pixel short of the screen edge.
+     */
+    private val displayWidthExactDp = MutableStateFlow(displayWidthPx / density)
 
     /**
      * The camera cutout's right edge in dp, measured from the screen's horizontal centre, or null
@@ -627,6 +634,7 @@ class IslandOverlayController(private val context: Context) {
         rotationState.value = rotation
         displayWidthPx = computeDisplayWidthPx()
         displayWidthDp.value = (displayWidthPx / density).toInt()
+        displayWidthExactDp.value = displayWidthPx / density
         cameraRightEdgeDp.value = measureCameraRightEdgeDp()
         applyLockVisibility()
         if (overlayHidden) return
@@ -664,6 +672,7 @@ class IslandOverlayController(private val context: Context) {
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
+                val exactWidthDp by displayWidthExactDp.collectAsStateWithLifecycle()
                 val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
@@ -689,6 +698,7 @@ class IslandOverlayController(private val context: Context) {
                         collapsed = layout.collapsed,
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
+                        displayWidthExactDp = exactWidthDp,
                         cameraRightEdgeDp = cameraRightDp,
                         forcedExpanded = effectiveForced,
                         collapseTrigger = collapse,
@@ -1120,7 +1130,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
-            layoutState.value = layout
+            layoutState.value = layout.rendered()
             syncWindowSize()
         }
     }
@@ -1422,7 +1432,7 @@ class IslandOverlayController(private val context: Context) {
         val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
             satelliteShiftPx(splitPx)
         val topPx = (dims.offsetYDp * density).toInt()
-        val bottomPx = ((dims.offsetYDp + dims.heightDp + bonusDp) * density).toInt()
+        val bottomPx = ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonusDp) * density).toInt()
         return Rect(
             (centerX - pillWidthPx / 2 - margin).coerceAtLeast(0),
             (topPx - margin).coerceAtLeast(0),
@@ -1445,7 +1455,7 @@ class IslandOverlayController(private val context: Context) {
         val expanded = layout.expanded
         val lowestDp = maxOf(
             collapsed.offsetYDp + collapsed.heightDp,
-            expanded.offsetYDp + expanded.heightDp,
+            expanded.offsetYDp + expanded.heightDp + expanded.bottomEarDp,
         )
         return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
     }
@@ -1461,7 +1471,7 @@ class IslandOverlayController(private val context: Context) {
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val bonus = currentHeightBonusDp(expanded)
-        return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
+        return ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
     }
 
     /** Wide enough for whichever state is widest — used for the initial, safe window size. */
@@ -1487,7 +1497,9 @@ class IslandOverlayController(private val context: Context) {
         val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
             permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2 +
             dims.notchOverhangDp * 2
-        return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
+        // Never wider than the screen: a window that overhangs it gets re-placed by the system on every
+        // resize, which slid the whole island sideways for a moment after a width change.
+        return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt().coerceAtMost(displayWidthPx)
     }
 
     /**
