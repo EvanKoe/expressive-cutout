@@ -485,6 +485,10 @@
     <string name="behaviour_notif_auto_expand_desc">Bildirimleri yalnızca uygulama simgesiyle değil, başlık ve metinleriyle genişletilmiş olarak göster.</string>
     <string name="behaviour_ignore_silent_notif">Sessiz bildirimleri yoksay</string>
     <string name="behaviour_ignore_silent_notif_desc">Sessiz olarak işaretlenmiş bildirimler için çentikte baloncuk gösterme</string>
+    <string name="behaviour_pin_notifications">Bildirimleri sabitle</string>
+    <string name="behaviour_pin_notifications_desc">Her bildirimi ve sistem olayını siz kapatana kadar çentikte tut</string>
+    <string name="cutout_pin">Bildirimi sabitle</string>
+    <string name="cutout_unpin">Bildirim sabitlemesini kaldır</string>
     <string name="behaviour_action_buttons">Eylem düğmelerini göster</string>
     <string name="behaviour_action_buttons_desc">Bildirimin eylem düğmelerini genişletilmiş çentikte gösterir. Kamerayla çakışmamaları için biraz yükseklik ekler.</string>
     <string name="behaviour_shrink_swipe_up">Yukarı kaydırınca küçül</string>

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
@@ -68,6 +69,7 @@ import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
@@ -514,6 +516,7 @@ fun DynamicIsland(
     onReply: (IslandAction, String) -> Unit,
     onReplyActiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onPinToggle: () -> Unit = {},
 ) {
     var lastEvent by remember { mutableStateOf<IslandEvent?>(null) }
     if (event != null) {
@@ -1263,6 +1266,7 @@ fun DynamicIsland(
                                             replyingTo = null
                                         },
                                         onDismiss = onDismiss,
+                                        onPinToggle = onPinToggle,
                                         onHeightMeasured = { hDp ->
                                             if (e.assistant != null) assistantContentHeightDp = hDp
                                             else expandedNotificationHeightDp = hDp
@@ -2756,6 +2760,7 @@ private fun ExpandedContent(
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
     onDismiss: () -> Unit = {},
+    onPinToggle: () -> Unit = {},
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
@@ -2810,6 +2815,21 @@ private fun ExpandedContent(
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentAlpha },
     ) {
+        // Pin toggle
+        IconButton(
+            onClick = onPinToggle,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(topMarginDp.dp),
+        ) {
+            Icon(
+                imageVector = if (event.pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin,
+                contentDescription = stringResource(if (event.pinned) R.string.cutout_unpin else R.string.cutout_pin),
+                tint = LocalContentColor.current.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)

@@ -715,6 +715,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setIgnoreSilentNotifications(enabled)
     }
 
+    fun setPinNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setPinNotifications(enabled)
+    }
+
     fun setShowActionButtons(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowActionButtons(enabled)
     }

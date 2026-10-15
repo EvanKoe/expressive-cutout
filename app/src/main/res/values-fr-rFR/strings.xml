@@ -522,6 +522,10 @@
     <string name="behaviour_notif_auto_expand_desc">Afficher les notifications déployées avec leur titre et leur texte, plutôt que seulement l’icône de l’application.</string>
     <string name="behaviour_ignore_silent_notif">Ignorer les notifications silencieuses</string>
     <string name="behaviour_ignore_silent_notif_desc">Ne pas afficher de bulle sur l’encoche pour les notifications marquées comme silencieuses</string>
+    <string name="behaviour_pin_notifications">Épingler les notifications</string>
+    <string name="behaviour_pin_notifications_desc">Garder chaque notification et événement système sur l’encoche jusqu’à ce que vous les fermiez</string>
+    <string name="cutout_pin">Épingler la notification</string>
+    <string name="cutout_unpin">Désépingler la notification</string>
     <string name="behaviour_action_buttons">Afficher les boutons d’action</string>
     <string name="behaviour_action_buttons_desc">Afficher les boutons d’action d’une notification dans l’encoche étendue. Ajoute un peu de hauteur pour qu’ils dégagent la caméra.</string>
     <string name="behaviour_shrink_swipe_up">Réduire en balayant vers le haut</string>

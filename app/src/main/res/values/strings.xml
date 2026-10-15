@@ -522,6 +522,10 @@
     <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
     <string name="behaviour_ignore_silent_notif">Ignore silent notifications</string>
     <string name="behaviour_ignore_silent_notif_desc">Don\'t show a cutout bubble for notifications marked as silent</string>
+    <string name="behaviour_pin_notifications">Pin notifications</string>
+    <string name="behaviour_pin_notifications_desc">Keep every notification and system event in the cutout until you dismiss it</string>
+    <string name="cutout_pin">Pin notification</string>
+    <string name="cutout_unpin">Unpin notification</string>
     <string name="behaviour_action_buttons">Show action buttons</string>
     <string name="behaviour_action_buttons_desc">Show a notification\'s action buttons in the expanded cutout. Adds a little height so they clear the camera.</string>
     <string name="behaviour_shrink_swipe_up">Shrink on swipe up</string>

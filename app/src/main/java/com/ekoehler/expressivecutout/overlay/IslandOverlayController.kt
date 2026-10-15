@@ -747,6 +747,7 @@ class IslandOverlayController(private val context: Context) {
                         onReply = ::onReply,
                         onReplyActiveChange = ::onReplyActive,
                         onDismiss = ::onDismiss,
+                        onPinToggle = ::onPinToggle,
                     )
                 }
             }
@@ -1618,6 +1619,9 @@ class IslandOverlayController(private val context: Context) {
         // left as it is rather than cleared — whatever is parked there is an unrelated event, and this
         // hand-off doesn't concern it.
         if (displaced != null && isSameTile(displaced, incoming)) return
+        // A live tile owns the bubble for as long as it is live, so a pinned notification being
+        // displaced does not evict it: the old one is dropped instead.
+        if (displaced != null && displaced.pinned && isLiveTileEvent(satelliteEvent.value)) return
         if (displaced == null || !satelliteAllowed(displaced, incoming)) {
             clearSatellite()
             return
@@ -2061,7 +2065,12 @@ class IslandOverlayController(private val context: Context) {
                 animatedIconLoop = eventAnimatedIconLoops,
                 eventColorOverrides = eventColors,
                 appearance = appearanceState.value,
-            ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
+            ).copy(
+                initiallyExpanded = autoExpand,
+                normalOnly = normalOnly,
+                pinned = behaviourState.value.pinNotifications &&
+                    (signal is CutoutSignal.Notification || signal is CutoutSignal.System),
+            )
 
             if (overlayHidden) {
                 if (behaviourState.value.cutoutEnabled) {
@@ -2106,7 +2115,7 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Notification && signal.key != null &&
                 existing != null && existing.notificationKey == signal.key
             ) {
-                currentEvent.value = resolvedEvent.copy(id = existing.id)
+                currentEvent.value = resolvedEvent.copy(id = existing.id, pinned = existing.pinned || resolvedEvent.pinned)
                 syncWindowSize()
                 scheduleDismiss()
                 return@collect
@@ -2226,7 +2235,7 @@ class IslandOverlayController(private val context: Context) {
             // While music plays or a call is live, keep the collapsed pill up instead of dismissing.
             isPinnedLiveTile() -> dismissJob?.cancel()
             // Shrinking back from expanded and configured to vanish rather than stay.
-            wasExpanded && behaviourState.value.expandedDisappearOnShrink -> {
+            wasExpanded && behaviourState.value.expandedDisappearOnShrink && currentEvent.value?.pinned != true -> {
                 dismissJob?.cancel()
                 currentEvent.value = null
             }
@@ -2342,6 +2351,16 @@ class IslandOverlayController(private val context: Context) {
     private fun onDismiss() {
         currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.dismiss(it) }
         dismissIsland()
+    }
+
+    /**
+     * Pin or unpin the shown notification. Goes through [scheduleDismiss] either way: it cancels the
+     * running timer first, so a pin leaves none and an unpin restarts the normal one.
+     */
+    private fun onPinToggle() {
+        val event = currentEvent.value ?: return
+        currentEvent.value = event.copy(pinned = !event.pinned)
+        scheduleDismiss()
     }
 
     /** Fire one of the notification's action buttons, then dismiss the island. */
@@ -2544,7 +2563,7 @@ class IslandOverlayController(private val context: Context) {
         dismissJob?.cancel()
         currentDeadlineMs = null
         // Never time out a live cutout while it's active — it stays until playback / the call stops.
-        if (isPinnedLiveTile()) return
+        if (isPinnedLiveTile() || currentEvent.value?.pinned == true) return
         // A system event with its own duration override wins; everything else uses the global normal.
         val seconds = currentSystemEventType?.let { eventDurations[it] }
             ?: behaviourState.value.normalDurationSeconds

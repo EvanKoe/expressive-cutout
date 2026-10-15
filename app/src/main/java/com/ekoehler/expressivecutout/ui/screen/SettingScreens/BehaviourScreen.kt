@@ -172,6 +172,13 @@ internal fun BehaviourScreen(
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_pin_notifications),
+            description = stringResource(R.string.behaviour_pin_notifications_desc),
+            checked = behaviour.pinNotifications,
+            onCheckedChange = viewModel::setPinNotifications,
+        )
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_action_buttons),
             description = stringResource(R.string.behaviour_action_buttons_desc),
             checked = behaviour.showActionButtons,
