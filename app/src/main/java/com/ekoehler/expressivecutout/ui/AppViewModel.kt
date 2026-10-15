@@ -39,6 +39,7 @@ import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.JsonSerializable
 import com.ekoehler.expressivecutout.data.JsonSettings
+import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LanguagePreferences
@@ -629,6 +630,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setExpandedDimensions(dimensions: IslandDimensions) = viewModelScope.launch {
         layoutPreferences.setExpanded(dimensions)
+    }
+
+    fun setExpandedDesign(design: ExpandedDesign) = viewModelScope.launch {
+        layoutPreferences.setExpandedDesign(design)
     }
 
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }

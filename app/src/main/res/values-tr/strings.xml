@@ -152,6 +152,8 @@
     <string name="appearance_top_margin">Üst kenar boşluğu</string>
     <string name="appearance_corner">Köşe yarıçapı</string>
     <string name="appearance_notch">Çentik</string>
+    <string name="expanded_design_island">Ada tasarımı</string>
+    <string name="expanded_design_notch">Çentik benzeri tasarım</string>
     <string name="appearance_notch_desc">Kesiti üst kenara yaslar, köşeleri dışa doğru kıvrılır</string>
     <string name="appearance_notch_flare">Ters yarıçap</string>
     <string name="corner_mode_all">Tümü</string>

@@ -462,6 +462,7 @@ fun DynamicIsland(
     collapsed: IslandDimensions,
     expanded: IslandDimensions,
     displayWidthDp: Int,
+    displayWidthExactDp: Float = displayWidthDp.toFloat(),
     /**
      * The camera cutout's right edge in dp from the screen's horizontal centre, used only to hang
      * the music tile's tiny "Mini player" pill off the hole. Null when the device reports no cutout.
@@ -783,7 +784,12 @@ fun DynamicIsland(
     // orientation, so there is never anything to animate towards — and springing into it on arrival
     // is what reads as the pill sliding in from where it was in portrait.
     val snapAllGeometry = reveal.value == 0f || snapGeometry || isStickToCamera
-    val spec: AnimationSpec<Dp> = if (snapAllGeometry) snap() else motion.dp()
+    // The notch-like card is fused to the screen edge, so an overshoot pulls it visibly off the bezel
+    val spec: AnimationSpec<Dp> = when {
+        snapAllGeometry -> snap()
+        dims.bottomEars -> motion.dpFirm()
+        else -> motion.dp()
+    }
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
     val heightSpec: AnimationSpec<Dp> = when {
@@ -838,7 +844,7 @@ fun DynamicIsland(
     }
 
     val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
-        else (displayWidthDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp - satelliteSplitDp.dp
+        else (displayWidthExactDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp - satelliteSplitDp.dp
     val targetHeight = if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp
         else (dims.heightDp + heightBonus).dp
     val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
@@ -924,6 +930,15 @@ fun DynamicIsland(
         tween(durationMillis = scaled(NOTCH_EAR_TRANSITION_MS))
     }
     val notchFlare by animateDpAsState(flareTarget, flareSpec, label = "notchFlare")
+    // The notch-like design's bottom ears take the lower corner radii and hang below the body. They
+    // have no counterpart in a plain pill either, so they ride the same fast swap as the notch ears.
+    val eared = dims.bottomEars && !isStickToCamera
+    val bottomEarLeft by animateDpAsState(
+        if (eared) dims.cornerBottomLeftDp.dp else 0.dp, flareSpec, label = "bottomEarLeft",
+    )
+    val bottomEarRight by animateDpAsState(
+        if (eared) dims.cornerBottomRightDp.dp else 0.dp, flareSpec, label = "bottomEarRight",
+    )
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
@@ -941,8 +956,21 @@ fun DynamicIsland(
     // runs down the screen, so the ears grow it the other way.
     val earsAlongWidth = if (isStickToCamera) 0.dp else revealFlare * 2
     val earsAlongHeight = if (isStickToCamera) revealFlare * 2 else 0.dp
+    val revealEarLeft = lerpDp(0.dp, bottomEarLeft, reveal.value).coerceAtLeast(0.dp)
+    val revealEarRight = lerpDp(0.dp, bottomEarRight, reveal.value).coerceAtLeast(0.dp)
+    // The ears only read as part of the screen edge while the card sits on it. As a swipe slides it
+    // away they shrink to nothing over the first half of the dismiss threshold, and the stored
+    // bottom radii round in over the second — a corner can't carry both at once, so one follows the
+    // other. In window mode the card slides inside a static window, which keeps its ears instead.
+    val slide = if (windowDismiss) 0f else {
+        (abs(dismissOffsetX.value) / (SWIPE_DISMISS_THRESHOLD_DP * density)).coerceIn(0f, 1f)
+    }
+    val slidEarLeft = revealEarLeft * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidEarRight = revealEarRight * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidBottomGrow = if (eared) (slide * 2f - 1f).coerceAtLeast(0f) else 1f
+    val earsBelow = maxOf(slidEarLeft, slidEarRight)
     val revealWidth = lerpDp(dotDp, width, reveal.value) + earsAlongWidth
-    val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight
+    val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight + earsBelow
     val dotCorner = dotDp / 2
     val revealTopLeft = lerpDp(dotCorner, topLeft, reveal.value)
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
@@ -1009,10 +1037,12 @@ fun DynamicIsland(
         val islandShape = cornerShape(
             revealTopLeft,
             revealTopRight,
-            revealBottomLeft,
-            revealBottomRight,
+            revealBottomLeft * slidBottomGrow,
+            revealBottomRight * slidBottomGrow,
             revealFlare,
             notchEdge,
+            slidEarLeft,
+            slidEarRight,
         )
         val windowShape = cornerShape(
             revealWindowTopLeft,
@@ -1021,6 +1051,8 @@ fun DynamicIsland(
             revealWindowBottomRight,
             revealFlare,
             notchEdge,
+            revealEarLeft,
+            revealEarRight,
         )
         // The expanded island stays truncated by the window even at rest, which is the whole point
         // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
@@ -1139,6 +1171,7 @@ fun DynamicIsland(
                     adaptiveColor = surfaceColor,
                     contentInsetHorizontal = earsAlongWidth / 2,
                     contentInsetVertical = earsAlongHeight / 2,
+                    contentInsetBottom = earsBelow,
                 ) {
                     Crossfade(
                         targetState = IslandContentKey(
@@ -1691,6 +1724,8 @@ internal fun AppearanceSettings.outlineStroke(appColor: Color?, adaptiveColor: C
  *   included; only the content is pulled in.
  * @param contentInsetVertical the same, for a notch turned onto a side edge, whose ears run down the
  *   box rather than across it.
+ * @param contentInsetBottom the same, for the bottom ears of a [NotchLikeShape], which hang below
+ *   the body rather than beside it.
  */
 @Composable
 internal fun IslandSurface(
@@ -1703,6 +1738,7 @@ internal fun IslandSurface(
     drawStroke: Boolean = true,
     contentInsetHorizontal: Dp = 0.dp,
     contentInsetVertical: Dp = 0.dp,
+    contentInsetBottom: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
@@ -1751,6 +1787,7 @@ internal fun IslandSurface(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = contentInsetHorizontal, vertical = contentInsetVertical)
+                        .padding(bottom = contentInsetBottom)
                 ) {
                     content()
                 }
@@ -1792,8 +1829,9 @@ private fun Modifier.outlineBorder(stroke: BorderStroke, shape: Shape): Modifier
  * ("RoundRect with negative corners could not be rendered"). Clamping yields a plain rectangle at 0.
  *
  * A positive [flare] swaps in the [NotchShape] instead, whose outward-curving top corners replace
- * the top radii entirely. At zero flare this returns exactly what it always did, so a state that
- * isn't a notch renders through the same path as before.
+ * the top radii entirely. A positive [earLeft] or [earRight] swaps in the [NotchLikeShape], whose
+ * lower corners are concave ears. At zero for both this returns exactly what it always did, so a
+ * state that is neither renders through the same path as before.
  */
 private fun cornerShape(
     topLeft: Dp,
@@ -1802,12 +1840,21 @@ private fun cornerShape(
     bottomRight: Dp,
     flare: Dp = 0.dp,
     edge: NotchEdge = NotchEdge.TOP,
+    earLeft: Dp = 0.dp,
+    earRight: Dp = 0.dp,
 ): Shape = if (flare > 0.dp) {
     NotchShape(
         flare = flare,
         bottomLeft = bottomLeft.coerceAtLeast(0.dp),
         bottomRight = bottomRight.coerceAtLeast(0.dp),
         edge = edge,
+    )
+} else if (earLeft > 0.dp || earRight > 0.dp) {
+    NotchLikeShape(
+        topLeft = topLeft.coerceAtLeast(0.dp),
+        topRight = topRight.coerceAtLeast(0.dp),
+        earLeft = earLeft,
+        earRight = earRight,
     )
 } else {
     RoundedCornerShape(
