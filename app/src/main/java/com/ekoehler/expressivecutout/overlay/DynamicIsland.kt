@@ -781,7 +781,12 @@ fun DynamicIsland(
     // orientation, so there is never anything to animate towards — and springing into it on arrival
     // is what reads as the pill sliding in from where it was in portrait.
     val snapAllGeometry = reveal.value == 0f || snapGeometry || isStickToCamera
-    val spec: AnimationSpec<Dp> = if (snapAllGeometry) snap() else motion.dp()
+    // The notch-like card is fused to the screen edge, so an overshoot pulls it visibly off the bezel
+    val spec: AnimationSpec<Dp> = when {
+        snapAllGeometry -> snap()
+        dims.bottomEars -> motion.dpFirm()
+        else -> motion.dp()
+    }
     val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
     val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
     val heightSpec: AnimationSpec<Dp> = when {

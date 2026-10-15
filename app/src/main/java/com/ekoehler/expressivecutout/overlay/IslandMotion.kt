@@ -59,6 +59,16 @@ internal class IslandMotion(
         else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
 
     /**
+     * Like [dp] but with no visible overshoot, for geometry fused to the screen edge (the notch-like
+     * expanded card), where any bounce pulls it off the bezel. Damped just under critical so it
+     * lands as quickly as [dp] instead of creeping into place like [dpSmooth]. Ignores the bounce
+     * knob by design.
+     */
+    fun dpFirm(): AnimationSpec<Dp> =
+        if (expressive) spring(dampingRatio = FIRM_DAMPING, stiffness = spatialStiffness(speed), visibilityThreshold = Dp.VisibilityThreshold)
+        else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
+
+    /**
      * The normal cutout's tap "boop" — the scale dip under a finger and the settle back on release.
      * A spring rather than a tween because the two halves overlap: a quick tap lifts the finger
      * before the dip has landed, and a spring carries the current velocity into the release instead
@@ -147,6 +157,9 @@ internal class IslandMotion(
          * tight enough that it settles in one swing rather than wobbling.
          */
         private const val POP_DAMPING = 0.55f
+
+        /** Damping for [dpFirm]: ~0.15% overshoot, well under a dp at cutout scale. */
+        private const val FIRM_DAMPING = 0.9f
 
         /**
          * How far a spring launched from its target overshoots, as a fraction of velocity / omega:
