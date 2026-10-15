@@ -24,6 +24,7 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaArt
 import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.MediaLike
 import com.ekoehler.expressivecutout.core.OnCall
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimer
@@ -882,18 +883,30 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Publish this notification's large icon as the current album cover, if it is a media
-     * notification carrying one. Detected by the media-session extra rather than the template
-     * string, so it covers both the platform and the AndroidX MediaStyle. The icon is usually a
-     * plain bitmap, so no package lookup is involved.
+     * Publish this notification's large icon and like action as the current media state, if it is a
+     * media notification carrying either. Detected by the media-session extra rather than the
+     * template string, so it covers both the platform and the AndroidX MediaStyle. The icon is
+     * usually a plain bitmap, so no package lookup is involved. The like action is found by
+     * matching its title against [LIKE_TITLE] and [NOT_LIKE_TITLE] (and [LIKED_TITLE] for the liked state), which only know English,
+     * French and German wording; players using other languages get no like button.
      */
     private fun StatusBarNotification.publishMediaArt() {
         if (notification.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) != true) return
         val art = notification.getLargeIcon()
             ?.loadImageBitmapOrNull(this@CutoutNotificationListenerService)
-            ?: return
+        val like = notification.actions.orEmpty().firstNotNullOfOrNull { action ->
+            val label = action.title?.toString()?.takeIf { it.isNotBlank() } ?: return@firstNotNullOfOrNull null
+            val intent = action.actionIntent ?: return@firstNotNullOfOrNull null
+            if (!LIKE_TITLE.containsMatchIn(label) || NOT_LIKE_TITLE.containsMatchIn(label)) return@firstNotNullOfOrNull null
+            MediaLike(
+                label = label,
+                liked = LIKED_TITLE.containsMatchIn(label),
+                intent = intent,
+            )
+        }
+        if (art == null && like == null) return
         currentMediaArtKey = key
-        MediaArtBus.update(MediaArt(packageName = packageName, art = art))
+        MediaArtBus.update(MediaArt(packageName = packageName, art = art, like = like))
     }
 
     /**
@@ -984,6 +997,16 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          * genuinely fresh notification reusing the same text isn't held back noticeably.
          */
         private const val SUPPRESS_MS = 8_000L
+
+        private val LIKE_TITLE = Regex(
+            "like|save|favou?rite|library|heart|love|j'aime|favori|enregistrer|ajouter|gefällt|favorit|speichern|merken",
+            RegexOption.IGNORE_CASE,
+        )
+        private val NOT_LIKE_TITLE = Regex("dislike|don't like|pas aimer|nicht gefällt", RegexOption.IGNORE_CASE)
+        private val LIKED_TITLE = Regex(
+            "remove|unlike|liked|saved|added|retirer|supprimer|enregistré|ajouté|entfernen|gespeichert|hinzugefügt",
+            RegexOption.IGNORE_CASE,
+        )
 
         /**
          * The currently connected listener, or null when unbound. Only touched on the main thread

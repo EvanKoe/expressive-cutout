@@ -68,6 +68,8 @@ import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
@@ -169,6 +171,7 @@ import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CallAudioBus
 import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.MediaLike
 import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
@@ -3454,6 +3457,8 @@ private fun MediaExpandedContent(
 ) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
+    val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
+    val like = notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.like
     val albumBackground = albumArtFor(event, nowPlaying, expandedBackground = true)
     val relativeTime = rememberRelativeTime(event.postTimeMs)
     val headerText = formatNotificationHeader(
@@ -3540,6 +3545,7 @@ private fun MediaExpandedContent(
                         )
                     }
                 }
+                like?.let { LikeButton(it) }
             }
 
             event.media?.takeIf { it.showProgress }?.let {
@@ -3577,6 +3583,30 @@ private fun MediaExpandedContent(
         }
     }
 }
+
+/**
+ * The discreet heart at the right of the track title: an outline while the track is not liked, a
+ * filled heart in [LIKED_HEART_COLOR] once it is. Borderless and background-less; tapping fires the
+ * player's own like action, and the player's re-posted notification flips the state.
+ */
+@Composable
+private fun LikeButton(like: MediaLike) {
+    IconButton(
+        onClick = { runCatching { like.intent.send() } },
+        modifier = Modifier.size(LIKE_BUTTON_SIZE_DP.dp),
+    ) {
+        Icon(
+            imageVector = if (like.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            contentDescription = like.label,
+            tint = if (like.liked) LIKED_HEART_COLOR else LocalContentColor.current.copy(alpha = 0.6f),
+            modifier = Modifier.size(LIKE_ICON_SIZE_DP.dp),
+        )
+    }
+}
+
+private val LIKED_HEART_COLOR = Color(0xFFE57373)
+private const val LIKE_BUTTON_SIZE_DP = 36
+private const val LIKE_ICON_SIZE_DP = 22
 
 /**
  * The music tile's playback bar. [MediaProgress] is an anchor rather than a live position — the
