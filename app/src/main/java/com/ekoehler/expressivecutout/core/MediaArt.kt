@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.core
 
+import android.app.PendingIntent
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +27,24 @@ object MediaArtBus {
     }
 }
 
-/** A cover and the package that posted it, so it is only ever drawn for that player's tile. */
+/**
+ * A cover and/or like action lifted off the media notification of [packageName], so they are only
+ * ever drawn for that player's tile. [art] is null when the notification carries no large icon;
+ * [like] is null when no like/save action was recognised.
+ */
 data class MediaArt(
     val packageName: String,
-    val art: ImageBitmap,
+    val art: ImageBitmap?,
+    val like: MediaLike? = null,
+)
+
+/**
+ * The player's like/save notification action: its [label] (the action title), whether the track is
+ * already [liked] (the action then reads "Remove from…", "Liked"…), and the [intent] to fire when
+ * the user taps it.
+ */
+data class MediaLike(
+    val label: String,
+    val liked: Boolean,
+    val intent: PendingIntent,
 )
