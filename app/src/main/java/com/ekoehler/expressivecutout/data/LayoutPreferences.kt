@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -26,6 +27,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         IslandLayout(
             collapsed = prefs.readDimensions(Keys.Collapsed, IslandLayout.DEFAULT_COLLAPSED),
             expanded = prefs.readDimensions(Keys.Expanded, IslandLayout.DEFAULT_EXPANDED),
+            expandedDesign = prefs[EXPANDED_DESIGN_KEY].toExpandedDesign(),
         )
     }
 
@@ -38,6 +40,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         return JSONObject().apply {
             put("collapsed", l.collapsed.toJsonObject())
             put("expanded", l.expanded.toJsonObject())
+            put("expandedDesign", l.expandedDesign.name)
         }.toString()
     }
 
@@ -50,6 +53,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         val obj = JSONObject(json)
         obj.optJSONObject("collapsed")?.toDimensionsOrNull()?.let { setCollapsed(it) }
         obj.optJSONObject("expanded")?.toDimensionsOrNull()?.let { setExpanded(it) }
+        obj.optString("expandedDesign").takeIf { it.isNotEmpty() }?.let { setExpandedDesign(it.toExpandedDesign()) }
     }
 
     /**
@@ -99,7 +103,15 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         it.writeDimensions(Keys.Expanded, dimensions)
     }
 
+    suspend fun setExpandedDesign(design: ExpandedDesign) = context.layoutDataStore.edit {
+        it[EXPANDED_DESIGN_KEY] = design.name
+    }
+
     suspend fun reset() = context.layoutDataStore.edit { it.clear() }
+
+    /** An unknown or missing name falls back to the island design, so a stale file never breaks the overlay. */
+    private fun String?.toExpandedDesign(): ExpandedDesign =
+        ExpandedDesign.entries.firstOrNull { it.name == this } ?: ExpandedDesign.ISLAND
 
     private fun Preferences.readDimensions(keys: Keys, default: IslandDimensions) =
         IslandDimensions.of(
@@ -132,6 +144,10 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         this[keys.topMargin] = dimensions.topMarginDp
         this[keys.notch] = dimensions.isNotch
         this[keys.notchFlare] = dimensions.notchFlareDp
+    }
+
+    private companion object {
+        val EXPANDED_DESIGN_KEY = stringPreferencesKey("expanded_design")
     }
 
     /** The preference keys backing one island state. */

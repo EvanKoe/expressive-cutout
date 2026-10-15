@@ -154,6 +154,8 @@
     <string name="appearance_top_margin">Top Margin</string>
     <string name="appearance_corner">Corner radius</string>
     <string name="appearance_notch">Notch</string>
+    <string name="expanded_design_island">Island design</string>
+    <string name="expanded_design_notch">Notch-like design</string>
     <string name="appearance_notch_desc">Hang the cutout off the top edge, with corners curving outwards into it</string>
     <string name="appearance_notch_flare">Inverted radius</string>
     <string name="corner_mode_all">All</string>

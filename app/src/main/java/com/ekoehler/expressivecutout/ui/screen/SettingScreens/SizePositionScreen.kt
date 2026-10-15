@@ -48,10 +48,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.ExpandedDesignPicker
 import com.ekoehler.expressivecutout.ui.components.ExpressivePillRow
 import com.ekoehler.expressivecutout.ui.components.MaterialCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
@@ -159,6 +161,15 @@ internal fun SizePositionScreen(
             fillWidth = true
         )
 
+        // Expanded design picker
+        if (tab == 1) {
+            ExpandedDesignPicker(
+                selected = layout.expandedDesign,
+                onSelect = viewModel::setExpandedDesign,
+                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+            )
+        }
+
         // Cross-fade the editor while its height settles, so swapping tabs doesn't snap the sliders
         // in and out — the expanded tab carries one card more than the normal one.
         AnimatedContent(
@@ -180,6 +191,7 @@ internal fun SizePositionScreen(
                     dimensions = layout.expanded,
                     defaults = expandedDefaults,
                     expandedPreview = true,
+                    notchLikeDesign = layout.expandedDesign == ExpandedDesign.NOTCH_LIKE,
                     onChange = viewModel::setExpandedDimensions,
                 )
             }
@@ -193,6 +205,7 @@ private fun DimensionsEditor(
     defaults: IslandDimensions,
     expandedPreview: Boolean,
     onChange: (IslandDimensions) -> Unit,
+    notchLikeDesign: Boolean = false,
 ) {
     var width by remember(dimensions.widthPercent) { mutableStateOf(dimensions.widthPercent.toFloat()) }
     var height by remember(dimensions.heightDp) { mutableStateOf(dimensions.heightDp.toFloat()) }
@@ -216,6 +229,8 @@ private fun DimensionsEditor(
         )
     ) }
 
+    val notchMode = notch && !notchLikeDesign
+
     fun commit() = onChange(
         IslandDimensions.of(
             widthPercent = width.roundToInt(),
@@ -233,21 +248,23 @@ private fun DimensionsEditor(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Width slider
-        MaterialCard(shape = groupedShape(isFirst = true)) {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_width),
-                valueText = "${width.roundToInt()}%",
-                value = width,
-                valueRange = IslandDimensions.MIN_WIDTH_PERCENT.toFloat()..IslandDimensions.MAX_WIDTH_PERCENT.toFloat(),
-                step = 1f,
-                onValueChange = { width = it },
-                onCommit = { commit() },
-            )
+        // Width slider - the notch-like design is always full width
+        if (!notchLikeDesign) {
+            MaterialCard(shape = groupedShape(isFirst = true)) {
+                AdjustableSlider(
+                    label = stringResource(R.string.appearance_width),
+                    valueText = "${width.roundToInt()}%",
+                    value = width,
+                    valueRange = IslandDimensions.MIN_WIDTH_PERCENT.toFloat()..IslandDimensions.MAX_WIDTH_PERCENT.toFloat(),
+                    step = 1f,
+                    onValueChange = { width = it },
+                    onCommit = { commit() },
+                )
+            }
         }
 
         // Height slider
-        MaterialCard {
+        MaterialCard(shape = groupedShape(isFirst = notchLikeDesign, isLast = notchLikeDesign && !expandedPreview)) {
             AdjustableSlider(
                 label = stringResource(R.string.appearance_height),
                 valueText = "${height.roundToInt()} dp",
@@ -261,7 +278,7 @@ private fun DimensionsEditor(
 
         // Top margin slider - expanded cutout only
         if (expandedPreview) {
-            MaterialCard {
+            MaterialCard(shape = groupedShape(isLast = notchLikeDesign)) {
                 AdjustableSlider(
                     label = stringResource(R.string.appearance_top_margin),
                     valueText = "${topMargin.roundToInt()} dp",
@@ -275,7 +292,7 @@ private fun DimensionsEditor(
         }
 
         // Vertical position - a notch hangs off the top edge, so it has none to offer
-        if (!notch) {
+        if (!notchMode && !notchLikeDesign) {
             MaterialCard {
                 AdjustableSlider(
                     label = stringResource(R.string.appearance_vertical),
@@ -289,38 +306,40 @@ private fun DimensionsEditor(
             }
         }
 
-        // Horizontal position
-        MaterialCard(groupedShape(isLast = true)) {
-            AdjustableSlider(
-                label = stringResource(R.string.appearance_horizontal),
-                valueText = "${offsetX.roundToInt()} dp",
-                value = offsetX,
-                valueRange = IslandDimensions.MIN_OFFSET_X_DP.toFloat()..IslandDimensions.MAX_OFFSET_X_DP.toFloat(),
-                step = 2f,
-                onValueChange = { offsetX = it },
-                onCommit = { commit() },
-            )
-        }
-
-        // Notch mode
-        SettingsToggleCard(
-            shape = groupedShape(isFirst = true, isLast = !notch),
-            title = stringResource(R.string.appearance_notch),
-            description = stringResource(R.string.appearance_notch_desc),
-            checked = notch,
-            onCheckedChange = { notch = it; commit() },
-        ) {
-            if (notch) {
+        // Horizontal position - the notch-like design is always centred
+        if (!notchLikeDesign) {
+            MaterialCard(groupedShape(isLast = true)) {
                 AdjustableSlider(
-                    label = stringResource(R.string.appearance_notch_flare),
-                    valueText = "${notchFlare.roundToInt()} dp",
-                    value = notchFlare,
-                    valueRange = IslandDimensions.MIN_NOTCH_FLARE_DP.toFloat()..
-                        IslandDimensions.MAX_NOTCH_FLARE_DP.toFloat(),
-                    step = 1f,
-                    onValueChange = { notchFlare = it },
+                    label = stringResource(R.string.appearance_horizontal),
+                    valueText = "${offsetX.roundToInt()} dp",
+                    value = offsetX,
+                    valueRange = IslandDimensions.MIN_OFFSET_X_DP.toFloat()..IslandDimensions.MAX_OFFSET_X_DP.toFloat(),
+                    step = 2f,
+                    onValueChange = { offsetX = it },
                     onCommit = { commit() },
                 )
+            }
+
+            // Notch mode
+            SettingsToggleCard(
+                shape = groupedShape(isFirst = true, isLast = !notch),
+                title = stringResource(R.string.appearance_notch),
+                description = stringResource(R.string.appearance_notch_desc),
+                checked = notch,
+                onCheckedChange = { notch = it; commit() },
+            ) {
+                if (notch) {
+                    AdjustableSlider(
+                        label = stringResource(R.string.appearance_notch_flare),
+                        valueText = "${notchFlare.roundToInt()} dp",
+                        value = notchFlare,
+                        valueRange = IslandDimensions.MIN_NOTCH_FLARE_DP.toFloat()..
+                            IslandDimensions.MAX_NOTCH_FLARE_DP.toFloat(),
+                        step = 1f,
+                        onValueChange = { notchFlare = it },
+                        onCommit = { commit() },
+                    )
+                }
             }
         }
 
@@ -337,7 +356,7 @@ private fun DimensionsEditor(
             onBlChange = { cornerBl = it },
             onBrChange = { cornerBr = it },
             onCommit = { commit() },
-            topCornersEditable = !notch,
+            topCornersEditable = !notchMode,
         )
 
         Spacer(Modifier.size(4.dp))
