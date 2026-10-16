@@ -466,6 +466,7 @@
     <string name="behaviour_hide_landscape">Yatay modda gizle</string>
     <string name="behaviour_hide_landscape_desc">Cihaz yatay çevrildiğinde kaplamayı kaldırır, böylece oyunları, videoları veya bildirim çekmecesini asla engellemez.</string>
     <string name="behaviour_horizontal_cutout">Yatay moddaki çentik</string>
+    <string name="behaviour_horizontal_cutout_desc">Bu ayar, cihaz yatay konuma geçtiğinde ne olacağını belirler</string>
     <string name="horizontal_cutout_hidden">Gizli</string>
     <string name="horizontal_cutout_hidden_desc">Cihaz yatay konumdayken çentiği tamamen gizler</string>
     <string name="horizontal_cutout_normal_only">Yalnızca normal</string>
@@ -485,11 +486,16 @@
     <string name="behaviour_notif_auto_expand_desc">Bildirimleri yalnızca uygulama simgesiyle değil, başlık ve metinleriyle genişletilmiş olarak göster.</string>
     <string name="behaviour_ignore_silent_notif">Sessiz bildirimleri yoksay</string>
     <string name="behaviour_ignore_silent_notif_desc">Sessiz olarak işaretlenmiş bildirimler için çentikte baloncuk gösterme</string>
-    <string name="behaviour_pin_notifications">Bildirimleri sabitle</string>
+    <string name="behaviour_pin_notifications">Sabitle</string>
+    <string name="behaviour_pin_notifications_desc">Sabitlemek, bildirimin veya olayın siz kapatana kadar çentikte kalmasını sağlar</string>
     <string name="behaviour_pin_notifications_none">Hiçbiri</string>
     <string name="behaviour_pin_notifications_notifications">Bildirimler</string>
     <string name="behaviour_pin_notifications_system_events">Sistem olayları</string>
     <string name="behaviour_pin_notifications_both">İkisi de</string>
+    <string name="behaviour_pin_notifications_none_desc">Hiçbir şeyi sabitlemez</string>
+    <string name="behaviour_pin_notifications_notifications_desc">Yalnızca bildirimleri sabitler</string>
+    <string name="behaviour_pin_notifications_system_events_desc">Yalnızca sistem olaylarını sabitler</string>
+    <string name="behaviour_pin_notifications_both_desc">Her zaman sabitler</string>
     <string name="cutout_pin">Bildirimi sabitle</string>
     <string name="cutout_unpin">Bildirim sabitlemesini kaldır</string>
     <string name="cutout_pinned_tag">Sabitlendi</string>

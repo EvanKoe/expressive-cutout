@@ -503,6 +503,7 @@
     <string name="behaviour_hide_landscape">Hide in landscape</string>
     <string name="behaviour_hide_landscape_desc">Remove the overlay when the device is rotated horizontally, so it never blocks games, videos, or the notification shade.</string>
     <string name="behaviour_horizontal_cutout">Horizontal cutout</string>
+    <string name="behaviour_horizontal_cutout_desc">This setting describes what happens when the device goes in horizontal orientation</string>
     <string name="horizontal_cutout_hidden">Hidden</string>
     <string name="horizontal_cutout_hidden_desc">Totally hides the cutout when the device is horizontal</string>
     <string name="horizontal_cutout_normal_only">Normal-only</string>
@@ -522,11 +523,16 @@
     <string name="behaviour_notif_auto_expand_desc">Show notifications expanded with their title and text, instead of just the app icon.</string>
     <string name="behaviour_ignore_silent_notif">Ignore silent notifications</string>
     <string name="behaviour_ignore_silent_notif_desc">Don\'t show a cutout bubble for notifications marked as silent</string>
-    <string name="behaviour_pin_notifications">Pin notifications</string>
+    <string name="behaviour_pin_notifications">Pin</string>
+    <string name="behaviour_pin_notifications_desc">Pinning makes the notification/event appear in the cutout until manually dismissed</string>
     <string name="behaviour_pin_notifications_none">None</string>
     <string name="behaviour_pin_notifications_notifications">Notifications</string>
     <string name="behaviour_pin_notifications_system_events">System events</string>
     <string name="behaviour_pin_notifications_both">Both</string>
+    <string name="behaviour_pin_notifications_none_desc">Doesn\'t pin at all</string>
+    <string name="behaviour_pin_notifications_notifications_desc">Pins notifications only</string>
+    <string name="behaviour_pin_notifications_system_events_desc">Pins system events only</string>
+    <string name="behaviour_pin_notifications_both_desc">Always pins</string>
     <string name="cutout_pin">Pin notification</string>
     <string name="cutout_unpin">Unpin notification</string>
     <string name="cutout_pinned_tag">Pinned</string>
