@@ -165,6 +165,13 @@ class IslandOverlayController(private val context: Context) {
     private val cameraRightEdgeDp = MutableStateFlow(measureCameraRightEdgeDp())
 
     /**
+     * The camera cutout's left edge in dp, measured from the screen's horizontal centre (negative to
+     * its left), or null on a device that reports no cutout. The status dot is parked beside it.
+     * Re-measured on rotation like [cameraRightEdgeDp].
+     */
+    private val cameraLeftEdgeDp = MutableStateFlow(measureCameraLeftEdgeDp())
+
+    /**
      * The orientation the live window geometry was built for, so [onOrientationChanged] only reacts
      * to an actual portrait <-> landscape flip. Also the single source of truth for the current
      * orientation, ready for orientation-specific layout settings later.
@@ -408,7 +415,7 @@ class IslandOverlayController(private val context: Context) {
         // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
         // blank for as long as the service stays off.
         cutoutWidthJob?.cancel()
-        CutoutWidthBus.update(widened = false, grownForDots = false)
+        CutoutWidthBus.update(widened = false, grownForDots = false, grownForStatusDot = false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -636,6 +643,7 @@ class IslandOverlayController(private val context: Context) {
         displayWidthDp.value = (displayWidthPx / density).toInt()
         displayWidthExactDp.value = displayWidthPx / density
         cameraRightEdgeDp.value = measureCameraRightEdgeDp()
+        cameraLeftEdgeDp.value = measureCameraLeftEdgeDp()
         applyLockVisibility()
         if (overlayHidden) return
         // Resize straight to the final geometry in one step (not the usual grow-then-shrink), while the
@@ -674,6 +682,7 @@ class IslandOverlayController(private val context: Context) {
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
                 val exactWidthDp by displayWidthExactDp.collectAsStateWithLifecycle()
                 val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
+                val cameraLeftDp by cameraLeftEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
                 val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
@@ -700,6 +709,7 @@ class IslandOverlayController(private val context: Context) {
                         displayWidthDp = widthDp,
                         displayWidthExactDp = exactWidthDp,
                         cameraRightEdgeDp = cameraRightDp,
+                        cameraLeftEdgeDp = cameraLeftDp,
                         forcedExpanded = effectiveForced,
                         collapseTrigger = collapse,
                         isStickToCamera = isStickToCamera,
@@ -1201,9 +1211,10 @@ class IslandOverlayController(private val context: Context) {
      * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
      * cutout right now, so "Automatically hide status bar icons" can follow the pill.
      *
-     * Also reports whether the pill is grown on its trailing edge to seat the permission dots,
-     * which the system icons sit behind: the pill only widens by a few dp there, so it is published
-     * on its own rather than as the whole cutout being wider.
+     * Also reports whether the pill is grown on its trailing edge to seat the permission dots, which
+     * the system icons sit behind, and whether it is grown on its leading edge to seat the status
+     * dot, which the notification icons sit behind: the pill only widens by a few dp there, so each
+     * is published on its own rather than as the whole cutout being wider.
      *
      * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
      * before the pill covers them, while narrowing waits out the collapse animation so they don't
@@ -1213,15 +1224,19 @@ class IslandOverlayController(private val context: Context) {
     private fun publishCutoutWidth() {
         val widened = isWiderThanUsual()
         val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0
+        val grownForStatusDot = statusDotGrowthDp(expanded = false) > 0
         cutoutWidthJob?.cancel()
         CutoutWidthBus.update(
             widened = widened || CutoutWidthBus.widened.value,
             grownForDots = grownForDots || CutoutWidthBus.grownForDots.value,
+            grownForStatusDot = grownForStatusDot || CutoutWidthBus.grownForStatusDot.value,
         )
-        if (widened == CutoutWidthBus.widened.value && grownForDots == CutoutWidthBus.grownForDots.value) return
+        if (widened == CutoutWidthBus.widened.value && grownForDots == CutoutWidthBus.grownForDots.value &&
+            grownForStatusDot == CutoutWidthBus.grownForStatusDot.value
+        ) return
         cutoutWidthJob = scope.launch {
             delay(WINDOW_SHRINK_DELAY_MS)
-            CutoutWidthBus.update(widened, grownForDots)
+            CutoutWidthBus.update(widened, grownForDots, grownForStatusDot)
         }
     }
 
@@ -1388,12 +1403,13 @@ class IslandOverlayController(private val context: Context) {
         val diameterPx = (collapsed.heightDp * density).toInt()
         val gapPx = (SATELLITE_GAP_DP * density).toInt()
         val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
+        val leftGrowthPx = (statusDotGrowthDp(false) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + leftGrowthPx - splitPx +
             notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
-            satelliteShiftPx(splitPx)
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 -
+            leftGrowthPx / 2 + satelliteShiftPx(splitPx)
         val step = pillWidthPx / 2 + gapPx + diameterPx / 2
         val satelliteCenterX = if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) {
             centerX - step
@@ -1424,14 +1440,16 @@ class IslandOverlayController(private val context: Context) {
         val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = currentHeightBonusDp(expanded)
         val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
+        val leftGrowthPx = (statusDotGrowthDp(expanded) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx - splitPx +
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + leftGrowthPx - splitPx +
             notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        // The pill grows to the right for the dots, so its centre moves with it; a bubble beside it
-        // pushes the centre the other way by half of the width it gave up.
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
-            satelliteShiftPx(splitPx)
+        // The pill grows to the right for the dots and to the left for the status dot, so its centre
+        // moves with it; a bubble beside it pushes the centre the other way by half of the width it
+        // gave up.
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 -
+            leftGrowthPx / 2 + satelliteShiftPx(splitPx)
         val topPx = (dims.offsetYDp * density).toInt()
         val bottomPx = ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonusDp) * density).toInt()
         return Rect(
@@ -1496,7 +1514,7 @@ class IslandOverlayController(private val context: Context) {
         // The window is centred on the screen, so a pill pushed off-centre (the tiny "Mini player"
         // parked beside the camera) needs twice its offset of extra width or it is clipped.
         val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
-            permissionDotWidthBonusDp(expanded) + abs(dims.offsetXDp) * 2 +
+            permissionDotWidthBonusDp(expanded) + statusDotGrowthDp(expanded) * 2 + abs(dims.offsetXDp) * 2 +
             dims.notchOverhangDp * 2
         // Never wider than the screen: a window that overhangs it gets re-placed by the system on every
         // resize, which slid the whole island sideways for a moment after a width change.
@@ -1523,13 +1541,52 @@ class IslandOverlayController(private val context: Context) {
         if (event?.call != null) return 0
         // Only grown for a tile that writes on the trailing edge; elsewhere the dots fit as they are.
         if (event == null) return 0
-        if (!event.hasCollapsedTrailingContent(behaviourState.value.showStatusDot)) return 0
+        if (!event.hasCollapsedTrailingContent()) return 0
         return permissionDotTrailingInsetDp(
             PermissionUsageMonitor.usage.value,
             layoutState.value.collapsed.heightDp,
             permissionDotVerticalState.value,
         )
     }
+
+    /**
+     * How much wider the collapsed pill is drawn on its leading edge to keep the status dot clear of
+     * the camera hole, so the window and the touchable region cover the grown pill. Mirrors the
+     * conditions and geometry [DynamicIsland] grows it under.
+     */
+    private fun statusDotGrowthDp(expanded: Boolean): Int {
+        if (expanded) return 0
+        val event = currentEvent.value ?: return 0
+        if (event.statusDotColor == null || !behaviourState.value.showStatusDot) return 0
+        if (event.call != null || isTinyTile(event)) return 0
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) return 0
+        val collapsed = layoutState.value.collapsed
+        val splitDp = satelliteSplitDp()
+        val shiftDp = when {
+            splitDp == 0 -> 0f
+            behaviourState.value.satellitePosition == SatellitePosition.LEFT -> splitDp / 2f
+            else -> -splitDp / 2f
+        }
+        val pillLeftDp = collapsed.offsetXDp + shiftDp -
+            (displayWidthExactDp.value * collapsed.widthPercent / 100f - splitDp) / 2f
+        val leftDotsDp = if (permissionDotsOnLeft()) {
+            permissionDotLeadingInsetDp(
+                PermissionUsageMonitor.usage.value,
+                collapsed.heightDp,
+                permissionDotVerticalState.value,
+            )
+        } else {
+            0
+        }
+        return statusDotLeadingGrowthDp(pillLeftDp, cameraLeftEdgeDp.value, collapsed.heightDp, leftDotsDp)
+    }
+
+    /** Whether the permission dots are showing, as [DynamicIsland] draws them, on the pill's left. */
+    private fun permissionDotsOnLeft(): Boolean =
+        (permissionDotEnabledState.value || PermissionDotPreviewBus.active.value) &&
+            permissionDotPositionState.value == PermissionDotPosition.LEFT
 
     /**
      * How much width the collapsed pill gives up to the bubble beside it — the bubble's diameter (the
@@ -2648,6 +2705,13 @@ class IslandOverlayController(private val context: Context) {
         val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return null
         val (widthPx, _) = currentScreenSizePx()
         return (bounds.right - widthPx / 2f) / density
+    }
+
+    /** The camera cutout's left edge relative to the screen's horizontal centre, in dp. Null without a cutout. */
+    private fun measureCameraLeftEdgeDp(): Float? {
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return null
+        val (widthPx, _) = currentScreenSizePx()
+        return (bounds.left - widthPx / 2f) / density
     }
 
     private fun getLandscapeCameraGravity(): Int {

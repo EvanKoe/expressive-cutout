@@ -25,8 +25,17 @@ object CutoutWidthBus {
     private val _grownForDots = MutableStateFlow(false)
     val grownForDots: StateFlow<Boolean> = _grownForDots.asStateFlow()
 
-    fun update(widened: Boolean, grownForDots: Boolean) {
+    /**
+     * Whether the collapsed pill is drawn a little wider on its leading edge to seat the status dot
+     * beside the camera. The mirror of [grownForDots]: it reaches the notification icons, which sit
+     * at that end of the status bar, but not the system icons at the other end.
+     */
+    private val _grownForStatusDot = MutableStateFlow(false)
+    val grownForStatusDot: StateFlow<Boolean> = _grownForStatusDot.asStateFlow()
+
+    fun update(widened: Boolean, grownForDots: Boolean, grownForStatusDot: Boolean) {
         _widened.value = widened
         _grownForDots.value = grownForDots
+        _grownForStatusDot.value = grownForStatusDot
     }
 }
