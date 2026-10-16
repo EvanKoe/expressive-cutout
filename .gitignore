@@ -21,3 +21,4 @@ google-services.json
 *~
 *.swp
 /docs/AUDIT-2026-09-03.md
+/install.ps1

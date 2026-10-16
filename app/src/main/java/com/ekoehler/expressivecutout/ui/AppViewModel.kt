@@ -56,6 +56,7 @@ import com.ekoehler.expressivecutout.data.PermissionDotKinds
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.PageTransitionStyle
+import com.ekoehler.expressivecutout.data.PinNotificationsMode
 import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
@@ -713,6 +714,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setIgnoreSilentNotifications(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setIgnoreSilentNotifications(enabled)
+    }
+
+    fun setPinNotificationsMode(mode: PinNotificationsMode) = viewModelScope.launch {
+        behaviourPreferences.setPinNotificationsMode(mode)
     }
 
     fun setShowActionButtons(enabled: Boolean) = viewModelScope.launch {

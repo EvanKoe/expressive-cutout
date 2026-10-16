@@ -74,9 +74,11 @@ object StatusBarIconController {
                 preferences.silenceAlerts,
                 ShizukuState.status,
                 CutoutWidthBus.widened,
-                CutoutWidthBus.grownForDots,
-            ) { chosen, silenceAlerts, status, widened, grownForDots ->
-                Wish(chosen.resolve(widened, grownForDots), silenceAlerts, status)
+                combine(CutoutWidthBus.grownForDots, CutoutWidthBus.grownForStatusDot) { trailing, leading ->
+                    trailing to leading
+                },
+            ) { chosen, silenceAlerts, status, widened, (grownForDots, grownForStatusDot) ->
+                Wish(chosen.resolve(widened, grownForDots, grownForStatusDot), silenceAlerts, status)
             }
                 .collect { wish ->
                     if (wish.status != ShizukuStatus.READY) {
@@ -143,10 +145,12 @@ object StatusBarIconController {
          *
          * [grownForDots] counts for the system icons alone: the pill grows on its trailing edge to
          * seat the permission dots, which is the end of the bar those icons live at, and nowhere
-         * near the clock or the notification icons opposite them.
+         * near the clock or the notification icons opposite them. [grownForStatusDot] is the mirror:
+         * the pill grows on its leading edge to seat the status dot, so it counts for the
+         * notification icons alone.
          */
-        fun resolve(widened: Boolean, grownForDots: Boolean) = Hiding(
-            hideIcons = notificationIcons.hides(widened),
+        fun resolve(widened: Boolean, grownForDots: Boolean, grownForStatusDot: Boolean) = Hiding(
+            hideIcons = notificationIcons.hides(widened || grownForStatusDot),
             hideSystemInfo = systemInfo.hides(widened || grownForDots),
             hideClock = clock.hides(widened),
         )

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
@@ -133,6 +134,25 @@ internal class IslandMotion(
         if (expressive) effectsSpec(speed)
         else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
 
+    /**
+     * Scale motion for a control swapping in or out (the pin button and the "Pinned" tag): the
+     * user's spatial spring under [AnimationStyle.EXPRESSIVE], a short tween otherwise.
+     */
+    fun swapScale(): FiniteAnimationSpec<Float> =
+        if (expressive) spatialSpec(speed, bounce, visibilityThreshold = 0.001f)
+        else tween(durationMillis = SWAP_MS)
+
+    /** Alpha motion for the same swap: critically damped under expressive, so it never over-brightens. */
+    fun swapFade(): FiniteAnimationSpec<Float> =
+        if (expressive) effectsSpec(speed)
+        else tween(durationMillis = SWAP_MS)
+
+    /**
+     * The scale a swapping control starts from or shrinks to. Expressive stops short of zero because
+     * its spring undershoots the target, and a scale below zero would flip the control inside out.
+     */
+    val swapMinScale: Float = if (expressive) 0.5f else 0f
+
     companion object {
         /**
          * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
@@ -177,6 +197,9 @@ internal class IslandMotion(
 
         /** [popIn]'s length under [AnimationStyle.EASE_IN_OUT], which has no spring to settle. */
         private const val POP_IN_MS = 200
+
+        /** [swapScale] and [swapFade]'s length under [AnimationStyle.EASE_IN_OUT]. */
+        private const val SWAP_MS = 200
 
         /**
          * A spatial spring based on the Material 3 expressive MotionScheme tokens: [speed] sets the

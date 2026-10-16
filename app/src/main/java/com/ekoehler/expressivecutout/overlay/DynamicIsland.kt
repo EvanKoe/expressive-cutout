@@ -6,6 +6,11 @@ import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
@@ -132,6 +137,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -349,6 +355,12 @@ internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAU
  */
 internal const val EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP = 18
 
+/** How far the "Pinned" tag is pulled in from the island's right edge, past the content padding. */
+private const val PINNED_TAG_END_INSET_DP = 6
+
+/** The scale animation grows from and shrinks to the island's right edge, where both controls sit. */
+private val PIN_SWAP_ORIGIN = TransformOrigin(1f, 0.5f)
+
 /**
  * Island height from the inner expanded column (icon/text + chips), plus the camera band and bottom
  * padding. [measuredInnerHeightDp] must not include those insets — that is what
@@ -468,6 +480,11 @@ fun DynamicIsland(
      * the music tile's tiny "Mini player" pill off the hole. Null when the device reports no cutout.
      */
     cameraRightEdgeDp: Float? = null,
+    /**
+     * The camera cutout's left edge in dp from the screen's horizontal centre (negative left of it),
+     * which the status dot is parked beside. Null when the device reports no cutout.
+     */
+    cameraLeftEdgeDp: Float? = null,
     forcedExpanded: Boolean?,
     collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
@@ -517,6 +534,7 @@ fun DynamicIsland(
     onReply: (IslandAction, String) -> Unit,
     onReplyActiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onPinToggle: () -> Unit = {},
 ) {
     var lastEvent by remember { mutableStateOf<IslandEvent?>(null) }
     if (event != null) {
@@ -818,7 +836,14 @@ fun DynamicIsland(
     // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
     // or fading out, but clears it for the resting empty pill.
     val hasTrailingContent = !emptyPill &&
-        (event ?: shownEvent)?.hasCollapsedTrailingContent(statusDotEnabled) == true
+        (event ?: shownEvent)?.hasCollapsedTrailingContent() == true
+
+    // The status dot sits between the badge and the camera, so it steps past dots drawn on the left
+    val collapsedLeadingInsetDp = if (showPermissionDots && permissionDotsOnLeft) {
+        permissionDotLeadingInsetDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0
+    }
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.
@@ -843,17 +868,44 @@ fun DynamicIsland(
         else -> -satelliteSplitDp / 2f
     }
 
+    // Where the pill's leading edge sits from the screen's centre before any growth decides how far
+    // the status dot is from the camera. A bubble beside the pill takes width from one side and
+    // steps the centre away from it, which is what [satelliteShiftDp] and [satelliteSplitDp] carry.
+    val statusDotOnPill = !emptyPill && !isStickToCamera && !isTiny && !isCall && !isExpanded &&
+        statusDotEnabled && (event ?: shownEvent)?.statusDotColor != null
+    val pillLeftEdgeDp = dims.offsetXDp + satelliteShiftDp -
+        (displayWidthExactDp * dims.widthPercent / 100f - satelliteSplitDp) / 2f
+    // The pill grows on its leading edge when the status dot would not otherwise fit between the
+    // badge and the camera, the way it grows on the trailing edge to seat the permission dots.
+    val statusDotGrowthDp = if (statusDotOnPill) {
+        statusDotLeadingGrowthDp(pillLeftEdgeDp, cameraLeftEdgeDp, collapsed.heightDp, collapsedLeadingInsetDp)
+    } else {
+        0
+    }
+    val dotStartDp = statusDotStartDp(
+        pillLeftEdgeDp, cameraLeftEdgeDp, collapsed.heightDp, collapsedLeadingInsetDp, statusDotGrowthDp,
+    )
     val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
-        else (displayWidthExactDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp - satelliteSplitDp.dp
+        else (displayWidthExactDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp +
+            statusDotGrowthDp.dp - satelliteSplitDp.dp
     val targetHeight = if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp
         else (dims.heightDp + heightBonus).dp
     val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
     val height by animateDpAsState(targetHeight, heightSpec, label = "islandHeight")
 
-    // The island stays slid aside until the window has fully shrunk, so the pill never shows mid-shrink
+    // While the window shrinks into the resting pill, its panel turns into the pill's own colour and
+    // the dismiss glyph fades out, so the hand-over to the real pill is seamless.
+    val settle = animateFloatAsState(
+        targetValue = if (windowSettling && emptyPill) 1f else 0f,
+        animationSpec = motion.fade(),
+        label = "dismissSettle",
+    )
+
+    // The island stays slid aside until the window has fully shrunk and turned into the pill, so the
+    // pill never shows mid-shrink
     LaunchedEffect(windowSettling && emptyPill, targetWidth, targetHeight) {
         if (!windowSettling || !emptyPill) return@LaunchedEffect
-        snapshotFlow { width == targetWidth && height == targetHeight }.first { it }
+        snapshotFlow { width == targetWidth && height == targetHeight && settle.value >= 1f }.first { it }
         dismissOffsetX.snapTo(0f)
         windowSettling = false
     }
@@ -863,7 +915,7 @@ fun DynamicIsland(
     // the tile's icon sits — stays put.
     val offsetX by animateDpAsState(
         if (isStickToCamera) 0.dp
-        else dims.offsetXDp.dp + (collapsedTrailingInsetDp / 2f).dp + satelliteShiftDp.dp,
+        else dims.offsetXDp.dp + ((collapsedTrailingInsetDp - statusDotGrowthDp) / 2f).dp + satelliteShiftDp.dp,
         spec, label = "islandOffsetX"
     )
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
@@ -1101,6 +1153,7 @@ fun DynamicIsland(
                         iconSize = badgeIconSizeFor(collapsed.heightDp),
                         gapOnStart = dismissGapOnStart,
                         modifier = Modifier.matchParentSize(),
+                        settle = { settle.value },
                     )
                 }
                 IslandSurface(
@@ -1249,9 +1302,11 @@ fun DynamicIsland(
                                         targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
                                         expandProgress = expandProgress,
                                         topMarginDp = expanded.topMarginDp,
+                                        statusDotEnabled = statusDotEnabled,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
+                                        motion = motion,
                                         onAction = onAction,
                                         onStartReply = { replyingTo = it },
                                         onCancelReply = { replyingTo = null },
@@ -1266,6 +1321,7 @@ fun DynamicIsland(
                                             replyingTo = null
                                         },
                                         onDismiss = onDismiss,
+                                        onPinToggle = onPinToggle,
                                         onHeightMeasured = { hDp ->
                                             if (e.assistant != null) assistantContentHeightDp = hDp
                                             else expandedNotificationHeightDp = hDp
@@ -1277,6 +1333,7 @@ fun DynamicIsland(
                                         heightDp = collapsed.heightDp,
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
+                                        statusDotStartDp = dotStartDp,
                                         iconPop = iconPop,
                                         statusDotEnabled = statusDotEnabled,
                                     )
@@ -1286,7 +1343,12 @@ fun DynamicIsland(
                     }
 
                     // Microphone / camera / location dots
-                    if (showPermissionDots) {
+                    AnimatedVisibility(
+                        visible = showPermissionDots,
+                        modifier = Modifier.fillMaxSize(),
+                        enter = fadeIn(motion.swapFade()),
+                        exit = fadeOut(motion.swapFade()),
+                    ) {
                         Box(modifier = Modifier.fillMaxSize()) {
                             PermissionDotRow(
                                 usage = permissionUsage,
@@ -1589,6 +1651,10 @@ private const val DISMISS_GLYPH_INSET_DP = 20
  * always lands in the gap rather than under the island, and defaults to a trash can when the user
  * has picked no icon of their own. A picked image is drawn untinted: flattening a photo or a logo
  * to a single colour would destroy it, so the icon colour reaches Material glyphs only.
+ *
+ * [settle] (0 to 1) is how far the panel has turned back into the normal cutout: its colour
+ * cross-fades to the normal background while the glyph fades out. Read inside draw lambdas, so a
+ * moving value never recomposes the panel.
  */
 @Composable
 internal fun DismissBackdrop(
@@ -1597,7 +1663,9 @@ internal fun DismissBackdrop(
     iconSize: Dp,
     gapOnStart: Boolean,
     modifier: Modifier = Modifier,
+    settle: () -> Float = { 0f },
 ) {
+    val restingBrush = appearance.backgroundNormal.resolveBrush(appColor, appColor)
     val backdrop = appearance.dismissBackdropColor?.resolve(appColor, appColor)
         ?: MaterialTheme.colorScheme.surfaceContainerHigh
     val glyphColor = appearance.dismissIconColor?.resolve(appColor, appColor)
@@ -1608,9 +1676,17 @@ internal fun DismissBackdrop(
         modifier = modifier.background(backdrop),
         contentAlignment = if (gapOnStart) Alignment.CenterStart else Alignment.CenterEnd,
     ) {
+        // Normal cutout fill, fading in over the panel colour
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = settle() }
+                .background(restingBrush),
+        )
         val placement = Modifier
             .padding(horizontal = DISMISS_GLYPH_INSET_DP.dp)
             .size(iconSize)
+            .graphicsLayer { alpha = 1f - settle() }
         val bitmap = resolved.bitmap
         if (bitmap != null) {
             androidx.compose.foundation.Image(
@@ -1908,6 +1984,68 @@ private const val BADGE_SIZE_FRACTION = 0.72f
 /** The share of the pill's height left before its badge, shared by the collapsed and split pills. */
 private const val COLLAPSED_BADGE_INSET_FRACTION = 0.16f
 private const val BADGE_ICON_FRACTION = 0.46f
+/** The status dot's diameter as a fraction of the pill's height. */
+private const val STATUS_DOT_SIZE_FRACTION = 0.18f
+/**
+ * The dot's box is this many dots wide, so the radiating ring (which grows to 2.4 dots) is never
+ * clipped.
+ */
+private const val STATUS_DOT_BOX_SCALE = 2.5f
+/** The room left between the status dot's box and the camera hole. */
+private const val STATUS_DOT_CAMERA_GAP_DP = 4f
+
+/** The width of the status dot's box on a pill [heightDp] tall. */
+private fun statusDotBoxDp(heightDp: Int): Float = heightDp * STATUS_DOT_SIZE_FRACTION * STATUS_DOT_BOX_SCALE
+
+/**
+ * The earliest the status dot's box can start from the pill's leading edge: past the badge and its
+ * gap, then past [leadingInsetDp] of whatever else the caller draws on that side.
+ */
+internal fun statusDotMinStartDp(heightDp: Int, leadingInsetDp: Int): Float =
+    heightDp * (COLLAPSED_BADGE_INSET_FRACTION + BADGE_SIZE_FRACTION + COLLAPSED_BADGE_INSET_FRACTION) +
+        leadingInsetDp
+
+/**
+ * How far the collapsed pill has to grow on its leading edge so the status dot fits between the
+ * badge and the camera hole with [STATUS_DOT_CAMERA_GAP_DP] to spare. Zero when it already fits, or
+ * when the device reports no cutout.
+ *
+ * Shared by [DynamicIsland]'s drawing and the overlay's window sizing, so the window and the
+ * touchable region always cover the grown pill.
+ *
+ * @param pillLeftEdgeDp the pill's leading edge before growing, from the screen's horizontal centre.
+ * @param cameraLeftEdgeDp the camera's left edge, from the same centre.
+ * @param leadingInsetDp room already taken beside the badge, see [statusDotMinStartDp].
+ */
+internal fun statusDotLeadingGrowthDp(
+    pillLeftEdgeDp: Float,
+    cameraLeftEdgeDp: Float?,
+    heightDp: Int,
+    leadingInsetDp: Int,
+): Int {
+    if (cameraLeftEdgeDp == null) return 0
+    val dotEnd = pillLeftEdgeDp + statusDotMinStartDp(heightDp, leadingInsetDp) + statusDotBoxDp(heightDp)
+    return kotlin.math.ceil(dotEnd - (cameraLeftEdgeDp - STATUS_DOT_CAMERA_GAP_DP)).coerceAtLeast(0f).toInt()
+}
+
+/**
+ * Where the status dot's box starts from the pill's leading edge once the pill has grown by
+ * [growthDp]: flush against the camera's gap, and never closer to the badge than
+ * [statusDotMinStartDp]. Without a known camera it stays just past the badge.
+ */
+internal fun statusDotStartDp(
+    pillLeftEdgeDp: Float,
+    cameraLeftEdgeDp: Float?,
+    heightDp: Int,
+    leadingInsetDp: Int,
+    growthDp: Int,
+): Float {
+    val minStart = statusDotMinStartDp(heightDp, leadingInsetDp)
+    if (cameraLeftEdgeDp == null) return minStart
+    val fromCamera = cameraLeftEdgeDp - STATUS_DOT_CAMERA_GAP_DP - statusDotBoxDp(heightDp) -
+        (pillLeftEdgeDp - growthDp)
+    return maxOf(minStart, fromCamera)
+}
 
 /**
  * The badge diameter for a container [containerDp] tall. Shared by every collapsed surface that
@@ -1973,6 +2111,9 @@ internal fun EventBadge(
  *   here because the collapsed content re-enters composition every time the island collapses back
  *   from expanded, which would otherwise re-fire the pop on a collapse. Null (the settings preview)
  *   leaves the badge at rest.
+ * @param statusDotStartDp where the status dot's box starts, from the pill's leading edge. The caller
+ *   works it out from the camera's position so the dot ends [STATUS_DOT_CAMERA_GAP_DP] short of the
+ *   hole; null (the settings preview) parks it just past the badge.
  */
 @Composable
 private fun CollapsedContent(
@@ -1980,6 +2121,7 @@ private fun CollapsedContent(
     heightDp: Int,
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
+    statusDotStartDp: Float? = null,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
     statusDotEnabled: Boolean = true,
 ) {
@@ -2051,11 +2193,11 @@ private fun CollapsedContent(
                     .padding(end = (heightDp * 0.16f).dp + trailingInsetDp.dp),
             )
         }
-        // Trailing text (e.g. battery percentage for charging/battery low) or radiating status dot
+        // Trailing text (e.g. battery percentage for charging/battery low)
         if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
-            if (event.trailingText != null) {
+            event.trailingText?.let { trailingText ->
                 Text(
-                    text = event.trailingText,
+                    text = trailingText,
                     color = event.colorOverride?.resolve() ?: event.trailingTextColor ?: LocalContentColor.current,
                     fontSize = (heightDp * 0.34f).sp,
                     fontWeight = FontWeight.SemiBold,
@@ -2065,15 +2207,17 @@ private fun CollapsedContent(
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
-            } else if (statusDotEnabled && event.statusDotColor != null) {
-                RadiatingStatusDot(
-                    color = event.statusDotColor,
-                    sizeDp = (heightDp * 0.18f).dp,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
-                )
             }
+        }
+        // Radiating status dot, between the badge and the camera
+        if (!isStickToCamera) {
+            AnimatedStatusDot(
+                color = event.statusDotColor.takeIf { statusDotEnabled },
+                sizeDp = (heightDp * STATUS_DOT_SIZE_FRACTION).dp,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = (statusDotStartDp ?: statusDotMinStartDp(heightDp, 0)).dp),
+            )
         }
     }
 }
@@ -2335,7 +2479,31 @@ private fun CollapsedProgressIndicator(
 }
 
 /**
- * A pulsing status dot on the trailing edge of the island that radiates animated expanding rings
+ * [RadiatingStatusDot] that pops in and out as [color] becomes non-null or null, like the permission
+ * dots do. It keeps the last colour it was given, so the dot fades out in the colour it had instead
+ * of vanishing the moment the colour is gone.
+ */
+@Composable
+private fun AnimatedStatusDot(
+    color: Color?,
+    sizeDp: Dp,
+    modifier: Modifier = Modifier,
+) {
+    var lastColor by remember { mutableStateOf(Color.Transparent) }
+    if (color != null && color != lastColor) lastColor = color
+    AnimatedVisibility(
+        visible = color != null,
+        modifier = modifier,
+        enter = fadeIn() + scaleIn(initialScale = 0.4f),
+        exit = fadeOut() + scaleOut(targetScale = 0.4f),
+    ) {
+        RadiatingStatusDot(color = lastColor, sizeDp = sizeDp)
+    }
+}
+
+/**
+ * A pulsing status dot, between the badge and the camera on the pill and beside the badge on the
+ * expanded card, that radiates animated expanding rings
  * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
  */
 @Composable
@@ -2365,7 +2533,7 @@ private fun RadiatingStatusDot(
     )
 
     Box(
-        modifier = modifier.size(sizeDp * 2.5f),
+        modifier = modifier.size(sizeDp * STATUS_DOT_BOX_SCALE),
         contentAlignment = Alignment.Center,
     ) {
         // Radiating pulse ring
@@ -2743,6 +2911,38 @@ fun rememberRelativeTime(postTimeMs: Long?): String? {
     return relativeTime
 }
 
+/**
+ * A small rounded "Pinned" label with the filled pin glyph, vertically centred in the band beside
+ * the camera so a pinned notification is recognisable at a glance. Tapping it calls [onClick] to
+ * unpin.
+ */
+@Composable
+private fun PinnedTag(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.CenterEnd) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(LocalContentColor.current.copy(alpha = 0.15f))
+                .clickable(onClickLabel = stringResource(R.string.cutout_unpin), onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.cutout_pinned_tag),
+                color = LocalContentColor.current.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_pin_filled),
+                contentDescription = null,
+                tint = LocalContentColor.current.copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
@@ -2751,14 +2951,22 @@ private fun ExpandedContent(
     targetWidthDp: Int = 0,
     expandProgress: Float = 1f,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    statusDotEnabled: Boolean = true,
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
+    motion: IslandMotion = IslandMotion(
+        AnimationStyle.EASE_IN_OUT,
+        AnimationSpeed.DEFAULT,
+        AnimationBounce.NORMAL,
+        BASE_TRANSITION_MS,
+    ),
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
     onDismiss: () -> Unit = {},
+    onPinToggle: () -> Unit = {},
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
@@ -2813,6 +3021,46 @@ private fun ExpandedContent(
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentAlpha },
     ) {
+        val swapEnter = fadeIn(motion.swapFade()) +
+            scaleIn(motion.swapScale(), initialScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+        val swapExit = fadeOut(motion.swapFade()) +
+            scaleOut(motion.swapScale(), targetScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+
+        // Pinned tag (tap to unpin)
+        AnimatedVisibility(
+            visible = event.pinned,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = -PINNED_TAG_END_INSET_DP.dp),
+            enter = swapEnter,
+            exit = swapExit,
+        ) {
+            PinnedTag(
+                onClick = onPinToggle,
+                modifier = Modifier.height(topMarginDp.dp),
+            )
+        }
+
+        // Pin button
+        AnimatedVisibility(
+            visible = !event.pinned,
+            modifier = Modifier.align(Alignment.TopEnd),
+            enter = swapEnter,
+            exit = swapExit,
+        ) {
+            IconButton(
+                onClick = onPinToggle,
+                modifier = Modifier.size(topMarginDp.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_pin),
+                    contentDescription = stringResource(R.string.cutout_pin),
+                    tint = LocalContentColor.current.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -2833,6 +3081,10 @@ private fun ExpandedContent(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
+                AnimatedStatusDot(
+                    color = event.statusDotColor.takeIf { statusDotEnabled },
+                    sizeDp = 8.dp,
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     if (headerText != null) {
                         Text(

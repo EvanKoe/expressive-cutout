@@ -32,6 +32,7 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.PinNotificationsMode
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
@@ -69,6 +70,24 @@ private val HorizontalCutoutMode.descriptionRes: Int
         HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center_desc
     }
 
+/** Label shown for each pin mode in the options card. */
+private val PinNotificationsMode.titleRes: Int
+    get() = when (this) {
+        PinNotificationsMode.NONE -> R.string.behaviour_pin_notifications_none
+        PinNotificationsMode.NOTIFICATIONS -> R.string.behaviour_pin_notifications_notifications
+        PinNotificationsMode.SYSTEM_EVENTS -> R.string.behaviour_pin_notifications_system_events
+        PinNotificationsMode.BOTH -> R.string.behaviour_pin_notifications_both
+    }
+
+/** One-line explanation shown under each pin mode. */
+private val PinNotificationsMode.descriptionRes: Int
+    get() = when (this) {
+        PinNotificationsMode.NONE -> R.string.behaviour_pin_notifications_none_desc
+        PinNotificationsMode.NOTIFICATIONS -> R.string.behaviour_pin_notifications_notifications_desc
+        PinNotificationsMode.SYSTEM_EVENTS -> R.string.behaviour_pin_notifications_system_events_desc
+        PinNotificationsMode.BOTH -> R.string.behaviour_pin_notifications_both_desc
+    }
+
 @Composable
 internal fun BehaviourScreen(
     viewModel: AppViewModel,
@@ -102,6 +121,7 @@ internal fun BehaviourScreen(
         OptionSelectionCard(
             modifier = Modifier.padding(bottom = 8.dp),
             title = stringResource(R.string.behaviour_horizontal_cutout),
+            description = stringResource(R.string.behaviour_horizontal_cutout_desc),
             options = HorizontalCutoutMode.entries.map { mode ->
                 SelectableOption(
                     value = mode,
@@ -169,6 +189,21 @@ internal fun BehaviourScreen(
             description = stringResource(R.string.behaviour_ignore_silent_notif_desc),
             checked = behaviour.ignoreSilentNotifications,
             onCheckedChange = viewModel::setIgnoreSilentNotifications,
+        )
+        OptionSelectionCard(
+            title = stringResource(R.string.behaviour_pin_notifications),
+            description = stringResource(R.string.behaviour_pin_notifications_desc),
+            options = PinNotificationsMode.entries.map { mode ->
+                SelectableOption(
+                    value = mode,
+                    title = stringResource(mode.titleRes),
+                    description = stringResource(mode.descriptionRes),
+                )
+            },
+            selectedValue = behaviour.pinNotificationsMode,
+            onSelectionChange = viewModel::setPinNotificationsMode,
+            isFirst = false,
+            isLast = false,
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),

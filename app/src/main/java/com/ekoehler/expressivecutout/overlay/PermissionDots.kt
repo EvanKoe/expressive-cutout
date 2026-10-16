@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 
 /** A dot's diameter and the gap between two of them, both as a fraction of the pill's height. */
 private const val DOT_SIZE_FRACTION = 0.20f
-private const val DOT_GAP_FRACTION = 0.14f
+internal const val DOT_GAP_FRACTION = 0.14f
 
 /**
  * The same two, for the stacked layout: three dots and their gaps have to share the pill's height
@@ -103,6 +103,16 @@ internal fun permissionDotRowWidthDp(usage: PermissionUsage, heightDp: Int, vert
     // Each dot carries half a gap on each side, so one gap per dot.
     val gaps = count * heightDp * gapFraction
     return (dots + gaps).roundToInt()
+}
+
+/**
+ * The room the dots take on the leading side when placed on the left — their row plus one gap — so
+ * the status dot, which also sits between the badge and the camera, can step past them. Zero when
+ * no dot is lit.
+ */
+internal fun permissionDotLeadingInsetDp(usage: PermissionUsage, heightDp: Int, vertical: Boolean = false): Int {
+    if (usage.count == 0) return 0
+    return permissionDotRowWidthDp(usage, heightDp, vertical) + (heightDp * DOT_GAP_FRACTION).roundToInt()
 }
 
 /**

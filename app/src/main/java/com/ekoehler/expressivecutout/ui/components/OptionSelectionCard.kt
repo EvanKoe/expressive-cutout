@@ -53,8 +53,8 @@ data class SelectableOption<T>(
  * both light and dark dynamic-colour schemes; [onSelectionChange] fires with the tapped option's
  * value. Rows already tapped don't re-emit, and the whole group is exposed as one radio group to
  * accessibility services. Clear [isFirst] / [isLast] to tighten the matching outer corners so the
- * card stacks into a grouped settings list, and pass [header] to sit extra content — a preview, say
- * — between the title and the rows.
+ * card stacks into a grouped settings list, pass [description] for a short explanation under the
+ * title, and pass [header] to sit extra content — a preview, say — between the title and the rows.
  */
 @Composable
 fun <T> OptionSelectionCard(
@@ -63,6 +63,7 @@ fun <T> OptionSelectionCard(
     selectedValue: T?,
     onSelectionChange: (T) -> Unit,
     modifier: Modifier = Modifier,
+    description: String? = null,
     isFirst: Boolean = true,
     isLast: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.surface,
@@ -84,12 +85,23 @@ fun <T> OptionSelectionCard(
             ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+            Column(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                description?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             header?.invoke()
             Column(
                 modifier = Modifier.selectableGroup(),
