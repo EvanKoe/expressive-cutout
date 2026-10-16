@@ -860,10 +860,19 @@ fun DynamicIsland(
     val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
     val height by animateDpAsState(targetHeight, heightSpec, label = "islandHeight")
 
-    // The island stays slid aside until the window has fully shrunk, so the pill never shows mid-shrink
+    // While the window shrinks into the resting pill, its panel turns into the pill's own colour and
+    // the dismiss glyph fades out, so the hand-over to the real pill is seamless.
+    val settle = animateFloatAsState(
+        targetValue = if (windowSettling && emptyPill) 1f else 0f,
+        animationSpec = motion.fade(),
+        label = "dismissSettle",
+    )
+
+    // The island stays slid aside until the window has fully shrunk and turned into the pill, so the
+    // pill never shows mid-shrink
     LaunchedEffect(windowSettling && emptyPill, targetWidth, targetHeight) {
         if (!windowSettling || !emptyPill) return@LaunchedEffect
-        snapshotFlow { width == targetWidth && height == targetHeight }.first { it }
+        snapshotFlow { width == targetWidth && height == targetHeight && settle.value >= 1f }.first { it }
         dismissOffsetX.snapTo(0f)
         windowSettling = false
     }
@@ -1111,6 +1120,7 @@ fun DynamicIsland(
                         iconSize = badgeIconSizeFor(collapsed.heightDp),
                         gapOnStart = dismissGapOnStart,
                         modifier = Modifier.matchParentSize(),
+                        settle = { settle.value },
                     )
                 }
                 IslandSurface(
@@ -1298,7 +1308,12 @@ fun DynamicIsland(
                     }
 
                     // Microphone / camera / location dots
-                    if (showPermissionDots) {
+                    AnimatedVisibility(
+                        visible = showPermissionDots,
+                        modifier = Modifier.fillMaxSize(),
+                        enter = fadeIn(motion.swapFade()),
+                        exit = fadeOut(motion.swapFade()),
+                    ) {
                         Box(modifier = Modifier.fillMaxSize()) {
                             PermissionDotRow(
                                 usage = permissionUsage,
@@ -1601,6 +1616,10 @@ private const val DISMISS_GLYPH_INSET_DP = 20
  * always lands in the gap rather than under the island, and defaults to a trash can when the user
  * has picked no icon of their own. A picked image is drawn untinted: flattening a photo or a logo
  * to a single colour would destroy it, so the icon colour reaches Material glyphs only.
+ *
+ * [settle] (0 to 1) is how far the panel has turned back into the normal cutout: its colour
+ * cross-fades to the normal background while the glyph fades out. Read inside draw lambdas, so a
+ * moving value never recomposes the panel.
  */
 @Composable
 internal fun DismissBackdrop(
@@ -1609,7 +1628,9 @@ internal fun DismissBackdrop(
     iconSize: Dp,
     gapOnStart: Boolean,
     modifier: Modifier = Modifier,
+    settle: () -> Float = { 0f },
 ) {
+    val restingBrush = appearance.backgroundNormal.resolveBrush(appColor, appColor)
     val backdrop = appearance.dismissBackdropColor?.resolve(appColor, appColor)
         ?: MaterialTheme.colorScheme.surfaceContainerHigh
     val glyphColor = appearance.dismissIconColor?.resolve(appColor, appColor)
@@ -1620,9 +1641,17 @@ internal fun DismissBackdrop(
         modifier = modifier.background(backdrop),
         contentAlignment = if (gapOnStart) Alignment.CenterStart else Alignment.CenterEnd,
     ) {
+        // Normal cutout fill, fading in over the panel colour
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = settle() }
+                .background(restingBrush),
+        )
         val placement = Modifier
             .padding(horizontal = DISMISS_GLYPH_INSET_DP.dp)
             .size(iconSize)
+            .graphicsLayer { alpha = 1f - settle() }
         val bitmap = resolved.bitmap
         if (bitmap != null) {
             androidx.compose.foundation.Image(
@@ -2077,9 +2106,9 @@ private fun CollapsedContent(
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
-            } else if (statusDotEnabled && event.statusDotColor != null) {
-                RadiatingStatusDot(
-                    color = event.statusDotColor,
+            } else {
+                AnimatedStatusDot(
+                    color = event.statusDotColor.takeIf { statusDotEnabled },
                     sizeDp = (heightDp * 0.18f).dp,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -2343,6 +2372,29 @@ private fun CollapsedProgressIndicator(
                 }
             }
         }
+    }
+}
+
+/**
+ * [RadiatingStatusDot] that pops in and out as [color] becomes non-null or null, like the permission
+ * dots do. It keeps the last colour it was given, so the dot fades out in the colour it had instead
+ * of vanishing the moment the colour is gone.
+ */
+@Composable
+private fun AnimatedStatusDot(
+    color: Color?,
+    sizeDp: Dp,
+    modifier: Modifier = Modifier,
+) {
+    var lastColor by remember { mutableStateOf(Color.Transparent) }
+    if (color != null && color != lastColor) lastColor = color
+    AnimatedVisibility(
+        visible = color != null,
+        modifier = modifier,
+        enter = fadeIn() + scaleIn(initialScale = 0.4f),
+        exit = fadeOut() + scaleOut(targetScale = 0.4f),
+    ) {
+        RadiatingStatusDot(color = lastColor, sizeDp = sizeDp)
     }
 }
 
