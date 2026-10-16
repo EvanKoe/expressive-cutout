@@ -29,6 +29,23 @@ enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
 enum class SatellitePosition { LEFT, RIGHT }
 
 /**
+ * Which kinds of event the cutout keeps up until dismissed, without the user pressing the pin
+ * button. Ordered to match the settings selector.
+ */
+enum class PinNotificationsMode {
+    NONE,
+    NOTIFICATIONS,
+    SYSTEM_EVENTS,
+    BOTH;
+
+    /** True when notifications are pinned on arrival. */
+    val pinsNotifications: Boolean get() = this == NOTIFICATIONS || this == BOTH
+
+    /** True when system events are pinned on arrival. */
+    val pinsSystemEvents: Boolean get() = this == SYSTEM_EVENTS || this == BOTH
+}
+
+/**
  * Which cutout state swipe-to-dismiss applies to. Ordered to match the settings selector
  * (Expanded / Both / Normal) so the ordinal doubles as the segment index.
  */
@@ -90,7 +107,7 @@ data class BehaviourSettings(
     val expandedDisappearOnShrink: Boolean = DEFAULT_DISAPPEAR_ON_SHRINK,
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
     val ignoreSilentNotifications: Boolean = DEFAULT_IGNORE_SILENT_NOTIFICATIONS,
-    val pinNotifications: Boolean = DEFAULT_PIN_NOTIFICATIONS,
+    val pinNotificationsMode: PinNotificationsMode = DEFAULT_PIN_NOTIFICATIONS_MODE,
     val showActionButtons: Boolean = DEFAULT_SHOW_ACTION_BUTTONS,
     val toastOnAction: Boolean = DEFAULT_TOAST_ON_ACTION,
     val shrinkOnSwipeUp: Boolean = DEFAULT_SHRINK_ON_SWIPE_UP,
@@ -134,7 +151,7 @@ data class BehaviourSettings(
         const val DEFAULT_DISAPPEAR_ON_SHRINK = false
         const val DEFAULT_NOTIFICATIONS_AUTO_EXPAND = false
         const val DEFAULT_IGNORE_SILENT_NOTIFICATIONS = false
-        const val DEFAULT_PIN_NOTIFICATIONS = false
+        val DEFAULT_PIN_NOTIFICATIONS_MODE = PinNotificationsMode.NONE
         const val DEFAULT_SHOW_ACTION_BUTTONS = true
         const val DEFAULT_TOAST_ON_ACTION = true
         const val DEFAULT_SHRINK_ON_SWIPE_UP = true
@@ -203,7 +220,9 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
             ignoreSilentNotifications = prefs[IGNORE_SILENT_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_IGNORE_SILENT_NOTIFICATIONS,
-            pinNotifications = prefs[PIN_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_PIN_NOTIFICATIONS,
+            pinNotificationsMode = prefs[PIN_NOTIFICATIONS_MODE]
+                ?.let { runCatching { PinNotificationsMode.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_PIN_NOTIFICATIONS_MODE,
             showActionButtons = prefs[SHOW_ACTION_BUTTONS] ?: BehaviourSettings.DEFAULT_SHOW_ACTION_BUTTONS,
             toastOnAction = prefs[TOAST_ON_ACTION] ?: BehaviourSettings.DEFAULT_TOAST_ON_ACTION,
             shrinkOnSwipeUp = prefs[SHRINK_ON_SWIPE_UP] ?: BehaviourSettings.DEFAULT_SHRINK_ON_SWIPE_UP,
@@ -263,7 +282,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("expandedDisappearOnShrink", s.expandedDisappearOnShrink)
             put("notificationsAutoExpand", s.notificationsAutoExpand)
             put("ignoreSilentNotifications", s.ignoreSilentNotifications)
-            put("pinNotifications", s.pinNotifications)
+            put("pinNotificationsMode", s.pinNotificationsMode.name)
             put("showActionButtons", s.showActionButtons)
             put("toastOnAction", s.toastOnAction)
             put("shrinkOnSwipeUp", s.shrinkOnSwipeUp)
@@ -321,7 +340,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("expandedDisappearOnShrink")) it[DISAPPEAR_ON_SHRINK] = obj.getBoolean("expandedDisappearOnShrink")
             if (obj.has("notificationsAutoExpand")) it[NOTIF_AUTO_EXPAND] = obj.getBoolean("notificationsAutoExpand")
             if (obj.has("ignoreSilentNotifications")) it[IGNORE_SILENT_NOTIFICATIONS] = obj.getBoolean("ignoreSilentNotifications")
-            if (obj.has("pinNotifications")) it[PIN_NOTIFICATIONS] = obj.getBoolean("pinNotifications")
+            parseEnum<PinNotificationsMode>(obj, "pinNotificationsMode")?.let { m -> it[PIN_NOTIFICATIONS_MODE] = m.name }
             if (obj.has("showActionButtons")) it[SHOW_ACTION_BUTTONS] = obj.getBoolean("showActionButtons")
             if (obj.has("toastOnAction")) it[TOAST_ON_ACTION] = obj.getBoolean("toastOnAction")
             if (obj.has("shrinkOnSwipeUp")) it[SHRINK_ON_SWIPE_UP] = obj.getBoolean("shrinkOnSwipeUp")
@@ -468,8 +487,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[IGNORE_SILENT_NOTIFICATIONS] = enabled
     }
 
-    suspend fun setPinNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[PIN_NOTIFICATIONS] = enabled
+    suspend fun setPinNotificationsMode(mode: PinNotificationsMode) = context.behaviourDataStore.edit {
+        it[PIN_NOTIFICATIONS_MODE] = mode.name
     }
 
     suspend fun setShowActionButtons(enabled: Boolean) = context.behaviourDataStore.edit {
@@ -603,7 +622,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val DISAPPEAR_ON_SHRINK = booleanPreferencesKey("expanded_disappear_on_shrink")
         val NOTIF_AUTO_EXPAND = booleanPreferencesKey("notifications_auto_expand")
         val IGNORE_SILENT_NOTIFICATIONS = booleanPreferencesKey("ignore_silent_notifications")
-        val PIN_NOTIFICATIONS = booleanPreferencesKey("pin_notifications")
+        val PIN_NOTIFICATIONS_MODE = stringPreferencesKey("pin_notifications_mode")
         val SHOW_ACTION_BUTTONS = booleanPreferencesKey("show_action_buttons")
         val TOAST_ON_ACTION = booleanPreferencesKey("toast_on_action")
         val SHRINK_ON_SWIPE_UP = booleanPreferencesKey("shrink_on_swipe_up")

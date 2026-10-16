@@ -6,6 +6,11 @@ import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
@@ -58,7 +63,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
@@ -69,7 +73,6 @@ import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
@@ -132,6 +135,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -347,6 +351,12 @@ internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAU
  * expanded notification column's bottom padding so measured inner height converts back to island height.
  */
 internal const val EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP = 18
+
+/** How far the "Pinned" tag is pulled in from the island's right edge, past the content padding. */
+private const val PINNED_TAG_END_INSET_DP = 6
+
+/** The scale animation grows from and shrinks to the island's right edge, where both controls sit. */
+private val PIN_SWAP_ORIGIN = TransformOrigin(1f, 0.5f)
 
 /**
  * Island height from the inner expanded column (icon/text + chips), plus the camera band and bottom
@@ -1252,6 +1262,7 @@ fun DynamicIsland(
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
+                                        motion = motion,
                                         onAction = onAction,
                                         onStartReply = { replyingTo = it },
                                         onCancelReply = { replyingTo = null },
@@ -2744,6 +2755,38 @@ fun rememberRelativeTime(postTimeMs: Long?): String? {
     return relativeTime
 }
 
+/**
+ * A small rounded "Pinned" label with the filled pin glyph, vertically centred in the band beside
+ * the camera so a pinned notification is recognisable at a glance. Tapping it calls [onClick] to
+ * unpin.
+ */
+@Composable
+private fun PinnedTag(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.CenterEnd) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(LocalContentColor.current.copy(alpha = 0.15f))
+                .clickable(onClickLabel = stringResource(R.string.cutout_unpin), onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.cutout_pinned_tag),
+                color = LocalContentColor.current.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_pin_filled),
+                contentDescription = null,
+                tint = LocalContentColor.current.copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
@@ -2755,6 +2798,12 @@ private fun ExpandedContent(
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
+    motion: IslandMotion = IslandMotion(
+        AnimationStyle.EASE_IN_OUT,
+        AnimationSpeed.DEFAULT,
+        AnimationBounce.NORMAL,
+        BASE_TRANSITION_MS,
+    ),
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
@@ -2815,19 +2864,44 @@ private fun ExpandedContent(
             .padding(horizontal = 18.dp)
             .graphicsLayer { alpha = contentAlpha },
     ) {
-        // Pin toggle
-        IconButton(
-            onClick = onPinToggle,
+        val swapEnter = fadeIn(motion.swapFade()) +
+            scaleIn(motion.swapScale(), initialScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+        val swapExit = fadeOut(motion.swapFade()) +
+            scaleOut(motion.swapScale(), targetScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+
+        // Pinned tag (tap to unpin)
+        AnimatedVisibility(
+            visible = event.pinned,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(topMarginDp.dp),
+                .offset(x = -PINNED_TAG_END_INSET_DP.dp),
+            enter = swapEnter,
+            exit = swapExit,
         ) {
-            Icon(
-                imageVector = if (event.pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin,
-                contentDescription = stringResource(if (event.pinned) R.string.cutout_unpin else R.string.cutout_pin),
-                tint = LocalContentColor.current.copy(alpha = 0.7f),
-                modifier = Modifier.size(18.dp),
+            PinnedTag(
+                onClick = onPinToggle,
+                modifier = Modifier.height(topMarginDp.dp),
             )
+        }
+
+        // Pin button
+        AnimatedVisibility(
+            visible = !event.pinned,
+            modifier = Modifier.align(Alignment.TopEnd),
+            enter = swapEnter,
+            exit = swapExit,
+        ) {
+            IconButton(
+                onClick = onPinToggle,
+                modifier = Modifier.size(topMarginDp.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_pin),
+                    contentDescription = stringResource(R.string.cutout_pin),
+                    tint = LocalContentColor.current.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
 
         Column(

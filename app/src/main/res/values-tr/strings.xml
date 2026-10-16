@@ -267,9 +267,9 @@
     <string name="appearance_dismiss_backdrop_color">Kapatma arka planı rengi</string>
     <string name="appearance_dismiss_corners">Kayan adacık köşeleri</string>
     <string name="appearance_dismiss_corners_follow">Adacığın kendi köşelerini kullan</string>
-    <string name="appearance_prefer_dynamic_icon_color_title">Dinamik simge rengini tercih et</string>
-    <string name="appearance_prefer_dynamic_icon_color_desc">Mevcut olduğunda dinamik Material You uygulama simgesini kullan, kapalıyken düz simgeyi kullan</string>
-    <string name="appearance_notification_color_title">Bildirim simgesi rengi</string>
+    <string name="appearance_prefer_dynamic_icon_color_title">Tek renkli bildirim simgeleri</string>
+    <string name="appearance_prefer_dynamic_icon_color_desc">Aşağıdaki rengi izleyen tek renkli bir simge göster. Kapalıyken uygulamanın renkli simgesi veya kişi fotoğrafı gösterilir</string>
+    <string name="appearance_notification_color_title">Bildirim rozeti rengi</string>
     <string name="appearance_notification_color_material">Material rengi</string>
     <string name="appearance_notification_color_app">Uygulama rengi</string>
     <string name="appearance_notification_color_other">Diğer</string>
@@ -486,9 +486,13 @@
     <string name="behaviour_ignore_silent_notif">Sessiz bildirimleri yoksay</string>
     <string name="behaviour_ignore_silent_notif_desc">Sessiz olarak işaretlenmiş bildirimler için çentikte baloncuk gösterme</string>
     <string name="behaviour_pin_notifications">Bildirimleri sabitle</string>
-    <string name="behaviour_pin_notifications_desc">Her bildirimi ve sistem olayını siz kapatana kadar çentikte tut</string>
+    <string name="behaviour_pin_notifications_none">Hiçbiri</string>
+    <string name="behaviour_pin_notifications_notifications">Bildirimler</string>
+    <string name="behaviour_pin_notifications_system_events">Sistem olayları</string>
+    <string name="behaviour_pin_notifications_both">İkisi de</string>
     <string name="cutout_pin">Bildirimi sabitle</string>
     <string name="cutout_unpin">Bildirim sabitlemesini kaldır</string>
+    <string name="cutout_pinned_tag">Sabitlendi</string>
     <string name="behaviour_action_buttons">Eylem düğmelerini göster</string>
     <string name="behaviour_action_buttons_desc">Bildirimin eylem düğmelerini genişletilmiş çentikte gösterir. Kamerayla çakışmamaları için biraz yükseklik ekler.</string>
     <string name="behaviour_shrink_swipe_up">Yukarı kaydırınca küçül</string>

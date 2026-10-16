@@ -301,9 +301,9 @@
     <string name="appearance_dismiss_backdrop_color">Couleur du fond de fermeture</string>
     <string name="appearance_dismiss_corners">Coins de l’îlot qui glisse</string>
     <string name="appearance_dismiss_corners_follow">Suivre les coins de l’îlot</string>
-    <string name="appearance_prefer_dynamic_icon_color_title">Préférer la couleur d’icône dynamique</string>
-    <string name="appearance_prefer_dynamic_icon_color_desc">Utiliser l’icône Material You dynamique quand elle existe, ou l’icône simple sinon</string>
-    <string name="appearance_notification_color_title">Couleur de l’icône de notification</string>
+    <string name="appearance_prefer_dynamic_icon_color_title">Icônes de notification monochromes</string>
+    <string name="appearance_prefer_dynamic_icon_color_desc">Afficher une icône d’une seule couleur qui suit la couleur ci-dessous. Désactivé, l’icône en couleur de l’application ou la photo du contact s’affiche</string>
+    <string name="appearance_notification_color_title">Couleur du badge de notification</string>
     <string name="appearance_notification_color_material">Couleur Material</string>
     <string name="appearance_notification_color_app">Couleur de l’application</string>
     <string name="appearance_notification_color_other">Autre</string>
@@ -523,9 +523,13 @@
     <string name="behaviour_ignore_silent_notif">Ignorer les notifications silencieuses</string>
     <string name="behaviour_ignore_silent_notif_desc">Ne pas afficher de bulle sur l’encoche pour les notifications marquées comme silencieuses</string>
     <string name="behaviour_pin_notifications">Épingler les notifications</string>
-    <string name="behaviour_pin_notifications_desc">Garder chaque notification et événement système sur l’encoche jusqu’à ce que vous les fermiez</string>
+    <string name="behaviour_pin_notifications_none">Aucun</string>
+    <string name="behaviour_pin_notifications_notifications">Notifications</string>
+    <string name="behaviour_pin_notifications_system_events">Événements système</string>
+    <string name="behaviour_pin_notifications_both">Les deux</string>
     <string name="cutout_pin">Épingler la notification</string>
     <string name="cutout_unpin">Désépingler la notification</string>
+    <string name="cutout_pinned_tag">Épinglée</string>
     <string name="behaviour_action_buttons">Afficher les boutons d’action</string>
     <string name="behaviour_action_buttons_desc">Afficher les boutons d’action d’une notification dans l’encoche étendue. Ajoute un peu de hauteur pour qu’ils dégagent la caméra.</string>
     <string name="behaviour_shrink_swipe_up">Réduire en balayant vers le haut</string>

@@ -32,6 +32,7 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.PinNotificationsMode
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SwipeDismissTarget
@@ -67,6 +68,15 @@ private val HorizontalCutoutMode.descriptionRes: Int
         HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only_desc
         HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera_desc
         HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center_desc
+    }
+
+/** Label shown for each pin mode in the options card. */
+private val PinNotificationsMode.titleRes: Int
+    get() = when (this) {
+        PinNotificationsMode.NONE -> R.string.behaviour_pin_notifications_none
+        PinNotificationsMode.NOTIFICATIONS -> R.string.behaviour_pin_notifications_notifications
+        PinNotificationsMode.SYSTEM_EVENTS -> R.string.behaviour_pin_notifications_system_events
+        PinNotificationsMode.BOTH -> R.string.behaviour_pin_notifications_both
     }
 
 @Composable
@@ -170,12 +180,15 @@ internal fun BehaviourScreen(
             checked = behaviour.ignoreSilentNotifications,
             onCheckedChange = viewModel::setIgnoreSilentNotifications,
         )
-        SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
+        OptionSelectionCard(
             title = stringResource(R.string.behaviour_pin_notifications),
-            description = stringResource(R.string.behaviour_pin_notifications_desc),
-            checked = behaviour.pinNotifications,
-            onCheckedChange = viewModel::setPinNotifications,
+            options = PinNotificationsMode.entries.map { mode ->
+                SelectableOption(value = mode, title = stringResource(mode.titleRes))
+            },
+            selectedValue = behaviour.pinNotificationsMode,
+            onSelectionChange = viewModel::setPinNotificationsMode,
+            isFirst = false,
+            isLast = false,
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),

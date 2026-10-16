@@ -2068,8 +2068,11 @@ class IslandOverlayController(private val context: Context) {
             ).copy(
                 initiallyExpanded = autoExpand,
                 normalOnly = normalOnly,
-                pinned = behaviourState.value.pinNotifications &&
-                    (signal is CutoutSignal.Notification || signal is CutoutSignal.System),
+                pinned = when (signal) {
+                    is CutoutSignal.Notification -> behaviourState.value.pinNotificationsMode.pinsNotifications
+                    is CutoutSignal.System -> behaviourState.value.pinNotificationsMode.pinsSystemEvents
+                    else -> false
+                },
             )
 
             if (overlayHidden) {
