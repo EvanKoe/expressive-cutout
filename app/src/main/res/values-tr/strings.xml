@@ -332,7 +332,14 @@
     <string name="shizuku_permission_title">Shizuku erişimi ver</string>
     <string name="shizuku_permission_desc">Expressive Cutout\'un Shizuku\'yu kullanmasına izin vermek için dokunun.</string>
     <string name="perm_shizuku_title">Shizuku</string>
-    <string name="perm_shizuku_desc">İsteğe bağlı. Yalnızca durum çubuğu bildirim simgelerini gizlemek için gereklidir.</string>
+    <string name="perm_shizuku_desc">İsteğe bağlı. Durum çubuğu bildirim simgelerini gizler ve diğer izinleri sizin yerinize verebilir.</string>
+    <string name="shizuku_shortcut_title">Kısayol</string>
+    <string name="shizuku_shortcut_desc">Shizuku aşağıdakilerin tümünü tek dokunuşla verebilir.</string>
+    <string name="shizuku_shortcut_start_hint">Önce başlatın.</string>
+    <string name="shizuku_shortcut_allow_hint">Bu uygulamaya Shizuku’da izin verin.</string>
+    <string name="shizuku_shortcut_start">Shizuku’yu aç</string>
+    <string name="shizuku_shortcut_allow">İzin ver</string>
+    <string name="shizuku_shortcut_grant_all">Tümünü ver</string>
 
     <string name="app_color_fallback_title">Yedek renk</string>
     <string name="app_color_fallback_desc">Uygulama simgesi bulunmadığında kullanılır (sistem olayları veya boşta bir ada gibi)</string>

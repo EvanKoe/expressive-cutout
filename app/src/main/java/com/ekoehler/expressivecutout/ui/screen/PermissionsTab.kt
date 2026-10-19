@@ -101,6 +101,25 @@ fun PermissionsTab(contentPadding: PaddingValues) {
             AllSetCard()
         }
 
+        // Shizuku's shell can flip every other grant itself, so offer that first. Not advertised
+        // when Shizuku isn't installed: the permission card below already covers the install path.
+        AnimatedVisibility(visible = shizuku != ShizukuStatus.NOT_INSTALLED && !status.allGranted) {
+            ShizukuShortcutCard(
+                shizuku = shizuku,
+                granting = granting,
+                onGrantAll = {
+                    granting = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) { Permissions.grantMissingWithShizuku(context) }
+                        status = readPermissionStatus(context)
+                        granting = false
+                    }
+                },
+                onAllow = ShizukuState::requestPermission,
+                onOpenShizuku = { Permissions.openShizuku(context) },
+            )
+        }
+
         Column(
             modifier = Modifier.clip(shape = RoundedCornerShape(24.dp)),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -149,22 +168,66 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                 },
             )
         }
+    }
+}
 
-        // Shizuku's shell can flip every other grant itself, sparing a trip through each system screen
-        AnimatedVisibility(visible = shizuku == ShizukuStatus.READY && !status.allGranted) {
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !granting,
-                onClick = {
-                    granting = true
-                    scope.launch {
-                        withContext(Dispatchers.IO) { Permissions.grantMissingWithShizuku(context) }
-                        status = readPermissionStatus(context)
-                        granting = false
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.perm_grant_all_shizuku))
+/**
+ * Banner offering Shizuku as a one-tap way through the permission list. Its text and button follow
+ * the bridge state so it walks the user from "start it" to "allow it" to "grant all".
+ */
+@Composable
+private fun ShizukuShortcutCard(
+    shizuku: ShizukuStatus,
+    granting: Boolean,
+    onGrantAll: () -> Unit,
+    onAllow: () -> Unit,
+    onOpenShizuku: () -> Unit,
+) {
+    val (hint, label, onClick) = when (shizuku) {
+        ShizukuStatus.READY -> Triple(null, R.string.shizuku_shortcut_grant_all, onGrantAll)
+        ShizukuStatus.PERMISSION_REQUIRED ->
+            Triple(R.string.shizuku_shortcut_allow_hint, R.string.shizuku_shortcut_allow, onAllow)
+        else -> Triple(R.string.shizuku_shortcut_start_hint, R.string.shizuku_shortcut_start, onOpenShizuku)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape = RoundedCornerShape(24.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Terminal,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.shizuku_shortcut_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = listOfNotNull(
+                        stringResource(R.string.shizuku_shortcut_desc),
+                        hint?.let { stringResource(it) },
+                    ).joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Button(onClick = onClick, enabled = !granting) {
+                Text(stringResource(label))
             }
         }
     }

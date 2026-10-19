@@ -369,7 +369,14 @@
     <string name="perm_phone_state_title">État du téléphone</string>
     <string name="perm_phone_state_desc">Facultatif. Ferme la tuile téléphone dès la fin de l’appel.</string>
     <string name="perm_shizuku_title">Shizuku</string>
-    <string name="perm_shizuku_desc">Facultatif. Nécessaire uniquement pour masquer les icônes de notification de la barre d’état.</string>
+    <string name="perm_shizuku_desc">Facultatif. Masque les icônes de notification de la barre d’état et peut accorder les autres autorisations à votre place.</string>
+    <string name="shizuku_shortcut_title">Raccourci</string>
+    <string name="shizuku_shortcut_desc">Shizuku peut tout accorder ci-dessous en un geste.</string>
+    <string name="shizuku_shortcut_start_hint">Démarrez-le d’abord.</string>
+    <string name="shizuku_shortcut_allow_hint">Autorisez cette appli dans Shizuku.</string>
+    <string name="shizuku_shortcut_start">Ouvrir Shizuku</string>
+    <string name="shizuku_shortcut_allow">Autoriser</string>
+    <string name="shizuku_shortcut_grant_all">Tout accorder</string>
 
     <string name="app_color_fallback_title">Couleur de repli</string>
     <string name="app_color_fallback_desc">Utilisée quand aucune icône d’application n’est disponible (évènements système ou île au repos)</string>
