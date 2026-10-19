@@ -370,6 +370,7 @@
     <string name="perm_phone_state_desc">Optional. Closes the phone tile the moment a call ends.</string>
     <string name="perm_shizuku_title">Shizuku</string>
     <string name="perm_shizuku_desc">Optional. Only needed to hide the status bar notification icons.</string>
+    <string name="perm_grant_all_shizuku">Grant the rest with Shizuku</string>
 
     <string name="app_color_fallback_title">Fallback colour</string>
     <string name="app_color_fallback_desc">Used when no app icon is available (such as system events or an idle island)</string>

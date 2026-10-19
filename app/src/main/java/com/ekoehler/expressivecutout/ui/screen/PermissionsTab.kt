@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -35,6 +36,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,9 @@ import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.components.PageTitle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * "Permissions" destination: surfaces the notification, overlay (accessibility) and
@@ -63,6 +68,8 @@ fun PermissionsTab(contentPadding: PaddingValues) {
     val context = LocalContext.current
     var status by rememberPermissionStatus()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var granting by remember { mutableStateOf(false) }
 
     // Answered in place rather than in system settings, so take the result rather than waiting for
     // the resume rememberPermissionStatus reads on.
@@ -141,6 +148,24 @@ fun PermissionsTab(contentPadding: PaddingValues) {
                     else Permissions.openShizuku(context)
                 },
             )
+        }
+
+        // Shizuku's shell can flip every other grant itself, sparing a trip through each system screen
+        AnimatedVisibility(visible = shizuku == ShizukuStatus.READY && !status.allGranted) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !granting,
+                onClick = {
+                    granting = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) { Permissions.grantMissingWithShizuku(context) }
+                        status = readPermissionStatus(context)
+                        granting = false
+                    }
+                },
+            ) {
+                Text(stringResource(R.string.perm_grant_all_shizuku))
+            }
         }
     }
 }
@@ -257,6 +282,7 @@ private data class PermissionStatus(
 ) {
     // Battery optimisation and the call state are reliability niceties, not hard requirements.
     val allEssentialGranted: Boolean get() = notifications && accessibility
+    val allGranted: Boolean get() = allEssentialGranted && batteryIgnored && phoneState
 }
 
 /**
@@ -268,20 +294,21 @@ private fun rememberPermissionStatus(): MutableState<PermissionStatus> {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    fun read() = PermissionStatus(
-        notifications = Permissions.isNotificationAccessGranted(context),
-        accessibility = Permissions.isAccessibilityGranted(context),
-        batteryIgnored = Permissions.isBatteryOptimizationIgnored(context),
-        phoneState = Permissions.isPhoneStateGranted(context),
-    )
-
-    val status = remember { mutableStateOf(read()) }
+    val status = remember { mutableStateOf(readPermissionStatus(context)) }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) status.value = read()
+            if (event == Lifecycle.Event.ON_RESUME) status.value = readPermissionStatus(context)
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     return status
 }
+
+/** Reads every grant live from the system. */
+private fun readPermissionStatus(context: Context) = PermissionStatus(
+    notifications = Permissions.isNotificationAccessGranted(context),
+    accessibility = Permissions.isAccessibilityGranted(context),
+    batteryIgnored = Permissions.isBatteryOptimizationIgnored(context),
+    phoneState = Permissions.isPhoneStateGranted(context),
+)
