@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.system
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,6 +13,9 @@ import rikka.shizuku.Shizuku
  * fork. Both speak the same Shizuku-API protocol, so only the "is it installed" check differs.
  */
 private val MANAGER_PACKAGES = listOf("moe.shizuku.privileged.api", "com.hamondev.shevery")
+
+/** Log tag for shell commands that fail, which are reported rather than thrown. */
+private const val TAG = "ShizukuState"
 
 /** Arbitrary code echoed back to [Shizuku.OnRequestPermissionResultListener]. */
 private const val PERMISSION_REQUEST_CODE = 4919
@@ -88,6 +92,28 @@ object ShizukuState {
     /** Asks Shizuku for access; the result arrives via the listener and updates [status]. */
     fun requestPermission() {
         runCatching { Shizuku.requestPermission(PERMISSION_REQUEST_CODE) }
+    }
+
+    /**
+     * Runs [command] through `sh` as the shell user Shizuku lends us, blocking until it exits, and
+     * reports whether it exited cleanly. Call off the main thread. Any failure to reach Shizuku
+     * counts as a failed command.
+     *
+     * ponytail: `Shizuku.newProcess` is private in API 13 and reached by reflection; move to a
+     * Shizuku UserService if a release removes it.
+     */
+    fun runAsShell(command: String): Boolean = runCatching {
+        val newProcess = Shizuku::class.java.getDeclaredMethod(
+            "newProcess",
+            Array<String>::class.java,
+            Array<String>::class.java,
+            String::class.java,
+        ).apply { isAccessible = true }
+        val process = newProcess.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
+        process.waitFor() == 0
+    }.getOrElse { error ->
+        Log.w(TAG, "Shell command failed: $command", error)
+        false
     }
 
     /**

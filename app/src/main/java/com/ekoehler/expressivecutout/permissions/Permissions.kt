@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.permissions
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,9 +9,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
 import com.ekoehler.expressivecutout.service.CutoutAccessibilityService
+import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.system.ShizukuState
 
 /**
@@ -20,9 +21,15 @@ import com.ekoehler.expressivecutout.system.ShizukuState
  */
 object Permissions {
 
+    /**
+     * Asks the notification service itself rather than reading the `Settings.Secure` mirror, which
+     * the system only updates asynchronously after a grant and so reads stale right after one.
+     */
     fun isNotificationAccessGranted(context: Context): Boolean =
-        NotificationManagerCompat.getEnabledListenerPackages(context)
-            .contains(context.packageName)
+        context.getSystemService<NotificationManager>()
+            ?.isNotificationListenerAccessGranted(
+                ComponentName(context, CutoutNotificationListenerService::class.java),
+            ) == true
 
     /**
      * Whether the accessibility service is enabled, read from the system's own colon-separated list
@@ -87,6 +94,34 @@ object Permissions {
             ?.let(context.packageManager::getLaunchIntentForPackage)
         if (launch != null && context.startActivitySafely(launch)) return
         context.startActivitySafely(Intent(Intent.ACTION_VIEW, Uri.parse(SHIZUKU_STORE_URL)))
+    }
+
+    /**
+     * Grants every permission still missing through Shizuku's shell, skipping the ones already
+     * held, and reports whether all of them went through. Blocking: call off the main thread, and
+     * only when [ShizukuState.status] is [com.ekoehler.expressivecutout.system.ShizukuStatus.READY].
+     */
+    fun grantMissingWithShizuku(context: Context): Boolean {
+        val pkg = context.packageName
+        val listener = ComponentName(context, CutoutNotificationListenerService::class.java)
+            .flattenToString()
+        val accessibility = ComponentName(context, CutoutAccessibilityService::class.java)
+            .flattenToString()
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        val commands = buildList {
+            if (!isNotificationAccessGranted(context)) add("cmd notification allow_listener $listener")
+            if (!isAccessibilityGranted(context)) {
+                val services = listOf(enabledServices, accessibility).filter { it.isNotEmpty() }
+                add("settings put secure enabled_accessibility_services '${services.joinToString(":")}'")
+                add("settings put secure accessibility_enabled 1")
+            }
+            if (!isBatteryOptimizationIgnored(context)) add("dumpsys deviceidle whitelist +$pkg")
+            if (!isPhoneStateGranted(context)) add("pm grant $pkg $PHONE_STATE")
+        }
+        return commands.all(ShizukuState::runAsShell)
     }
 
     private fun Context.startActivitySafely(intent: Intent): Boolean = runCatching {
