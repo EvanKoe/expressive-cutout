@@ -73,8 +73,6 @@ import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PermissionDotColors
@@ -135,7 +133,6 @@ class IslandOverlayController(private val context: Context) {
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
-    private val assistantTilePreferences = AssistantTilePreferences(context)
     private val appPreferences = AppPreferences(context)
     private val permissionDotPreferences = PermissionDotPreferences(context)
     private val density = context.resources.displayMetrics.density
@@ -273,7 +270,6 @@ class IslandOverlayController(private val context: Context) {
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
-    private var assistantSettings: AssistantTileSettings = AssistantTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -316,8 +312,6 @@ class IslandOverlayController(private val context: Context) {
      */
     private var timerActive = false
     private var lastTimerEvent: IslandEvent? = null
-    private var assistantActive = false
-    private var lastAssistantEvent: IslandEvent? = null
     // True while the device is locked (screen off or keyguard active); keeps the locked cutout pinned
     // up (no auto-dismiss) until the screen is unlocked.
     private var isDeviceLocked = false
@@ -390,7 +384,6 @@ class IslandOverlayController(private val context: Context) {
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
-        observeAssistantSettings()
         observeNowPlaying()
         observeForegroundApp()
         observeOnCall()
@@ -494,7 +487,6 @@ class IslandOverlayController(private val context: Context) {
             musicSettings = musicSettings,
             phoneSettings = phoneSettings,
             timerSettings = timerSettings,
-            assistantSettings = assistantSettings,
             dynamicEventColor = eventDynamicColor,
             dynamicEventColorRole = eventDynamicColorRole,
             dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -910,7 +902,6 @@ class IslandOverlayController(private val context: Context) {
             musicSettings = musicSettings,
             phoneSettings = phoneSettings,
             timerSettings = timerSettings,
-            assistantSettings = assistantSettings,
             dynamicEventColor = eventDynamicColor,
             dynamicEventColorRole = eventDynamicColorRole,
             dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -937,11 +928,6 @@ class IslandOverlayController(private val context: Context) {
     /** Mirrors the timer tile settings into [timerSettings]. */
     private fun observeTimerSettings() = scope.launch {
         timerTilePreferences.settings.collect { timerSettings = it }
-    }
-
-    /** Mirrors the assistant tile settings into [assistantSettings]. */
-    private fun observeAssistantSettings() = scope.launch {
-        assistantTilePreferences.settings.collect { assistantSettings = it }
     }
 
     /**
@@ -1127,14 +1113,11 @@ class IslandOverlayController(private val context: Context) {
     /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
     private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
 
-    /** The assistant cutout should stay pinned up (no auto-dismiss) while assistant is active. */
-    private fun isPinnedAssistant(): Boolean = assistantActive && currentEvent.value?.assistant != null
-
     /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */
     private fun isPinnedLock(): Boolean = isDeviceLocked && currentEvent.value?.id == lastLockEvent?.id
 
-    /** Any live tile (music, a call, a running timer, assistant, or lock status) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant() || isPinnedLock()
+    /** Any live tile (music, a call, a running timer, or lock status) is currently pinned up. */
+    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedLock()
 
     /**
      * Mirrors the island geometry, re-sizing the window as it changes so a slider drag in settings
@@ -1645,8 +1628,7 @@ class IslandOverlayController(private val context: Context) {
     /**
      * Whether [displaced] may be parked in the bubble as [incoming] takes the pill. Every
      * suppression lives here so the rule set is in one place: a call owns the whole cutout and must
-     * never be demoted, the assistant tile's height is a fraction of the screen, and the same
-     * notification must never occupy both slots.
+     * never be demoted, and the same notification must never occupy both slots.
      */
     private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
         if (!behaviourState.value.splitIslandEnabled) return false
@@ -1656,7 +1638,6 @@ class IslandOverlayController(private val context: Context) {
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
         if (isTinyTile(displaced) || isTinyTile(incoming)) return false
-        if (displaced.assistant != null || incoming.assistant != null) return false
         if (isTwoRowCall()) return false
         val key = displaced.notificationKey
         if (key != null && key == incoming.notificationKey) return false
@@ -1667,7 +1648,7 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * Whether both events are the same live tile. A tile is a singleton — one media session, one
-     * timer, one call, one assistant — so a signal for one that is already up restates it rather than
+     * timer, one call — so a signal for one that is already up restates it rather than
      * arriving as a second event to park beside itself. Compared on which tile field is set rather
      * than on ids or notification keys: every resolve mints a fresh id, and the music and timer tiles
      * deliberately carry no notification key, so neither of those catches a repeat.
@@ -1675,8 +1656,7 @@ class IslandOverlayController(private val context: Context) {
     private fun isSameTile(a: IslandEvent, b: IslandEvent): Boolean =
         (a.media != null && b.media != null) ||
             (a.timer != null && b.timer != null) ||
-            (a.call != null && b.call != null) ||
-            (a.assistant != null && b.assistant != null)
+            (a.call != null && b.call != null)
 
     /**
      * Parks [displaced] in the bubble as [incoming] takes the pill, leaves the bubble untouched when
@@ -1758,7 +1738,6 @@ class IslandOverlayController(private val context: Context) {
             bubble.media != null -> !musicPlaying
             bubble.call != null -> !callActive
             bubble.timer != null -> !timerActive
-            bubble.assistant != null -> !assistantActive
             else -> false
         }
         if (stale) clearSatellite()
@@ -1937,10 +1916,6 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun currentHeightBonusDp(expanded: Boolean): Int {
         val event = currentEvent.value
-        if (expanded && event?.assistant != null && event.assistant.displayAnswerInCutout) {
-            val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
-            return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
-        }
         val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
             // The expanded connected call stacks its own two button rows under the caller row.
@@ -1988,9 +1963,8 @@ class IslandOverlayController(private val context: Context) {
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
-        val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
         val controlsExtra =
-            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
+            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
                 expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
             } else {
                 0
@@ -2085,21 +2059,10 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
             // Skip the running timer when the timer tile is turned off.
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
-            // Skip assistant responses when the assistant tile is turned off.
-            if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
             // Skip anything posted by an app the user muted on the Apps screen.
             if (signal.sourcePackage() in disabledApps) return@collect
             // Skip silent notifications when configured to ignore them.
             if (signal is CutoutSignal.Notification && behaviourState.value.ignoreSilentNotifications && signal.isSilent) {
-                return@collect
-            }
-
-            if (signal is CutoutSignal.Assistant && !signal.active) {
-                assistantActive = false
-                lastAssistantEvent = null
-                if (currentEvent.value?.assistant != null) {
-                    dismissIsland()
-                }
                 return@collect
             }
 
@@ -2110,7 +2073,6 @@ class IslandOverlayController(private val context: Context) {
             val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> musicSettings.expandOnPlay
-                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
@@ -2128,7 +2090,6 @@ class IslandOverlayController(private val context: Context) {
                 musicSettings = musicSettings,
                 phoneSettings = phoneSettings,
                 timerSettings = timerSettings,
-                assistantSettings = assistantSettings,
                 dynamicEventColor = eventDynamicColor,
                 dynamicEventColorRole = eventDynamicColorRole,
                 dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -2208,8 +2169,8 @@ class IslandOverlayController(private val context: Context) {
             expanded = autoExpand
             currentEvent.value = resolvedEvent
             syncWindowSize()
-            // A music/call/assistant signal is only emitted while that tile is live, so pin it up rather than
-            // starting the auto-dismiss timer — it stays for as long as playback / the call / assistant lasts.
+            // A music/call/timer signal is only emitted while that tile is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as playback / the call / the timer lasts.
             when (signal) {
                 is CutoutSignal.Music -> {
                     musicPlaying = true
@@ -2226,12 +2187,6 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Timer -> {
                     timerActive = true
                     lastTimerEvent = resolvedEvent
-                    dismissJob?.cancel()
-                }
-
-                is CutoutSignal.Assistant -> {
-                    assistantActive = true
-                    lastAssistantEvent = currentEvent.value
                     dismissJob?.cancel()
                 }
 
@@ -2559,7 +2514,6 @@ class IslandOverlayController(private val context: Context) {
         is CutoutSignal.Music -> packageName
         is CutoutSignal.Call -> packageName
         is CutoutSignal.Timer -> packageName
-        is CutoutSignal.Assistant -> packageName
         is CutoutSignal.System -> null
     }
 

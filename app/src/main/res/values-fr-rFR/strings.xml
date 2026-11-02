@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Expressive Cutout</string>
     <string name="accessibility_service_label">Expressive Cutout HUD</string>
-    <string name="accessibility_service_description">Affiche une petite île dynamique devant la caméra pour afficher les notifications et les évènements système. Elle peut lire quelle application est affichée à l’écran, et lire les réponses de l’assistant.</string>
+    <string name="accessibility_service_description">Affiche une petite île dynamique devant la caméra pour afficher les notifications et les évènements système. Elle peut lire quelle application est affichée à l’écran, et rien d’autre. Rien de ce qu’elle lit n’est jamais stocké ni envoyé — l’application n’a pas accès à Internet.</string>
     <string name="notification_service_label">Notifications Expressive Cutout</string>
 
     <!-- System event labels shown inside the island -->
@@ -63,16 +63,6 @@
     <string name="tile_phone_desc">Afficher l’appel en cours, l’appelant et les commandes</string>
     <string name="tile_timer">Minuteur</string>
     <string name="tile_timer_desc">Afficher un compte à rebours en cours sur l’encoche</string>
-    <string name="tile_assistant">Assistant</string>
-    <string name="tile_assistant_desc">Afficher la voix et les réponses de l’assistant sur l’encoche</string>
-    <string name="assistant_display_answer_title">Afficher la réponse de l’assistant dans l’encoche</string>
-    <string name="assistant_display_answer_desc">Afficher la réponse écrite de l’assistant vocal dans l’encoche</string>
-    <string name="assistant_max_height_title">Hauteur maximale de l’encoche</string>
-    <string name="assistant_max_height_desc">Part de la hauteur de l’écran que la réponse peut occuper</string>
-    <string name="assistant_max_height_value">%1$d%%</string>
-    <string name="assistant_tile_note">Une fois activée, les réponses de l’assistant vocal apparaissent sur cette tuile dynamique au lieu d’atterrir dans la tuile musique.</string>
-    <string name="assistant_animated_icon_title">Utiliser l’icône animée</string>
-    <string name="assistant_animated_icon_desc">Afficher des étincelles animées à la place du symbole fixe de l’assistant</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>

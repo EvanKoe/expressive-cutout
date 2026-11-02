@@ -57,7 +57,6 @@ internal fun DynamicTilesScreen(
     val tileEnabled by viewModel.tileEnabled.collectAsStateWithLifecycle()
     val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
     val timer by viewModel.timerTile.collectAsStateWithLifecycle()
-    val assistant by viewModel.assistantTile.collectAsStateWithLifecycle()
     val music by viewModel.musicTile.collectAsStateWithLifecycle()
 
     val tiles = DynamicTile.entries
@@ -78,7 +77,6 @@ internal fun DynamicTilesScreen(
                 val containerColor = when (tile) {
                     DynamicTile.PHONE -> phone.iconContainerColor
                     DynamicTile.TIMER -> timer.iconContainerColor
-                    DynamicTile.ASSISTANT -> assistant.iconContainerColor
                     DynamicTile.MUSIC -> music.coverFallbackColor
                 }
 

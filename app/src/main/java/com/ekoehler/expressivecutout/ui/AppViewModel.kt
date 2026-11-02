@@ -24,8 +24,6 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.SentAlignment
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
@@ -92,7 +90,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val musicTilePreferences = MusicTilePreferences(application)
     private val phoneTilePreferences = PhoneTilePreferences(application)
     private val timerTilePreferences = TimerTilePreferences(application)
-    private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
     private val recentColorPreferences = RecentColorPreferences(application)
     private val statusBarPreferences = StatusBarPreferences(application)
@@ -208,13 +205,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = TimerTileSettings(),
         )
 
-    val assistantTile: StateFlow<AssistantTileSettings> =
-        assistantTilePreferences.settings.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = AssistantTileSettings(),
-        )
-
     val layout: StateFlow<IslandLayout> =
         layoutPreferences.layout.stateIn(
             scope = viewModelScope,
@@ -262,7 +252,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.MUSIC_TILE to musicTilePreferences,
         JsonSettings.PHONE_TILE to phoneTilePreferences,
         JsonSettings.TIMER_TILE to timerTilePreferences,
-        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
         JsonSettings.STATUS_BAR to statusBarPreferences,
@@ -524,22 +513,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTimerAddButtonColor(color: CutoutColor) = viewModelScope.launch {
         timerTilePreferences.setAddButtonColor(color)
-    }
-
-    fun setAssistantDisplayAnswerInCutout(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setDisplayAnswerInCutout(enabled)
-    }
-
-    fun setAssistantMaxCutoutHeightPercent(percent: Int) = viewModelScope.launch {
-        assistantTilePreferences.setMaxCutoutHeightPercent(percent)
-    }
-
-    fun setAssistantIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
-        assistantTilePreferences.setIconContainerColor(color)
-    }
-
-    fun setAssistantUseAnimatedIcon(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setUseAnimatedIcon(enabled)
     }
 
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {

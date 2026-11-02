@@ -16,7 +16,6 @@ import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.NotificationColorMode
@@ -87,7 +86,6 @@ class IconResolver(private val context: Context) {
         musicSettings: MusicTileSettings,
         phoneSettings: PhoneTileSettings,
         timerSettings: TimerTileSettings,
-        assistantSettings: AssistantTileSettings = AssistantTileSettings(),
         dynamicEventColor: Boolean = false,
         dynamicEventColorRole: DynamicRole = DynamicRole.PRIMARY,
         dynamicEventColorOpacity: Float = 1f,
@@ -101,7 +99,6 @@ class IconResolver(private val context: Context) {
             is CutoutSignal.Music -> signal.packageName
             is CutoutSignal.Call -> signal.packageName
             is CutoutSignal.Timer -> signal.packageName
-            is CutoutSignal.Assistant -> signal.packageName
             is CutoutSignal.System -> null
         }
         val appColor = packageName?.let { AppIconColorExtractor.extractAppColor(context, it) }
@@ -129,7 +126,6 @@ class IconResolver(private val context: Context) {
             is CutoutSignal.Music -> resolveMusic(signal, signal.packageName, appColor, musicSettings)
             is CutoutSignal.Call -> resolveCall(signal, signal.packageName, appColor, phoneSettings)
             is CutoutSignal.Timer -> resolveTimer(signal, signal.packageName, appColor, timerSettings)
-            is CutoutSignal.Assistant -> resolveAssistant(signal, signal.packageName, appColor, assistantSettings)
         }
     }
 
@@ -392,64 +388,6 @@ class IconResolver(private val context: Context) {
                 showActions = settings.showActions,
                 resetColor = settings.resetColor,
                 addButtonColor = settings.addButtonColor,
-            ),
-        )
-    }
-
-    /**
-     * Turns an assistant signal into a renderable event, preferring the spoken title over the body
-     * text.
-     */
-    private fun resolveAssistant(
-        signal: CutoutSignal.Assistant,
-        packageName: String,
-        appColor: Color?,
-        settings: AssistantTileSettings,
-    ): IslandEvent {
-        val defaultLabel = context.getString(DynamicTile.ASSISTANT.labelRes)
-        val rawTitle = signal.title?.takeIf { it.isNotBlank() }
-        val rawText = signal.text?.takeIf { it.isNotBlank() }
-
-        val label = defaultLabel
-        val answerText = when {
-            rawText != null && !rawText.equals(defaultLabel, ignoreCase = true) -> rawText
-            rawTitle != null && !rawTitle.equals(defaultLabel, ignoreCase = true) -> rawTitle
-            else -> null
-        }
-
-        val icon: IslandIcon = if (settings.useAnimatedIcon) {
-            IslandIcon.Lottie(
-                resId = R.raw.assistant_sparkles,
-                iterations = LottieConstants.IterateForever,
-                scale = 1.6f,
-                tint = true,
-            )
-        } else {
-            IslandIcon.Vector(DynamicTile.ASSISTANT.defaultIcon)
-        }
-
-        val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
-            ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
-            ?: context.getString(DynamicTile.ASSISTANT.labelRes)
-        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
-
-        return IslandEvent(
-            id = idGenerator.incrementAndGet(),
-            icon = icon,
-            label = label,
-            detail = answerText,
-            appName = appName,
-            postTimeMs = postTimeMs,
-            accent = Color(DynamicTile.ASSISTANT.accent),
-            packageName = packageName,
-            appColor = appColor,
-            iconContainerColor = settings.iconContainerColor,
-            contentIntent = signal.contentIntent,
-            initiallyExpanded = settings.displayAnswerInCutout,
-            assistant = AssistantTileOptions(
-                displayAnswerInCutout = settings.displayAnswerInCutout,
-                maxCutoutHeightPercent = settings.maxCutoutHeightPercent,
-                answerText = answerText,
             ),
         )
     }

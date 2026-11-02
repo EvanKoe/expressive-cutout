@@ -97,9 +97,6 @@ class CutoutNotificationListenerService : NotificationListenerService() {
      */
     private var currentMediaArtKey: String? = null
 
-    /** Key of the assistant notification currently driving the assistant tile. */
-    private var currentAssistantKey: String? = null
-
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     private val behaviourPreferences by lazy { BehaviourPreferences(this) }

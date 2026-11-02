@@ -133,11 +133,6 @@ data class IslandEvent(
      */
     val timer: TimerTileOptions? = null,
     /**
-     * When non-null this is the assistant tile: the island displays voice assistant speech/response text
-     * in the cutout, capped at [maxCutoutHeightPercent] of screen height. Null otherwise.
-     */
-    val assistant: AssistantTileOptions? = null,
-    /**
      * Contains the progress of this notification if it is a progress one.
      * Is null otherwise
      */
@@ -165,13 +160,6 @@ data class IslandEvent(
     val actionIntentAction: String? = null,
     /** Optional URI data to attach to [actionIntentAction]. */
     val actionIntentUri: String? = null,
-)
-
-/** Which parts of the assistant tile to render (display text, max height). */
-data class AssistantTileOptions(
-    val displayAnswerInCutout: Boolean,
-    val maxCutoutHeightPercent: Int,
-    val answerText: String?,
 )
 
 /** Which parts of the timer tile to render (and how its buttons look), per the tile's settings. */

@@ -4,10 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.res.Configuration
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.ForegroundAppBus
-import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.events.MediaPlaybackMonitor
 import com.ekoehler.expressivecutout.events.SystemEventMonitor
 import com.ekoehler.expressivecutout.overlay.IslandOverlayController
@@ -21,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * a TYPE_ACCESSIBILITY_OVERLAY window (no SYSTEM_ALERT_WINDOW required) and to keep the
  * overlay controller and system-event monitor alive for the lifetime of the binding.
  *
- * It tracks which app is in the foreground, and inspects assistant windows for live response text.
+ * It also tracks which app is in the foreground (package name only); it reads no screen content.
  */
 class CutoutAccessibilityService : AccessibilityService() {
 
@@ -31,7 +28,6 @@ class CutoutAccessibilityService : AccessibilityService() {
     private var overlay: IslandOverlayController? = null
     private var systemEvents: SystemEventMonitor? = null
     private var mediaPlayback: MediaPlaybackMonitor? = null
-    private var lastAssistantKey: String? = null
 
     /**
      * Starts the overlay and the two event monitors, and publishes the service so the rest of the
@@ -46,124 +42,13 @@ class CutoutAccessibilityService : AccessibilityService() {
         _bound.value = true
     }
 
-    /**
-     * Whether the package is a voice assistant, checked against the known first-party and OEM
-     * assistant packages so their windows can be inspected for a spoken answer.
-     */
-    private fun isAssistantPackage(packageName: String): Boolean {
-        val pkg = packageName.lowercase()
-        return pkg == "com.google.android.googlequicksearchbox" ||
-            pkg == "com.google.android.apps.googleassistant" ||
-            pkg == "com.google.android.apps.bard" ||
-            pkg == "com.google.android.apps.gemini" ||
-            pkg == "com.samsung.android.bixby.agent" ||
-            pkg == "com.samsung.android.bixby.service" ||
-            pkg == "com.amazon.dee.app" ||
-            pkg == "com.openai.chatgpt" ||
-            pkg == "com.microsoft.copilot" ||
-            pkg.contains("assistant") ||
-            pkg.contains("bixby") ||
-            pkg.contains("gemini")
-    }
-
-    private val DISCLAIMER_PATTERNS = listOf(
-        "can make mistakes",
-        "gemini is ai",
-        "gemini is an ai",
-        "display inaccurate info",
-        "check responses",
-        "type, talk, or share",
-        "ask gemini",
-        "gemini advanced",
-        "share screen with live"
-    )
-
-    /**
-     * Whether a line of assistant text is boilerplate (a safety notice, a "check your results"
-     * footer) rather than the answer itself.
-     */
-    private fun isDisclaimer(text: String): Boolean {
-        val lower = text.lowercase()
-        return DISCLAIMER_PATTERNS.any { lower.contains(it) }
-    }
-
-    /**
-     * Notes which app is in front, and inspects assistant windows when one is. Nothing here reads
-     * content from any other app.
-     */
+    /** Notes which app is in front. Nothing here reads content from any other app. */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val ev = event ?: return
         val pkg = ev.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
 
         if (ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             ForegroundAppBus.update(pkg)
-        }
-
-        if (isAssistantPackage(pkg)) {
-            inspectAssistantWindow(pkg, ev)
-        } else if (lastAssistantKey != null && ev.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // User navigated away from assistant app/overlay — dismiss assistant cutout
-            lastAssistantKey = null
-            IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
-        }
-    }
-
-    /**
-     * Reads the spoken answer out of an assistant window, emitting an inactive signal as soon as
-     * the window is gone so the tile can't outlive the answer it shows.
-     */
-    private fun inspectAssistantWindow(pkg: String, event: AccessibilityEvent) {
-        val rootNode = rootInActiveWindow ?: event.source
-        if (rootNode == null) {
-            if (lastAssistantKey != null) {
-                lastAssistantKey = null
-                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
-            }
-            return
-        }
-
-        val textList = mutableListOf<String>()
-        collectTextNodes(rootNode, textList)
-
-        if (textList.isEmpty()) {
-            if (lastAssistantKey != null) {
-                lastAssistantKey = null
-                IslandEventBus.emit(CutoutSignal.Assistant(packageName = pkg, active = false))
-            }
-            return
-        }
-
-        val title = textList.firstOrNull { it.isNotBlank() }
-        val responseText = textList.filter { it.isNotBlank() && it != title }.joinToString("\n").ifBlank { title }
-
-        val lastKey = "$pkg|$title|$responseText"
-        if (lastKey != lastAssistantKey) {
-            lastAssistantKey = lastKey
-            IslandEventBus.emit(
-                CutoutSignal.Assistant(
-                    packageName = pkg,
-                    title = title,
-                    text = responseText,
-                    contentIntent = null,
-                    active = true,
-                ),
-            )
-        }
-    }
-
-    /**
-     * Walks a node tree collecting usable text, skipping single characters and boilerplate that
-     * would otherwise crowd out the answer.
-     */
-    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<String>) {
-        if (node == null) return
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrBlank() && text.length > 1 && !isDisclaimer(text)) {
-            list.add(text)
-        }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectTextNodes(child, list)
         }
     }
 

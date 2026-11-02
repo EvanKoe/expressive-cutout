@@ -44,7 +44,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
@@ -52,7 +51,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -123,8 +121,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
@@ -555,9 +551,8 @@ fun DynamicIsland(
     val isCall = shownEvent?.call != null
     val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
     val callIncoming = isCall && liveCall?.ongoing == false
-    val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
     // A ringing call owns its own layout and never expands; a connected one opens into the call controls.
-    val isNormalOnly = callIncoming || isAssistantNormalOnly || shownEvent?.normalOnly == true
+    val isNormalOnly = callIncoming || shownEvent?.normalOnly == true
     val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
     val isExpanded = when {
         forcedExpanded == false -> false
@@ -669,7 +664,6 @@ fun DynamicIsland(
         else -> collapsed
     }
 
-    var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
     var expandedNotificationHeightDp by remember(shownEvent?.id) { mutableStateOf(0) }
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
@@ -689,7 +683,7 @@ fun DynamicIsland(
         expanded.widthPercent,
     ) {
         val e = shownEvent ?: return@remember 0
-        if (e.media != null || e.timer != null || e.call != null || e.assistant != null) return@remember 0
+        if (e.media != null || e.timer != null || e.call != null) return@remember 0
 
         val availableWidthDp = displayWidthDp * expanded.widthPercent / 100 - 36
         val textWidthDp = maxOf(100, availableWidthDp - 44 - 14)
@@ -737,12 +731,6 @@ fun DynamicIsland(
             }
         }
         emptyPill -> 0
-        isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
-            val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
-            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
-            val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
-            (targetHeightDp - dims.heightDp)
-        }
         isExpanded && shownEvent?.media != null -> {
             val controlsExtra = if (hasMediaControls) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
             controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
@@ -808,8 +796,7 @@ fun DynamicIsland(
         dims.bottomEars -> motion.dpFirm()
         else -> motion.dp()
     }
-    val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
-    val isDynamicHeight = isAssistantAnswer || (isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0))
+    val isDynamicHeight = isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0)
     val heightSpec: AnimationSpec<Dp> = when {
         snapAllGeometry -> snap()
         isDynamicHeight -> motion.dpSmooth()
@@ -1322,10 +1309,7 @@ fun DynamicIsland(
                                         },
                                         onDismiss = onDismiss,
                                         onPinToggle = onPinToggle,
-                                        onHeightMeasured = { hDp ->
-                                            if (e.assistant != null) assistantContentHeightDp = hDp
-                                            else expandedNotificationHeightDp = hDp
-                                        },
+                                        onHeightMeasured = { hDp -> expandedNotificationHeightDp = hDp },
                                     )
                                 } else {
                                     CollapsedContent(
@@ -1449,8 +1433,7 @@ fun DynamicIsland(
  * briefly widening it by [PRESS_EXPAND_DP] on each side and scaling it down. While a reply is being
  * typed the surface ignores presses and taps entirely. A tap either toggles the expanded state or
  * activates the event: the resting empty pill opens the shortcut center when [emptyOpensCenter] is
- * set and otherwise runs its own click action, a normal-only tile (a call, an assistant answer shown
- * outside the cutout) never expands and goes straight to its content intent, and an island that is
+ * set and otherwise runs its own click action, a normal-only tile (a ringing call) never expands and goes straight to its content intent, and an island that is
  * already open hands the tap to the app. An island forced open takes no gestures at all.
  */
 private fun Modifier.islandTapGestures(
@@ -2986,18 +2969,6 @@ private fun ExpandedContent(
             appearance = appearance,
             topMarginDp = topMarginDp,
             onAction = onAction,
-        )
-        return
-    }
-    // The assistant tile: icon + text response with vertical scrolling.
-    if (event.assistant != null) {
-        AssistantExpandedContent(
-            event = event,
-            showActions = showActions,
-            appearance = appearance,
-            collapsedHeightDp = topMarginDp,
-            onDismiss = onDismiss,
-            onHeightMeasured = onHeightMeasured,
         )
         return
     }
@@ -5086,123 +5057,6 @@ private fun TimerExpandedContent(
                             onClick = { onAction(action) },
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * The assistant tile's expanded layout: an assistant icon + the voice response text, wrapped in a
- * scrollable column constrained by max cutout height percentage.
- */
-@Composable
-private fun AssistantExpandedContent(
-    event: IslandEvent,
-    showActions: Boolean,
-    appearance: AppearanceSettings,
-    collapsedHeightDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    onDismiss: () -> Unit,
-    onHeightMeasured: ((Int) -> Unit)? = null,
-) {
-    val assistant = event.assistant ?: return
-    val contentColor = LocalContentColor.current
-    val density = LocalDensity.current.density
-    val configuration = LocalConfiguration.current
-    val maxCutoutHeightDp = (configuration.screenHeightDp * assistant.maxCutoutHeightPercent / 100).dp
-    val maxHeaderWidthDp = (configuration.screenWidthDp * 0.47f).dp
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = maxCutoutHeightDp)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, end = 18.dp, top = 14.dp + collapsedHeightDp.dp, bottom = 14.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Measure the scroll *content*, not the viewport. The scroll container above is clamped
-                // to the island's live (animating) height, so measuring it would feed that height back
-                // into its own fit-to-content target — the loop that made the cutout bob as the answer
-                // streamed in. The content column is laid out with unbounded height, so its reported
-                // height is the answer's true natural height, independent of the surrounding animation.
-                // The reported height must cover the band as well as the 14dp padding above and
-                // below, or the card fits itself to the answer alone and the band pushes the tail
-                // of it out of view.
-                .onGloballyPositioned { coordinates ->
-                    val hDp = (coordinates.size.height / density).toInt()
-                    if (hDp > 0) {
-                        onHeightMeasured?.invoke(hDp + 28 + collapsedHeightDp)
-                    }
-                },
-        ) {
-            val relativeTime = rememberRelativeTime(event.postTimeMs)
-            val headerText = formatNotificationHeader(
-                appName = event.appName,
-                relativeTime = relativeTime,
-                showAppName = appearance.showSourceAppName,
-                showTimestamp = appearance.showTimestamp,
-            )
-
-            // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
-            Row(
-                modifier = Modifier.widthIn(max = maxHeaderWidthDp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f, fill = false)) {
-                    if (headerText != null) {
-                        Text(
-                            text = headerText,
-                            color = event.accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Text(
-                        text = event.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = contentColor,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-            // Answer content text displayed below title header
-            if (assistant.displayAnswerInCutout) {
-                Spacer(Modifier.height(8.dp))
-                val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
-                Text(
-                    text = textToDisplay,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = 0.88f),
-                )
-            }
-
-            // Close action button at the end, obeying action button settings
-            if (showActions) {
-                Spacer(Modifier.height(14.dp))
-                val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
-                val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ActionChip(
-                        action = IslandAction(label = "Close"),
-                        style = appearance.actionButtonStyle,
-                        fill = chipFill,
-                        heightDp = appearance.actionButtonHeightDp,
-                        onClick = onDismiss,
-                        modifier = if (full) Modifier.weight(1f) else Modifier,
-                    )
                 }
             }
         }

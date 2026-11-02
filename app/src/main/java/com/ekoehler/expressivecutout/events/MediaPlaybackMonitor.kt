@@ -13,14 +13,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.ekoehler.expressivecutout.core.CutoutSignal
-import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.MediaTransport
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.data.AppPreferences
-import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.toArtImageBitmap
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
@@ -44,15 +42,11 @@ class MediaPlaybackMonitor(private val context: Context) {
 
     private val sessionManager = context.getSystemService<MediaSessionManager>()
     private val listenerComponent = ComponentName(context, CutoutNotificationListenerService::class.java)
-    private val dynamicTilePreferences = DynamicTilePreferences(context)
     private val appPreferences = AppPreferences(context)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     /** Controllers we're currently watching, paired with the callback registered on each. */
     private val watched = mutableMapOf<MediaController, MediaController.Callback>()
-
-    /** Enabled state of dynamic tiles */
-    private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
 
     /** Packages the user muted on the Apps screen; their sessions are ignored outright. */
     private var disabledApps: Set<String> = emptySet()
@@ -72,17 +66,11 @@ class MediaPlaybackMonitor(private val context: Context) {
         }
 
     /**
-     * Begins watching the active media sessions and the tile's own enabled flag. Does nothing
+     * Begins watching the active media sessions and the muted-apps list. Does nothing
      * without notification access, since the session manager is unavailable until then.
      */
     fun start() {
         val manager = sessionManager ?: return
-        scope.launch {
-            dynamicTilePreferences.enabled.collect { enabled ->
-                tileEnabled = enabled
-                sync()
-            }
-        }
         // Muting an app mid-playback should drop its tile straight away, so re-sync on every change.
         scope.launch {
             appPreferences.disabledPackages.collect { disabled ->
@@ -191,14 +179,7 @@ class MediaPlaybackMonitor(private val context: Context) {
      */
     private fun sync() {
         val validControllers = watched.keys.filter { controller ->
-            if (controller.packageName in disabledApps) {
-                false
-            } else if (isAssistantPackage(controller.packageName)) {
-                // If Assistant tile is turned off, ignore assistant media session entirely
-                tileEnabled[DynamicTile.ASSISTANT] != false
-            } else {
-                true
-            }
+            controller.packageName !in disabledApps && !isAssistantPackage(controller.packageName)
         }
 
         val primary = validControllers.firstOrNull { it.isPlaying } ?: validControllers.firstOrNull()
@@ -222,13 +203,6 @@ class MediaPlaybackMonitor(private val context: Context) {
 
         var title = rawTitle
         var artist = rawArtist
-
-        if (isAssistantPackage(primary.packageName)) {
-            // Assistant sessions are handled exclusively via NotificationListenerService
-            NowPlayingBus.update(null)
-            clearPendingShow()
-            return
-        }
 
         val trackArt = metadata?.trackArt()
         val albumBackgroundArt = metadata?.albumBackgroundArt() ?: trackArt
