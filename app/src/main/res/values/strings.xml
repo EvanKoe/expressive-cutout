@@ -333,7 +333,15 @@
     <string name="status_bar_hide_mode_off">Off</string>
     <string name="status_bar_hide_mode_auto">Auto</string>
     <string name="status_bar_hide_mode_always">Always</string>
-    <string name="status_bar_hide_mode_note">“Auto” hides only while the cutout is wider than usual — during a call, or while the island is expanded. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
+    <string name="status_bar_hide_mode_note">“Auto” hides only for the cutouts ticked below. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
+    <string name="status_bar_auto_trigger_normal">Normal cutout</string>
+    <string name="status_bar_auto_trigger_normal_desc">When any island appears</string>
+    <string name="status_bar_auto_trigger_mini">Mini cutout</string>
+    <string name="status_bar_auto_trigger_mini_desc">Mini player or mini call</string>
+    <string name="status_bar_auto_trigger_wide">Wider cutouts</string>
+    <string name="status_bar_auto_trigger_wide_desc">Call and satellite islands</string>
+    <string name="status_bar_auto_trigger_expanded">Expanded cutout</string>
+    <string name="status_bar_auto_trigger_expanded_desc">When the island is expanded</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>

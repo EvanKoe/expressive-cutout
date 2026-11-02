@@ -38,6 +38,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.CutoutKind
 import com.ekoehler.expressivecutout.core.CutoutWidthBus
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
@@ -415,7 +416,7 @@ class IslandOverlayController(private val context: Context) {
         // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
         // blank for as long as the service stays off.
         cutoutWidthJob?.cancel()
-        CutoutWidthBus.update(widened = false, grownForDots = false, grownForStatusDot = false)
+        CutoutWidthBus.update(kind = null, grownForDots = false, grownForStatusDot = false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -1154,7 +1155,8 @@ class IslandOverlayController(private val context: Context) {
      * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
+        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect { (event, behaviour) ->
+            publishCutoutWidth()
             setTouchable(
                 !previewPinned && (event != null || satelliteEvent.value != null ||
                     (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
@@ -1208,8 +1210,8 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
-     * cutout right now, so "Automatically hide status bar icons" can follow the pill.
+     * Reports to [CutoutWidthBus] which [CutoutKind] the island is drawing right now, so the
+     * "Automatically hide status bar icons" settings can follow the pill.
      *
      * Also reports whether the pill is grown on its trailing edge to seat the permission dots, which
      * the system icons sit behind, and whether it is grown on its leading edge to seat the status
@@ -1218,35 +1220,47 @@ class IslandOverlayController(private val context: Context) {
      *
      * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
      * before the pill covers them, while narrowing waits out the collapse animation so they don't
-     * reappear under a pill that is still shrinking. Publishing the OR of old and new is what makes
-     * a flag that just came on land at once while one that just went off waits for the delay.
+     * reappear under a pill that is still shrinking. A kind ranking above the published one (or any
+     * kind after the island was down) lands at once; a lower one or null waits for the delay. The
+     * flags use the OR of old and new, so one that just came on lands at once and one that just went
+     * off waits.
      */
     private fun publishCutoutWidth() {
-        val widened = isWiderThanUsual()
+        val kind = currentCutoutKind()
         val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0
         val grownForStatusDot = statusDotGrowthDp(expanded = false) > 0
+        val published = CutoutWidthBus.kind.value
+        val grows = kind != null && (published == null || kind.ordinal > published.ordinal)
         cutoutWidthJob?.cancel()
         CutoutWidthBus.update(
-            widened = widened || CutoutWidthBus.widened.value,
+            kind = if (grows) kind else published,
             grownForDots = grownForDots || CutoutWidthBus.grownForDots.value,
             grownForStatusDot = grownForStatusDot || CutoutWidthBus.grownForStatusDot.value,
         )
-        if (widened == CutoutWidthBus.widened.value && grownForDots == CutoutWidthBus.grownForDots.value &&
+        if (kind == CutoutWidthBus.kind.value && grownForDots == CutoutWidthBus.grownForDots.value &&
             grownForStatusDot == CutoutWidthBus.grownForStatusDot.value
         ) return
         cutoutWidthJob = scope.launch {
             delay(WINDOW_SHRINK_DELAY_MS)
-            CutoutWidthBus.update(widened, grownForDots, grownForStatusDot)
+            CutoutWidthBus.update(kind, grownForDots, grownForStatusDot)
         }
     }
 
     /**
-     * Whether the state being drawn is wider than the normal collapsed pill — the expanded island
-     * or one of the fuller call cutouts. Compares against [effectiveDims] rather than listing the
-     * states by hand, so the tiny "Mini call" / "Mini player" cutouts correctly read as narrower.
+     * The [CutoutKind] being drawn, or null while the island is down. The satellite bubble counts
+     * as [CutoutKind.WIDE] because the pair spans more of the bar than the pill alone.
      */
-    private fun isWiderThanUsual(): Boolean =
-        effectiveDims(layoutState.value, expanded).widthPercent > layoutState.value.collapsed.widthPercent
+    private fun currentCutoutKind(): CutoutKind? {
+        val shown = currentEvent.value != null || satelliteEvent.value != null ||
+            (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)
+        return when {
+            !shown -> null
+            expanded -> CutoutKind.EXPANDED
+            isTinyTile() -> CutoutKind.MINI
+            currentEvent.value?.call != null || satelliteSplitDp() > 0 -> CutoutKind.WIDE
+            else -> CutoutKind.NORMAL
+        }
+    }
 
     /**
      * Resizes the window to fit, growing at once but shrinking only after [WINDOW_SHRINK_DELAY_MS].

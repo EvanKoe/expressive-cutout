@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ekoehler.expressivecutout.core.CutoutKind
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.core.stateFamily
@@ -889,6 +890,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setClockMode(mode: StatusBarHideMode) = viewModelScope.launch {
         statusBarPreferences.setClockMode(mode)
+    }
+
+    /** The [CutoutKind]s that hide the notification icons while their mode is AUTO. */
+    val notificationIconsAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.notificationIconsAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setNotificationIconsAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the system info icons while their mode is AUTO. */
+    val systemInfoAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.systemInfoAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setSystemInfoAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the clock while its mode is AUTO. */
+    val clockAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.clockAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setClockAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setClockAutoTriggers(triggers)
     }
 
     /**
