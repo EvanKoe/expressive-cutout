@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -193,6 +194,18 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "access, and cannot see networks you are not connected to.",
         uses = listOf(
             "Show the Wi-Fi connect and disconnect event on the island, with the network name",
+        ),
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.WifiTethering,
+        title = "Wi-Fi state",
+        manifestName = "ACCESS_WIFI_STATE",
+        summary = "Read-only, granted automatically, and never prompted for. Since Android 12L " +
+            "the system only tells apps holding this permission when the hotspot turns on or " +
+            "off; without it the hotspot event would never fire. It cannot turn Wi-Fi or the " +
+            "hotspot on, cannot see who is connected to it, and grants no internet access.",
+        uses = listOf(
+            "Show the hotspot enabled and disabled event on the island",
         ),
     ),
     PermissionDoc(
