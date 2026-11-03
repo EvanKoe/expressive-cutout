@@ -127,6 +127,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.core.graphics.drawable.toBitmap
@@ -192,6 +193,7 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
@@ -206,8 +208,6 @@ import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
@@ -217,6 +217,7 @@ import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
@@ -243,8 +244,20 @@ private const val PROGRESS_BAR_TOP_GAP_DP = 6
  */
 private const val ACTIONS_ROW_SPACING_DP = 12
 
-/** How far the island must be dragged upward before a swipe-up collapses it. */
-private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
+/** How far the island must be dragged up or down before a vertical swipe fires its gesture action. */
+private const val SWIPE_VERTICAL_THRESHOLD_DP = 24
+
+/**
+ * How far the expanded card may stretch downward under a swipe down. The overlay window keeps this
+ * much extra height below the expanded card so the stretch is never clipped.
+ */
+internal const val PULL_STRETCH_MAX_DP = 16
+
+/**
+ * Drag distance, as a multiple of [PULL_STRETCH_MAX_DP], over which the stretch reaches about two
+ * thirds of its maximum. Higher feels stiffer.
+ */
+private const val PULL_STRETCH_RESISTANCE = 3f
 
 /** How far the island must be dragged sideways before releasing dismisses it. */
 private const val SWIPE_DISMISS_THRESHOLD_DP = 90
@@ -496,10 +509,15 @@ fun DynamicIsland(
     autoCollapseMs: Long,
     appearance: AppearanceSettings,
     showActions: Boolean,
-    shrinkOnSwipeUp: Boolean,
-    swipeToDismiss: Boolean,
-    swipeDismissDirection: SwipeDismissDirection,
-    swipeDismissTarget: SwipeDismissTarget,
+    normalTap: GestureAction,
+    normalSwipeUp: GestureAction,
+    expandedTap: GestureAction,
+    expandedSwipeUp: GestureAction,
+    expandedSwipeDown: GestureAction,
+    normalSwipeLeft: GestureAction,
+    normalSwipeRight: GestureAction,
+    expandedSwipeLeft: GestureAction,
+    expandedSwipeRight: GestureAction,
     showsWhenEmpty: Boolean,
     emptyIcon: IconSource? = null,
     emptyIconColor: CutoutColor? = null,
@@ -563,6 +581,7 @@ fun DynamicIsland(
 
     val boopScale = remember { Animatable(1f) }
     val pressExpand = remember { Animatable(0f) }
+    val pullStretch = remember(shownEvent?.id) { Animatable(0f) }
     val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
     // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
@@ -570,6 +589,23 @@ fun DynamicIsland(
     // Set when a window-mode swipe dismisses into the resting pill: the window then outlives the
     // island and shrinks into the pill, instead of vanishing and popping the pill in from a dot.
     var windowSettling by remember(shownEvent?.id) { mutableStateOf(false) }
+    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
+    val dismissIsland = {
+        windowSettling = windowDismiss && showsWhenEmpty
+        onDismiss()
+    }
+    val performGesture: (GestureAction) -> Unit = { action ->
+        when (action) {
+            GestureAction.EXPAND -> tapExpanded = true
+            GestureAction.SHRINK -> tapExpanded = false
+            GestureAction.OPEN_APP -> if (canActivate) {
+                tapExpanded = false
+                onActivate()
+            }
+            GestureAction.DISMISS -> dismissIsland()
+            GestureAction.NONE -> Unit
+        }
+    }
     // Derived so only these two flips recompose, not every frame of the slide.
     val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
     val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
@@ -580,6 +616,10 @@ fun DynamicIsland(
 
     val motion = remember(animationStyle, animationSpeed, animationBounce, animationDurationMs) {
         IslandMotion(animationStyle, animationSpeed, animationBounce, animationDurationMs)
+    }
+    // A shrink mid-pull restarts the drag detector without a release, so the stretch would stay on the normal pill
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded && pullStretch.value != 0f) pullStretch.animateTo(0f, motion.boop())
     }
 
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
@@ -1146,7 +1186,7 @@ fun DynamicIsland(
                 IslandSurface(
                     modifier = Modifier
                         .width(revealWidth)
-                        .height(revealHeight)
+                        .height(revealHeight + PULL_STRETCH_MAX_DP.dp * pullStretch.value)
                         .graphicsLayer {
                             val extraPx = PRESS_EXPAND_DP.toPx() * 2f * pressExpand.value
                             val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
@@ -1175,33 +1215,35 @@ fun DynamicIsland(
                             boopScale = boopScale,
                             pressExpand = pressExpand,
                             tapExpanded = tapExpandedState,
+                            tapAction = if (isExpanded) expandedTap else normalTap,
+                            canActivate = canActivate,
+                            perform = performGesture,
                             onEmptyClick = onEmptyClick,
                             onActivate = onActivate,
                         )
-                        .islandSwipeUpToShrink(
+                        .islandVerticalSwipe(
                             event = shownEvent,
                             forcedExpanded = forcedExpanded,
-                            isExpanded = isExpanded,
                             replying = replying,
-                            enabled = shrinkOnSwipeUp,
                             emptyPill = emptyPill,
-                            tapExpanded = tapExpandedState,
+                            upAction = if (isExpanded) expandedSwipeUp else normalSwipeUp,
+                            downAction = if (isExpanded) expandedSwipeDown else GestureAction.NONE,
+                            perform = performGesture,
+                            isExpanded = isExpanded,
+                            pullStretch = pullStretch,
+                            scope = scope,
+                            motion = motion,
                         )
                         .islandSwipeToDismiss(
                             event = shownEvent,
                             forcedExpanded = forcedExpanded,
-                            enabled = swipeToDismiss,
-                            direction = swipeDismissDirection,
-                            target = swipeDismissTarget,
-                            isExpanded = isExpanded,
+                            leftAction = if (isExpanded) expandedSwipeLeft else normalSwipeLeft,
+                            rightAction = if (isExpanded) expandedSwipeRight else normalSwipeRight,
                             replying = replying,
                             emptyPill = emptyPill,
                             scope = scope,
                             dismissOffsetX = dismissOffsetX,
-                            onDismiss = {
-                                windowSettling = windowDismiss && showsWhenEmpty
-                                onDismiss()
-                            },
+                            onDismiss = dismissIsland,
                         ),
                     shape = islandShape,
                     appearance = appearance,
@@ -1431,10 +1473,12 @@ fun DynamicIsland(
  * Press-and-tap gestures for the island surface, lifted out of the layout so the composable reads as
  * structure. A press "boops" the collapsed pill and releases on lift: [pressWidens] chooses between
  * briefly widening it by [PRESS_EXPAND_DP] on each side and scaling it down. While a reply is being
- * typed the surface ignores presses and taps entirely. A tap either toggles the expanded state or
- * activates the event: the resting empty pill opens the shortcut center when [emptyOpensCenter] is
- * set and otherwise runs its own click action, a normal-only tile (a ringing call) never expands and goes straight to its content intent, and an island that is
- * already open hands the tap to the app. An island forced open takes no gestures at all.
+ * typed the surface ignores presses and taps entirely. A tap runs [tapAction] (the user's choice for
+ * the current state) through [perform]: the resting empty pill opens the shortcut center when
+ * [emptyOpensCenter] is set and otherwise runs its own click action, and a normal-only tile (a
+ * ringing call) never expands and goes straight to its content intent. On an island forced
+ * collapsed an expand action falls back to opening the app. An island forced open takes no
+ * gestures at all.
  */
 private fun Modifier.islandTapGestures(
     event: IslandEvent?,
@@ -1452,9 +1496,12 @@ private fun Modifier.islandTapGestures(
     boopScale: Animatable<Float, AnimationVector1D>,
     pressExpand: Animatable<Float, AnimationVector1D>,
     tapExpanded: MutableState<Boolean>,
+    tapAction: GestureAction,
+    canActivate: Boolean,
+    perform: (GestureAction) -> Unit,
     onEmptyClick: () -> Unit,
     onActivate: () -> Unit,
-): Modifier = pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, event?.id) {
+): Modifier = pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, event?.id, tapAction, canActivate) {
     if (forcedExpanded == true) return@pointerInput
 
     detectTapGestures(
@@ -1502,87 +1549,111 @@ private fun Modifier.islandTapGestures(
 
             if (replying) return@detectTapGestures
 
-            val canActivate = event?.contentIntent != null || event?.actionIntentAction != null
-
             if (isNormalOnly) {
                 if (canActivate) onActivate()
                 return@detectTapGestures
             }
 
-            if ((isExpanded || forcedExpanded == false) && canActivate) {
-                tapExpanded.value = false
-                onActivate()
-            } else if (forcedExpanded == null) {
-                tapExpanded.value = !tapExpanded.value
-                if (isExpanded) {
-                    scope.launch { motion.pop(boopScale, peak = 1.02f) }
-                }
+            val action = if (forcedExpanded == false && tapAction == GestureAction.EXPAND) {
+                GestureAction.OPEN_APP
+            } else {
+                tapAction
+            }
+            perform(action)
+            if (isExpanded && action == GestureAction.SHRINK) {
+                scope.launch { motion.pop(boopScale, peak = 1.02f) }
             }
         },
     )
 }
 
 /**
- * Swipe up on the expanded island to shrink it back to the normal cutout, once the drag passes
- * [SWIPE_UP_SHRINK_THRESHOLD_DP]. The detector is left uninstalled whenever it could not act anyway
- * (a forced state, the gesture switched off, or the resting empty pill, which has no expanded state
- * to shrink back from) so it never swallows a vertical drag meant for whatever is underneath.
+ * Runs [upAction] or [downAction] through [perform] when a drag up or down past
+ * [SWIPE_VERTICAL_THRESHOLD_DP] is released. While expanded, a downward drag also stretches the card
+ * through [pullStretch], with resistance that grows as it nears [PULL_STRETCH_MAX_DP], and lets go
+ * with the release speed so it bounces back on the user's own spring. The detector is left uninstalled whenever it could not act anyway
+ * (a forced state, both actions set to none, or the resting empty pill) so it never swallows a
+ * vertical drag meant for whatever is underneath.
  */
-private fun Modifier.islandSwipeUpToShrink(
+private fun Modifier.islandVerticalSwipe(
     event: IslandEvent?,
     forcedExpanded: Boolean?,
-    isExpanded: Boolean,
     replying: Boolean,
-    enabled: Boolean,
     emptyPill: Boolean,
-    tapExpanded: MutableState<Boolean>,
-): Modifier = pointerInput(forcedExpanded, isExpanded, replying, enabled, emptyPill, event?.id) {
-    if (forcedExpanded != null || !enabled || emptyPill) return@pointerInput
+    upAction: GestureAction,
+    downAction: GestureAction,
+    perform: (GestureAction) -> Unit,
+    isExpanded: Boolean,
+    pullStretch: Animatable<Float, AnimationVector1D>,
+    scope: CoroutineScope,
+    motion: IslandMotion,
+): Modifier = pointerInput(forcedExpanded, replying, emptyPill, event?.id, upAction, downAction, isExpanded) {
+    val idle = upAction == GestureAction.NONE && downAction == GestureAction.NONE
+    if (forcedExpanded != null || idle || emptyPill) return@pointerInput
 
-    val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
+    val threshold = SWIPE_VERTICAL_THRESHOLD_DP.dp.toPx()
+    val stretches = isExpanded && !replying
+    val resistancePx = PULL_STRETCH_MAX_DP.dp.toPx() * PULL_STRETCH_RESISTANCE
+    val tracker = VelocityTracker()
     var dragTotal = 0f
+
+    fun springBack(fingerVelocity: Float) {
+        if (!stretches) return
+        // The stretch is 1 - e^(-d / r), so its rate of change is (1 - stretch) / r times the finger's.
+        val velocity = fingerVelocity.coerceAtLeast(0f) * (1f - pullStretch.value) / resistancePx
+        scope.launch { pullStretch.animateTo(0f, motion.float(), initialVelocity = velocity) }
+    }
+
     detectVerticalDragGestures(
-        onDragStart = { dragTotal = 0f },
+        onDragStart = {
+            dragTotal = 0f
+            tracker.resetTracking()
+        },
         onDragEnd = {
-            if (isExpanded && !replying && dragTotal <= -threshold) {
-                tapExpanded.value = false
+            springBack(tracker.calculateVelocity().y)
+            if (!replying) {
+                if (dragTotal <= -threshold) {
+                    perform(upAction)
+                } else if (dragTotal >= threshold) {
+                    perform(downAction)
+                }
             }
         },
+        onDragCancel = { springBack(0f) },
     ) { change, dragAmount ->
         dragTotal += dragAmount
+        tracker.addPosition(change.uptimeMillis, change.position)
         change.consume()
+        if (stretches) {
+            val stretch = 1f - exp(-dragTotal.coerceAtLeast(0f) / resistancePx)
+            scope.launch { pullStretch.snapTo(stretch) }
+        }
     }
 }
 
 /**
  * Swipe sideways to dismiss the cutout past [SWIPE_DISMISS_THRESHOLD_DP], which for a notification
- * also clears it from the system. Only the direction(s) the user allows in [direction] can be
- * dragged (the offset is clamped to the allowed side) and only the cutout state(s) in [target] let
- * go; a drag that stops short springs back to rest. The resting empty cutout is meant to stay, so a
- * swipe must neither slide it away nor clear the departed notification it still remembers.
+ * also clears it from the system. The caller passes the current size's [leftAction] and
+ * [rightAction]; only a side set to [GestureAction.DISMISS] can be dragged (the offset is clamped
+ * to the allowed side), and a drag that stops short springs back to rest. The resting empty
+ * cutout is meant to stay, so a swipe must neither slide it away nor clear the departed
+ * notification it still remembers.
  */
 private fun Modifier.islandSwipeToDismiss(
     event: IslandEvent?,
     forcedExpanded: Boolean?,
-    enabled: Boolean,
-    direction: SwipeDismissDirection,
-    target: SwipeDismissTarget,
-    isExpanded: Boolean,
+    leftAction: GestureAction,
+    rightAction: GestureAction,
     replying: Boolean,
     emptyPill: Boolean,
     scope: CoroutineScope,
     dismissOffsetX: Animatable<Float, AnimationVector1D>,
     onDismiss: () -> Unit,
-): Modifier = pointerInput(forcedExpanded, enabled, direction, target, isExpanded, replying, emptyPill, event?.id) {
-    val targetAllows = when (target) {
-        SwipeDismissTarget.BOTH -> true
-        SwipeDismissTarget.EXPANDED -> isExpanded
-        SwipeDismissTarget.NORMAL -> !isExpanded
-    }
-    if (forcedExpanded != null || !enabled || replying || emptyPill || !targetAllows) return@pointerInput
+): Modifier = pointerInput(forcedExpanded, leftAction, rightAction, replying, emptyPill, event?.id) {
+    val allowLeft = leftAction == GestureAction.DISMISS
+    val allowRight = rightAction == GestureAction.DISMISS
+    if (forcedExpanded != null || (!allowLeft && !allowRight) || replying || emptyPill) return@pointerInput
 
-    val allowLeft = direction != SwipeDismissDirection.RIGHT
-    val allowRight = direction != SwipeDismissDirection.LEFT
     val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
     detectHorizontalDragGestures(
         onDragEnd = {

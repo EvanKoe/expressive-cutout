@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.overlay.IslandPreview
 import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
 import com.ekoehler.expressivecutout.overlay.loadImageBitmapOrNull
 import com.ekoehler.expressivecutout.overlay.resolve
+import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -320,6 +321,35 @@ internal fun SettingsToggleNavCard(
             )
             Spacer(Modifier.width(12.dp))
             Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+/** A surface card with a [label] above a segmented row of [options]; selection is hoisted to the caller. */
+@Composable
+internal fun SettingsSegmentedCard(
+    shape: Shape,
+    label: String,
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(text = label, style = MaterialTheme.typography.titleMedium)
+            ExpressiveSegmentedRow(
+                options = options,
+                selectedIndex = selectedIndex,
+                onSelect = onSelect,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

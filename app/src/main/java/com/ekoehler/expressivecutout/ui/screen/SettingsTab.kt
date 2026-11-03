@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GridView
@@ -83,6 +84,7 @@ fun SettingsTab(
     onOpenTile: (DynamicTile) -> Unit,
     onOpenApps: () -> Unit,
     onOpenBehaviour: () -> Unit,
+    onOpenGestures: () -> Unit,
     onOpenShowsWhenEmpty: () -> Unit,
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
@@ -149,6 +151,7 @@ fun SettingsTab(
                     onOpenDynamicTiles = onOpenDynamicTiles,
                     onOpenApps = onOpenApps,
                     onOpenBehaviour = onOpenBehaviour,
+                    onOpenGestures = onOpenGestures,
                     onOpenAnimation = onOpenAnimation,
                     onOpenAppearance = onOpenAppearance,
                     onOpenShizuku = onOpenShizuku,
@@ -162,6 +165,7 @@ fun SettingsTab(
             SettingsRoute.DynamicTileDetail ->
                 selectedTile?.let { TileSettingsScreen(it, viewModel, contentPadding) }
             SettingsRoute.Behaviour -> BehaviourScreen(viewModel, contentPadding, onOpenShowsWhenEmpty)
+            SettingsRoute.Gestures -> GestureScreen(viewModel, contentPadding)
             SettingsRoute.ShowsWhenEmpty -> ShowsWhenEmptyScreen(viewModel, contentPadding)
             SettingsRoute.Animation -> AnimationScreen(viewModel, contentPadding)
             SettingsRoute.Appearance ->
@@ -186,7 +190,7 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, DismissWindow, Shizuku, PermissionDot, SystemEvents, EventDetail }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, Gestures, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, DismissWindow, Shizuku, PermissionDot, SystemEvents, EventDetail }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
@@ -222,6 +226,7 @@ private fun SettingsList(
     onOpenDynamicTiles: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenBehaviour: () -> Unit,
+    onOpenGestures: () -> Unit,
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenShizuku: () -> Unit,
@@ -325,6 +330,12 @@ private fun SettingsList(
                 title = stringResource(R.string.behaviour_title),
                 subtitle = stringResource(R.string.settings_behaviour_subtitle),
                 onClick = onOpenBehaviour,
+            )
+            SettingsListItem(
+                icon = Icons.Rounded.Gesture,
+                title = stringResource(R.string.gestures_title),
+                subtitle = stringResource(R.string.settings_gestures_subtitle),
+                onClick = onOpenGestures,
             )
             SettingsListItem(
                 icon = Icons.Rounded.Animation,
