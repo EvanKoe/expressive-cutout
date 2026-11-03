@@ -501,12 +501,10 @@
     <string name="cutout_pinned_tag">Sabitlendi</string>
     <string name="behaviour_action_buttons">Eylem düğmelerini göster</string>
     <string name="behaviour_action_buttons_desc">Bildirimin eylem düğmelerini genişletilmiş çentikte gösterir. Kamerayla çakışmamaları için biraz yükseklik ekler.</string>
-    <string name="behaviour_swipe_dismiss">Kaydırarak kapat</string>
-    <string name="behaviour_swipe_dismiss_desc">Çentiği kapatmak için yana kaydırın. Bildirimler sistemden de temizlenir.</string>
-    <string name="behaviour_swipe_direction">Kaydırma yönü</string>
-    <string name="swipe_dir_left">Sol</string>
-    <string name="swipe_dir_right">Sağ</string>
-    <string name="swipe_dir_both">Her ikisi</string>
+    <string name="gesture_swipe_left">Sola kaydır</string>
+    <string name="gesture_swipe_left_desc">Çentikte sola kaydırmanın ne yaptığı</string>
+    <string name="gesture_swipe_right">Sağa kaydır</string>
+    <string name="gesture_swipe_right_desc">Çentikte sağa kaydırmanın ne yaptığı</string>
     <string name="behaviour_empty_pill">Boşken göster</string>
     <string name="behaviour_empty_pill_desc">Hiçbir bildirim gösterilmediğinde çentik ekranda kalır</string>
     <string name="shows_when_empty_show_icon">Simge göster</string>

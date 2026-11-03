@@ -19,9 +19,6 @@ private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDat
 /** How the cutout behaves when the device is in horizontal/landscape orientation. */
 enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER }
 
-/** Which horizontal swipe directions dismiss the cutout, when swipe-to-dismiss is enabled. */
-enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
-
 /**
  * What a tap or vertical swipe on the island does. [NONE] ignores the gesture; [EXPAND] and
  * [SHRINK] grow or collapse the island; [OPEN_APP] launches the event's app; [DISMISS] removes
@@ -116,8 +113,10 @@ data class BehaviourSettings(
     val expandedTap: GestureAction = DEFAULT_EXPANDED_TAP,
     val expandedSwipeUp: GestureAction = DEFAULT_EXPANDED_SWIPE_UP,
     val expandedSwipeDown: GestureAction = DEFAULT_EXPANDED_SWIPE_DOWN,
-    val swipeToDismiss: Boolean = DEFAULT_SWIPE_TO_DISMISS,
-    val swipeDismissDirection: SwipeDismissDirection = DEFAULT_SWIPE_DISMISS_DIRECTION,
+    val normalSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val normalSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val expandedSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val expandedSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY,
     val showsWhenEmptyShowIcon: Boolean = SHOWS_WHEN_EMPTY_SHOW_ICON,
     val showsWhenEmptyIcon: IconSource? = null,
@@ -163,8 +162,7 @@ data class BehaviourSettings(
         val DEFAULT_EXPANDED_TAP = GestureAction.OPEN_APP
         val DEFAULT_EXPANDED_SWIPE_UP = GestureAction.SHRINK
         val DEFAULT_EXPANDED_SWIPE_DOWN = GestureAction.NONE
-        const val DEFAULT_SWIPE_TO_DISMISS = true
-        val DEFAULT_SWIPE_DISMISS_DIRECTION = SwipeDismissDirection.BOTH
+        val DEFAULT_SWIPE_SIDEWAYS = GestureAction.DISMISS
         const val DEFAULT_SPLIT_ISLAND_ENABLED = true
         val DEFAULT_SATELLITE_POSITION = SatellitePosition.RIGHT
         const val MIN_ANIMATION_DURATION_MS = 0
@@ -247,10 +245,18 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             expandedSwipeDown = prefs[GESTURE_EXPANDED_SWIPE_DOWN]
                 ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EXPANDED_SWIPE_DOWN,
-            swipeToDismiss = prefs[SWIPE_TO_DISMISS] ?: BehaviourSettings.DEFAULT_SWIPE_TO_DISMISS,
-            swipeDismissDirection = prefs[SWIPE_DISMISS_DIRECTION]
-                ?.let { runCatching { SwipeDismissDirection.valueOf(it) }.getOrNull() }
-                ?: BehaviourSettings.DEFAULT_SWIPE_DISMISS_DIRECTION,
+            normalSwipeLeft = prefs[GESTURE_NORMAL_SWIPE_LEFT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = true),
+            normalSwipeRight = prefs[GESTURE_NORMAL_SWIPE_RIGHT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = false),
+            expandedSwipeLeft = prefs[GESTURE_EXPANDED_SWIPE_LEFT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = true),
+            expandedSwipeRight = prefs[GESTURE_EXPANDED_SWIPE_RIGHT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = false),
             showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
             showsWhenEmptyShowIcon = prefs[SHOWS_WHEN_EMPTY_SHOW_ICON] ?: BehaviourSettings.SHOWS_WHEN_EMPTY_SHOW_ICON,
             showsWhenEmptyIcon = prefs[SHOWS_WHEN_EMPTY_ICON]?.let { IconSource.decode(it) },
@@ -281,6 +287,18 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    /**
+     * The sideways-swipe action for a user who never set the per-direction gestures, derived from
+     * the old global swipe-to-dismiss switch and its LEFT / RIGHT / BOTH direction so an upgrade
+     * keeps their behaviour.
+     */
+    private fun legacySwipeAction(prefs: Preferences, left: Boolean): GestureAction {
+        if (prefs[LEGACY_SWIPE_TO_DISMISS] == false) return GestureAction.NONE
+        val excludedDirection = if (left) "RIGHT" else "LEFT"
+        return if (prefs[LEGACY_SWIPE_DISMISS_DIRECTION] == excludedDirection) GestureAction.NONE
+        else BehaviourSettings.DEFAULT_SWIPE_SIDEWAYS
+    }
+
     /** Exports the current, fully-resolved [BehaviourSettings] (defaults and clamping applied) as a JSON string. */
     override suspend fun toJson(): String {
         val s = settings.first()
@@ -308,8 +326,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("expandedTap", s.expandedTap.name)
             put("expandedSwipeUp", s.expandedSwipeUp.name)
             put("expandedSwipeDown", s.expandedSwipeDown.name)
-            put("swipeToDismiss", s.swipeToDismiss)
-            put("swipeDismissDirection", s.swipeDismissDirection.name)
+            put("normalSwipeLeft", s.normalSwipeLeft.name)
+            put("normalSwipeRight", s.normalSwipeRight.name)
+            put("expandedSwipeLeft", s.expandedSwipeLeft.name)
+            put("expandedSwipeRight", s.expandedSwipeRight.name)
             put("showsWhenEmpty", s.showsWhenEmpty)
             put("showsWhenEmptyShowIcon", s.showsWhenEmptyShowIcon)
             put("showsWhenEmptyIcon", s.showsWhenEmptyIcon?.encode() ?: JSONObject.NULL)
@@ -370,8 +390,13 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             parseEnum<GestureAction>(obj, "expandedTap")?.let { a -> it[GESTURE_EXPANDED_TAP] = a.name }
             parseEnum<GestureAction>(obj, "expandedSwipeUp")?.let { a -> it[GESTURE_EXPANDED_SWIPE_UP] = a.name }
             parseEnum<GestureAction>(obj, "expandedSwipeDown")?.let { a -> it[GESTURE_EXPANDED_SWIPE_DOWN] = a.name }
-            if (obj.has("swipeToDismiss")) it[SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
-            parseEnum<SwipeDismissDirection>(obj, "swipeDismissDirection")?.let { d -> it[SWIPE_DISMISS_DIRECTION] = d.name }
+            parseEnum<GestureAction>(obj, "normalSwipeLeft")?.let { a -> it[GESTURE_NORMAL_SWIPE_LEFT] = a.name }
+            parseEnum<GestureAction>(obj, "normalSwipeRight")?.let { a -> it[GESTURE_NORMAL_SWIPE_RIGHT] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeLeft")?.let { a -> it[GESTURE_EXPANDED_SWIPE_LEFT] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeRight")?.let { a -> it[GESTURE_EXPANDED_SWIPE_RIGHT] = a.name }
+            if (obj.has("swipeToDismiss")) it[LEGACY_SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
+            obj.optString("swipeDismissDirection").takeIf(String::isNotEmpty)
+                ?.let { d -> it[LEGACY_SWIPE_DISMISS_DIRECTION] = d }
             if (obj.has("splitIslandEnabled")) it[SPLIT_ISLAND_ENABLED] = obj.getBoolean("splitIslandEnabled")
             parseEnum<SatellitePosition>(obj, "satellitePosition")?.let { p -> it[SATELLITE_POSITION] = p.name }
             if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
@@ -544,12 +569,20 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[GESTURE_EXPANDED_SWIPE_DOWN] = action.name
     }
 
-    suspend fun setSwipeToDismiss(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[SWIPE_TO_DISMISS] = enabled
+    suspend fun setNormalSwipeLeft(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_SWIPE_LEFT] = action.name
     }
 
-    suspend fun setSwipeDismissDirection(direction: SwipeDismissDirection) = context.behaviourDataStore.edit {
-        it[SWIPE_DISMISS_DIRECTION] = direction.name
+    suspend fun setNormalSwipeRight(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_SWIPE_RIGHT] = action.name
+    }
+
+    suspend fun setExpandedSwipeLeft(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_LEFT] = action.name
+    }
+
+    suspend fun setExpandedSwipeRight(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_RIGHT] = action.name
     }
 
     suspend fun setSplitIslandEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
@@ -668,8 +701,12 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val GESTURE_EXPANDED_TAP = stringPreferencesKey("gesture_expanded_tap")
         val GESTURE_EXPANDED_SWIPE_UP = stringPreferencesKey("gesture_expanded_swipe_up")
         val GESTURE_EXPANDED_SWIPE_DOWN = stringPreferencesKey("gesture_expanded_swipe_down")
-        val SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
-        val SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
+        val GESTURE_NORMAL_SWIPE_LEFT = stringPreferencesKey("gesture_normal_swipe_left")
+        val GESTURE_NORMAL_SWIPE_RIGHT = stringPreferencesKey("gesture_normal_swipe_right")
+        val GESTURE_EXPANDED_SWIPE_LEFT = stringPreferencesKey("gesture_expanded_swipe_left")
+        val GESTURE_EXPANDED_SWIPE_RIGHT = stringPreferencesKey("gesture_expanded_swipe_right")
+        val LEGACY_SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
+        val LEGACY_SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
         val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
         val SHOW_STATUS_DOT = booleanPreferencesKey("show_status_dot")

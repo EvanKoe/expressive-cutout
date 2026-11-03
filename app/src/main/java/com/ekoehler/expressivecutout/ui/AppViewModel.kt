@@ -62,7 +62,6 @@ import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
@@ -735,8 +734,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setExpandedSwipeDown(action)
     }
 
-    fun setSwipeToDismiss(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setSwipeToDismiss(enabled)
+    fun setNormalSwipeLeft(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeLeft(action)
+    }
+
+    fun setNormalSwipeRight(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeRight(action)
+    }
+
+    fun setExpandedSwipeLeft(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeLeft(action)
+    }
+
+    fun setExpandedSwipeRight(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeRight(action)
     }
 
     fun setShowsWhenEmpty(enabled: Boolean) = viewModelScope.launch {
@@ -790,10 +801,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setCenterThemedIcons(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setCenterThemedIcons(enabled)
-    }
-
-    fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
-        behaviourPreferences.setSwipeDismissDirection(direction)
     }
 
     fun setSplitIslandEnabled(enabled: Boolean) = viewModelScope.launch {

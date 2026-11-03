@@ -1,6 +1,5 @@
 package com.ekoehler.expressivecutout.ui.screen
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,13 +18,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.GestureAction
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressivePillRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
-import com.ekoehler.expressivecutout.ui.components.groupedShape
 
 /** Label shown for each gesture action in the options cards. */
 private val GestureAction.titleRes: Int
@@ -48,9 +45,9 @@ private val GestureAction.descriptionRes: Int
     }
 
 /**
- * Settings page choosing what a tap and a swipe up do on the normal cutout, what a tap, a swipe up
- * and a swipe down do on the expanded one, plus its swipe-to-dismiss options. The normal cutout has
- * no swipe down: Android hands any fast downward swipe that starts in the status bar to the shade.
+ * Settings page choosing what a tap, a swipe up, a swipe left and a swipe right do on the normal
+ * cutout, and the same plus a swipe down on the expanded one. The normal cutout has no swipe down:
+ * Android hands any fast downward swipe that starts in the status bar to the shade.
  */
 @Composable
 internal fun GestureScreen(
@@ -90,6 +87,20 @@ internal fun GestureScreen(
                 isFirst = true,
             )
             GestureCard(
+                titleRes = R.string.gesture_swipe_left,
+                descriptionRes = R.string.gesture_swipe_left_desc,
+                actions = listOf(GestureAction.NONE, GestureAction.DISMISS),
+                selected = behaviour.normalSwipeLeft,
+                onSelect = viewModel::setNormalSwipeLeft,
+            )
+            GestureCard(
+                titleRes = R.string.gesture_swipe_right,
+                descriptionRes = R.string.gesture_swipe_right_desc,
+                actions = listOf(GestureAction.NONE, GestureAction.DISMISS),
+                selected = behaviour.normalSwipeRight,
+                onSelect = viewModel::setNormalSwipeRight,
+            )
+            GestureCard(
                 titleRes = R.string.gesture_tap,
                 descriptionRes = R.string.gesture_tap_desc,
                 actions = listOf(GestureAction.NONE, GestureAction.EXPAND, GestureAction.OPEN_APP),
@@ -119,6 +130,20 @@ internal fun GestureScreen(
                 onSelect = viewModel::setExpandedSwipeDown,
             )
             GestureCard(
+                titleRes = R.string.gesture_swipe_left,
+                descriptionRes = R.string.gesture_swipe_left_desc,
+                actions = listOf(GestureAction.NONE, GestureAction.DISMISS),
+                selected = behaviour.expandedSwipeLeft,
+                onSelect = viewModel::setExpandedSwipeLeft,
+            )
+            GestureCard(
+                titleRes = R.string.gesture_swipe_right,
+                descriptionRes = R.string.gesture_swipe_right_desc,
+                actions = listOf(GestureAction.NONE, GestureAction.DISMISS),
+                selected = behaviour.expandedSwipeRight,
+                onSelect = viewModel::setExpandedSwipeRight,
+            )
+            GestureCard(
                 titleRes = R.string.gesture_tap,
                 descriptionRes = R.string.gesture_tap_desc,
                 actions = listOf(GestureAction.NONE, GestureAction.OPEN_APP, GestureAction.SHRINK),
@@ -126,27 +151,6 @@ internal fun GestureScreen(
                 onSelect = viewModel::setExpandedTap,
                 isLast = true,
             )
-
-            SettingsToggleCard(
-                shape = groupedShape(isFirst = true, isLast = !behaviour.swipeToDismiss),
-                title = stringResource(R.string.behaviour_swipe_dismiss),
-                description = stringResource(R.string.behaviour_swipe_dismiss_desc),
-                checked = behaviour.swipeToDismiss,
-                onCheckedChange = viewModel::setSwipeToDismiss,
-            )
-            AnimatedVisibility(visible = behaviour.swipeToDismiss) {
-                SettingsSegmentedCard(
-                    shape = groupedShape(isFirst = false, isLast = true),
-                    label = stringResource(R.string.behaviour_swipe_direction),
-                    options = listOf(
-                        stringResource(R.string.swipe_dir_left),
-                        stringResource(R.string.swipe_dir_right),
-                        stringResource(R.string.swipe_dir_both),
-                    ),
-                    selectedIndex = behaviour.swipeDismissDirection.ordinal,
-                    onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
-                )
-            }
         }
     }
 }

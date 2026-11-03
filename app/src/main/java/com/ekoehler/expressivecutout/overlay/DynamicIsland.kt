@@ -208,7 +208,6 @@ import com.ekoehler.expressivecutout.data.PermissionDotColors
 import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
@@ -515,8 +514,10 @@ fun DynamicIsland(
     expandedTap: GestureAction,
     expandedSwipeUp: GestureAction,
     expandedSwipeDown: GestureAction,
-    swipeToDismiss: Boolean,
-    swipeDismissDirection: SwipeDismissDirection,
+    normalSwipeLeft: GestureAction,
+    normalSwipeRight: GestureAction,
+    expandedSwipeLeft: GestureAction,
+    expandedSwipeRight: GestureAction,
     showsWhenEmpty: Boolean,
     emptyIcon: IconSource? = null,
     emptyIconColor: CutoutColor? = null,
@@ -1236,8 +1237,8 @@ fun DynamicIsland(
                         .islandSwipeToDismiss(
                             event = shownEvent,
                             forcedExpanded = forcedExpanded,
-                            enabled = swipeToDismiss,
-                            direction = swipeDismissDirection,
+                            leftAction = if (isExpanded) expandedSwipeLeft else normalSwipeLeft,
+                            rightAction = if (isExpanded) expandedSwipeRight else normalSwipeRight,
                             replying = replying,
                             emptyPill = emptyPill,
                             scope = scope,
@@ -1632,25 +1633,27 @@ private fun Modifier.islandVerticalSwipe(
 
 /**
  * Swipe sideways to dismiss the cutout past [SWIPE_DISMISS_THRESHOLD_DP], which for a notification
- * also clears it from the system. Only the direction(s) the user allows in [direction] can be
- * dragged (the offset is clamped to the allowed side); a drag that stops short springs back to rest. The resting empty cutout is meant to stay, so a
- * swipe must neither slide it away nor clear the departed notification it still remembers.
+ * also clears it from the system. The caller passes the current size's [leftAction] and
+ * [rightAction]; only a side set to [GestureAction.DISMISS] can be dragged (the offset is clamped
+ * to the allowed side), and a drag that stops short springs back to rest. The resting empty
+ * cutout is meant to stay, so a swipe must neither slide it away nor clear the departed
+ * notification it still remembers.
  */
 private fun Modifier.islandSwipeToDismiss(
     event: IslandEvent?,
     forcedExpanded: Boolean?,
-    enabled: Boolean,
-    direction: SwipeDismissDirection,
+    leftAction: GestureAction,
+    rightAction: GestureAction,
     replying: Boolean,
     emptyPill: Boolean,
     scope: CoroutineScope,
     dismissOffsetX: Animatable<Float, AnimationVector1D>,
     onDismiss: () -> Unit,
-): Modifier = pointerInput(forcedExpanded, enabled, direction, replying, emptyPill, event?.id) {
-    if (forcedExpanded != null || !enabled || replying || emptyPill) return@pointerInput
+): Modifier = pointerInput(forcedExpanded, leftAction, rightAction, replying, emptyPill, event?.id) {
+    val allowLeft = leftAction == GestureAction.DISMISS
+    val allowRight = rightAction == GestureAction.DISMISS
+    if (forcedExpanded != null || (!allowLeft && !allowRight) || replying || emptyPill) return@pointerInput
 
-    val allowLeft = direction != SwipeDismissDirection.RIGHT
-    val allowRight = direction != SwipeDismissDirection.LEFT
     val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
     detectHorizontalDragGestures(
         onDragEnd = {

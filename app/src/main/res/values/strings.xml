@@ -554,6 +554,10 @@
     <string name="gesture_swipe_up_desc">What swiping up on the cutout does</string>
     <string name="gesture_swipe_down">Swipe down</string>
     <string name="gesture_swipe_down_desc">What swiping down on the cutout does</string>
+    <string name="gesture_swipe_left">Swipe left</string>
+    <string name="gesture_swipe_left_desc">What swiping left on the cutout does</string>
+    <string name="gesture_swipe_right">Swipe right</string>
+    <string name="gesture_swipe_right_desc">What swiping right on the cutout does</string>
     <string name="gesture_tap">Tap</string>
     <string name="gesture_tap_desc">What tapping the cutout does</string>
     <string name="gesture_action_none">None</string>
@@ -566,12 +570,6 @@
     <string name="gesture_action_open_app_desc">Open the app that sent it</string>
     <string name="gesture_action_dismiss">Dismiss</string>
     <string name="gesture_action_dismiss_desc">Hide the cutout and clear the notification</string>
-    <string name="behaviour_swipe_dismiss">Swipe to dismiss</string>
-    <string name="behaviour_swipe_dismiss_desc">Swipe the cutout sideways to dismiss it. Notifications are cleared from the system too.</string>
-    <string name="behaviour_swipe_direction">Swipe direction</string>
-    <string name="swipe_dir_left">Left</string>
-    <string name="swipe_dir_right">Right</string>
-    <string name="swipe_dir_both">Both</string>
     <string name="behaviour_empty_pill">Shows when empty</string>
     <string name="behaviour_empty_pill_desc">When no notification is displayed, the cutout stays on the screen</string>
     <string name="shows_when_empty_show_icon">Show icon</string>
