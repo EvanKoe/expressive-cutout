@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.view.HapticFeedbackConstantsCompat
@@ -34,11 +33,8 @@ import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.PinNotificationsMode
 import com.ekoehler.expressivecutout.data.SatellitePosition
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
@@ -214,60 +210,18 @@ internal fun BehaviourScreen(
         )
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
-            title = stringResource(R.string.behaviour_shrink_swipe_up),
-            description = stringResource(R.string.behaviour_shrink_swipe_up_desc),
-            checked = behaviour.shrinkOnSwipeUp,
-            onCheckedChange = viewModel::setShrinkOnSwipeUp,
-        )
-        SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_vibrateOnTap_title),
             description = stringResource(R.string.behaviour_vibrateOnTap_desc),
             checked = behaviour.vibrateOnTap,
             onCheckedChange = viewModel::setVibrateOnTap
         )
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
+            shape = groupedShape(isFirst = false, isLast = splitLockedByNotch),
             title = stringResource(R.string.behaviour_hapticsOnPop_title),
             description = stringResource(R.string.behaviour_hapticsOnPop_desc),
             checked = behaviour.hapticsOnPop,
             onCheckedChange = viewModel::setHapticsOnPop,
         )
-        // The notch hint breaks the stack in two below, so whichever card ends up last above it has
-        // to close its group — this one whenever the swipe sub-options it owns are folded away.
-        SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = splitLockedByNotch && !behaviour.swipeToDismiss),
-            title = stringResource(R.string.behaviour_swipe_dismiss),
-            description = stringResource(R.string.behaviour_swipe_dismiss_desc),
-            checked = behaviour.swipeToDismiss,
-            onCheckedChange = viewModel::setSwipeToDismiss,
-        )
-        AnimatedVisibility(visible = behaviour.swipeToDismiss) {
-            Column (verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = false),
-                    label = stringResource(R.string.behaviour_swipe_direction),
-                    options = listOf(
-                        stringResource(R.string.swipe_dir_left),
-                        stringResource(R.string.swipe_dir_right),
-                        stringResource(R.string.swipe_dir_both),
-                    ),
-                    selectedIndex = behaviour.swipeDismissDirection.ordinal,
-                    onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
-                )
-                BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = splitLockedByNotch),
-                    label = stringResource(R.string.behaviour_swipe_target),
-                    options = listOf(
-                        stringResource(R.string.swipe_target_expanded),
-                        stringResource(R.string.swipe_target_both),
-                        stringResource(R.string.swipe_target_normal),
-                    ),
-                    selectedIndex = behaviour.swipeDismissTarget.ordinal,
-                    onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
-                )
-            }
-        }
         // Says why the switch below is greyed out, which it can't say for itself.
         AnimatedVisibility(visible = splitLockedByNotch) {
             Text(
@@ -286,7 +240,7 @@ internal fun BehaviourScreen(
             enabled = !splitLockedByNotch,
         )
         AnimatedVisibility(visible = splitIsland) {
-            BehaviourSegmentedRow(
+            SettingsSegmentedCard(
                 shape = groupedShape(isFirst = false, isLast = false),
                 label = stringResource(R.string.behaviour_satellite_position),
                 options = listOf(
@@ -329,34 +283,6 @@ internal fun BehaviourScreen(
             checked = behaviour.displayWhileDnd,
             onCheckedChange = viewModel::setDisplayWhileDnd
         )
-    }
-}
-
-@Composable
-private fun BehaviourSegmentedRow(
-    shape: Shape,
-    label: String,
-    options: List<String>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.titleMedium)
-            ExpressiveSegmentedRow(
-                options = options,
-                selectedIndex = selectedIndex,
-                onSelect = onSelect,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
     }
 }
 

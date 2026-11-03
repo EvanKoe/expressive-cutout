@@ -27,6 +27,7 @@ import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
+import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
@@ -63,7 +64,6 @@ import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SwipeDismissDirection
 import com.ekoehler.expressivecutout.data.SatellitePosition
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
@@ -715,8 +715,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setToastOnAction(enabled)
     }
 
-    fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setShrinkOnSwipeUp(enabled)
+    fun setNormalTap(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalTap(action)
+    }
+
+    fun setNormalSwipeUp(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeUp(action)
+    }
+
+    fun setExpandedTap(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedTap(action)
+    }
+
+    fun setExpandedSwipeUp(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeUp(action)
+    }
+
+    fun setExpandedSwipeDown(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeDown(action)
     }
 
     fun setSwipeToDismiss(enabled: Boolean) = viewModelScope.launch {
@@ -778,10 +794,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
         behaviourPreferences.setSwipeDismissDirection(direction)
-    }
-
-    fun setSwipeDismissTarget(target: SwipeDismissTarget) = viewModelScope.launch {
-        behaviourPreferences.setSwipeDismissTarget(target)
     }
 
     fun setSplitIslandEnabled(enabled: Boolean) = viewModelScope.launch {

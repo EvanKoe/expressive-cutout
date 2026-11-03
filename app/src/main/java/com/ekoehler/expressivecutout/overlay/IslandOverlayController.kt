@@ -734,10 +734,13 @@ class IslandOverlayController(private val context: Context) {
                         autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
                         appearance = appearance,
                         showActions = behaviour.showActionButtons,
-                        shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
+                        normalTap = behaviour.normalTap,
+                        normalSwipeUp = behaviour.normalSwipeUp,
+                        expandedTap = behaviour.expandedTap,
+                        expandedSwipeUp = behaviour.expandedSwipeUp,
+                        expandedSwipeDown = behaviour.expandedSwipeDown,
                         swipeToDismiss = behaviour.swipeToDismiss,
                         swipeDismissDirection = behaviour.swipeDismissDirection,
-                        swipeDismissTarget = behaviour.swipeDismissTarget,
                         showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
                         emptyIcon = behaviour.showsWhenEmptyIcon.takeIf { behaviour.showsWhenEmptyShowIcon },
                         emptyIconColor = behaviour.showsWhenEmptyIconColor,
@@ -1548,12 +1551,15 @@ class IslandOverlayController(private val context: Context) {
         val expanded = layout.expanded
         val lowestDp = maxOf(
             collapsed.offsetYDp + collapsed.heightDp,
-            expanded.offsetYDp + expanded.heightDp + expanded.bottomEarDp,
+            expanded.offsetYDp + expanded.heightDp + expanded.bottomEarDp + PULL_STRETCH_MAX_DP,
         )
         return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
     }
 
-    /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
+    /**
+     * Height needed to contain just one state's pill, plus room for action chips and for the swipe
+     * down stretch when expanded.
+     */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
         val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
@@ -1564,7 +1570,8 @@ class IslandOverlayController(private val context: Context) {
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val bonus = currentHeightBonusDp(expanded)
-        return ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
+        val pullHeadroom = if (expanded) PULL_STRETCH_MAX_DP else 0
+        return ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonus + pullHeadroom + WINDOW_MARGIN_DP) * density).toInt()
     }
 
     /** Wide enough for whichever state is widest — used for the initial, safe window size. */
