@@ -43,6 +43,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.LockscreenRule
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
@@ -911,6 +912,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setClockAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
         statusBarPreferences.setClockAutoTriggers(triggers)
+    }
+
+    /** The lock-screen override for the notification icons rule. */
+    val notificationIconsLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.notificationIconsLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setNotificationIconsLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsLockscreen(rule)
+    }
+
+    /** The lock-screen override for the system info icons rule. */
+    val systemInfoLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.systemInfoLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setSystemInfoLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoLockscreen(rule)
+    }
+
+    /** The lock-screen override for the clock rule. */
+    val clockLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.clockLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setClockLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setClockLockscreen(rule)
     }
 
     /**

@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -28,7 +29,8 @@ private val Context.statusBarDataStore: DataStore<Preferences> by preferencesDat
  *
  * Each of the three hiding settings is a [StatusBarHideMode] rather than a switch, because a pill
  * wide enough to cover the notification icons at rest may still leave the system icons alone — so
- * the two want different rules on the same device.
+ * the two want different rules on the same device. Each can also carry an optional
+ * [LockscreenRule] that replaces it while the device is locked.
  */
 class StatusBarPreferences(private val context: Context) : JsonSerializable {
 
@@ -59,6 +61,21 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs.autoTriggers(CLOCK_AUTO_TRIGGERS)
     }
 
+    /** The lock-screen override of the notification icons setting. */
+    val notificationIconsLockscreen: Flow<LockscreenRule> = context.statusBarDataStore.data.map { prefs ->
+        prefs.lockscreenRule(NOTIFICATION_ICONS_LOCKSCREEN_SEPARATE, NOTIFICATION_ICONS_LOCKSCREEN_MODE, NOTIFICATION_ICONS_LOCKSCREEN_TRIGGERS)
+    }
+
+    /** The lock-screen override of the system info setting. */
+    val systemInfoLockscreen: Flow<LockscreenRule> = context.statusBarDataStore.data.map { prefs ->
+        prefs.lockscreenRule(SYSTEM_INFO_LOCKSCREEN_SEPARATE, SYSTEM_INFO_LOCKSCREEN_MODE, SYSTEM_INFO_LOCKSCREEN_TRIGGERS)
+    }
+
+    /** The lock-screen override of the clock setting. */
+    val clockLockscreen: Flow<LockscreenRule> = context.statusBarDataStore.data.map { prefs ->
+        prefs.lockscreenRule(CLOCK_LOCKSCREEN_SEPARATE, CLOCK_LOCKSCREEN_MODE, CLOCK_LOCKSCREEN_TRIGGERS)
+    }
+
     val silenceAlerts: Flow<Boolean> = context.statusBarDataStore.data.map { prefs ->
         prefs[SILENCE_ALERTS] ?: false
     }
@@ -87,8 +104,46 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         prefs[CLOCK_AUTO_TRIGGERS] = triggers.mapTo(mutableSetOf()) { it.name }
     }
 
+    suspend fun setNotificationIconsLockscreen(rule: LockscreenRule) = context.statusBarDataStore.edit { prefs ->
+        prefs.putLockscreenRule(rule, NOTIFICATION_ICONS_LOCKSCREEN_SEPARATE, NOTIFICATION_ICONS_LOCKSCREEN_MODE, NOTIFICATION_ICONS_LOCKSCREEN_TRIGGERS)
+    }
+
+    suspend fun setSystemInfoLockscreen(rule: LockscreenRule) = context.statusBarDataStore.edit { prefs ->
+        prefs.putLockscreenRule(rule, SYSTEM_INFO_LOCKSCREEN_SEPARATE, SYSTEM_INFO_LOCKSCREEN_MODE, SYSTEM_INFO_LOCKSCREEN_TRIGGERS)
+    }
+
+    suspend fun setClockLockscreen(rule: LockscreenRule) = context.statusBarDataStore.edit { prefs ->
+        prefs.putLockscreenRule(rule, CLOCK_LOCKSCREEN_SEPARATE, CLOCK_LOCKSCREEN_MODE, CLOCK_LOCKSCREEN_TRIGGERS)
+    }
+
     suspend fun setSilenceAlerts(silence: Boolean) = context.statusBarDataStore.edit { prefs ->
         prefs[SILENCE_ALERTS] = silence
+    }
+
+    /** Writes the three keys of one [LockscreenRule] into an open edit. */
+    private fun MutablePreferences.putLockscreenRule(
+        rule: LockscreenRule,
+        separateKey: Preferences.Key<Boolean>,
+        modeKey: Preferences.Key<String>,
+        triggersKey: Preferences.Key<Set<String>>,
+    ) {
+        this[separateKey] = rule.separate
+        this[modeKey] = rule.mode.name
+        this[triggersKey] = rule.triggers.mapTo(mutableSetOf()) { it.name }
+    }
+
+    /** Reads one [LockscreenRule] from its three keys, each field defaulting like [LockscreenRule] when unset or unreadable. */
+    private fun Preferences.lockscreenRule(
+        separateKey: Preferences.Key<Boolean>,
+        modeKey: Preferences.Key<String>,
+        triggersKey: Preferences.Key<Set<String>>,
+    ): LockscreenRule {
+        val default = LockscreenRule()
+        return LockscreenRule(
+            separate = this[separateKey] ?: default.separate,
+            mode = this[modeKey]?.let { runCatching { StatusBarHideMode.valueOf(it) }.getOrNull() } ?: default.mode,
+            triggers = autoTriggers(triggersKey),
+        )
     }
 
     /**
@@ -120,6 +175,15 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         val SYSTEM_INFO_AUTO_TRIGGERS = stringSetPreferencesKey("system_info_auto_triggers")
         val CLOCK_AUTO_TRIGGERS = stringSetPreferencesKey("clock_auto_triggers")
         val SILENCE_ALERTS = booleanPreferencesKey("silence_alerts")
+        val NOTIFICATION_ICONS_LOCKSCREEN_SEPARATE = booleanPreferencesKey("notification_icons_lockscreen_separate")
+        val NOTIFICATION_ICONS_LOCKSCREEN_MODE = stringPreferencesKey("notification_icons_lockscreen_mode")
+        val NOTIFICATION_ICONS_LOCKSCREEN_TRIGGERS = stringSetPreferencesKey("notification_icons_lockscreen_triggers")
+        val SYSTEM_INFO_LOCKSCREEN_SEPARATE = booleanPreferencesKey("system_info_lockscreen_separate")
+        val SYSTEM_INFO_LOCKSCREEN_MODE = stringPreferencesKey("system_info_lockscreen_mode")
+        val SYSTEM_INFO_LOCKSCREEN_TRIGGERS = stringSetPreferencesKey("system_info_lockscreen_triggers")
+        val CLOCK_LOCKSCREEN_SEPARATE = booleanPreferencesKey("clock_lockscreen_separate")
+        val CLOCK_LOCKSCREEN_MODE = stringPreferencesKey("clock_lockscreen_mode")
+        val CLOCK_LOCKSCREEN_TRIGGERS = stringSetPreferencesKey("clock_lockscreen_triggers")
 
         /** Read only to migrate an install made before the three-state modes; never written. */
         val HIDE_NOTIFICATION_ICONS = booleanPreferencesKey("hide_notification_icons")
@@ -131,7 +195,9 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
     /**
      * Exports the status-bar settings in a JSON string
      * { notificationIcons, systemInfo, clock: "OFF" | "AUTO" | "ALWAYS", silenceAlerts: boolean,
-     *   notificationIconsAutoTriggers, systemInfoAutoTriggers, clockAutoTriggers: CutoutKind names[] }
+     *   notificationIconsAutoTriggers, systemInfoAutoTriggers, clockAutoTriggers: CutoutKind names[],
+     *   notificationIconsLockscreen, systemInfoLockscreen, clockLockscreen:
+     *     { separate: boolean, mode: "OFF" | "AUTO" | "ALWAYS", triggers: CutoutKind names[] } }
      */
     override suspend fun toJson(): String {
         val notificationIcons = notificationIconsMode.first()
@@ -141,6 +207,9 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         val notificationTriggers = notificationIconsAutoTriggers.first()
         val systemInfoTriggers = systemInfoAutoTriggers.first()
         val clockTriggers = clockAutoTriggers.first()
+        val notificationLockscreen = notificationIconsLockscreen.first()
+        val systemInfoLockscreenRule = systemInfoLockscreen.first()
+        val clockLockscreenRule = clockLockscreen.first()
         return JSONObject().apply {
             put("notificationIcons", notificationIcons.name)
             put("systemInfo", systemInfo.name)
@@ -149,15 +218,26 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
             put("notificationIconsAutoTriggers", JSONArray(notificationTriggers.map { it.name }))
             put("systemInfoAutoTriggers", JSONArray(systemInfoTriggers.map { it.name }))
             put("clockAutoTriggers", JSONArray(clockTriggers.map { it.name }))
+            put("notificationIconsLockscreen", notificationLockscreen.toJson())
+            put("systemInfoLockscreen", systemInfoLockscreenRule.toJson())
+            put("clockLockscreen", clockLockscreenRule.toJson())
         }.toString()
+    }
+
+    /** The { separate, mode, triggers } object [toJson] writes for one rule. */
+    private fun LockscreenRule.toJson(): JSONObject = JSONObject().apply {
+        put("separate", separate)
+        put("mode", mode.name)
+        put("triggers", JSONArray(triggers.map { it.name }))
     }
 
     /**
      * Applies { notificationIcons, systemInfo, clock: "OFF" | "AUTO" | "ALWAYS",
      * silenceAlerts: boolean, notificationIconsAutoTriggers / systemInfoAutoTriggers /
-     * clockAutoTriggers: CutoutKind names[] } exported by [toJson], also accepting the booleans older documents
-     * carry. Each missing field leaves its setting untouched — importing a document from a build
-     * without this section shouldn't silently flip any flag.
+     * clockAutoTriggers: CutoutKind names[], notificationIconsLockscreen / systemInfoLockscreen /
+     * clockLockscreen: { separate, mode, triggers } } exported by [toJson], also accepting the booleans
+     * older documents carry. Each missing field leaves its setting untouched — importing a document
+     * from a build without this section shouldn't silently flip any flag.
      */
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
@@ -170,6 +250,19 @@ class StatusBarPreferences(private val context: Context) : JsonSerializable {
         obj.triggers("notificationIconsAutoTriggers")?.let { setNotificationIconsAutoTriggers(it) }
         obj.triggers("systemInfoAutoTriggers")?.let { setSystemInfoAutoTriggers(it) }
         obj.triggers("clockAutoTriggers")?.let { setClockAutoTriggers(it) }
+        obj.optJSONObject("notificationIconsLockscreen")?.let { setNotificationIconsLockscreen(it.toLockscreenRule()) }
+        obj.optJSONObject("systemInfoLockscreen")?.let { setSystemInfoLockscreen(it.toLockscreenRule()) }
+        obj.optJSONObject("clockLockscreen")?.let { setClockLockscreen(it.toLockscreenRule()) }
+    }
+
+    /** One rule out of a { separate, mode, triggers } object, each missing or unknown field taking the [LockscreenRule] default. */
+    private fun JSONObject.toLockscreenRule(): LockscreenRule {
+        val default = LockscreenRule()
+        return LockscreenRule(
+            separate = optBoolean("separate", default.separate),
+            mode = runCatching { StatusBarHideMode.valueOf(optString("mode")) }.getOrNull() ?: default.mode,
+            triggers = triggers("triggers") ?: default.triggers,
+        )
     }
 
     /** The [CutoutKind] names in the array at [name], unknown names dropped; null when absent. */

@@ -297,6 +297,9 @@
     <string name="status_bar_hide_system_info_desc">Pil, Wi-Fi ve sinyal simgelerini sistem durum çubuğundan temizler ve adanın arkasını boş bırakır.</string>
     <string name="status_bar_hide_clock_title">Saati gizle</string>
     <string name="status_bar_hide_clock_desc">Saati sistem durum çubuğundan temizler.</string>
+    <string name="status_bar_lockscreen_separate_title">Kilit ekranı için farklı ayarlar</string>
+    <string name="status_bar_lockscreen_separate_desc">PIN, desen, parola veya parmak izi kilidi gerektirir. Yalnızca kaydırmalı kilit ekranı kilitli olarak algılanmaz, bu yüzden yukarıdaki kural orada geçerli olmaya devam eder.</string>
+    <string name="status_bar_lockscreen_mode_label">Kilit ekranında</string>
     <string name="status_bar_silence_alerts_title">Sistem uyarılarını sessize al</string>
     <string name="status_bar_silence_alerts_desc">“Bildirimleri otomatik olarak kapat” ile aynı fikir, ama daha güvenilir: sesleri, titreşimi ve uyarı bildirimlerini sistemin kendisi susturur, böylece sizi yalnızca ada uyarır.</string>
     <string name="permission_dot_title">İzin noktasını göster</string>

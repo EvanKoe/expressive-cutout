@@ -339,6 +339,9 @@
     <string name="status_bar_hide_system_info_desc">Clears the battery, Wi-Fi and signal icons from the system status bar, leaving it empty behind the island.</string>
     <string name="status_bar_hide_clock_title">Hide clock</string>
     <string name="status_bar_hide_clock_desc">Clears the clock from the system status bar.</string>
+    <string name="status_bar_lockscreen_separate_title">Different settings for lockscreen</string>
+    <string name="status_bar_lockscreen_separate_desc">Needs a PIN, pattern, password or fingerprint lock. A swipe-only lock screen is not detected as locked, so the rule above keeps applying there.</string>
+    <string name="status_bar_lockscreen_mode_label">On the lock screen</string>
     <string name="status_bar_silence_alerts_title">Silence system alerts</string>
     <string name="status_bar_silence_alerts_desc">Same idea as “Automatically dismiss notifications,” but more reliable: the system itself mutes sounds, vibration and heads-up pop-ups, so only the island alerts you.</string>
     <string name="permission_dot_title">Display permission dot</string>

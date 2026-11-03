@@ -339,6 +339,9 @@
     <string name="status_bar_hide_system_info_desc">Retire les icônes de batterie, Wi-Fi et réseau de la barre d’état système, la laissant vide derrière l’île.</string>
     <string name="status_bar_hide_clock_title">Masquer l’horloge</string>
     <string name="status_bar_hide_clock_desc">Retire l’horloge de la barre d’état système.</string>
+    <string name="status_bar_lockscreen_separate_title">Réglages différents sur l’écran de verrouillage</string>
+    <string name="status_bar_lockscreen_separate_desc">Nécessite un verrouillage par code PIN, schéma, mot de passe ou empreinte. Un écran de verrouillage par simple balayage n’est pas détecté comme verrouillé, la règle ci-dessus continue donc de s’y appliquer.</string>
+    <string name="status_bar_lockscreen_mode_label">Sur l’écran de verrouillage</string>
     <string name="status_bar_silence_alerts_title">Couper les alertes système</string>
     <string name="status_bar_silence_alerts_desc">Même idée que « Masquer automatiquement les notifications », mais plus fiable : le système lui-même coupe les sons, les vibrations et les pop-ups, pour que seule l’île vous alerte.</string>
     <string name="permission_dot_title">Afficher le point d’autorisation</string>

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,6 +33,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,6 +54,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutKind
+import com.ekoehler.expressivecutout.data.LockscreenRule
 import com.ekoehler.expressivecutout.data.StatusBarHideMode
 import com.ekoehler.expressivecutout.permissions.Permissions
 import com.ekoehler.expressivecutout.system.ShizukuState
@@ -61,14 +64,7 @@ import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionRows
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.SelectableOption
-
-/** Grouped-list item shape: rounded at the group's outer edges, tight between stacked items. */
-private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape(
-    topStart = if (isFirst) 24.dp else 4.dp,
-    topEnd = if (isFirst) 24.dp else 4.dp,
-    bottomStart = if (isLast) 24.dp else 4.dp,
-    bottomEnd = if (isLast) 24.dp else 4.dp,
-)
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 
 /**
  * "Shizuku options" screen (reached from the settings list). Houses the tweaks that need shell
@@ -92,6 +88,9 @@ internal fun ShizukuScreen(
     val iconsTriggers by viewModel.notificationIconsAutoTriggers.collectAsStateWithLifecycle()
     val systemInfoTriggers by viewModel.systemInfoAutoTriggers.collectAsStateWithLifecycle()
     val clockTriggers by viewModel.clockAutoTriggers.collectAsStateWithLifecycle()
+    val iconsLockscreen by viewModel.notificationIconsLockscreen.collectAsStateWithLifecycle()
+    val systemInfoLockscreen by viewModel.systemInfoLockscreen.collectAsStateWithLifecycle()
+    val clockLockscreen by viewModel.clockLockscreen.collectAsStateWithLifecycle()
     val silenceAlerts by viewModel.silenceSystemAlerts.collectAsStateWithLifecycle()
     val permissionDot by viewModel.permissionDotEnabled.collectAsStateWithLifecycle()
     val shizuku by ShizukuState.status.collectAsStateWithLifecycle()
@@ -161,6 +160,8 @@ internal fun ShizukuScreen(
                 onSelect = viewModel::setNotificationIconsMode,
                 triggers = iconsTriggers,
                 onTriggersChange = viewModel::setNotificationIconsAutoTriggers,
+                lockscreen = iconsLockscreen,
+                onLockscreenChange = viewModel::setNotificationIconsLockscreen,
                 enabled = ready,
             )
 
@@ -172,6 +173,8 @@ internal fun ShizukuScreen(
                 onSelect = viewModel::setSystemInfoMode,
                 triggers = systemInfoTriggers,
                 onTriggersChange = viewModel::setSystemInfoAutoTriggers,
+                lockscreen = systemInfoLockscreen,
+                onLockscreenChange = viewModel::setSystemInfoLockscreen,
                 enabled = ready,
             )
 
@@ -183,12 +186,14 @@ internal fun ShizukuScreen(
                 onSelect = viewModel::setClockMode,
                 triggers = clockTriggers,
                 onTriggersChange = viewModel::setClockAutoTriggers,
+                lockscreen = clockLockscreen,
+                onLockscreenChange = viewModel::setClockLockscreen,
                 enabled = ready,
             )
         }
 
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(isFirst = true, isLast = true),
             title = stringResource(R.string.status_bar_silence_alerts_title),
             description = stringResource(R.string.status_bar_silence_alerts_desc),
             checked = ready && silenceAlerts,
@@ -197,7 +202,7 @@ internal fun ShizukuScreen(
         )
 
         SettingsToggleNavCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(isFirst = true, isLast = true),
             title = stringResource(R.string.permission_dot_title),
             description = stringResource(R.string.permission_dot_desc),
             checked = ready && permissionDot,
@@ -214,6 +219,7 @@ internal fun ShizukuScreen(
  * battery and Wi-Fi alone until it grows, so each end wants its own rule.
  *
  * [StatusBarHideMode]'s declaration order is the option order, so the two can't drift apart.
+ * A switch at the bottom opens a [LockscreenRule] that overrides the rule while the device is locked.
  */
 @Composable
 private fun StatusBarHideModeCard(
@@ -224,6 +230,8 @@ private fun StatusBarHideModeCard(
     onSelect: (StatusBarHideMode) -> Unit,
     triggers: Set<CutoutKind>,
     onTriggersChange: (Set<CutoutKind>) -> Unit,
+    lockscreen: LockscreenRule,
+    onLockscreenChange: (LockscreenRule) -> Unit,
     enabled: Boolean,
 ) {
     val modes = StatusBarHideMode.entries
@@ -283,6 +291,76 @@ private fun StatusBarHideModeCard(
                         onTriggersChange(if (it in triggers) triggers - it else triggers + it)
                     },
                 )
+            }
+
+            // Lock-screen switch
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.status_bar_lockscreen_separate_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                    )
+                    Text(
+                        text = stringResource(R.string.status_bar_lockscreen_separate_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = lockscreen.separate,
+                    enabled = enabled,
+                    onCheckedChange = { onLockscreenChange(lockscreen.copy(separate = it)) },
+                )
+            }
+
+            // Lock-screen mode
+            AnimatedVisibility(
+                visible = lockscreen.separate,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = stringResource(R.string.status_bar_lockscreen_mode_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                    )
+
+                    ExpressiveSegmentedRow(
+                        options = labels,
+                        selectedIndex = modes.indexOf(lockscreen.mode),
+                        onSelect = { onLockscreenChange(lockscreen.copy(mode = modes[it])) },
+                        modifier = Modifier.fillMaxWidth(),
+                        disabledIndices = if (enabled) emptySet() else modes.indices.toSet(),
+                    )
+
+                    // Lock-screen auto triggers
+                    AnimatedVisibility(
+                        visible = lockscreen.mode == StatusBarHideMode.AUTO,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut(),
+                    ) {
+                        OptionSelectionRows(
+                            options = autoTriggerOptions,
+                            selectedValues = lockscreen.triggers,
+                            multiple = true,
+                            enabled = enabled,
+                            onSelectionChange = {
+                                val triggers = lockscreen.triggers
+                                onLockscreenChange(
+                                    lockscreen.copy(triggers = if (it in triggers) triggers - it else triggers + it)
+                                )
+                            },
+                        )
+                    }
+                }
             }
         }
     }
