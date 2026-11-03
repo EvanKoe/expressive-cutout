@@ -38,7 +38,11 @@ import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.JsonSerializable
+import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.JsonSettings
+import com.ekoehler.expressivecutout.data.SweWidget
 import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
@@ -90,6 +94,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val musicTilePreferences = MusicTilePreferences(application)
     private val phoneTilePreferences = PhoneTilePreferences(application)
     private val timerTilePreferences = TimerTilePreferences(application)
+    private val emptyPillInfoPreferences = EmptyPillInfoPreferences(application)
     private val appPreferences = AppPreferences(application)
     private val recentColorPreferences = RecentColorPreferences(application)
     private val statusBarPreferences = StatusBarPreferences(application)
@@ -213,6 +218,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = TimerTileSettings(),
         )
 
+    val emptyPillInfo: StateFlow<EmptyPillInfoSettings> =
+        emptyPillInfoPreferences.settings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = EmptyPillInfoSettings(),
+        )
+
     val layout: StateFlow<IslandLayout> =
         layoutPreferences.layout.stateIn(
             scope = viewModelScope,
@@ -260,6 +272,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.MUSIC_TILE to musicTilePreferences,
         JsonSettings.PHONE_TILE to phoneTilePreferences,
         JsonSettings.TIMER_TILE to timerTilePreferences,
+        JsonSettings.EMPTY_PILL_INFO to emptyPillInfoPreferences,
         JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
         JsonSettings.STATUS_BAR to statusBarPreferences,
@@ -754,29 +767,53 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowsWhenEmpty(enabled)
     }
 
-    fun setShowsWhenEmptyShowIcon(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
-    }
-
     /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
     fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowStatusDot(enabled)
     }
 
-    fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Image(uri))
+    /** Appends [widget] to the end of [side]'s list on the resting pill. */
+    fun addSweWidget(side: InfoSide, widget: SweWidget) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { it.withSide(side, it.on(side) + widget) }
     }
 
-    fun setShowsWhenEmptyMaterialIcon(iconName: String) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Material(iconName))
+    /** Replaces the stored widget that has [widget]'s id with [widget], keeping its side and place. */
+    fun updateSweWidget(widget: SweWidget) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            s.copy(
+                left = s.left.map { if (it.id == widget.id) widget else it },
+                right = s.right.map { if (it.id == widget.id) widget else it },
+            )
+        }
     }
 
-    fun resetShowsWhenEmptyIcon() = viewModelScope.launch {
-        behaviourPreferences.clearShowsWhenEmptyIcon()
+    /** Moves the widget with [id] by [delta] places within its own side; out-of-range moves do nothing. */
+    fun moveSweWidget(id: String, delta: Int) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            val side = s.sideOf(id) ?: return@update s
+            val list = s.on(side)
+            val from = list.indexOfFirst { it.id == id }
+            val to = from + delta
+            if (to !in list.indices) return@update s
+            s.withSide(side, list.toMutableList().apply { add(to, removeAt(from)) })
+        }
     }
 
-    fun setShowsWhenEmptyIconColor(color: CutoutColor?) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIconColor(color)
+    /** Moves the widget with [id] to the end of [side]; nothing happens if it is already there. */
+    fun setSweWidgetSide(id: String, side: InfoSide) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            val from = s.sideOf(id) ?: return@update s
+            if (from == side) return@update s
+            val widget = s.on(from).first { it.id == id }
+            s.withSide(from, s.on(from).filterNot { it.id == id }).withSide(side, s.on(side) + widget)
+        }
+    }
+
+    /** Removes the widget with [id] from whichever side holds it. */
+    fun removeSweWidget(id: String) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            s.copy(left = s.left.filterNot { it.id == id }, right = s.right.filterNot { it.id == id })
+        }
     }
 
     fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = viewModelScope.launch {

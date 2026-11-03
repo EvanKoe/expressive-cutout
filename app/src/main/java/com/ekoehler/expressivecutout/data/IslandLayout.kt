@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.data
 
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -232,6 +233,53 @@ fun IslandDimensions.asSplitCallCutout(
         notchFlareDp = notchFlareDp,
     )
 }
+
+/**
+ * The resting pill when it carries clock / unread / battery info: the user's own collapsed geometry,
+ * widened if need be so [leftDp] and [rightDp] of content fit either side of the camera hole, and
+ * shifted so the hole stays between the two. Unchanged when there is no content on either side.
+ *
+ * @param displayWidthDp the screen width, since [IslandDimensions] stores width as a percentage of it.
+ * @param cameraRightEdgeDp the camera cutout's right edge from the screen's horizontal centre, or
+ *   null when the device won't report one — then [DEFAULT_CAMERA_RADIUS_DP] stands in.
+ * @param centerIfFits keep the pill exactly as sized when both sides already fit beside the camera
+ *   inside it — used when only the permission dots are shown, so they don't pull the pill off-centre.
+ */
+fun IslandDimensions.asEmptyInfoCutout(
+    displayWidthDp: Int,
+    leftDp: Float,
+    rightDp: Float,
+    cameraRightEdgeDp: Float? = null,
+    centerIfFits: Boolean = false,
+): IslandDimensions {
+    if (leftDp <= 0f && rightDp <= 0f) return this
+    val cameraRight = cameraRightEdgeDp ?: DEFAULT_CAMERA_RADIUS_DP
+    if (centerIfFits) {
+        val halfDp = displayWidthDp * widthPercent / 200f
+        val leftRoom = halfDp - offsetXDp - cameraRight - TINY_CAMERA_GAP_DP
+        val rightRoom = halfDp + offsetXDp - cameraRight - TINY_CAMERA_GAP_DP
+        if (leftDp <= leftRoom && rightDp <= rightRoom) return this
+    }
+    val needed = leftDp + cameraRight * 2f + rightDp + TINY_CAMERA_GAP_DP * 2f + EMPTY_INFO_SAFETY_DP
+    val currentDp = displayWidthDp * widthPercent / 100f
+    val percent = if (displayWidthDp > 0) (max(currentDp, needed) * 100f / displayWidthDp).roundToInt() else widthPercent
+    return IslandDimensions.of(
+        widthPercent = percent,
+        heightDp = heightDp,
+        offsetXDp = offsetXDp + ((rightDp - leftDp) / 2f).roundToInt(),
+        offsetYDp = offsetYDp,
+        cornerTopLeftDp = cornerTopLeftDp,
+        cornerTopRightDp = cornerTopRightDp,
+        cornerBottomLeftDp = cornerBottomLeftDp,
+        cornerBottomRightDp = cornerBottomRightDp,
+        topMarginDp = topMarginDp,
+        isNotch = isNotch,
+        notchFlareDp = notchFlareDp,
+    )
+}
+
+/** Slack added to the info pill's computed width so rounding never clips its content. */
+private const val EMPTY_INFO_SAFETY_DP = 4f
 
 /** How much wider than it is tall the tiny cutout is — just enough for its glyph. */
 private const val TINY_WIDTH_RATIO = 1.8f

@@ -1,8 +1,5 @@
 package com.ekoehler.expressivecutout.ui.screen
 
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Search
@@ -56,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -67,51 +62,32 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.EmptyClickAction
-import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.CenterShortcutCatalog
 import com.ekoehler.expressivecutout.overlay.resolve
-import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.PageTitle
-import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The empty pill's detail screen, reached from the Behaviour list. Lets the user give the resting
- * (event-less) pill a glyph: a "Show icon" toggle, and — while it's on — an icon picker (a custom
- * image or a built-in Material icon) plus a container-colour picker for the disc behind it.
+ * The empty pill's detail screen, reached from the Behaviour list. Lets the user build the resting
+ * (event-less) pill out of widgets on either side of the camera with [SweWidgetEditor], and choose
+ * what tapping it does.
  */
 @Composable
 internal fun ShowsWhenEmptyScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
 ) {
-    val context = LocalContext.current
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
-    val showIcon = behaviour.showsWhenEmptyShowIcon
-    val source = behaviour.showsWhenEmptyIcon
-    val containerColor = behaviour.showsWhenEmptyIconColor
+    val info by viewModel.emptyPillInfo.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
     val clickAction = behaviour.showsWhenEmptyClickAction
     val clickPackage = behaviour.showsWhenEmptyClickPackage
 
-    var showIconSheet by remember { mutableStateOf(false) }
-    var showMaterialPicker by remember { mutableStateOf(false) }
     var showAppPicker by remember { mutableStateOf(false) }
     var showAddShortcut by remember { mutableStateOf(false) }
     var showCenterAppPicker by remember { mutableStateOf(false) }
-
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            viewModel.setShowsWhenEmptyImageIcon(uri.toString())
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -122,51 +98,16 @@ internal fun ShowsWhenEmptyScreen(
     ) {
         PageTitle(text = stringResource(R.string.behaviour_empty_pill))
 
-        SettingsToggleCard(
-            shape = RoundedCornerShape(32.dp),
-            title = stringResource(R.string.shows_when_empty_show_icon),
-            description = stringResource(R.string.shows_when_empty_show_icon_desc),
-            checked = showIcon,
-            onCheckedChange = viewModel::setShowsWhenEmptyShowIcon,
+        // Widgets
+        SweWidgetEditor(
+            settings = info,
+            collapsed = layout.collapsed,
+            onAdd = viewModel::addSweWidget,
+            onUpdate = viewModel::updateSweWidget,
+            onMove = viewModel::moveSweWidget,
+            onSetSide = viewModel::setSweWidgetSide,
+            onRemove = viewModel::removeSweWidget,
         )
-
-        // The icon + colour controls only make sense once the icon is switched on.
-        AnimatedVisibility(visible = showIcon) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Hero: the chosen icon at a glance, plus the "change icon" action.
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        EmptyIconThumbnail(source = source, containerColor = containerColor, size = 76.dp)
-                        FilledTonalButton(onClick = { showIconSheet = true }) {
-                            Icon(imageVector = Icons.Rounded.Edit, contentDescription = null)
-                            Text(
-                                text = stringResource(R.string.event_change_icon),
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
-                    }
-                }
-
-                // The colour of the disc drawn behind the glyph on the pill.
-                ColorPickerCard(
-                    label = stringResource(R.string.shows_when_empty_container_color),
-                    selected = containerColor,
-                    onSelect = { viewModel.setShowsWhenEmptyIconColor(it) },
-                    defaultLabel = stringResource(R.string.label_default),
-                    defaultColor = Color.White,
-                )
-            }
-        }
 
         // What tapping the resting pill does: nothing, open an app, or expand the shortcut center.
         Card(
@@ -263,35 +204,6 @@ internal fun ShowsWhenEmptyScreen(
                 )
             }
         }
-    }
-
-    if (showIconSheet) {
-        IconChooserSheet(
-            hasOverride = source != null,
-            onChooseImage = {
-                showIconSheet = false
-                imagePicker.launch(arrayOf("image/*"))
-            },
-            onChooseMaterial = {
-                showIconSheet = false
-                showMaterialPicker = true
-            },
-            onUseDefault = {
-                showIconSheet = false
-                viewModel.resetShowsWhenEmptyIcon()
-            },
-            onDismiss = { showIconSheet = false },
-        )
-    }
-
-    if (showMaterialPicker) {
-        MaterialIconPickerSheet(
-            onPick = { iconName ->
-                showMaterialPicker = false
-                viewModel.setShowsWhenEmptyMaterialIcon(iconName)
-            },
-            onDismiss = { showMaterialPicker = false },
-        )
     }
 
     if (showAppPicker) {
