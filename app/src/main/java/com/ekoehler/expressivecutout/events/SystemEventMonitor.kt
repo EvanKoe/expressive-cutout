@@ -130,7 +130,10 @@ class SystemEventMonitor(
                     }
                 }
                 Intent.ACTION_BATTERY_OKAY -> {
-                    isLowBatteryState = false
+                    if (isLowBatteryState) {
+                        isLowBatteryState = false
+                        IslandEventBus.emit(CutoutSignal.SystemEnded(SystemEventType.BATTERY_LOW))
+                    }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
                     onScreenOff()

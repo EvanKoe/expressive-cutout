@@ -49,6 +49,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.core.stateFamily
 import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -244,6 +245,7 @@ class IslandOverlayController(private val context: Context) {
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
+    private var eventPersistent: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
     private var eventColors: Map<SystemEventType, CutoutColor> = emptyMap()
@@ -317,6 +319,14 @@ class IslandOverlayController(private val context: Context) {
     private var isDeviceLocked = false
     private var lastLockEvent: IslandEvent? = null
 
+    /**
+     * The one system event kept up for as long as its state lasts (its "Persistent event" switch is
+     * on), and its type. Like [lastLockEvent] it is what the pill returns to after an interruption;
+     * both are cleared when a same-family signal ends it or the user dismisses it.
+     */
+    private var persistentEvent: IslandEvent? = null
+    private var persistentType: SystemEventType? = null
+
     /** A neutral sample shown while the settings screen pins the island open. */
     private val previewEvent by lazy {
         IslandEvent(
@@ -373,6 +383,7 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeEventDurations()
+        observeEventPersistent()
         observeEventAnimatedIcons()
         observeEventColors()
         observeEventDynamicColor()
@@ -534,6 +545,12 @@ class IslandOverlayController(private val context: Context) {
                 dismissJob?.cancel()
                 expanded = false
                 currentEvent.value = lastLockEvent
+            }
+            persistentEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentSystemEventType = persistentType
+                currentEvent.value = persistentEvent
             }
             isDeviceLocked -> {
                 showLockedEvent()
@@ -809,6 +826,58 @@ class IslandOverlayController(private val context: Context) {
     /** Mirrors the per-event duration overrides into [eventDurations]. */
     private fun observeEventDurations() = scope.launch {
         eventPreferences.durations.collect { eventDurations = it }
+    }
+
+    /**
+     * Mirrors the per-event "Persistent event" switches into [eventPersistent], and lets go of the
+     * recorded persistent event at once if its own switch was just turned off.
+     */
+    private fun observeEventPersistent() = scope.launch {
+        eventPreferences.persistent.collect {
+            eventPersistent = it
+            releasePersistentIfSwitchedOff()
+        }
+    }
+
+    /**
+     * Whether [type] is kept up while its state lasts. [SystemEventType.DEVICE_LOCKED] is excluded:
+     * it is always pinned through [isDeviceLocked] instead.
+     */
+    private fun isPersistentType(type: SystemEventType): Boolean =
+        type != SystemEventType.DEVICE_LOCKED && eventPersistent[type] == true
+
+    /**
+     * Hands the recorded persistent event back to a normal dismiss timer, wherever it sits, once its
+     * switch is off — so the change takes effect while the event is still shown.
+     */
+    private fun releasePersistentIfSwitchedOff() {
+        val type = persistentType ?: return
+        val event = persistentEvent ?: return
+        if (isPersistentType(type)) return
+        persistentEvent = null
+        persistentType = null
+        if (currentEvent.value?.id == event.id) scheduleDismiss()
+        satelliteEvent.value?.takeIf { it.id == event.id }
+            ?.let { parkInSatellite(it, systemEventDeadline(type), type) }
+    }
+
+    /**
+     * Ends the persistent event of [type]'s state family, if one is up. Called before the enabled
+     * filter so a switched-off counterpart event still ends it. When the incoming event will take
+     * over the very slot it sits in ([incomingTakesOver]) the swap is left to
+     * [replaceSystemEventIfNeeded]; otherwise it is taken off the island here.
+     */
+    private fun endPersistentEvent(type: SystemEventType, incomingTakesOver: Boolean) {
+        val ended = persistentEvent ?: return
+        if (persistentType?.stateFamily != type.stateFamily) return
+        persistentEvent = null
+        persistentType = null
+        if (savedEventBeforeHide?.id == ended.id) savedEventBeforeHide = null
+        val inPill = currentEvent.value?.id == ended.id
+        val inBubble = !inPill && satelliteEvent.value?.id == ended.id
+        val slotType = if (inPill) currentSystemEventType else satelliteSystemEventType
+        if (incomingTakesOver && slotType?.stateFamily == type.stateFamily) return
+        if (inPill) dismissIsland() else if (inBubble) clearSatellite()
     }
 
     /**
@@ -1116,8 +1185,16 @@ class IslandOverlayController(private val context: Context) {
     /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */
     private fun isPinnedLock(): Boolean = isDeviceLocked && currentEvent.value?.id == lastLockEvent?.id
 
-    /** Any live tile (music, a call, a running timer, or lock status) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedLock()
+    /** The persistent system event is the one on the pill, so it gets no dismiss timer. */
+    private fun isPinnedPersistent(): Boolean =
+        persistentEvent != null && currentEvent.value?.id == persistentEvent?.id
+
+    /**
+     * Any live tile (music, a call, a running timer, lock status, or a persistent system event) is
+     * currently pinned up.
+     */
+    private fun isPinnedLiveTile(): Boolean =
+        isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedLock() || isPinnedPersistent()
 
     /**
      * Mirrors the island geometry, re-sizing the window as it changes so a slider drag in settings
@@ -2040,10 +2117,15 @@ class IslandOverlayController(private val context: Context) {
         return true
     }
 
-    /** Calculates the expiry time for a transient system event. */
-    private fun systemEventDeadline(type: SystemEventType): Long =
-        System.currentTimeMillis() +
+    /**
+     * Calculates the expiry time for a transient system event, or null for a persistent one, which
+     * has no timer and leaves when its state ends.
+     */
+    private fun systemEventDeadline(type: SystemEventType): Long? {
+        if (isPersistentType(type)) return null
+        return System.currentTimeMillis() +
             (eventDurations[type] ?: behaviourState.value.normalDurationSeconds) * 1_000L
+    }
 
     /**
      * The single consumer of [IslandEventBus]: turns each signal into a pill or a live tile,
@@ -2051,6 +2133,19 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
+            // An end signal only ever ends a persistent event; it has nothing of its own to show
+            if (signal is CutoutSignal.SystemEnded) {
+                endPersistentEvent(signal.type, incomingTakesOver = false)
+                return@collect
+            }
+            // Must precede the enabled filter below: a switched-off counterpart still ends the state
+            if (signal is CutoutSignal.System) {
+                endPersistentEvent(
+                    signal.type,
+                    incomingTakesOver = eventEnabled[signal.type] != false &&
+                        behaviourState.value.cutoutEnabled && !overlayHidden,
+                )
+            }
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
@@ -2077,6 +2172,7 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
+                is CutoutSignal.SystemEnded -> false
             }
             // "Normal only": this app's pill has no expanded state at all. Suppressing auto-expand
             // here keeps the window from ever being sized for it; the flag carried on the event is
@@ -2131,6 +2227,10 @@ class IslandOverlayController(private val context: Context) {
                                 isDeviceLocked = false
                                 lastLockEvent = null
                             }
+                            if (isPersistentType(signal.type)) {
+                                persistentEvent = resolvedEvent
+                                persistentType = signal.type
+                            }
                         }
                         else -> {}
                     }
@@ -2139,6 +2239,12 @@ class IslandOverlayController(private val context: Context) {
             }
 
             if (!behaviourState.value.cutoutEnabled) return@collect
+
+            val previousPersistentId = persistentEvent?.id
+            if (signal is CutoutSignal.System && isPersistentType(signal.type)) {
+                persistentEvent = resolvedEvent
+                persistentType = signal.type
+            }
 
             if (signal is CutoutSignal.System &&
                 replaceSystemEventIfNeeded(signal.type, resolvedEvent)
@@ -2163,6 +2269,13 @@ class IslandOverlayController(private val context: Context) {
             restoreSlotsOnCollapse = false
             demoteToSatellite(existing, resolvedEvent, currentDeadlineMs)
             currentDeadlineMs = null
+            // Only the latest persistent event is kept, so an older one parked in the bubble would
+            // never be ended by its own signal
+            if (previousPersistentId != null && previousPersistentId != persistentEvent?.id &&
+                satelliteEvent.value?.id == previousPersistentId
+            ) {
+                clearSatellite()
+            }
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = if (isNoExpandLandscape) false else null
@@ -2321,7 +2434,7 @@ class IslandOverlayController(private val context: Context) {
         val event = currentEvent.value
         val intent = event?.contentIntent
         val action = event?.actionIntentAction
-        if (isPinnedLiveTile()) {
+        if (isPinnedLiveTile() && !isPinnedPersistent()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
             return
@@ -2465,6 +2578,11 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun dismissIsland() {
         dismissJob?.cancel()
+        // A persistent pill that leaves the island was dismissed (or ended): it must not come back
+        if (isPinnedPersistent()) {
+            persistentEvent = null
+            persistentType = null
+        }
         restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
@@ -2495,6 +2613,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun livePillToReturnTo(): IslandEvent? =
         callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo() ?: lockPillToReturnTo()
+            ?: persistentPillToReturnTo()
 
     /** True while a live pill occupies either slot (so we never "return" on top of one). */
     private fun showingLiveTile(): Boolean =
@@ -2502,7 +2621,8 @@ class IslandOverlayController(private val context: Context) {
 
     /** Whether [event] is one of the live tiles, in whichever slot it happens to sit. */
     private fun isLiveTileEvent(event: IslandEvent?): Boolean = event?.let {
-        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id)
+        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id) ||
+            it.id == persistentEvent?.id
     } == true
 
     /**
@@ -2515,6 +2635,7 @@ class IslandOverlayController(private val context: Context) {
         is CutoutSignal.Call -> packageName
         is CutoutSignal.Timer -> packageName
         is CutoutSignal.System -> null
+        is CutoutSignal.SystemEnded -> null
     }
 
     /**
@@ -2561,6 +2682,18 @@ class IslandOverlayController(private val context: Context) {
         if (eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return null
         if (!behaviourState.value.cutoutEnabled) return null
         return lastLockEvent?.copy(initiallyExpanded = false)
+    }
+
+    /**
+     * The persistent system event's pill to fall back to once an interrupting pill is done, or null
+     * when none is up, it is already on screen, or its event has since been switched off.
+     */
+    private fun persistentPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        val type = persistentType ?: return null
+        if (eventEnabled[type] == false) return null
+        if (!behaviourState.value.cutoutEnabled) return null
+        return persistentEvent?.copy(initiallyExpanded = false)
     }
 
     /**

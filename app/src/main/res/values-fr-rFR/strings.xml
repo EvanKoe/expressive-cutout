@@ -617,6 +617,8 @@
     <string name="event_duration_label">Durée sur l’encoche</string>
     <string name="event_duration_desc">Combien de temps cet évènement reste sur l’encoche avant de disparaître</string>
     <string name="event_duration_reset">Réinitialiser par défaut</string>
+    <string name="event_persistent_title">Évènement persistant</string>
+    <string name="event_persistent_desc">Garder cet évènement sur l’encoche tant qu’il est vrai, au lieu de le masquer après la durée sur l’encoche</string>
     <string name="event_color_title">Couleur de l’évènement</string>
     <string name="event_color_reset">Réinitialiser par défaut</string>
     <string name="event_color_default_accent">Couleur par défaut</string>

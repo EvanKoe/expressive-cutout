@@ -100,6 +100,7 @@ class IconResolver(private val context: Context) {
             is CutoutSignal.Call -> signal.packageName
             is CutoutSignal.Timer -> signal.packageName
             is CutoutSignal.System -> null
+            is CutoutSignal.SystemEnded -> null
         }
         val appColor = packageName?.let { AppIconColorExtractor.extractAppColor(context, it) }
 
@@ -126,6 +127,7 @@ class IconResolver(private val context: Context) {
             is CutoutSignal.Music -> resolveMusic(signal, signal.packageName, appColor, musicSettings)
             is CutoutSignal.Call -> resolveCall(signal, signal.packageName, appColor, phoneSettings)
             is CutoutSignal.Timer -> resolveTimer(signal, signal.packageName, appColor, timerSettings)
+            is CutoutSignal.SystemEnded -> error("SystemEnded is consumed by the controller, never resolved")
         }
     }
 

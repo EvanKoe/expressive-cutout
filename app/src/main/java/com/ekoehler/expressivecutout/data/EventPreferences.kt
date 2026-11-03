@@ -76,6 +76,17 @@ class EventPreferences(private val context: Context) : JsonSerializable {
     }
 
     /**
+     * Per-event choice for whether the event stays on the cutout for as long as its state lasts
+     * instead of auto-dismissing after the cutout duration. Only events the user has explicitly
+     * toggled appear here; absent means off.
+     */
+    val persistent: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            prefs[type.persistentKey]?.let { enabled -> type to enabled }
+        }.toMap()
+    }
+
+    /**
      * Per-event choice for whether the animated icon loops (else it plays once and holds). Absent
      * means the event's own built-in default (see [animationLoopsByDefault]).
      */
@@ -97,7 +108,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
     }
 
     /**
-     * Exports every per-event setting as JSON. The four [SystemEventType]-keyed maps become nested
+     * Exports every per-event setting as JSON. The five [SystemEventType]-keyed maps become nested
      * objects whose keys are the event-type names (a JSONObject key must be a String, so the enum
      * key is converted with [Enum.name]); per-event colours are their [CutoutColor.serialize] strings.
      */
@@ -112,6 +123,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
             put("dynamicColorOpacity", dynamicColorOpacity.first().toDouble())
             put("durations", durations.first().toJsonObject { it })
             put("animatedIcons", animatedIcons.first().toJsonObject { it })
+            put("persistent", persistent.first().toJsonObject { it })
             put("animatedIconLoops", animatedIconLoops.first().toJsonObject { it })
             put("colors", colors.first().toJsonObject { it.serialize() })
         }.toString()
@@ -120,7 +132,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
     /**
      * Applies every per-event setting exported by [toJson]. The [enabled] map is dense (one entry
      * per event, defaulting an absent name to enabled); the sparse override maps (durations, animated
-     * icons, loops, colours) are applied as a full replacement — an event present in the map gets its
+     * icons, persistent, loops, colours) are applied as a full replacement — an event present in the map gets its
      * override, an event absent has any existing override cleared — so the imported state matches the
      * document exactly. Done in one edit.
      */
@@ -129,6 +141,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         val enabled = obj.optJSONObject("enabled")
         val durations = obj.optJSONObject("durations")
         val animated = obj.optJSONObject("animatedIcons")
+        val persistent = obj.optJSONObject("persistent")
         val loops = obj.optJSONObject("animatedIconLoops")
         val colors = obj.optJSONObject("colors")
 
@@ -141,6 +154,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
                 }
                 animated?.let {
                     if (it.has(name)) prefs[type.animatedKey] = it.getBoolean(name) else prefs.remove(type.animatedKey)
+                }
+                persistent?.let {
+                    if (it.has(name)) prefs[type.persistentKey] = it.getBoolean(name) else prefs.remove(type.persistentKey)
                 }
                 loops?.let {
                     if (it.has(name)) prefs[type.loopKey] = it.getBoolean(name) else prefs.remove(type.loopKey)
@@ -187,6 +203,10 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         it[type.animatedKey] = enabled
     }
 
+    suspend fun setPersistent(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
+        it[type.persistentKey] = enabled
+    }
+
     suspend fun setAnimatedIconLoop(type: SystemEventType, loop: Boolean) = context.eventDataStore.edit {
         it[type.loopKey] = loop
     }
@@ -212,6 +232,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
 
     private val SystemEventType.animatedKey: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_animated_$name")
+
+    private val SystemEventType.persistentKey: Preferences.Key<Boolean>
+        get() = booleanPreferencesKey("event_persistent_$name")
 
     private val SystemEventType.loopKey: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_animated_loop_$name")

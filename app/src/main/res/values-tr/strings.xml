@@ -570,6 +570,8 @@
     <string name="event_duration_label">Çentik süresi</string>
     <string name="event_duration_desc">Bu olayın kaybolmadan önce çentikte ne kadar süre kalacağı</string>
     <string name="event_duration_reset">Varsayılana sıfırla</string>
+    <string name="event_persistent_title">Kalıcı olay</string>
+    <string name="event_persistent_desc">Bu olayı, çentik süresi sonunda gizlemek yerine geçerli olduğu sürece çentikte tut</string>
     <string name="event_color_title">Olay rengi</string>
     <string name="event_color_reset">Varsayılana sıfırla</string>
     <string name="event_color_default_accent">Varsayılan renk</string>

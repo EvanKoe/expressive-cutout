@@ -103,6 +103,12 @@ sealed interface CutoutSignal {
         )
     }
 
+    /**
+     * The state behind a system event ended with no opposite event to announce it (for example
+     * the battery recovering from low), so a persistent tile of [type] must be dismissed.
+     */
+    data class SystemEnded(val type: SystemEventType) : CutoutSignal
+
     /** Media started playing on the device (surfaced from any app's media session). */
     data class Music(
         val packageName: String,

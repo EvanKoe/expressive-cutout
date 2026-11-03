@@ -146,6 +146,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    /** Per system event: whether it stays on the cutout while its state lasts (absent = off). */
+    val eventPersistent: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.persistent.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val eventAnimatedIconLoops: StateFlow<Map<SystemEventType, Boolean>> =
         eventPreferences.animatedIconLoops.stateIn(
             scope = viewModelScope,
@@ -353,6 +361,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventDuration(type: SystemEventType, seconds: Int) = viewModelScope.launch {
         eventPreferences.setDuration(type, seconds)
+    }
+
+    fun setEventPersistent(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setPersistent(type, enabled)
     }
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {

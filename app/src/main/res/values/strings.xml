@@ -617,6 +617,8 @@
     <string name="event_duration_label">Cutout duration</string>
     <string name="event_duration_desc">How long this event stays on the cutout before it disappears</string>
     <string name="event_duration_reset">Reset to default</string>
+    <string name="event_persistent_title">Persistent event</string>
+    <string name="event_persistent_desc">Keep this event on the cutout for as long as it is true, instead of hiding it after the cutout duration</string>
     <string name="event_color_title">Event colour</string>
     <string name="event_color_reset">Reset to default</string>
     <string name="event_color_default_accent">Default colour</string>
