@@ -103,6 +103,12 @@ sealed interface CutoutSignal {
         )
     }
 
+    /**
+     * The state behind a system event ended with no opposite event to announce it (for example
+     * the battery recovering from low), so a persistent tile of [type] must be dismissed.
+     */
+    data class SystemEnded(val type: SystemEventType) : CutoutSignal
+
     /** Media started playing on the device (surfaced from any app's media session). */
     data class Music(
         val packageName: String,
@@ -145,15 +151,6 @@ sealed interface CutoutSignal {
         /** The clock app's tap action, opened when the user taps the expanded island. */
         val contentIntent: PendingIntent? = null,
         val actions: List<Notification.Action> = emptyList(),
-    ) : CutoutSignal
-
-    /** Voice assistant activity or response (surfaced from voice assistant media session / app). */
-    data class Assistant(
-        val packageName: String,
-        val title: String? = null,
-        val text: String? = null,
-        val contentIntent: PendingIntent? = null,
-        val active: Boolean = true,
     ) : CutoutSignal
 }
 

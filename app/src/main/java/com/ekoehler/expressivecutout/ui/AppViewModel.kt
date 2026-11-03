@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ekoehler.expressivecutout.core.CutoutKind
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.core.stateFamily
@@ -23,8 +24,6 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.SentAlignment
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
@@ -44,6 +43,7 @@ import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.LockscreenRule
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
 import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
@@ -91,7 +91,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val musicTilePreferences = MusicTilePreferences(application)
     private val phoneTilePreferences = PhoneTilePreferences(application)
     private val timerTilePreferences = TimerTilePreferences(application)
-    private val assistantTilePreferences = AssistantTilePreferences(application)
     private val appPreferences = AppPreferences(application)
     private val recentColorPreferences = RecentColorPreferences(application)
     private val statusBarPreferences = StatusBarPreferences(application)
@@ -143,6 +142,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** For events with a Lottie animation: whether it's used (absent = on) and whether it loops. */
     val eventAnimatedIcons: StateFlow<Map<SystemEventType, Boolean>> =
         eventPreferences.animatedIcons.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
+    /** Per system event: whether it stays on the cutout while its state lasts (absent = off). */
+    val eventPersistent: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.persistent.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
@@ -207,13 +214,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = TimerTileSettings(),
         )
 
-    val assistantTile: StateFlow<AssistantTileSettings> =
-        assistantTilePreferences.settings.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = AssistantTileSettings(),
-        )
-
     val layout: StateFlow<IslandLayout> =
         layoutPreferences.layout.stateIn(
             scope = viewModelScope,
@@ -261,7 +261,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.MUSIC_TILE to musicTilePreferences,
         JsonSettings.PHONE_TILE to phoneTilePreferences,
         JsonSettings.TIMER_TILE to timerTilePreferences,
-        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
         JsonSettings.APPS to appPreferences,
         JsonSettings.RECENT_COLORS to recentColorPreferences,
         JsonSettings.STATUS_BAR to statusBarPreferences,
@@ -363,6 +362,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEventDuration(type: SystemEventType, seconds: Int) = viewModelScope.launch {
         eventPreferences.setDuration(type, seconds)
+    }
+
+    fun setEventPersistent(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setPersistent(type, enabled)
     }
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
@@ -523,22 +526,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTimerAddButtonColor(color: CutoutColor) = viewModelScope.launch {
         timerTilePreferences.setAddButtonColor(color)
-    }
-
-    fun setAssistantDisplayAnswerInCutout(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setDisplayAnswerInCutout(enabled)
-    }
-
-    fun setAssistantMaxCutoutHeightPercent(percent: Int) = viewModelScope.launch {
-        assistantTilePreferences.setMaxCutoutHeightPercent(percent)
-    }
-
-    fun setAssistantIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
-        assistantTilePreferences.setIconContainerColor(color)
-    }
-
-    fun setAssistantUseAnimatedIcon(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setUseAnimatedIcon(enabled)
     }
 
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {
@@ -889,6 +876,78 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setClockMode(mode: StatusBarHideMode) = viewModelScope.launch {
         statusBarPreferences.setClockMode(mode)
+    }
+
+    /** The [CutoutKind]s that hide the notification icons while their mode is AUTO. */
+    val notificationIconsAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.notificationIconsAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setNotificationIconsAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the system info icons while their mode is AUTO. */
+    val systemInfoAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.systemInfoAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setSystemInfoAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the clock while its mode is AUTO. */
+    val clockAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.clockAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setClockAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setClockAutoTriggers(triggers)
+    }
+
+    /** The lock-screen override for the notification icons rule. */
+    val notificationIconsLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.notificationIconsLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setNotificationIconsLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsLockscreen(rule)
+    }
+
+    /** The lock-screen override for the system info icons rule. */
+    val systemInfoLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.systemInfoLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setSystemInfoLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoLockscreen(rule)
+    }
+
+    /** The lock-screen override for the clock rule. */
+    val clockLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.clockLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setClockLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setClockLockscreen(rule)
     }
 
     /**

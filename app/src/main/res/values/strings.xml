@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Expressive Cutout</string>
     <string name="accessibility_service_label">Expressive Cutout overlay</string>
-    <string name="accessibility_service_description">Draws a small dynamic island over the camera cutout to surface notifications and system events. It reads which app is in the foreground, and reads text from assistant apps only, so it can show their answers in the island. Nothing it reads is ever stored or sent anywhere — the app has no internet access.</string>
+    <string name="accessibility_service_description">Draws a small dynamic island over the camera cutout to surface notifications and system events. It reads only which app is in the foreground. Nothing it reads is ever stored or sent anywhere — the app has no internet access.</string>
     <string name="notification_service_label">Expressive Cutout notifications</string>
 
     <!-- System event labels shown inside the island -->
@@ -63,16 +63,6 @@
     <string name="tile_phone_desc">Show the current call, caller and controls</string>
     <string name="tile_timer">Timer</string>
     <string name="tile_timer_desc">Show a running countdown timer on the cutout</string>
-    <string name="tile_assistant">Assistant</string>
-    <string name="tile_assistant_desc">Show voice assistant speech and responses on the cutout</string>
-    <string name="assistant_display_answer_title">Display assistant answer in cutout</string>
-    <string name="assistant_display_answer_desc">Show the text response of the voice assistant in the cutout</string>
-    <string name="assistant_max_height_title">Max cutout height</string>
-    <string name="assistant_max_height_desc">Share of the screen height the answer can fill</string>
-    <string name="assistant_max_height_value">%1$d%%</string>
-    <string name="assistant_tile_note">When enabled, voice assistant responses are surfaced on this dynamic tile instead of falling into the music tile.</string>
-    <string name="assistant_animated_icon_title">Use animated icon</string>
-    <string name="assistant_animated_icon_desc">Show an animated sparkles icon instead of the static assistant glyph</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
@@ -333,7 +323,15 @@
     <string name="status_bar_hide_mode_off">Off</string>
     <string name="status_bar_hide_mode_auto">Auto</string>
     <string name="status_bar_hide_mode_always">Always</string>
-    <string name="status_bar_hide_mode_note">“Auto” hides only while the cutout is wider than usual — during a call, or while the island is expanded. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
+    <string name="status_bar_hide_mode_note">“Auto” hides only for the cutouts ticked below. “Always” keeps it hidden the whole time, for a pill that already covers that end of the bar at rest.</string>
+    <string name="status_bar_auto_trigger_normal">Normal cutout</string>
+    <string name="status_bar_auto_trigger_normal_desc">When any island appears</string>
+    <string name="status_bar_auto_trigger_mini">Mini cutout</string>
+    <string name="status_bar_auto_trigger_mini_desc">Mini player or mini call</string>
+    <string name="status_bar_auto_trigger_wide">Wider cutouts</string>
+    <string name="status_bar_auto_trigger_wide_desc">Call and satellite islands</string>
+    <string name="status_bar_auto_trigger_expanded">Expanded cutout</string>
+    <string name="status_bar_auto_trigger_expanded_desc">When the island is expanded</string>
     <string name="status_bar_hide_icons_title">Hide notification icons</string>
     <string name="status_bar_hide_icons_desc">Clears notification icons from the system status bar, so only the island reports them.</string>
     <string name="status_bar_hide_icons_note">Android forgets this on reboot. Restart Shizuku and open this app once to put it back.</string>
@@ -341,6 +339,9 @@
     <string name="status_bar_hide_system_info_desc">Clears the battery, Wi-Fi and signal icons from the system status bar, leaving it empty behind the island.</string>
     <string name="status_bar_hide_clock_title">Hide clock</string>
     <string name="status_bar_hide_clock_desc">Clears the clock from the system status bar.</string>
+    <string name="status_bar_lockscreen_separate_title">Different settings for lockscreen</string>
+    <string name="status_bar_lockscreen_separate_desc">Needs a PIN, pattern, password or fingerprint lock. A swipe-only lock screen is not detected as locked, so the rule above keeps applying there.</string>
+    <string name="status_bar_lockscreen_mode_label">On the lock screen</string>
     <string name="status_bar_silence_alerts_title">Silence system alerts</string>
     <string name="status_bar_silence_alerts_desc">Same idea as “Automatically dismiss notifications,” but more reliable: the system itself mutes sounds, vibration and heads-up pop-ups, so only the island alerts you.</string>
     <string name="permission_dot_title">Display permission dot</string>
@@ -619,6 +620,8 @@
     <string name="event_duration_label">Cutout duration</string>
     <string name="event_duration_desc">How long this event stays on the cutout before it disappears</string>
     <string name="event_duration_reset">Reset to default</string>
+    <string name="event_persistent_title">Persistent event</string>
+    <string name="event_persistent_desc">Keep this event on the cutout for as long as it is true, instead of hiding it after the cutout duration</string>
     <string name="event_color_title">Event colour</string>
     <string name="event_color_reset">Reset to default</string>
     <string name="event_color_default_accent">Default colour</string>

@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.DeviceLockBus
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
@@ -61,6 +62,10 @@ class SystemEventMonitor(
 
     @Volatile
     private var isDeviceCurrentlyLocked = false
+        set(value) {
+            field = value
+            DeviceLockBus.update(value)
+        }
 
     @Volatile
     private var isAdbConnected = false
@@ -130,7 +135,10 @@ class SystemEventMonitor(
                     }
                 }
                 Intent.ACTION_BATTERY_OKAY -> {
-                    isLowBatteryState = false
+                    if (isLowBatteryState) {
+                        isLowBatteryState = false
+                        IslandEventBus.emit(CutoutSignal.SystemEnded(SystemEventType.BATTERY_LOW))
+                    }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
                     onScreenOff()
@@ -420,6 +428,7 @@ class SystemEventMonitor(
      */
     fun stop() {
         stopLockPolling()
+        isDeviceCurrentlyLocked = false
         scope.cancel()
         runCatching { context.unregisterReceiver(broadcastReceiver) }
         runCatching { context.contentResolver.unregisterContentObserver(adbWifiObserver) }

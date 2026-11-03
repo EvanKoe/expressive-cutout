@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -101,9 +102,8 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
         summary = "Android only lets an accessibility service draw a window that survives above " +
             "other apps and the lockscreen. That window is the island, so the service is mostly " +
-            "used as a drawing surface. It can read screen content, and does so for exactly one " +
-            "feature: the assistant tile. For every other app it takes the package name and " +
-            "nothing else. Anything read is drawn on the island and dropped — never written to " +
+            "used as a drawing surface. It reads no screen content: the only thing it looks at is " +
+            "the package name of the foreground app. Anything read is drawn on the island and dropped — never written to " +
             "disk, never logged, and with no internet permission it cannot leave the device.",
         uses = listOf(
             "Draw the island over the camera cutout, above whatever app is in the foreground",
@@ -111,10 +111,6 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "Receive your taps and swipes on the island itself",
             "Read the name of the app in the foreground — its package name only, no screen content — " +
                 "so the music tile can hide itself while the app playing the music is open",
-            "Read the answer text out of an assistant window, so the assistant tile can show it on " +
-                "the island. This is the only screen content read, and only for apps recognised " +
-                "as an assistant by their package name — Assistant, Gemini, Bixby, Alexa, " +
-                "ChatGPT, Copilot and the like",
         ),
     ),
     PermissionDoc(
@@ -198,6 +194,18 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
             "access, and cannot see networks you are not connected to.",
         uses = listOf(
             "Show the Wi-Fi connect and disconnect event on the island, with the network name",
+        ),
+    ),
+    PermissionDoc(
+        icon = Icons.Rounded.WifiTethering,
+        title = "Wi-Fi state",
+        manifestName = "ACCESS_WIFI_STATE",
+        summary = "Read-only, granted automatically, and never prompted for. Since Android 12L " +
+            "the system only tells apps holding this permission when the hotspot turns on or " +
+            "off; without it the hotspot event would never fire. It cannot turn Wi-Fi or the " +
+            "hotspot on, cannot see who is connected to it, and grants no internet access.",
+        uses = listOf(
+            "Show the hotspot enabled and disabled event on the island",
         ),
     ),
     PermissionDoc(

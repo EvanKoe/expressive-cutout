@@ -176,13 +176,9 @@ updates it in the same commit — see the *Project layout* rule in
   live status.
 - **No `SYSTEM_ALERT_WINDOW`.** The overlay is drawn from an `AccessibilityService` using
   `TYPE_ACCESSIBILITY_OVERLAY`, which is the whole reason the service exists.
-- **Screen reads are feature-scoped and never leave the device.** The service does set
-  `canRetrieveWindowContent="true"`, because the assistant tile has to read the answer text
-  out of an assistant window to display it. That read is gated on
-  `isAssistantPackage()` — a fixed list of known assistant packages — and for every other
-  app the service takes the package name and nothing else. Text that is read goes straight
-  onto `IslandEventBus`, is rendered, and is dropped; it is never written to DataStore, to
-  a log, or to a file. The app holds no `INTERNET` permission, so it *cannot* be sent
+- **Screen reads are minimal and never leave the device.** The service sets
+  `canRetrieveWindowContent="false"` and reads only the foreground package name. It never
+  reads window text. The app holds no `INTERNET` permission, so nothing can be sent
   anywhere. Any change that widens what is read updates the README, the manifest comment,
   and `accessibility_service_description` in the same commit.
 - **Privacy by default**: the notification listener keeps only package + title, never the

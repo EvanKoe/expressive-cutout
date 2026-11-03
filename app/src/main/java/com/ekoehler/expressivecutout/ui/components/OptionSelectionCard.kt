@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,11 +50,12 @@ data class SelectableOption<T>(
 )
 
 /**
- * A titled card holding a single-choice list of options, each with its own title and optional
- * description. The selected row fills with the theme's secondary container so it reads as chosen in
- * both light and dark dynamic-colour schemes; [onSelectionChange] fires with the tapped option's
- * value. Rows already tapped don't re-emit, and the whole group is exposed as one radio group to
- * accessibility services. Clear [isFirst] / [isLast] to tighten the matching outer corners so the
+ * A titled card holding a list of options, each with its own title and optional description.
+ * By default it is single-choice: the selected row fills with the theme's secondary container so it
+ * reads as chosen in both light and dark dynamic-colour schemes; [onSelectionChange] fires with the
+ * tapped option's value, rows already tapped don't re-emit, and the group is exposed as one radio
+ * group to accessibility services. Set [multiple] to turn the rows into switches, with every value
+ * in [selectedValues] on and each tap re-emitting so the caller can toggle it. Clear [isFirst] / [isLast] to tighten the matching outer corners so the
  * card stacks into a grouped settings list, pass [description] for a short explanation under the
  * title, and pass [header] to sit extra content — a preview, say — between the title and the rows.
  */
@@ -69,8 +72,9 @@ fun <T> OptionSelectionCard(
     containerColor: Color = MaterialTheme.colorScheme.surface,
     enabled: Boolean = true,
     header: (@Composable () -> Unit)? = null,
+    multiple: Boolean = false,
+    selectedValues: Set<T> = emptySet(),
 ) {
-    val haptics = LocalHapticFeedback.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = cardShape(isFirst = isFirst, isLast = isLast),
@@ -103,26 +107,54 @@ fun <T> OptionSelectionCard(
                 }
             }
             header?.invoke()
-            Column(
-                modifier = Modifier.selectableGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                options.forEachIndexed { index, option ->
-                    OptionRow(
-                        option = option,
-                        shape = optionShape(
-                            isFirst = index == 0,
-                            isLast = index == options.lastIndex,
-                        ),
-                        selected = option.value == selectedValue,
-                        enabled = enabled && option.enabled,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelectionChange(option.value)
-                        },
-                    )
-                }
-            }
+            OptionSelectionRows(
+                options = options,
+                selectedValue = selectedValue,
+                selectedValues = selectedValues,
+                multiple = multiple,
+                enabled = enabled,
+                onSelectionChange = onSelectionChange,
+            )
+        }
+    }
+}
+
+/**
+ * The bare list of option rows used by [OptionSelectionCard], with no surface of its own so it can
+ * be embedded in another card. In single mode [selectedValue] is the chosen row, shown with a radio
+ * button and exposed as one radio group. With [multiple] set, every value in [selectedValues] is
+ * on, rows show a switch, and each tap fires [onSelectionChange] so the caller can toggle it.
+ */
+@Composable
+fun <T> OptionSelectionRows(
+    options: List<SelectableOption<T>>,
+    selectedValue: T? = null,
+    selectedValues: Set<T> = emptySet(),
+    multiple: Boolean = false,
+    enabled: Boolean = true,
+    onSelectionChange: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(
+        modifier = if (multiple) modifier else modifier.selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        options.forEachIndexed { index, option ->
+            OptionRow(
+                option = option,
+                shape = optionShape(
+                    isFirst = index == 0,
+                    isLast = index == options.lastIndex,
+                ),
+                selected = option.value == selectedValue || option.value in selectedValues,
+                multiple = multiple,
+                enabled = enabled && option.enabled,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSelectionChange(option.value)
+                },
+            )
         }
     }
 }
@@ -154,6 +186,7 @@ private fun <T> OptionRow(
     option: SelectableOption<T>,
     shape: Shape,
     selected: Boolean,
+    multiple: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
@@ -198,8 +231,8 @@ private fun <T> OptionRow(
                 selected = selected,
                 interactionSource = interactionSource,
                 indication = ripple(color = MaterialTheme.colorScheme.secondary),
-                enabled = enabled && !selected,
-                role = Role.RadioButton,
+                enabled = if (multiple) enabled else enabled && !selected,
+                role = if (multiple) Role.Switch else Role.RadioButton,
                 onClick = onClick,
             ),
         shape = shape,
@@ -224,15 +257,31 @@ private fun <T> OptionRow(
                 }
             }
             Spacer(Modifier.width(16.dp))
-            RadioButton(
-                selected = selected,
-                onClick = null,
-                enabled = enabled,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.outline,
-                ),
-            )
+            if (multiple) {
+                Switch(
+                    checked = selected,
+                    onCheckedChange = null,
+                    enabled = enabled,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        checkedBorderColor = MaterialTheme.colorScheme.primary,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.surface,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+                    ),
+                )
+            } else {
+                RadioButton(
+                    selected = selected,
+                    onClick = null,
+                    enabled = enabled,
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = MaterialTheme.colorScheme.primary,
+                        unselectedColor = MaterialTheme.colorScheme.outline,
+                    ),
+                )
+            }
         }
     }
 }

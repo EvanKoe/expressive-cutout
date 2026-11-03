@@ -47,8 +47,7 @@ That's it! Rebuild the app and verify that your language appears in `Profile > L
 
 ### Build your placeholder
 
-Those strings `%1$d%%` and `%1$s` look like a cat walked on your keyboard, but they actually mean something. For example, let's take the first one, who is the placeholder for `assistant_max_height_value`:
+Those strings `%1$d%%` and `%1$s` look like a cat walked on your keyboard, but they actually mean something. For example, let's take the second one, which is the placeholder for `test_notification_reply_sent` (`Reply sent: %1$s`):
 - `%1$` to take the first argument (can be `%2$`, `%3$`...)
-- `d` for **d**ecimal integer. It represents the type of variable (`s` for string...)
-- `%%` for a literal `%`. Percent needs to be escaped as well
-In this example, the first argument is `45`. So it will display `45%`.
+- `s` for **s**tring. It represents the type of variable (`d` for decimal integer...)
+In this example, the first argument is `Hello`. So it will display `Reply sent: Hello`.

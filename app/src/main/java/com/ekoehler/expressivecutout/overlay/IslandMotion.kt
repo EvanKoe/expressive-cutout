@@ -50,8 +50,8 @@ internal class IslandMotion(
 
     /**
      * Like [dp] but critically damped (no overshoot), for a size that grows incrementally rather than
-     * in one jump — the assistant cutout's height as its answer streams in. The bouncy spatial spring
-     * re-overshoots every time the target nudges up (once per token), making the cutout visibly bob;
+     * in one jump — an expanded notification's height as its measured content settles. The bouncy
+     * spatial spring re-overshoots every time the target nudges, making the cutout visibly bob;
      * a critically damped spring chases the growing height smoothly instead. Ignores the bounce knob
      * by design, but still honours the speed knob and the duration slider.
      */

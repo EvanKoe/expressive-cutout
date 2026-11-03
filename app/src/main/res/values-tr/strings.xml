@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Expressive Cutout</string>
     <string name="accessibility_service_label">Expressive Cutout kaplaması</string>
-    <string name="accessibility_service_description">Bildirimleri ve sistem olaylarını göstermek için kamera çentiğinin üzerine küçük bir dinamik ada çizer. Hangi uygulamanın ön planda olduğunu okur ve yalnızca asistan uygulamalarından gelen metni okuyarak yanıtlarını adada gösterebilir. Okuduğu hiçbir şey asla saklanmaz veya herhangi bir yere gönderilmez — uygulamanın internet erişimi yoktur.</string>
+    <string name="accessibility_service_description">Bildirimleri ve sistem olaylarını göstermek için kamera çentiğinin üzerine küçük bir dinamik ada çizer. Yalnızca hangi uygulamanın ön planda olduğunu okur. Okuduğu hiçbir şey asla saklanmaz veya herhangi bir yere gönderilmez — uygulamanın internet erişimi yoktur.</string>
     <string name="notification_service_label">Expressive Cutout bildirimleri</string>
 
     <!-- System event labels shown inside the island -->
@@ -63,16 +63,6 @@
     <string name="tile_phone_desc">Geçerli aramayı, arayanı ve kontrolleri göster</string>
     <string name="tile_timer">Zamanlayıcı</string>
     <string name="tile_timer_desc">Çentikte çalışan bir geri sayım zamanlayıcısı göster</string>
-    <string name="tile_assistant">Asistan</string>
-    <string name="tile_assistant_desc">Sesli asistanın konuşmasını ve yanıtlarını çentikte göster</string>
-    <string name="assistant_display_answer_title">Asistan yanıtını çentikte göster</string>
-    <string name="assistant_display_answer_desc">Sesli asistanın metin yanıtını çentikte göster</string>
-    <string name="assistant_max_height_title">Maksimum çentik yüksekliği</string>
-    <string name="assistant_max_height_desc">Yanıtın doldurabileceği ekran yüksekliği oranı</string>
-    <string name="assistant_max_height_value">%1$d%%</string>
-    <string name="assistant_tile_note">Etkinleştirildiğinde, sesli asistan yanıtları müzik kutucuğuna düşmek yerine bu dinamik kutucukta gösterilir.</string>
-    <string name="assistant_animated_icon_title">Animasyonlu simge kullan</string>
-    <string name="assistant_animated_icon_desc">Sabit asistan simgesi yerine animasyonlu bir parıltı simgesi göster</string>
 
     <!-- Setup screen -->
     <string name="setup_title">Expressive Cutout</string>
@@ -307,6 +297,9 @@
     <string name="status_bar_hide_system_info_desc">Pil, Wi-Fi ve sinyal simgelerini sistem durum çubuğundan temizler ve adanın arkasını boş bırakır.</string>
     <string name="status_bar_hide_clock_title">Saati gizle</string>
     <string name="status_bar_hide_clock_desc">Saati sistem durum çubuğundan temizler.</string>
+    <string name="status_bar_lockscreen_separate_title">Kilit ekranı için farklı ayarlar</string>
+    <string name="status_bar_lockscreen_separate_desc">PIN, desen, parola veya parmak izi kilidi gerektirir. Yalnızca kaydırmalı kilit ekranı kilitli olarak algılanmaz, bu yüzden yukarıdaki kural orada geçerli olmaya devam eder.</string>
+    <string name="status_bar_lockscreen_mode_label">Kilit ekranında</string>
     <string name="status_bar_silence_alerts_title">Sistem uyarılarını sessize al</string>
     <string name="status_bar_silence_alerts_desc">“Bildirimleri otomatik olarak kapat” ile aynı fikir, ama daha güvenilir: sesleri, titreşimi ve uyarı bildirimlerini sistemin kendisi susturur, böylece sizi yalnızca ada uyarır.</string>
     <string name="permission_dot_title">İzin noktasını göster</string>
@@ -580,6 +573,8 @@
     <string name="event_duration_label">Çentik süresi</string>
     <string name="event_duration_desc">Bu olayın kaybolmadan önce çentikte ne kadar süre kalacağı</string>
     <string name="event_duration_reset">Varsayılana sıfırla</string>
+    <string name="event_persistent_title">Kalıcı olay</string>
+    <string name="event_persistent_desc">Bu olayı, çentik süresi sonunda gizlemek yerine geçerli olduğu sürece çentikte tut</string>
     <string name="event_color_title">Olay rengi</string>
     <string name="event_color_reset">Varsayılana sıfırla</string>
     <string name="event_color_default_accent">Varsayılan renk</string>

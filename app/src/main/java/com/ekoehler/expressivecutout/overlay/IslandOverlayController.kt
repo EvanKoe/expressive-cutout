@@ -38,6 +38,7 @@ import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
 import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.CutoutKind
 import com.ekoehler.expressivecutout.core.CutoutWidthBus
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
@@ -48,6 +49,7 @@ import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.core.stateFamily
 import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -72,8 +74,6 @@ import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
 import com.ekoehler.expressivecutout.data.asSplitCallCutout
 import com.ekoehler.expressivecutout.data.asTinyCutout
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PermissionDotColors
@@ -134,7 +134,6 @@ class IslandOverlayController(private val context: Context) {
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
-    private val assistantTilePreferences = AssistantTilePreferences(context)
     private val appPreferences = AppPreferences(context)
     private val permissionDotPreferences = PermissionDotPreferences(context)
     private val density = context.resources.displayMetrics.density
@@ -246,6 +245,7 @@ class IslandOverlayController(private val context: Context) {
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
+    private var eventPersistent: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
     private var eventColors: Map<SystemEventType, CutoutColor> = emptyMap()
@@ -272,7 +272,6 @@ class IslandOverlayController(private val context: Context) {
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
-    private var assistantSettings: AssistantTileSettings = AssistantTileSettings()
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -315,12 +314,18 @@ class IslandOverlayController(private val context: Context) {
      */
     private var timerActive = false
     private var lastTimerEvent: IslandEvent? = null
-    private var assistantActive = false
-    private var lastAssistantEvent: IslandEvent? = null
     // True while the device is locked (screen off or keyguard active); keeps the locked cutout pinned
     // up (no auto-dismiss) until the screen is unlocked.
     private var isDeviceLocked = false
     private var lastLockEvent: IslandEvent? = null
+
+    /**
+     * The one system event kept up for as long as its state lasts (its "Persistent event" switch is
+     * on), and its type. Like [lastLockEvent] it is what the pill returns to after an interruption;
+     * both are cleared when a same-family signal ends it or the user dismisses it.
+     */
+    private var persistentEvent: IslandEvent? = null
+    private var persistentType: SystemEventType? = null
 
     /** A neutral sample shown while the settings screen pins the island open. */
     private val previewEvent by lazy {
@@ -378,6 +383,7 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeEventDurations()
+        observeEventPersistent()
         observeEventAnimatedIcons()
         observeEventColors()
         observeEventDynamicColor()
@@ -389,7 +395,6 @@ class IslandOverlayController(private val context: Context) {
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
-        observeAssistantSettings()
         observeNowPlaying()
         observeForegroundApp()
         observeOnCall()
@@ -415,7 +420,7 @@ class IslandOverlayController(private val context: Context) {
         // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
         // blank for as long as the service stays off.
         cutoutWidthJob?.cancel()
-        CutoutWidthBus.update(widened = false, grownForDots = false, grownForStatusDot = false)
+        CutoutWidthBus.update(kind = null, grownForDots = false, grownForStatusDot = false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
@@ -493,7 +498,6 @@ class IslandOverlayController(private val context: Context) {
             musicSettings = musicSettings,
             phoneSettings = phoneSettings,
             timerSettings = timerSettings,
-            assistantSettings = assistantSettings,
             dynamicEventColor = eventDynamicColor,
             dynamicEventColorRole = eventDynamicColorRole,
             dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -541,6 +545,12 @@ class IslandOverlayController(private val context: Context) {
                 dismissJob?.cancel()
                 expanded = false
                 currentEvent.value = lastLockEvent
+            }
+            persistentEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentSystemEventType = persistentType
+                currentEvent.value = persistentEvent
             }
             isDeviceLocked -> {
                 showLockedEvent()
@@ -819,6 +829,58 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
+     * Mirrors the per-event "Persistent event" switches into [eventPersistent], and lets go of the
+     * recorded persistent event at once if its own switch was just turned off.
+     */
+    private fun observeEventPersistent() = scope.launch {
+        eventPreferences.persistent.collect {
+            eventPersistent = it
+            releasePersistentIfSwitchedOff()
+        }
+    }
+
+    /**
+     * Whether [type] is kept up while its state lasts. [SystemEventType.DEVICE_LOCKED] is excluded:
+     * it is always pinned through [isDeviceLocked] instead.
+     */
+    private fun isPersistentType(type: SystemEventType): Boolean =
+        type != SystemEventType.DEVICE_LOCKED && eventPersistent[type] == true
+
+    /**
+     * Hands the recorded persistent event back to a normal dismiss timer, wherever it sits, once its
+     * switch is off — so the change takes effect while the event is still shown.
+     */
+    private fun releasePersistentIfSwitchedOff() {
+        val type = persistentType ?: return
+        val event = persistentEvent ?: return
+        if (isPersistentType(type)) return
+        persistentEvent = null
+        persistentType = null
+        if (currentEvent.value?.id == event.id) scheduleDismiss()
+        satelliteEvent.value?.takeIf { it.id == event.id }
+            ?.let { parkInSatellite(it, systemEventDeadline(type), type) }
+    }
+
+    /**
+     * Ends the persistent event of [type]'s state family, if one is up. Called before the enabled
+     * filter so a switched-off counterpart event still ends it. When the incoming event will take
+     * over the very slot it sits in ([incomingTakesOver]) the swap is left to
+     * [replaceSystemEventIfNeeded]; otherwise it is taken off the island here.
+     */
+    private fun endPersistentEvent(type: SystemEventType, incomingTakesOver: Boolean) {
+        val ended = persistentEvent ?: return
+        if (persistentType?.stateFamily != type.stateFamily) return
+        persistentEvent = null
+        persistentType = null
+        if (savedEventBeforeHide?.id == ended.id) savedEventBeforeHide = null
+        val inPill = currentEvent.value?.id == ended.id
+        val inBubble = !inPill && satelliteEvent.value?.id == ended.id
+        val slotType = if (inPill) currentSystemEventType else satelliteSystemEventType
+        if (incomingTakesOver && slotType?.stateFamily == type.stateFamily) return
+        if (inPill) dismissIsland() else if (inBubble) clearSatellite()
+    }
+
+    /**
      * Mirrors the animated-icon switches and their loop flags, which are stored apart but always
      * read together.
      */
@@ -909,7 +971,6 @@ class IslandOverlayController(private val context: Context) {
             musicSettings = musicSettings,
             phoneSettings = phoneSettings,
             timerSettings = timerSettings,
-            assistantSettings = assistantSettings,
             dynamicEventColor = eventDynamicColor,
             dynamicEventColorRole = eventDynamicColorRole,
             dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -936,11 +997,6 @@ class IslandOverlayController(private val context: Context) {
     /** Mirrors the timer tile settings into [timerSettings]. */
     private fun observeTimerSettings() = scope.launch {
         timerTilePreferences.settings.collect { timerSettings = it }
-    }
-
-    /** Mirrors the assistant tile settings into [assistantSettings]. */
-    private fun observeAssistantSettings() = scope.launch {
-        assistantTilePreferences.settings.collect { assistantSettings = it }
     }
 
     /**
@@ -1126,14 +1182,19 @@ class IslandOverlayController(private val context: Context) {
     /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
     private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
 
-    /** The assistant cutout should stay pinned up (no auto-dismiss) while assistant is active. */
-    private fun isPinnedAssistant(): Boolean = assistantActive && currentEvent.value?.assistant != null
-
     /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */
     private fun isPinnedLock(): Boolean = isDeviceLocked && currentEvent.value?.id == lastLockEvent?.id
 
-    /** Any live tile (music, a call, a running timer, assistant, or lock status) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant() || isPinnedLock()
+    /** The persistent system event is the one on the pill, so it gets no dismiss timer. */
+    private fun isPinnedPersistent(): Boolean =
+        persistentEvent != null && currentEvent.value?.id == persistentEvent?.id
+
+    /**
+     * Any live tile (music, a call, a running timer, lock status, or a persistent system event) is
+     * currently pinned up.
+     */
+    private fun isPinnedLiveTile(): Boolean =
+        isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedLock() || isPinnedPersistent()
 
     /**
      * Mirrors the island geometry, re-sizing the window as it changes so a slider drag in settings
@@ -1154,7 +1215,8 @@ class IslandOverlayController(private val context: Context) {
      * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
+        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect { (event, behaviour) ->
+            publishCutoutWidth()
             setTouchable(
                 !previewPinned && (event != null || satelliteEvent.value != null ||
                     (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
@@ -1208,8 +1270,8 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
-     * Reports to [CutoutWidthBus] whether the island is drawn wider than its normal collapsed
-     * cutout right now, so "Automatically hide status bar icons" can follow the pill.
+     * Reports to [CutoutWidthBus] which [CutoutKind] the island is drawing right now, so the
+     * "Automatically hide status bar icons" settings can follow the pill.
      *
      * Also reports whether the pill is grown on its trailing edge to seat the permission dots, which
      * the system icons sit behind, and whether it is grown on its leading edge to seat the status
@@ -1218,35 +1280,47 @@ class IslandOverlayController(private val context: Context) {
      *
      * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
      * before the pill covers them, while narrowing waits out the collapse animation so they don't
-     * reappear under a pill that is still shrinking. Publishing the OR of old and new is what makes
-     * a flag that just came on land at once while one that just went off waits for the delay.
+     * reappear under a pill that is still shrinking. A kind ranking above the published one (or any
+     * kind after the island was down) lands at once; a lower one or null waits for the delay. The
+     * flags use the OR of old and new, so one that just came on lands at once and one that just went
+     * off waits.
      */
     private fun publishCutoutWidth() {
-        val widened = isWiderThanUsual()
+        val kind = currentCutoutKind()
         val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0
         val grownForStatusDot = statusDotGrowthDp(expanded = false) > 0
+        val published = CutoutWidthBus.kind.value
+        val grows = kind != null && (published == null || kind.ordinal > published.ordinal)
         cutoutWidthJob?.cancel()
         CutoutWidthBus.update(
-            widened = widened || CutoutWidthBus.widened.value,
+            kind = if (grows) kind else published,
             grownForDots = grownForDots || CutoutWidthBus.grownForDots.value,
             grownForStatusDot = grownForStatusDot || CutoutWidthBus.grownForStatusDot.value,
         )
-        if (widened == CutoutWidthBus.widened.value && grownForDots == CutoutWidthBus.grownForDots.value &&
+        if (kind == CutoutWidthBus.kind.value && grownForDots == CutoutWidthBus.grownForDots.value &&
             grownForStatusDot == CutoutWidthBus.grownForStatusDot.value
         ) return
         cutoutWidthJob = scope.launch {
             delay(WINDOW_SHRINK_DELAY_MS)
-            CutoutWidthBus.update(widened, grownForDots, grownForStatusDot)
+            CutoutWidthBus.update(kind, grownForDots, grownForStatusDot)
         }
     }
 
     /**
-     * Whether the state being drawn is wider than the normal collapsed pill — the expanded island
-     * or one of the fuller call cutouts. Compares against [effectiveDims] rather than listing the
-     * states by hand, so the tiny "Mini call" / "Mini player" cutouts correctly read as narrower.
+     * The [CutoutKind] being drawn, or null while the island is down. The satellite bubble counts
+     * as [CutoutKind.WIDE] because the pair spans more of the bar than the pill alone.
      */
-    private fun isWiderThanUsual(): Boolean =
-        effectiveDims(layoutState.value, expanded).widthPercent > layoutState.value.collapsed.widthPercent
+    private fun currentCutoutKind(): CutoutKind? {
+        val shown = currentEvent.value != null || satelliteEvent.value != null ||
+            (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)
+        return when {
+            !shown -> null
+            expanded -> CutoutKind.EXPANDED
+            isTinyTile() -> CutoutKind.MINI
+            currentEvent.value?.call != null || satelliteSplitDp() > 0 -> CutoutKind.WIDE
+            else -> CutoutKind.NORMAL
+        }
+    }
 
     /**
      * Resizes the window to fit, growing at once but shrinking only after [WINDOW_SHRINK_DELAY_MS].
@@ -1631,8 +1705,7 @@ class IslandOverlayController(private val context: Context) {
     /**
      * Whether [displaced] may be parked in the bubble as [incoming] takes the pill. Every
      * suppression lives here so the rule set is in one place: a call owns the whole cutout and must
-     * never be demoted, the assistant tile's height is a fraction of the screen, and the same
-     * notification must never occupy both slots.
+     * never be demoted, and the same notification must never occupy both slots.
      */
     private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
         if (!behaviourState.value.splitIslandEnabled) return false
@@ -1642,7 +1715,6 @@ class IslandOverlayController(private val context: Context) {
         if (isLandscapeSplitSuppressed()) return false
         if (displaced.call != null || incoming.call != null) return false
         if (isTinyTile(displaced) || isTinyTile(incoming)) return false
-        if (displaced.assistant != null || incoming.assistant != null) return false
         if (isTwoRowCall()) return false
         val key = displaced.notificationKey
         if (key != null && key == incoming.notificationKey) return false
@@ -1653,7 +1725,7 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * Whether both events are the same live tile. A tile is a singleton — one media session, one
-     * timer, one call, one assistant — so a signal for one that is already up restates it rather than
+     * timer, one call — so a signal for one that is already up restates it rather than
      * arriving as a second event to park beside itself. Compared on which tile field is set rather
      * than on ids or notification keys: every resolve mints a fresh id, and the music and timer tiles
      * deliberately carry no notification key, so neither of those catches a repeat.
@@ -1661,8 +1733,7 @@ class IslandOverlayController(private val context: Context) {
     private fun isSameTile(a: IslandEvent, b: IslandEvent): Boolean =
         (a.media != null && b.media != null) ||
             (a.timer != null && b.timer != null) ||
-            (a.call != null && b.call != null) ||
-            (a.assistant != null && b.assistant != null)
+            (a.call != null && b.call != null)
 
     /**
      * Parks [displaced] in the bubble as [incoming] takes the pill, leaves the bubble untouched when
@@ -1744,7 +1815,6 @@ class IslandOverlayController(private val context: Context) {
             bubble.media != null -> !musicPlaying
             bubble.call != null -> !callActive
             bubble.timer != null -> !timerActive
-            bubble.assistant != null -> !assistantActive
             else -> false
         }
         if (stale) clearSatellite()
@@ -1923,10 +1993,6 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun currentHeightBonusDp(expanded: Boolean): Int {
         val event = currentEvent.value
-        if (expanded && event?.assistant != null && event.assistant.displayAnswerInCutout) {
-            val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
-            return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
-        }
         val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
             // The expanded connected call stacks its own two button rows under the caller row.
@@ -1974,9 +2040,8 @@ class IslandOverlayController(private val context: Context) {
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
-        val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
         val controlsExtra =
-            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
+            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
                 expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
             } else {
                 0
@@ -2052,10 +2117,15 @@ class IslandOverlayController(private val context: Context) {
         return true
     }
 
-    /** Calculates the expiry time for a transient system event. */
-    private fun systemEventDeadline(type: SystemEventType): Long =
-        System.currentTimeMillis() +
+    /**
+     * Calculates the expiry time for a transient system event, or null for a persistent one, which
+     * has no timer and leaves when its state ends.
+     */
+    private fun systemEventDeadline(type: SystemEventType): Long? {
+        if (isPersistentType(type)) return null
+        return System.currentTimeMillis() +
             (eventDurations[type] ?: behaviourState.value.normalDurationSeconds) * 1_000L
+    }
 
     /**
      * The single consumer of [IslandEventBus]: turns each signal into a pill or a live tile,
@@ -2063,6 +2133,19 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
+            // An end signal only ever ends a persistent event; it has nothing of its own to show
+            if (signal is CutoutSignal.SystemEnded) {
+                endPersistentEvent(signal.type, incomingTakesOver = false)
+                return@collect
+            }
+            // Must precede the enabled filter below: a switched-off counterpart still ends the state
+            if (signal is CutoutSignal.System) {
+                endPersistentEvent(
+                    signal.type,
+                    incomingTakesOver = eventEnabled[signal.type] != false &&
+                        behaviourState.value.cutoutEnabled && !overlayHidden,
+                )
+            }
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
@@ -2071,21 +2154,10 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
             // Skip the running timer when the timer tile is turned off.
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
-            // Skip assistant responses when the assistant tile is turned off.
-            if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
             // Skip anything posted by an app the user muted on the Apps screen.
             if (signal.sourcePackage() in disabledApps) return@collect
             // Skip silent notifications when configured to ignore them.
             if (signal is CutoutSignal.Notification && behaviourState.value.ignoreSilentNotifications && signal.isSilent) {
-                return@collect
-            }
-
-            if (signal is CutoutSignal.Assistant && !signal.active) {
-                assistantActive = false
-                lastAssistantEvent = null
-                if (currentEvent.value?.assistant != null) {
-                    dismissIsland()
-                }
                 return@collect
             }
 
@@ -2096,11 +2168,11 @@ class IslandOverlayController(private val context: Context) {
             val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> musicSettings.expandOnPlay
-                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
+                is CutoutSignal.SystemEnded -> false
             }
             // "Normal only": this app's pill has no expanded state at all. Suppressing auto-expand
             // here keeps the window from ever being sized for it; the flag carried on the event is
@@ -2114,7 +2186,6 @@ class IslandOverlayController(private val context: Context) {
                 musicSettings = musicSettings,
                 phoneSettings = phoneSettings,
                 timerSettings = timerSettings,
-                assistantSettings = assistantSettings,
                 dynamicEventColor = eventDynamicColor,
                 dynamicEventColorRole = eventDynamicColorRole,
                 dynamicEventColorOpacity = eventDynamicColorOpacity,
@@ -2156,6 +2227,10 @@ class IslandOverlayController(private val context: Context) {
                                 isDeviceLocked = false
                                 lastLockEvent = null
                             }
+                            if (isPersistentType(signal.type)) {
+                                persistentEvent = resolvedEvent
+                                persistentType = signal.type
+                            }
                         }
                         else -> {}
                     }
@@ -2164,6 +2239,12 @@ class IslandOverlayController(private val context: Context) {
             }
 
             if (!behaviourState.value.cutoutEnabled) return@collect
+
+            val previousPersistentId = persistentEvent?.id
+            if (signal is CutoutSignal.System && isPersistentType(signal.type)) {
+                persistentEvent = resolvedEvent
+                persistentType = signal.type
+            }
 
             if (signal is CutoutSignal.System &&
                 replaceSystemEventIfNeeded(signal.type, resolvedEvent)
@@ -2188,14 +2269,21 @@ class IslandOverlayController(private val context: Context) {
             restoreSlotsOnCollapse = false
             demoteToSatellite(existing, resolvedEvent, currentDeadlineMs)
             currentDeadlineMs = null
+            // Only the latest persistent event is kept, so an older one parked in the bubble would
+            // never be ended by its own signal
+            if (previousPersistentId != null && previousPersistentId != persistentEvent?.id &&
+                satelliteEvent.value?.id == previousPersistentId
+            ) {
+                clearSatellite()
+            }
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = if (isNoExpandLandscape) false else null
             expanded = autoExpand
             currentEvent.value = resolvedEvent
             syncWindowSize()
-            // A music/call/assistant signal is only emitted while that tile is live, so pin it up rather than
-            // starting the auto-dismiss timer — it stays for as long as playback / the call / assistant lasts.
+            // A music/call/timer signal is only emitted while that tile is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as playback / the call / the timer lasts.
             when (signal) {
                 is CutoutSignal.Music -> {
                     musicPlaying = true
@@ -2212,12 +2300,6 @@ class IslandOverlayController(private val context: Context) {
                 is CutoutSignal.Timer -> {
                     timerActive = true
                     lastTimerEvent = resolvedEvent
-                    dismissJob?.cancel()
-                }
-
-                is CutoutSignal.Assistant -> {
-                    assistantActive = true
-                    lastAssistantEvent = currentEvent.value
                     dismissJob?.cancel()
                 }
 
@@ -2352,7 +2434,7 @@ class IslandOverlayController(private val context: Context) {
         val event = currentEvent.value
         val intent = event?.contentIntent
         val action = event?.actionIntentAction
-        if (isPinnedLiveTile()) {
+        if (isPinnedLiveTile() && !isPinnedPersistent()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
             return
@@ -2496,6 +2578,11 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun dismissIsland() {
         dismissJob?.cancel()
+        // A persistent pill that leaves the island was dismissed (or ended): it must not come back
+        if (isPinnedPersistent()) {
+            persistentEvent = null
+            persistentType = null
+        }
         restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
@@ -2526,6 +2613,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun livePillToReturnTo(): IslandEvent? =
         callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo() ?: lockPillToReturnTo()
+            ?: persistentPillToReturnTo()
 
     /** True while a live pill occupies either slot (so we never "return" on top of one). */
     private fun showingLiveTile(): Boolean =
@@ -2533,7 +2621,8 @@ class IslandOverlayController(private val context: Context) {
 
     /** Whether [event] is one of the live tiles, in whichever slot it happens to sit. */
     private fun isLiveTileEvent(event: IslandEvent?): Boolean = event?.let {
-        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id)
+        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id) ||
+            it.id == persistentEvent?.id
     } == true
 
     /**
@@ -2545,8 +2634,8 @@ class IslandOverlayController(private val context: Context) {
         is CutoutSignal.Music -> packageName
         is CutoutSignal.Call -> packageName
         is CutoutSignal.Timer -> packageName
-        is CutoutSignal.Assistant -> packageName
         is CutoutSignal.System -> null
+        is CutoutSignal.SystemEnded -> null
     }
 
     /**
@@ -2593,6 +2682,18 @@ class IslandOverlayController(private val context: Context) {
         if (eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return null
         if (!behaviourState.value.cutoutEnabled) return null
         return lastLockEvent?.copy(initiallyExpanded = false)
+    }
+
+    /**
+     * The persistent system event's pill to fall back to once an interrupting pill is done, or null
+     * when none is up, it is already on screen, or its event has since been switched off.
+     */
+    private fun persistentPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        val type = persistentType ?: return null
+        if (eventEnabled[type] == false) return null
+        if (!behaviourState.value.cutoutEnabled) return null
+        return persistentEvent?.copy(initiallyExpanded = false)
     }
 
     /**
