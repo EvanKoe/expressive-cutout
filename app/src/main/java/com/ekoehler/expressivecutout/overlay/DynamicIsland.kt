@@ -214,6 +214,7 @@ import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.service.UnreadCounts
+import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
@@ -712,12 +713,13 @@ fun DynamicIsland(
         if (isStickToCamera) {
             collapsed
         } else {
+            val sweData = SweData(unreadCounts, battery)
             val (left, right) = emptyPillSideWidthsDp(
-                emptyInfo, collapsed.heightDp, density, unreadCounts, battery != null, emptyDotsLeftDp, emptyDotsRightDp,
+                emptyInfo, collapsed.heightDp, density, sweData, emptyDotsLeftDp, emptyDotsRightDp,
             )
             collapsed.asEmptyInfoCutout(
                 displayWidthDp, left, right, cameraRightEdgeDp,
-                centerIfFits = !emptyPillHasItems(emptyInfo, unreadCounts, battery != null),
+                centerIfFits = !emptyPillHasItems(emptyInfo, sweData),
             )
         }
     }
@@ -1315,7 +1317,7 @@ fun DynamicIsland(
                                     },
                                 )
                             } else if (!isStickToCamera) {
-                                EmptyPillInfoContent(emptyInfo, collapsed.heightDp, unreadCounts, battery, emptyDotsLeftDp, emptyDotsRightDp)
+                                EmptyPillInfoContent(emptyInfo, collapsed.heightDp, SweData(unreadCounts, battery), emptyDotsLeftDp, emptyDotsRightDp)
                             }
                         } else {
                             shownEvent?.let { e ->

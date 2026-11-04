@@ -88,6 +88,7 @@ import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
@@ -1044,7 +1045,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun emptyPillCutout(collapsed: IslandDimensions): IslandDimensions {
         val info = emptyInfoState.value
-        val counts = CutoutNotificationListenerService.unreadCounts.value
+        val sweData = SweData(CutoutNotificationListenerService.unreadCounts.value, BatteryBus.status.value)
         val dotsEnabled = permissionDotEnabledState.value || PermissionDotPreviewBus.active.value
         val dotRoomDp = if (dotsEnabled) {
             emptyPillDotRoomDp(PermissionUsageMonitor.usage.value, collapsed.heightDp, permissionDotVerticalState.value)
@@ -1058,14 +1059,13 @@ class IslandOverlayController(private val context: Context) {
             info,
             collapsed.heightDp,
             density,
-            counts,
-            BatteryBus.status.value != null,
+            sweData,
             dotsLeftDp,
             dotsRightDp,
         )
         return collapsed.asEmptyInfoCutout(
             displayWidthDp.value, left, right, cameraRightEdgeDp.value,
-            centerIfFits = !emptyPillHasItems(info, counts, BatteryBus.status.value != null),
+            centerIfFits = !emptyPillHasItems(info, sweData),
         )
     }
 

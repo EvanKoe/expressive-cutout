@@ -20,13 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.BatteryFull
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,55 +37,45 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
-import com.ekoehler.expressivecutout.data.BatteryPercentage
-import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.IslandDimensions
-import com.ekoehler.expressivecutout.data.SweWidget
-import com.ekoehler.expressivecutout.data.UnreadShape
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
 import com.ekoehler.expressivecutout.events.BatteryStatus
 import com.ekoehler.expressivecutout.overlay.EmptyPillInfoContent
 import com.ekoehler.expressivecutout.overlay.emptyPillSideWidthsDp
-import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.service.UnreadCounts
-import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
-import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
-import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
+import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.SweWidget
+import com.ekoehler.expressivecutout.swe.SweWidgets
+import com.ekoehler.expressivecutout.ui.components.GroupGap
+import com.ekoehler.expressivecutout.ui.components.InfoSegmentCard
 import com.ekoehler.expressivecutout.ui.components.groupedShape
-import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
-import kotlin.math.roundToInt
-
-/** Gap between the cards of one group, so each group reads as a single block. */
-private val GroupGap = 4.dp
 
 /** The unread count the preview shows, so a badge is always visible while editing. */
 private val PreviewCounts = UnreadCounts(all = 3, nonSilent = 3)
 
 /** The battery reading the preview shows. */
 private val PreviewBattery = BatteryStatus(level = 82, charging = false)
+
+/** The live values the preview widgets draw and are sized from. */
+private val PreviewData = SweData(PreviewCounts, PreviewBattery)
 
 /**
  * The resting pill's widget editor: a live preview of the pill, a warning when it would run off the
@@ -147,10 +134,9 @@ internal fun SweWidgetEditor(
     }
 
     editingId?.let { id ->
-        // Read back from the stored lists so every change made in the sheet shows up in it at once; a
-        // widget just added may not be stored yet, so the sheet simply waits for it to appear
         val side = settings.sideOf(id)
         val widget = side?.let { settings.on(it).firstOrNull { w -> w.id == id } }
+
         if (widget != null) {
             SweWidgetSheet(
                 widget = widget,
@@ -172,7 +158,7 @@ private fun SwePreviewCard(settings: EmptyPillInfoSettings, collapsed: IslandDim
     val displayWidthDp = LocalConfiguration.current.screenWidthDp
     val density = LocalDensity.current.density
     val dims = remember(settings, collapsed, displayWidthDp, density) {
-        val (left, right) = emptyPillSideWidthsDp(settings, collapsed.heightDp, density, PreviewCounts, hasBattery = true)
+        val (left, right) = emptyPillSideWidthsDp(settings, collapsed.heightDp, density, PreviewData)
         collapsed.asEmptyInfoCutout(displayWidthDp, left, right, DEFAULT_CAMERA_RADIUS_DP)
     }
     val pillWidthDp = displayWidthDp * dims.widthPercent / 100f
@@ -205,8 +191,7 @@ private fun SwePreviewCard(settings: EmptyPillInfoSettings, collapsed: IslandDim
                         EmptyPillInfoContent(
                             settings = settings,
                             heightDp = collapsed.heightDp,
-                            counts = PreviewCounts,
-                            battery = PreviewBattery,
+                            data = PreviewData,
                             enterDelayMs = 0L,
                         )
                     }
@@ -287,6 +272,7 @@ private fun SweSideSection(
                 )
             }
         }
+
         widgets.forEachIndexed { index, widget ->
             SweWidgetRow(
                 widget = widget,
@@ -340,13 +326,13 @@ private fun SweWidgetRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Icon, name and summary
-            WidgetBadge(icon = widget.icon())
+            WidgetBadge(icon = widget.type.icon)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 14.dp),
             ) {
-                Text(text = widget.label(), style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(widget.type.titleRes), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = widget.summary(),
                     style = MaterialTheme.typography.bodySmall,
@@ -395,25 +381,30 @@ private fun WidgetBadge(icon: ImageVector) {
 @Composable
 private fun AddWidgetSheet(onPick: (SweWidget) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
         Text(
             text = stringResource(R.string.swe_add_widget),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
         )
+
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-            listOf(SweWidget.Clock(), SweWidget.Unread(), SweWidget.Battery()).forEach { widget ->
+            SweWidgets.all.forEach { type ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .clickable { onPick(widget) }
+                        .clickable { onPick(type.create()) }
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    WidgetBadge(icon = widget.icon())
+                    WidgetBadge(icon = type.icon)
                     Text(
-                        text = widget.label(),
+                        text = stringResource(type.titleRes),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(start = 14.dp),
                     )
@@ -446,7 +437,7 @@ private fun SweWidgetSheet(
         ) {
             // Title
             Text(
-                text = widget.label(),
+                text = stringResource(widget.type.titleRes),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
@@ -464,289 +455,9 @@ private fun SweWidgetSheet(
             )
 
             // The widget's own settings
-            when (widget) {
-                is SweWidget.Clock -> ClockControls(widget, onChange)
-                is SweWidget.Unread -> UnreadControls(widget, onChange)
-                is SweWidget.Battery -> BatteryControls(widget, onChange)
-            }
+            widget.Controls(onChange)
         }
     }
-}
-
-/** A clock's colour, then its width, weight and size sliders under a centred live preview. */
-@Composable
-private fun ClockControls(clock: SweWidget.Clock, onChange: (SweWidget) -> Unit) {
-    var width by remember(clock.width) { mutableFloatStateOf(clock.width) }
-    var weight by remember(clock.weight) { mutableFloatStateOf(clock.weight.toFloat()) }
-    var size by remember(clock.sizePercent) { mutableFloatStateOf(clock.sizePercent.toFloat()) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-        // Text colour
-        ColorPickerCard(
-            label = stringResource(R.string.empty_info_clock_color),
-            selected = clock.color,
-            onSelect = { onChange(clock.copy(color = it)) },
-            defaultLabel = stringResource(R.string.label_default),
-            defaultColor = MaterialTheme.colorScheme.onSurface,
-            shape = groupedShape(isFirst = true),
-        )
-
-        // Width, weight, size and live preview
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = groupedShape(isLast = true),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = "12:34",
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontSize = MaterialTheme.typography.headlineMedium.fontSize * (size / PERCENT),
-                    fontFamily = rememberRobotoFlexFamily(width, weight.roundToInt()),
-                    fontWeight = FontWeight(weight.roundToInt()),
-                    color = clock.color?.resolve() ?: MaterialTheme.colorScheme.onSurface,
-                )
-                AdjustableSlider(
-                    label = stringResource(R.string.empty_info_clock_width),
-                    valueText = "${width.roundToInt()}",
-                    value = width,
-                    valueRange = ROBOTO_FLEX_MIN_WIDTH..ROBOTO_FLEX_MAX_WIDTH,
-                    step = 1f,
-                    onValueChange = { width = it },
-                    onCommit = { onChange(clock.copy(width = width)) },
-                )
-                AdjustableSlider(
-                    label = stringResource(R.string.empty_info_clock_weight),
-                    valueText = "${weight.roundToInt()}",
-                    value = weight,
-                    valueRange = SweWidget.MIN_CLOCK_WEIGHT.toFloat()..SweWidget.MAX_CLOCK_WEIGHT.toFloat(),
-                    step = 100f,
-                    onValueChange = { weight = it },
-                    onCommit = { onChange(clock.copy(weight = weight.roundToInt())) },
-                )
-                AdjustableSlider(
-                    label = stringResource(R.string.empty_info_clock_size),
-                    valueText = "${size.roundToInt()}%",
-                    value = size,
-                    valueRange = SweWidget.MIN_CLOCK_SIZE_PERCENT.toFloat()..SweWidget.MAX_CLOCK_SIZE_PERCENT.toFloat(),
-                    step = 5f,
-                    onValueChange = { size = it },
-                    onCommit = { onChange(clock.copy(sizePercent = size.roundToInt())) },
-                )
-            }
-        }
-    }
-}
-
-/** An unread badge's shape, its colour and pill width when they apply, the number colour and silent counting. */
-@Composable
-private fun UnreadControls(unread: SweWidget.Unread, onChange: (SweWidget) -> Unit) {
-    var pillWidth by remember(unread.pillWidthPercent) { mutableFloatStateOf(unread.pillWidthPercent.toFloat()) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-        // Badge shape
-        InfoSegmentCard(
-            title = stringResource(R.string.empty_info_unread_shape),
-            options = listOf(
-                stringResource(R.string.empty_info_unread_shape_star),
-                stringResource(R.string.empty_info_unread_shape_pill),
-                stringResource(R.string.empty_info_unread_shape_none),
-            ),
-            selectedIndex = unread.shape.ordinal,
-            onSelect = { onChange(unread.copy(shape = UnreadShape.entries[it])) },
-            shape = groupedShape(isFirst = true),
-        )
-
-        // Badge colour, only when there is a badge
-        AnimatedVisibility(visible = unread.shape != UnreadShape.NONE) {
-            ColorPickerCard(
-                label = stringResource(R.string.empty_info_unread_shape_color),
-                selected = unread.shapeColor,
-                onSelect = { onChange(unread.copy(shapeColor = it)) },
-                defaultLabel = stringResource(R.string.label_default),
-                defaultColor = MaterialTheme.colorScheme.primary,
-                shape = groupedShape(),
-            )
-        }
-
-        // Pill width, only for the pill shape
-        AnimatedVisibility(visible = unread.shape == UnreadShape.PILL) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = groupedShape(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                    AdjustableSlider(
-                        label = stringResource(R.string.empty_info_unread_pill_width),
-                        valueText = "${pillWidth.roundToInt()}%",
-                        value = pillWidth,
-                        valueRange = SweWidget.MIN_PILL_WIDTH_PERCENT.toFloat()..SweWidget.MAX_PILL_WIDTH_PERCENT.toFloat(),
-                        step = 10f,
-                        onValueChange = { pillWidth = it },
-                        onCommit = { onChange(unread.copy(pillWidthPercent = pillWidth.roundToInt())) },
-                    )
-                }
-            }
-        }
-
-        // Number colour
-        ColorPickerCard(
-            label = stringResource(R.string.empty_info_unread_text_color),
-            selected = unread.textColor,
-            onSelect = { onChange(unread.copy(textColor = it)) },
-            defaultLabel = stringResource(R.string.label_default),
-            defaultColor = MaterialTheme.colorScheme.onSurface,
-            shape = groupedShape(),
-        )
-
-        // Silent notifications
-        SettingsToggleCard(
-            shape = groupedShape(isLast = true),
-            title = stringResource(R.string.empty_info_unread_silent),
-            description = stringResource(R.string.empty_info_unread_silent_desc),
-            checked = unread.countSilent,
-            onCheckedChange = { onChange(unread.copy(countSilent = it)) },
-        )
-    }
-}
-
-/** A battery's colour, where its percentage goes, and the percentage's side, sign and colour when shown. */
-@Composable
-private fun BatteryControls(battery: SweWidget.Battery, onChange: (SweWidget) -> Unit) {
-    val showsPercentage = battery.percentage != BatteryPercentage.NONE
-
-    Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-        // Battery colour
-        ColorPickerCard(
-            label = stringResource(R.string.empty_info_battery_color),
-            selected = battery.color,
-            onSelect = { onChange(battery.copy(color = it)) },
-            defaultLabel = stringResource(R.string.label_default),
-            defaultColor = MaterialTheme.colorScheme.onSurface,
-            shape = groupedShape(isFirst = true),
-        )
-
-        // Percentage placement
-        InfoSegmentCard(
-            title = stringResource(R.string.empty_info_battery_pct),
-            options = listOf(
-                stringResource(R.string.empty_info_battery_pct_next_to),
-                stringResource(R.string.empty_info_battery_pct_inside),
-                stringResource(R.string.empty_info_battery_pct_none),
-            ),
-            selectedIndex = battery.percentage.ordinal,
-            onSelect = { onChange(battery.copy(percentage = BatteryPercentage.entries[it])) },
-            shape = groupedShape(isLast = !showsPercentage),
-        )
-
-        // Percentage side, only when it sits beside the icon
-        AnimatedVisibility(visible = battery.percentage == BatteryPercentage.NEXT_TO) {
-            InfoSegmentCard(
-                title = stringResource(R.string.empty_info_battery_pct_side),
-                options = listOf(
-                    stringResource(R.string.empty_info_side_left),
-                    stringResource(R.string.empty_info_side_right),
-                ),
-                selectedIndex = battery.percentageSide.ordinal,
-                onSelect = { onChange(battery.copy(percentageSide = InfoSide.entries[it])) },
-                shape = groupedShape(),
-            )
-        }
-
-        // Percent sign and colour, only when a percentage is drawn
-        AnimatedVisibility(visible = showsPercentage) {
-            Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-                SettingsToggleCard(
-                    shape = groupedShape(),
-                    title = stringResource(R.string.empty_info_battery_pct_sign),
-                    description = stringResource(R.string.empty_info_battery_pct_sign_desc),
-                    checked = battery.percentSign,
-                    onCheckedChange = { onChange(battery.copy(percentSign = it)) },
-                )
-                ColorPickerCard(
-                    label = stringResource(R.string.empty_info_battery_pct_color),
-                    selected = battery.percentageColor,
-                    onSelect = { onChange(battery.copy(percentageColor = it)) },
-                    defaultLabel = stringResource(R.string.label_default),
-                    defaultColor = MaterialTheme.colorScheme.onSurface,
-                    shape = groupedShape(isLast = true),
-                )
-            }
-        }
-    }
-}
-
-/** A titled segmented chooser on its own card, drawn in [shape] so it can sit inside a group. */
-@Composable
-private fun InfoSegmentCard(
-    title: String,
-    options: List<String>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-    shape: Shape,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // Title
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
-
-            // Segments
-            ExpressiveSegmentedRow(options = options, selectedIndex = selectedIndex, onSelect = onSelect)
-        }
-    }
-}
-
-/** The glyph shown for a widget type in the list and the add sheet. */
-private fun SweWidget.icon(): ImageVector = when (this) {
-    is SweWidget.Clock -> Icons.Rounded.Schedule
-    is SweWidget.Unread -> Icons.Rounded.Notifications
-    is SweWidget.Battery -> Icons.Rounded.BatteryFull
-}
-
-/** A widget type's display name. */
-@Composable
-private fun SweWidget.label(): String = stringResource(
-    when (this) {
-        is SweWidget.Clock -> R.string.empty_info_clock_title
-        is SweWidget.Unread -> R.string.empty_info_unread_title
-        is SweWidget.Battery -> R.string.empty_info_battery_title
-    },
-)
-
-/** A one-line reminder of how a widget is set up, shown under its name in the list. */
-@Composable
-private fun SweWidget.summary(): String = when (this) {
-    is SweWidget.Clock -> "${weight} · ${sizePercent}%"
-    is SweWidget.Unread -> listOfNotNull(
-        stringResource(
-            when (shape) {
-                UnreadShape.STAR -> R.string.empty_info_unread_shape_star
-                UnreadShape.PILL -> R.string.empty_info_unread_shape_pill
-                UnreadShape.NONE -> R.string.empty_info_unread_shape_none
-            },
-        ),
-        stringResource(R.string.empty_info_unread_silent).takeIf { countSilent },
-    ).joinToString(" · ")
-    is SweWidget.Battery -> stringResource(
-        when (percentage) {
-            BatteryPercentage.NEXT_TO -> R.string.empty_info_battery_pct_next_to
-            BatteryPercentage.INSIDE -> R.string.empty_info_battery_pct_inside
-            BatteryPercentage.NONE -> R.string.empty_info_battery_pct_none
-        },
-    )
 }
 
 /** Vertical room around the preview pill, in dp. */
@@ -758,5 +469,3 @@ private const val CAMERA_DOT_SCALE = 1.2f
 /** A dark grey for the camera hole, so it reads against the black pill. */
 private const val PREVIEW_CAMERA_COLOR = 0xFF2A2A3A
 
-/** Percent-to-fraction divisor. */
-private const val PERCENT = 100f

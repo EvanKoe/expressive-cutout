@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
+import com.ekoehler.expressivecutout.swe.SweWidget
+import com.ekoehler.expressivecutout.swe.SweWidgets
 
 /** Backing store for the resting pill's widgets. */
 private val Context.emptyPillInfoDataStore: DataStore<Preferences> by preferencesDataStore(name = "empty_pill_info_prefs")
@@ -50,7 +52,7 @@ data class EmptyPillInfoSettings(
 
 /**
  * Persists the resting pill's widget lists. Settings saved before widgets existed (one flat clock /
- * unread / battery each) are read through [SweWidget.fromLegacy] until the lists are first saved,
+ * unread / battery each) are read through [SweWidgets.fromLegacy] until the lists are first saved,
  * which also drops the old keys — so nothing is rewritten until the user edits.
  */
 class EmptyPillInfoPreferences(private val context: Context) : JsonSerializable {
@@ -72,12 +74,12 @@ class EmptyPillInfoPreferences(private val context: Context) : JsonSerializable 
     private fun read(prefs: Preferences): EmptyPillInfoSettings {
         if (prefs.contains(LEFT_WIDGETS) || prefs.contains(RIGHT_WIDGETS)) {
             return EmptyPillInfoSettings(
-                left = SweWidget.decodeList(prefs[LEFT_WIDGETS]),
-                right = SweWidget.decodeList(prefs[RIGHT_WIDGETS]),
+                left = SweWidgets.decodeList(prefs[LEFT_WIDGETS]),
+                right = SweWidgets.decodeList(prefs[RIGHT_WIDGETS]),
             )
         }
         val byName = prefs.asMap().mapKeys { (key, _) -> key.name }
-        val (left, right) = SweWidget.fromLegacy { name -> byName[name.toSnakeCase()] }
+        val (left, right) = SweWidgets.fromLegacy { name -> byName[name.toSnakeCase()] }
         return EmptyPillInfoSettings(left, right)
     }
 
@@ -85,8 +87,8 @@ class EmptyPillInfoPreferences(private val context: Context) : JsonSerializable 
     override suspend fun toJson(): String {
         val s = settings.first()
         return JSONObject().apply {
-            put(LEFT_JSON, JSONArray(SweWidget.encodeList(s.left)))
-            put(RIGHT_JSON, JSONArray(SweWidget.encodeList(s.right)))
+            put(LEFT_JSON, JSONArray(SweWidgets.encodeList(s.left)))
+            put(RIGHT_JSON, JSONArray(SweWidgets.encodeList(s.right)))
         }.toString()
     }
 
@@ -97,10 +99,10 @@ class EmptyPillInfoPreferences(private val context: Context) : JsonSerializable 
     override suspend fun fromJson(json: String) {
         val obj = JSONObject(json)
         val (left, right) = if (obj.has(LEFT_JSON) || obj.has(RIGHT_JSON)) {
-            SweWidget.decodeList(obj.optJSONArray(LEFT_JSON)?.toString()) to
-                SweWidget.decodeList(obj.optJSONArray(RIGHT_JSON)?.toString())
+            SweWidgets.decodeList(obj.optJSONArray(LEFT_JSON)?.toString()) to
+                SweWidgets.decodeList(obj.optJSONArray(RIGHT_JSON)?.toString())
         } else {
-            SweWidget.fromLegacy { name -> obj.opt(name).takeUnless { it == JSONObject.NULL } }
+            SweWidgets.fromLegacy { name -> obj.opt(name).takeUnless { it == JSONObject.NULL } }
         }
         context.emptyPillInfoDataStore.edit { it.writeLists(left, right) }
     }
@@ -108,8 +110,8 @@ class EmptyPillInfoPreferences(private val context: Context) : JsonSerializable 
     /** Writes both lists and clears every pre-widget key, which are no longer read once lists exist. */
     private fun MutablePreferences.writeLists(left: List<SweWidget>, right: List<SweWidget>) {
         asMap().keys.filter { it != LEFT_WIDGETS && it != RIGHT_WIDGETS }.forEach { remove(it) }
-        this[LEFT_WIDGETS] = SweWidget.encodeList(left)
-        this[RIGHT_WIDGETS] = SweWidget.encodeList(right)
+        this[LEFT_WIDGETS] = SweWidgets.encodeList(left)
+        this[RIGHT_WIDGETS] = SweWidgets.encodeList(right)
     }
 
     /** Maps an old export name (`clockSizePercent`) to its stored key name (`clock_size_percent`). */

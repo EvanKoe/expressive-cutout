@@ -42,7 +42,7 @@ import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.JsonSettings
-import com.ekoehler.expressivecutout.data.SweWidget
+import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout

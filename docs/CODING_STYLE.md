@@ -37,6 +37,8 @@ com.ekoehler.expressivecutout
 ├── permissions/   Permission checks and settings-intent helpers
 ├── service/       The two OS-instantiated services, plus NotificationAlerter, which is the
 │                  listener's own helper and has no meaning outside it
+├── swe/           The resting-pill ("shows when empty") widgets: the SweWidget contract,
+│                  the SweWidgets registry, and widgets/ with one file per widget
 ├── system/        Privileged work borrowed through Shizuku: the bridge state and the
 │                  status-bar icon controller
 └── ui/            AppViewModel, MainScreen, and everything the user sees in-app

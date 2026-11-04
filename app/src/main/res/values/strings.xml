@@ -761,4 +761,6 @@
     <string name="music_transparent_desc">Transparent color</string>
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
+    <string name="widgets_customText_title">Custom text</string>
+    <string name="save">Save</string>
 </resources>
