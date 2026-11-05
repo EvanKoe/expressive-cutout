@@ -118,6 +118,8 @@ data class BehaviourSettings(
     val expandedSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val expandedSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY,
+    val showEmptyCutout: Boolean = SHOW_EMPTY_CUTOUT,
+    val hiddenEmptyWidthPercent: Int = DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
     val showStatusDot: Boolean = DEFAULT_SHOW_STATUS_DOT,
@@ -133,6 +135,15 @@ data class BehaviourSettings(
     val splitIslandEnabled: Boolean = DEFAULT_SPLIT_ISLAND_ENABLED,
     val satellitePosition: SatellitePosition = DEFAULT_SATELLITE_POSITION,
 ) {
+    /**
+     * Whether the resting pill takes part in the overlay at all: SWE and the cutout are on, and the
+     * pill is either drawn or hidden with a click action left to catch. A hidden pill with no action
+     * would be an invisible strip that only blocks the status bar.
+     */
+    val emptyPillActive: Boolean
+        get() = showsWhenEmpty && cutoutEnabled &&
+            (showEmptyCutout || showsWhenEmptyClickAction != EmptyClickAction.NONE)
+
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
@@ -169,6 +180,8 @@ data class BehaviourSettings(
         const val MIN_COLLAPSE_SECONDS = 1
         const val MAX_COLLAPSE_SECONDS = 15
         const val SHOWS_WHEN_EMPTY = false
+        const val SHOW_EMPTY_CUTOUT = true
+        const val DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT = 30
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
         const val DEFAULT_SHOW_STATUS_DOT = true
         const val CENTER_SHOW_LABELS = true
@@ -254,6 +267,9 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
                 ?: legacySwipeAction(prefs, left = false),
             showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
+            showEmptyCutout = prefs[SHOW_EMPTY_CUTOUT] ?: BehaviourSettings.SHOW_EMPTY_CUTOUT,
+            hiddenEmptyWidthPercent = (prefs[HIDDEN_EMPTY_WIDTH_PERCENT] ?: BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT)
+                .coerceIn(IslandDimensions.MIN_WIDTH_PERCENT, IslandDimensions.MAX_WIDTH_PERCENT),
             showsWhenEmptyClickAction = prefs[SHOWS_WHEN_EMPTY_CLICK_ACTION]
                 ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
@@ -324,6 +340,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("expandedSwipeLeft", s.expandedSwipeLeft.name)
             put("expandedSwipeRight", s.expandedSwipeRight.name)
             put("showsWhenEmpty", s.showsWhenEmpty)
+            put("showEmptyCutout", s.showEmptyCutout)
+            put("hiddenEmptyWidthPercent", s.hiddenEmptyWidthPercent)
             put("showsWhenEmptyClickAction", s.showsWhenEmptyClickAction.name)
             put("showsWhenEmptyClickPackage", s.showsWhenEmptyClickPackage ?: JSONObject.NULL)
             put("showStatusDot", s.showStatusDot)
@@ -390,6 +408,9 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("splitIslandEnabled")) it[SPLIT_ISLAND_ENABLED] = obj.getBoolean("splitIslandEnabled")
             parseEnum<SatellitePosition>(obj, "satellitePosition")?.let { p -> it[SATELLITE_POSITION] = p.name }
             if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
+            if (obj.has("showEmptyCutout")) it[SHOW_EMPTY_CUTOUT] = obj.getBoolean("showEmptyCutout")
+            if (obj.has("hiddenEmptyWidthPercent")) it[HIDDEN_EMPTY_WIDTH_PERCENT] = obj.getInt("hiddenEmptyWidthPercent")
+                .coerceIn(IslandDimensions.MIN_WIDTH_PERCENT, IslandDimensions.MAX_WIDTH_PERCENT)
             parseEnum<EmptyClickAction>(obj, "showsWhenEmptyClickAction")?.let { a -> it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = a.name }
             if (obj.has("showsWhenEmptyClickPackage")) {
                 val pkg = if (obj.isNull("showsWhenEmptyClickPackage")) null
@@ -576,6 +597,18 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
 
+    suspend fun setShowEmptyCutout(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOW_EMPTY_CUTOUT] = enabled
+    }
+
+    /** Clamps to the island's width range, so the hidden tap area is never narrower or wider than a pill can be. */
+    suspend fun setHiddenEmptyWidthPercent(percent: Int) = context.behaviourDataStore.edit {
+        it[HIDDEN_EMPTY_WIDTH_PERCENT] = percent.coerceIn(
+            IslandDimensions.MIN_WIDTH_PERCENT,
+            IslandDimensions.MAX_WIDTH_PERCENT,
+        )
+    }
+
     suspend fun setShowStatusDot(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHOW_STATUS_DOT] = enabled
     }
@@ -665,6 +698,8 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val LEGACY_SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
         val LEGACY_SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
+        val SHOW_EMPTY_CUTOUT = booleanPreferencesKey("show_empty_cutout")
+        val HIDDEN_EMPTY_WIDTH_PERCENT = intPreferencesKey("hidden_empty_width_percent")
         val SHOW_STATUS_DOT = booleanPreferencesKey("show_status_dot")
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
         val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")

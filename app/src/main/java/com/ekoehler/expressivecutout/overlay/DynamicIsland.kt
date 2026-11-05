@@ -195,6 +195,8 @@ import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
+import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.BatteryStatus
 import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.IconSource
@@ -524,6 +526,10 @@ fun DynamicIsland(
     expandedSwipeLeft: GestureAction,
     expandedSwipeRight: GestureAction,
     showsWhenEmpty: Boolean,
+    /** Whether the resting pill is drawn; when false it is an invisible tap area of [hiddenEmptyWidthPercent]. */
+    showEmptyCutout: Boolean = true,
+    /** Width, in percent of the screen, of the invisible tap area used while [showEmptyCutout] is off. */
+    hiddenEmptyWidthPercent: Int = BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
     emptyInfo: EmptyPillInfoSettings = EmptyPillInfoSettings(),
     unreadCounts: UnreadCounts = UnreadCounts(),
     battery: BatteryStatus? = null,
@@ -584,6 +590,7 @@ fun DynamicIsland(
         isNormalOnly -> false
         else -> forcedExpanded ?: tapExpanded
     }
+    val emptyPillHidden = emptyPill && !isExpanded && !showEmptyCutout
 
     val boopScale = remember { Animatable(1f) }
     val pressExpand = remember { Animatable(0f) }
@@ -623,6 +630,13 @@ fun DynamicIsland(
     val motion = remember(animationStyle, animationSpeed, animationBounce, animationDurationMs) {
         IslandMotion(animationStyle, animationSpeed, animationBounce, animationDurationMs)
     }
+    // Faded rather than snapped, so a hidden pill opening into the center (or closing back) is seen
+    // growing out of nothing and shrinking away instead of popping
+    val hiddenPillAlpha by animateFloatAsState(
+        targetValue = if (emptyPillHidden) 0f else 1f,
+        animationSpec = motion.fade(),
+        label = "hiddenPillAlpha",
+    )
     // A shrink mid-pull restarts the drag detector without a release, so the stretch would stay on the normal pill
     LaunchedEffect(isExpanded) {
         if (!isExpanded && pullStretch.value != 0f) pullStretch.animateTo(0f, motion.boop())
@@ -709,9 +723,11 @@ fun DynamicIsland(
     val emptyDotsLeftDp = if (permissionDotsOnLeft) emptyDotRoomDp else 0f
     val emptyDotsRightDp = if (permissionDotsOnLeft) 0f else emptyDotRoomDp
 
-    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp) {
+    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp, showEmptyCutout, hiddenEmptyWidthPercent) {
         if (isStickToCamera) {
             collapsed
+        } else if (!showEmptyCutout) {
+            collapsed.asHiddenEmptyCutout(hiddenEmptyWidthPercent)
         } else {
             val sweData = SweData(unreadCounts, battery)
             val (left, right) = emptyPillSideWidthsDp(
@@ -1227,7 +1243,9 @@ fun DynamicIsland(
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
                             val fade = if (windowDismiss) 1f else (1f - travel).coerceIn(0.25f, 1f)
                             // The window layer fades everything inside it, so this must not fade twice.
-                            alpha = if (windowed) 1f else fade * revealAlpha
+                            val shownAlpha = if (windowed) 1f else fade * revealAlpha
+                            // Hidden, not removed: the surface stays laid out so taps on the empty area still land.
+                            alpha = shownAlpha * hiddenPillAlpha
                         }
                         .islandTapGestures(
                             event = shownEvent,
