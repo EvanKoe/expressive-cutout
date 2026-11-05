@@ -581,6 +581,7 @@
     <string name="empty_info_unread_silent_desc">Inclure les notifications sans son</string>
     <string name="empty_info_battery_title">Batterie</string>
     <string name="empty_info_battery_color">Couleur de la batterie</string>
+    <string name="empty_info_battery_track_color">Couleur de la batterie vide</string>
     <string name="empty_info_battery_pct">Pourcentage</string>
     <string name="empty_info_battery_pct_next_to">À côté de l’icône</string>
     <string name="empty_info_battery_pct_inside">À l’intérieur</string>
@@ -745,4 +746,6 @@
     <string name="save">Sauvegarder</string>
     <string name="weight">Gras</string>
     <string name="width">Largeur</string>
+    <string name="size">Taille</string>
+    <string name="height">Hauteur</string>
 </resources>

@@ -45,6 +45,7 @@ import com.ekoehler.expressivecutout.swe.SweWidgets
 import com.ekoehler.expressivecutout.swe.putColor
 import com.ekoehler.expressivecutout.swe.color
 import com.ekoehler.expressivecutout.swe.measureDp
+import com.ekoehler.expressivecutout.swe.robotoFlexScaleX
 import com.ekoehler.expressivecutout.swe.PERCENT
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -72,12 +73,8 @@ data class ClockWidget(
 
     /** The width the clock's worst-case string takes at the chosen weight and width. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float {
-        val clampedWidth = width.coerceIn(ROBOTO_FLEX_MIN_WIDTH, ROBOTO_FLEX_MAX_WIDTH)
-        val span = if (clampedWidth <= ROBOTO_FLEX_DEFAULT_WIDTH) ROBOTO_FLEX_DEFAULT_WIDTH - ROBOTO_FLEX_MIN_WIDTH
-        else ROBOTO_FLEX_MAX_WIDTH - ROBOTO_FLEX_DEFAULT_WIDTH
-        val scaleX = 1f + (clampedWidth - ROBOTO_FLEX_DEFAULT_WIDTH) / span * WIDTH_SWING
         val typeface = Typeface.create(Typeface.DEFAULT, weight, false)
-        return measureDp(WORST_CASE, fontDp(heightDp), density, typeface, scaleX)
+        return measureDp(WORST_CASE, fontDp(heightDp), density, typeface, robotoFlexScaleX(width))
     }
 
     /** The current time in the user's chosen font width and weight, with tabular figures. */
@@ -198,9 +195,6 @@ data class ClockWidget(
         /** The widest clock the pill will ever show; the side is sized for it so it never twitches. */
         private const val WORST_CASE = "88:88"
         private const val TEXT_FRACTION = 0.5f
-
-        /** How far the clock's rendered width swings from normal at the narrowest / widest `wdth` setting. */
-        private const val WIDTH_SWING = 0.3f
 
         private const val TAG = "clock"
 

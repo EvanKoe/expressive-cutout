@@ -4,6 +4,9 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 
 /** Ink on a light fill. Same value the rest of the overlay uses; the pill is colour-exempt. */
 private val INK_DARK = Color(0xFF0A0A0A)
@@ -25,6 +28,17 @@ internal fun measureDp(text: String, sizeDp: Float, density: Float, typeface: Ty
         textScaleX = scaleX
     }
     return paint.measureText(text) / density * MEASURE_SAFETY
+}
+
+/** How far a Roboto Flex label's rendered width swings from normal at the narrowest / widest `wdth`. */
+private const val WIDTH_SWING = 0.3f
+
+/** The Paint `textScaleX` that stands in for Roboto Flex at `wdth` [width] when calling [measureDp]. */
+internal fun robotoFlexScaleX(width: Float): Float {
+    val clamped = width.coerceIn(ROBOTO_FLEX_MIN_WIDTH, ROBOTO_FLEX_MAX_WIDTH)
+    val span = if (clamped <= ROBOTO_FLEX_DEFAULT_WIDTH) ROBOTO_FLEX_DEFAULT_WIDTH - ROBOTO_FLEX_MIN_WIDTH
+    else ROBOTO_FLEX_MAX_WIDTH - ROBOTO_FLEX_DEFAULT_WIDTH
+    return 1f + (clamped - ROBOTO_FLEX_DEFAULT_WIDTH) / span * WIDTH_SWING
 }
 
 /** Dark ink on a light [fill], light ink on a dark one. */

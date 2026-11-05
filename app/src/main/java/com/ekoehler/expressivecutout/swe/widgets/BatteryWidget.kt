@@ -8,16 +8,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryFull
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -31,16 +35,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BatteryPercentage
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.GroupGap
 import com.ekoehler.expressivecutout.ui.components.InfoSegmentCard
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 import com.ekoehler.expressivecutout.ui.components.groupedShape
+import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
+import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
 import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.swe.SweWidget
@@ -51,7 +62,10 @@ import com.ekoehler.expressivecutout.swe.color
 import com.ekoehler.expressivecutout.swe.enum
 import com.ekoehler.expressivecutout.swe.measureDp
 import com.ekoehler.expressivecutout.swe.inkOn
+import com.ekoehler.expressivecutout.swe.PERCENT
+import com.ekoehler.expressivecutout.swe.robotoFlexScaleX
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 /** A battery glyph with its percentage inside, beside it (on [percentageSide]) or hidden. */
 data class BatteryWidget(
@@ -61,6 +75,11 @@ data class BatteryWidget(
     val percentageSide: InfoSide = InfoSide.RIGHT,
     val percentSign: Boolean = false,
     val percentageColor: CutoutColor? = null,
+    val percentWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    val percentWeight: Int = DEFAULT_PERCENT_WEIGHT,
+    val percentSizePercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
+    val heightPercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
+    val trackColor: CutoutColor? = null,
 ) : SweWidget {
     override val type: SweWidgetType get() = Companion
 
@@ -72,6 +91,11 @@ data class BatteryWidget(
         put("percentageSide", percentageSide.name)
         put("percentSign", percentSign)
         putColor("percentageColor", percentageColor)
+        put("percentWidth", percentWidth.toDouble())
+        put("percentWeight", percentWeight)
+        put("percentSizePercent", percentSizePercent)
+        put("heightPercent", heightPercent)
+        putColor("trackColor", trackColor)
     }
 
     override fun isVisible(data: SweData): Boolean = data.battery != null
@@ -83,7 +107,8 @@ data class BatteryWidget(
         val base = body + heightDp * TIP_WIDTH_FRACTION
         if (percentage != BatteryPercentage.NEXT_TO) return base
         val worst = if (percentSign) WORST_CASE + PERCENT_SIGN else WORST_CASE
-        val text = measureDp(worst, heightDp * TEXT_FRACTION, density, Typeface.DEFAULT_BOLD)
+        val typeface = Typeface.create(Typeface.DEFAULT, percentWeight, false)
+        val text = measureDp(worst, heightDp * TEXT_FRACTION * percentScale, density, typeface, robotoFlexScaleX(percentWidth))
         return base + heightDp * TEXT_GAP_FRACTION + text
     }
 
@@ -97,12 +122,14 @@ data class BatteryWidget(
         val inside = percentage == BatteryPercentage.INSIDE
         val fillColor = color?.resolve()
             ?: if (battery.charging) CHARGING_FILL else LocalContentColor.current
+        val trackFill = trackColor?.resolve() ?: fillColor.copy(alpha = TRACK_ALPHA)
         val autoPercent = if (inside) inkOn(fillColor) else LocalContentColor.current
         val percentColor by animateColorAsState(percentageColor?.resolve() ?: autoPercent, label = "batteryPercent")
         val density = LocalDensity.current
+        val percentFamily = rememberRobotoFlexFamily(percentWidth, percentWeight)
 
         val bodyWidth = (heightDp * if (inside) INSIDE_BODY_WIDTH_FRACTION else BODY_WIDTH_FRACTION).dp
-        val bodyHeight = (heightDp * if (inside) INSIDE_BODY_HEIGHT_FRACTION else BODY_HEIGHT_FRACTION).dp
+        val bodyHeight = (heightDp * (if (inside) INSIDE_BODY_HEIGHT_FRACTION else BODY_HEIGHT_FRACTION) * heightPercent / PERCENT).dp
         val tipWidth = (heightDp * TIP_WIDTH_FRACTION).dp
         val percentText = battery.level.coerceIn(0, 100).toString() + if (percentSign) PERCENT_SIGN else ""
         val beside = percentage == BatteryPercentage.NEXT_TO
@@ -115,8 +142,9 @@ data class BatteryWidget(
                 text = percentText,
                 modifier = modifier,
                 color = percentColor,
-                fontSize = with(density) { (heightDp * TEXT_FRACTION).dp.toSp() },
-                fontWeight = FontWeight.Bold,
+                fontSize = with(density) { (heightDp * TEXT_FRACTION * percentScale).dp.toSp() },
+                fontFamily = percentFamily,
+                fontWeight = FontWeight(percentWeight),
                 maxLines = 1,
                 softWrap = false,
             )
@@ -135,7 +163,7 @@ data class BatteryWidget(
                     val radius = CornerRadius(size.height * CORNER_RATIO)
 
                     drawRoundRect(
-                        fillColor.copy(alpha = TRACK_ALPHA),
+                        trackFill,
                         size = Size(bodyW, size.height),
                         cornerRadius = radius
                     )
@@ -151,7 +179,7 @@ data class BatteryWidget(
                     val tipHeight = size.height * TIP_HEIGHT_RATIO
 
                     drawRoundRect(
-                        fillColor.copy(alpha = TRACK_ALPHA),
+                        trackFill,
                         topLeft = Offset(bodyW, (size.height - tipHeight) / 2f),
                         size = Size(tipWidth.toPx(), tipHeight),
                         cornerRadius = CornerRadius(tipWidth.toPx() / 2f),
@@ -165,9 +193,10 @@ data class BatteryWidget(
                         color = percentColor,
                         fontSize = with(density) {
                             val scale = if (percentSign) INSIDE_SIGN_SCALE else 1f
-                            (bodyHeight * INSIDE_TEXT_FRACTION * scale).toSp()
+                            (bodyHeight * INSIDE_TEXT_FRACTION * scale * percentScale).toSp()
                         },
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = percentFamily,
+                        fontWeight = FontWeight(percentWeight),
                         maxLines = 1,
                         softWrap = false,
                     )
@@ -181,11 +210,15 @@ data class BatteryWidget(
         }
     }
 
-    /** A battery colour, where its percentage goes, and the percentage side, sign and colour when shown. */
+    /** A battery and empty-container colour, a height, where its percentage goes, and the percentage side, sign, colour and font when shown. */
     @Composable
     override fun Controls(onChange: (SweWidget) -> Unit) {
         val battery = this
         val showsPercentage = battery.percentage != BatteryPercentage.NONE
+        var widthValue by remember(percentWidth) { mutableFloatStateOf(percentWidth) }
+        var weightValue by remember(percentWeight) { mutableFloatStateOf(percentWeight.toFloat()) }
+        var sizeValue by remember(percentSizePercent) { mutableFloatStateOf(percentSizePercent.toFloat()) }
+        var heightValue by remember(heightPercent) { mutableFloatStateOf(heightPercent.toFloat()) }
 
         Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
             // Battery colour
@@ -197,6 +230,36 @@ data class BatteryWidget(
                 defaultColor = MaterialTheme.colorScheme.onSurface,
                 shape = groupedShape(isFirst = true),
             )
+
+            // Empty container colour
+            ColorPickerCard(
+                label = stringResource(R.string.empty_info_battery_track_color),
+                selected = battery.trackColor,
+                onSelect = { onChange(battery.copy(trackColor = it)) },
+                defaultLabel = stringResource(R.string.label_default),
+                defaultColor = MaterialTheme.colorScheme.onSurface.copy(alpha = TRACK_ALPHA),
+                dynamicRoles = TRACK_ROLES,
+                shape = groupedShape(),
+            )
+
+            // Battery height
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = groupedShape(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    AdjustableSlider(
+                        label = stringResource(R.string.height),
+                        valueText = "${heightValue.roundToInt()}%",
+                        value = heightValue,
+                        valueRange = ClockWidget.MIN_SIZE_PERCENT.toFloat()..ClockWidget.MAX_SIZE_PERCENT.toFloat(),
+                        step = 5f,
+                        onValueChange = { heightValue = it },
+                        onCommit = { onChange(battery.copy(heightPercent = heightValue.roundToInt())) },
+                    )
+                }
+            }
 
             // Percentage placement
             InfoSegmentCard(
@@ -225,7 +288,7 @@ data class BatteryWidget(
                 )
             }
 
-            // Percent sign and colour, only when a percentage is drawn
+            // Percent sign, colour and font, only when a percentage is drawn
             AnimatedVisibility(visible = showsPercentage) {
                 Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
                     SettingsToggleCard(
@@ -241,12 +304,72 @@ data class BatteryWidget(
                         onSelect = { onChange(battery.copy(percentageColor = it)) },
                         defaultLabel = stringResource(R.string.label_default),
                         defaultColor = MaterialTheme.colorScheme.onSurface,
-                        shape = groupedShape(isLast = true),
+                        shape = groupedShape(),
                     )
+
+                    // Percentage width, weight, size and live preview
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = groupedShape(isLast = true),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Preview
+                            Text(
+                                text = PREVIEW_LEVEL + if (percentSign) PERCENT_SIGN else "",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontSize = MaterialTheme.typography.headlineMedium.fontSize * (sizeValue / PERCENT),
+                                fontFamily = rememberRobotoFlexFamily(widthValue, weightValue.roundToInt()),
+                                fontWeight = FontWeight(weightValue.roundToInt()),
+                                color = percentageColor?.resolve() ?: MaterialTheme.colorScheme.onSurface,
+                            )
+
+                            // Font width
+                            AdjustableSlider(
+                                label = stringResource(R.string.width),
+                                valueText = "${widthValue.roundToInt()}",
+                                value = widthValue,
+                                valueRange = ROBOTO_FLEX_MIN_WIDTH..ROBOTO_FLEX_MAX_WIDTH,
+                                step = 1f,
+                                onValueChange = { widthValue = it },
+                                onCommit = { onChange(battery.copy(percentWidth = widthValue)) },
+                            )
+
+                            // Font weight
+                            AdjustableSlider(
+                                label = stringResource(R.string.weight),
+                                valueText = "${weightValue.roundToInt()}",
+                                value = weightValue,
+                                valueRange = ClockWidget.MIN_WEIGHT.toFloat()..ClockWidget.MAX_WEIGHT.toFloat(),
+                                step = 100f,
+                                onValueChange = { weightValue = it },
+                                onCommit = { onChange(battery.copy(percentWeight = weightValue.roundToInt())) },
+                            )
+
+                            // Font size
+                            AdjustableSlider(
+                                label = stringResource(R.string.size),
+                                valueText = "${sizeValue.roundToInt()}%",
+                                value = sizeValue,
+                                valueRange = ClockWidget.MIN_SIZE_PERCENT.toFloat()..ClockWidget.MAX_SIZE_PERCENT.toFloat(),
+                                step = 5f,
+                                onValueChange = { sizeValue = it },
+                                onCommit = { onChange(battery.copy(percentSizePercent = sizeValue.roundToInt())) },
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+
+    /** The percentage's size setting as a fraction of its default size. */
+    private val percentScale: Float get() = percentSizePercent / PERCENT
 
     /** Names where the percentage is drawn: beside the glyph, inside it or not at all. */
     @Composable
@@ -273,13 +396,29 @@ data class BatteryWidget(
             percentageSide = obj.enum<InfoSide>("percentageSide") ?: InfoSide.RIGHT,
             percentSign = obj.optBoolean("percentSign", false),
             percentageColor = obj.color("percentageColor"),
+            percentWidth = obj.optDouble("percentWidth", ROBOTO_FLEX_DEFAULT_WIDTH.toDouble()).toFloat()
+                .coerceIn(ROBOTO_FLEX_MIN_WIDTH, ROBOTO_FLEX_MAX_WIDTH),
+            percentWeight = obj.optInt("percentWeight", DEFAULT_PERCENT_WEIGHT)
+                .coerceIn(ClockWidget.MIN_WEIGHT, ClockWidget.MAX_WEIGHT),
+            percentSizePercent = obj.optInt("percentSizePercent", ClockWidget.DEFAULT_SIZE_PERCENT)
+                .coerceIn(ClockWidget.MIN_SIZE_PERCENT, ClockWidget.MAX_SIZE_PERCENT),
+            heightPercent = obj.optInt("heightPercent", ClockWidget.DEFAULT_SIZE_PERCENT)
+                .coerceIn(ClockWidget.MIN_SIZE_PERCENT, ClockWidget.MAX_SIZE_PERCENT),
+            trackColor = obj.color("trackColor"),
         )
+
+        /** The accents plus the dark-scheme surface tiers, offered for the empty container. */
+        private val TRACK_ROLES =
+            listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY) +
+                DynamicRole.entries.filter { it.forcesDarkScheme }
 
         private const val TAG = "battery"
         private const val TYPE = "type"
         private const val ID = "id"
         private const val PERCENT_SIGN = "%"
         private const val WORST_CASE = "100"
+        private const val PREVIEW_LEVEL = "85"
+        private const val DEFAULT_PERCENT_WEIGHT = 700
         private const val INSIDE_SIGN_SCALE = 0.78f
         private const val TEXT_FRACTION = 0.4f
         private const val INSIDE_TEXT_FRACTION = 0.68f

@@ -46,10 +46,12 @@ import com.ekoehler.expressivecutout.swe.SweWidgets
 import com.ekoehler.expressivecutout.swe.color
 import com.ekoehler.expressivecutout.swe.measureDp
 import com.ekoehler.expressivecutout.swe.putColor
+import com.ekoehler.expressivecutout.swe.robotoFlexScaleX
+import com.ekoehler.expressivecutout.swe.widgets.ClockWidget.Companion.MAX_SIZE_PERCENT
 import com.ekoehler.expressivecutout.swe.widgets.ClockWidget.Companion.MAX_WEIGHT
+import com.ekoehler.expressivecutout.swe.widgets.ClockWidget.Companion.MIN_SIZE_PERCENT
 import com.ekoehler.expressivecutout.swe.widgets.ClockWidget.Companion.MIN_WEIGHT
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
-import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 import com.ekoehler.expressivecutout.ui.components.groupedShape
@@ -72,7 +74,8 @@ data class CustomTextWidget(
     val body: String = DEFAULT_BODY,
     val textColor: CutoutColor = DEFAULT_TEXT_COLOR,
     val fontWeight: Int = DEFAULT_WEIGHT,
-    val fontWidth: Float = DEFAULT_WIDTH
+    val fontWidth: Float = DEFAULT_WIDTH,
+    val sizePercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
 ) : SweWidget {
     override val type: SweWidgetType get() = Companion
 
@@ -84,6 +87,7 @@ data class CustomTextWidget(
         putColor("textColor", textColor)
         put("fontWidth", fontWidth.toDouble())
         put("fontWeight", fontWeight)
+        put("sizePercent", sizePercent)
     }
 
     /** Whether there is something to draw; a hidden widget takes no width on the pill. */
@@ -91,14 +95,12 @@ data class CustomTextWidget(
 
     /** The widest this widget can be, in dp; Paint-based (`measureDp`) since it runs outside Compose. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float {
-        val clampedWidth = fontWidth.coerceIn(ROBOTO_FLEX_MIN_WIDTH, ROBOTO_FLEX_MAX_WIDTH)
-        val span = if (clampedWidth <= ROBOTO_FLEX_DEFAULT_WIDTH) ROBOTO_FLEX_DEFAULT_WIDTH - ROBOTO_FLEX_MIN_WIDTH
-        else ROBOTO_FLEX_MAX_WIDTH - ROBOTO_FLEX_DEFAULT_WIDTH
-        val scaleX = 1f + (clampedWidth - ROBOTO_FLEX_DEFAULT_WIDTH) / span * 0.3f
         val typeface = Typeface.create(Typeface.DEFAULT, fontWeight, false)
-
-        return measureDp(body, heightDp * 0.5f, density, typeface, scaleX)
+        return measureDp(body, fontDp(heightDp), density, typeface, robotoFlexScaleX(fontWidth))
     }
+
+    /** The text's font size in dp: its share of the pill height, scaled by the size setting. */
+    private fun fontDp(heightDp: Int): Float = heightDp * TEXT_FRACTION * sizePercent / PERCENT
 
     /** The widget on the pill. */
     @Composable
@@ -115,7 +117,7 @@ data class CustomTextWidget(
             modifier = Modifier.width(widthDp.dp),
             color = color,
             fontFamily = family,
-            fontSize = with(density) { (heightDp * 0.5f).dp.toSp() },
+            fontSize = with(density) { fontDp(heightDp).dp.toSp() },
             fontWeight = FontWeight(fontWeight),
             textAlign = TextAlign.Center,
             style = TextStyle(fontFeatureSettings = "tnum"),
@@ -130,6 +132,7 @@ data class CustomTextWidget(
         var mutableBody by remember(body) { mutableStateOf(body) }
         var widthValue by remember(fontWidth) { mutableFloatStateOf(fontWidth) }
         var weightValue by remember(fontWeight) { mutableFloatStateOf(fontWeight.toFloat()) }
+        var sizeValue by remember(sizePercent) { mutableFloatStateOf(sizePercent.toFloat()) }
 
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -193,7 +196,7 @@ data class CustomTextWidget(
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.headlineMedium,
-                        fontSize = MaterialTheme.typography.headlineMedium.fontSize,
+                        fontSize = MaterialTheme.typography.headlineMedium.fontSize * (sizeValue / PERCENT),
                         fontFamily = rememberRobotoFlexFamily(widthValue, weightValue.roundToInt()),
                         fontWeight = FontWeight(weightValue.roundToInt()),
                         color = MaterialTheme.colorScheme.onSurface
@@ -220,6 +223,17 @@ data class CustomTextWidget(
                         onValueChange = { weightValue = it },
                         onCommit = { onChange(copy(fontWeight = weightValue.roundToInt())) },
                     )
+
+                    // Font size
+                    AdjustableSlider(
+                        label = stringResource(R.string.size),
+                        valueText = "${sizeValue.roundToInt()}%",
+                        value = sizeValue,
+                        valueRange = MIN_SIZE_PERCENT.toFloat()..MAX_SIZE_PERCENT.toFloat(),
+                        step = 5f,
+                        onValueChange = { sizeValue = it },
+                        onCommit = { onChange(copy(sizePercent = sizeValue.roundToInt())) },
+                    )
                 }
             }
         }
@@ -239,6 +253,7 @@ data class CustomTextWidget(
         private val DEFAULT_TEXT_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
         private const val DEFAULT_WEIGHT: Int = 400
         private const val DEFAULT_WIDTH: Float = 100f
+        private const val TEXT_FRACTION = 0.5f
 
         override val tag: String = TAG
         override val icon: ImageVector = Icons.Rounded.Widgets
@@ -253,7 +268,9 @@ data class CustomTextWidget(
             body = obj.optString("body", DEFAULT_BODY),
             textColor = obj.color("textColor") ?: DEFAULT_TEXT_COLOR,
             fontWeight = obj.optInt("fontWeight", DEFAULT_WEIGHT),
-            fontWidth = obj.optDouble("fontWidth", DEFAULT_WIDTH.toDouble()).toFloat()
+            fontWidth = obj.optDouble("fontWidth", DEFAULT_WIDTH.toDouble()).toFloat(),
+            sizePercent = obj.optInt("sizePercent", ClockWidget.DEFAULT_SIZE_PERCENT)
+                .coerceIn(MIN_SIZE_PERCENT, MAX_SIZE_PERCENT),
         )
     }
 }

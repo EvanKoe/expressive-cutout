@@ -522,6 +522,8 @@
     <string name="empty_info_clock_width">Saat genişliği</string>
     <string name="empty_info_clock_weight">Saat kalınlığı</string>
     <string name="empty_info_clock_size">Saat boyutu</string>
+    <string name="size">Boyut</string>
+    <string name="height">Yükseklik</string>
     <string name="empty_info_unread_title">Okunmamış sayısı</string>
     <string name="empty_info_unread_shape">Rozet şekli</string>
     <string name="empty_info_unread_shape_star">Yıldız</string>
@@ -534,6 +536,7 @@
     <string name="empty_info_unread_silent_desc">Ses çıkarmayan bildirimleri dahil et</string>
     <string name="empty_info_battery_title">Pil</string>
     <string name="empty_info_battery_color">Pil rengi</string>
+    <string name="empty_info_battery_track_color">Boş pil rengi</string>
     <string name="empty_info_battery_pct">Yüzde</string>
     <string name="empty_info_battery_pct_next_to">Simgenin yanında</string>
     <string name="empty_info_battery_pct_inside">İçeride</string>

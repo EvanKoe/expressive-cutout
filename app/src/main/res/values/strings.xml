@@ -601,6 +601,7 @@
     <string name="empty_info_unread_silent_desc">Include notifications that make no sound</string>
     <string name="empty_info_battery_title">Battery</string>
     <string name="empty_info_battery_color">Battery color</string>
+    <string name="empty_info_battery_track_color">Empty battery color</string>
     <string name="empty_info_battery_pct">Percentage</string>
     <string name="empty_info_battery_pct_next_to">Next to icon</string>
     <string name="empty_info_battery_pct_inside">Inside</string>
@@ -765,4 +766,6 @@
     <string name="save">Save</string>
     <string name="weight">Weight</string>
     <string name="width">Width</string>
+    <string name="size">Size</string>
+    <string name="height">Height</string>
 </resources>
