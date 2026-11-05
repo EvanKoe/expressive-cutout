@@ -1,1 +1,16 @@
-
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Expressive Cutout</string>
+    <string name="accessibility_service_label">Superposición de Expressive Cutout</string>
+    <string name="accessibility_service_description">Dibuja una pequeña isla dinámica sobre el recorte de la cámara para mostrar notificaciones y eventos del sistema. Solo lee qué aplicación está en primer plano. Nada de lo que lee se almacena ni envía a ninguna parte: la aplicación no tiene acceso a Internet.</string>
+    <string name="notification_service_label">Notificaciones de Expressive Cutout</string>
+    <string name="event_charging_started">Cargando</string>
+    <string name="event_charging_stopped">Desconectado</string>
+    <string name="event_charging_complete">Carga completa</string>
+    <string name="event_charging_limit_reached">Límite de carga alcanzado</string>
+    <string name="event_battery_low">Batería baja</string>
+    <string name="event_wifi_connected">Wi‑Fi conectado</string>
+    <string name="event_wifi_disconnected">Se perdió la conexión Wi‑Fi</string>
+    <string name="event_headphones_connected">Auriculares</string>
+    <string name="event_headphones_disconnected">Auriculares desconectados</string>
+</resources>
