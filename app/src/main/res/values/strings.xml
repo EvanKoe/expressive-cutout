@@ -763,4 +763,6 @@
     <string name="deselect_all">Deselect all</string>
     <string name="widgets_customText_title">Custom text</string>
     <string name="save">Save</string>
+    <string name="weight">Weight</string>
+    <string name="width">Width</string>
 </resources>

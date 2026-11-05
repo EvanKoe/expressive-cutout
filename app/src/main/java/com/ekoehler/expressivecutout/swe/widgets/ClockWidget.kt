@@ -88,6 +88,7 @@ data class ClockWidget(
         val widthDp = remember(this, heightDp, density.density) {
             widthDp(heightDp, density.density, data)
         }
+
         Text(
             text = rememberMinuteClock(),
             modifier = Modifier.width(widthDp.dp),
