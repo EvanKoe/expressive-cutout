@@ -193,6 +193,9 @@ import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.events.BatteryStatus
 import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
@@ -210,6 +213,8 @@ import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.service.ProgressData
 import com.ekoehler.expressivecutout.system.PermissionUsage
+import com.ekoehler.expressivecutout.service.UnreadCounts
+import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
@@ -519,8 +524,9 @@ fun DynamicIsland(
     expandedSwipeLeft: GestureAction,
     expandedSwipeRight: GestureAction,
     showsWhenEmpty: Boolean,
-    emptyIcon: IconSource? = null,
-    emptyIconColor: CutoutColor? = null,
+    emptyInfo: EmptyPillInfoSettings = EmptyPillInfoSettings(),
+    unreadCounts: UnreadCounts = UnreadCounts(),
+    battery: BatteryStatus? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
     centerShowLabels: Boolean = true,
@@ -686,8 +692,40 @@ fun DynamicIsland(
         callSplitContentWidthDp(collapsed.heightDp, density, callLongClock)
     }
 
+    // The dots belong on the collapsed pill only: the expanded card keeps its top clear for the
+    // camera, the call cutout already fills its trailing edge with the hang-up button, and the
+    // stuck-to-camera pill is barely wider than its own icon.
+    // Mounted for as long as the feature is on rather than only while something is in use, so each
+    // dot fades in and out with its own resource instead of appearing the instant the row exists.
+    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
+        !isTiny
+    val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
+    // Lit dots take room on their side of the resting pill, so it grows to hold them beside the info.
+    val emptyDotRoomDp = if (emptyPill && showPermissionDots) {
+        emptyPillDotRoomDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0f
+    }
+    val emptyDotsLeftDp = if (permissionDotsOnLeft) emptyDotRoomDp else 0f
+    val emptyDotsRightDp = if (permissionDotsOnLeft) 0f else emptyDotRoomDp
+
+    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp) {
+        if (isStickToCamera) {
+            collapsed
+        } else {
+            val sweData = SweData(unreadCounts, battery)
+            val (left, right) = emptyPillSideWidthsDp(
+                emptyInfo, collapsed.heightDp, density, sweData, emptyDotsLeftDp, emptyDotsRightDp,
+            )
+            collapsed.asEmptyInfoCutout(
+                displayWidthDp, left, right, cameraRightEdgeDp,
+                centerIfFits = !emptyPillHasItems(emptyInfo, sweData),
+            )
+        }
+    }
+
     val dims = when {
-        emptyPill && !isExpanded -> collapsed
+        emptyPill && !isExpanded -> emptyPillCutout
         isTiny -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
         callTwoRow -> expanded
         // A tapped-open connected call takes the full expanded cutout for its controls.
@@ -843,14 +881,6 @@ fun DynamicIsland(
         else -> spec
     }
 
-    // The dots belong on the collapsed pill only: the expanded card keeps its top clear for the
-    // camera, the call cutout already fills its trailing edge with the hang-up button, and the
-    // stuck-to-camera pill is barely wider than its own icon.
-    // Mounted for as long as the feature is on rather than only while something is in use, so each
-    // dot fades in and out with its own resource instead of appearing the instant the row exists.
-    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
-        !isTiny
-    val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
     // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring,
     // a battery percentage, the status dot — has anything for the dots to collide with. Everything
     // else has empty pill there, so the dots fit as they are and the pill is left at the width the
@@ -1286,13 +1316,8 @@ fun DynamicIsland(
                                         onCenterShortcut(shortcut)
                                     },
                                 )
-                            } else if (emptyIcon != null) {
-                                EmptyPillContent(
-                                    icon = emptyIcon,
-                                    containerColor = emptyIconColor,
-                                    heightDp = collapsed.heightDp,
-                                    isStickToCamera = isStickToCamera,
-                                )
+                            } else if (!isStickToCamera) {
+                                EmptyPillInfoContent(emptyInfo, collapsed.heightDp, SweData(unreadCounts, battery), emptyDotsLeftDp, emptyDotsRightDp)
                             }
                         } else {
                             shownEvent?.let { e ->
@@ -1388,12 +1413,15 @@ fun DynamicIsland(
                                     )
                                     .padding(
                                         start = if (permissionDotsOnLeft) {
-                                            permissionDotStartInsetDp(collapsed.heightDp).dp
+                                            if (emptyPill) emptyPillEdgeInsetDp(collapsed.heightDp).dp
+                                            else permissionDotStartInsetDp(collapsed.heightDp).dp
                                         } else {
                                             0.dp
                                         },
                                         end = if (permissionDotsOnLeft) {
                                             0.dp
+                                        } else if (emptyPill) {
+                                            emptyPillEdgeInsetDp(collapsed.heightDp).dp
                                         } else {
                                             permissionDotEndInsetDp(collapsed.heightDp).dp
                                         },
@@ -2636,65 +2664,6 @@ private fun rememberResolvedIcon(icon: IconSource?): ResolvedIcon {
     )
 }
 
-/**
- * The resting (event-less) pill's optional glyph, centred on the collapsed cutout. A user-chosen
- * [containerColor] draws a filled disc with contrasting ink behind the glyph; without one, the glyph
- * sits directly on the pill in its content colour. The glyph is a picked image or a Material icon.
- */
-@Composable
-private fun EmptyPillContent(
-    icon: IconSource,
-    containerColor: CutoutColor?,
-    heightDp: Int,
-    isStickToCamera: Boolean = false,
-) {
-    val badgeSize = badgeSizeFor(heightDp)
-    val iconSize = badgeIconSizeFor(heightDp)
-
-    val disc = containerColor?.resolve()
-    val glyphColor = when {
-        disc != null -> if (disc.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
-        else -> LocalContentColor.current
-    }
-
-    val resolved = rememberResolvedIcon(icon)
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Sit on the leading edge like the normal cutout's icon (clear of the camera), or centred at
-        // the bottom when the pill is stuck beside the camera — mirroring CollapsedContent.
-        val placement = Modifier
-            .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
-            .padding(
-                start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
-                bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
-            )
-        Box(
-            modifier = placement
-                .size(badgeSize)
-                .clip(CircleShape)
-                .then(if (disc != null) Modifier.background(disc) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            val loaded = resolved.bitmap
-            val vector = resolved.vector
-            when {
-                loaded != null -> androidx.compose.foundation.Image(
-                    bitmap = loaded,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
-                )
-
-                vector != null -> Icon(
-                    imageVector = vector,
-                    contentDescription = null,
-                    tint = glyphColor,
-                    modifier = Modifier.size(iconSize),
-                )
-            }
-        }
-    }
-}
 
 /** The height of each shortcut button in the expanded center (its diameter too, in disc mode). */
 private val CENTER_DISC_DP = 64.dp

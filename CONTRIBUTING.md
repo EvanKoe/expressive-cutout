@@ -179,6 +179,17 @@ The source is grouped by feature, not by Android component type: `overlay/` hold
 
 Please put a new file in an existing package if one fits. A new package is fine when the thing genuinely doesn't belong anywhere yet, but say why in the PR so it can go in the tree with a sentence that means something.
 
+### Adding a resting-pill widget
+
+A resting-pill widget is one file in `swe/widgets/`, and nothing else needs to know about it. The step-by-step guide with a full example is [docs/ADD_SWE_WIDGET.md](docs/ADD_SWE_WIDGET.md); in short:
+
+- Create `swe/widgets/MyWidget.kt` as an immutable `data class` implementing `SweWidget`, with `companion object : SweWidgetType`.
+- Implement `isVisible`, `widthDp`, `Content`, `Controls`, `summary` and `toJson`.
+- `widthDp` must be a plain estimate of the worst-case string via `measureDp`. Never measure inside Compose: the width sizes the accessibility overlay before any composition runs.
+- Add it to `SweWidgets.all`.
+- Add its title string to `values/`, `values-fr-rFR/` and `values-tr/` `strings.xml`.
+- The JSON tags are saved in users' preferences, so they must never change once shipped.
+
 ### Lazy lists
 
 Any `items` or `itemsIndexed` block inside a `LazyColumn`, `LazyRow` or a lazy grid **must** get a `key`. It is a one-liner and it matters for performance: without a key Compose identifies rows by their position, so adding, removing or reordering one entry throws away the state of every row after it and recomposes them all. With a key, only the row that actually changed is touched, and `Modifier.animateItem()` can follow each row to its new place instead of cross-fading the whole list.

@@ -187,6 +187,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         _bound.value = true
         observeBehaviour()
         seedMediaArt()
+        publishUnreadCounts()
         // Registered up front, not when a call starts: a dialer's leftover call notification has to
         // be recognisable as stale on the very first post we see of it.
         traceCall("listener connected; call state registered=${callStateMonitor.start(::onCallStateIdle)}")
@@ -213,6 +214,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         if (instance === this) instance = null
         _bound.value = false
+        _unreadCounts.value = UnreadCounts()
     }
 
     /**
@@ -222,6 +224,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _bound.value = false
+        _unreadCounts.value = UnreadCounts()
         // Drop the effects mute by hand before the job that would have done it dies with the scope:
         // a fetch-back caught mid-flight by a teardown must not leave the device silent.
         if (mutedReturns > 0) setEffectsMuted(false)
@@ -548,6 +551,12 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
+        processPosted(sbn, rankingMap)
+        publishUnreadCounts(rankingMap)
+    }
+
+    /** The posted-notification handling proper, split out so [onNotificationPosted] can recount after any early return. */
+    private fun processPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
         val notification = sbn ?: return
 
         if (CallNotificationParser.isCall(notification)) {
@@ -690,6 +699,24 @@ class CutoutNotificationListenerService : NotificationListenerService() {
             MediaArtBus.update(null)
         }
         super.onNotificationRemoved(sbn)
+        publishUnreadCounts(runCatching { currentRanking }.getOrNull())
+    }
+
+    /**
+     * Recounts the notifications on the panel that the island would surface and publishes them to
+     * [unreadCounts]. Only counts, never reads a title or body.
+     */
+    private fun publishUnreadCounts(rankingMap: RankingMap? = null) {
+        val active = runCatching { activeNotifications }.getOrNull()
+        if (active == null) {
+            Log.w(TAG, "activeNotifications unavailable; keeping previous unread counts")
+            return
+        }
+        val surfaced = active.filter { it.shouldSurface() }
+        _unreadCounts.value = UnreadCounts(
+            all = surfaced.size,
+            nonSilent = surfaced.count { !isSilentNotification(it, rankingMap) },
+        )
     }
 
     /**
@@ -1025,6 +1052,11 @@ class CutoutNotificationListenerService : NotificationListenerService() {
          */
         val bound: StateFlow<Boolean> = _bound.asStateFlow()
 
+        private val _unreadCounts = MutableStateFlow(UnreadCounts())
+
+        /** How many notifications are on the panel; zeroed while the listener is unbound. */
+        val unreadCounts: StateFlow<UnreadCounts> = _unreadCounts.asStateFlow()
+
         /**
          * Ask the framework to (re)bind this listener. Android often leaves the binding dead after
          * an app update while the grant survives, and there is nothing the app can do from inside a
@@ -1067,3 +1099,6 @@ class CutoutNotificationListenerService : NotificationListenerService() {
         }
     }
 }
+
+/** Notification totals on the panel: [all] of them, and [nonSilent] those that are not silent. */
+data class UnreadCounts(val all: Int = 0, val nonSilent: Int = 0)

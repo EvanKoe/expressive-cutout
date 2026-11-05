@@ -12,7 +12,7 @@ the maintainer is new to Kotlin, so code that is hard to read is code that can't
 - Kotlin, Jetpack Compose, Material 3 ("expressive"). JVM target 17.
 - Package `com.ekoehler.expressivecutout`, `minSdk 29`, `targetSdk 35`. Single `app` module.
 - Source is grouped by responsibility, not by Android component type: `core/`, `data/`,
-  `events/`, `notifications/`, `overlay/`, `permissions/`, `service/`, `system/`, `ui/`.
+  `events/`, `notifications/`, `overlay/`, `permissions/`, `service/`, `swe/`, `system/`, `ui/`.
 - Dependencies live once in `gradle/libs.versions.toml` and are referenced as `libs.*`.
   Never hardcode a version in `build.gradle.kts`.
 

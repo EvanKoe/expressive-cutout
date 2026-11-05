@@ -391,6 +391,14 @@ class SystemEventMonitor(
         val initialPlugged = initialStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
         val initialBatteryStatus = initialStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         val initialCap = getBatteryChargeCap(context)
+        BatteryBus.publish(
+            BatteryStatus(
+                initialLevel,
+                initialPlugged == BatteryManager.BATTERY_PLUGGED_AC ||
+                    initialPlugged == BatteryManager.BATTERY_PLUGGED_USB ||
+                    initialPlugged == BatteryManager.BATTERY_PLUGGED_WIRELESS,
+            ),
+        )
 
         // Seed state so an already-full battery on service start does not fire a spurious event
         isFullyChargedState = initialPlugged > 0 && (
@@ -429,6 +437,7 @@ class SystemEventMonitor(
     fun stop() {
         stopLockPolling()
         isDeviceCurrentlyLocked = false
+        BatteryBus.publish(null)
         scope.cancel()
         runCatching { context.unregisterReceiver(broadcastReceiver) }
         runCatching { context.contentResolver.unregisterContentObserver(adbWifiObserver) }
@@ -656,12 +665,14 @@ class SystemEventMonitor(
             plugged == BatteryManager.BATTERY_PLUGGED_USB ||
             plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
 
+        val level = if (scale > 0 && rawLevel >= 0) (rawLevel * 100 / scale) else getBatteryLevel(context)
+        BatteryBus.publish(BatteryStatus(level, isPlugged))
+
         if (!isPlugged) {
             isFullyChargedState = false
             return
         }
 
-        val level = if (scale > 0 && rawLevel >= 0) (rawLevel * 100 / scale) else getBatteryLevel(context)
         val cap = getBatteryChargeCap(context)
 
         val isStatusFull = status == BatteryManager.BATTERY_STATUS_FULL

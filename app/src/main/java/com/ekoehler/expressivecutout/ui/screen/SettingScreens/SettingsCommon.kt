@@ -97,6 +97,7 @@ internal fun AdjustableSlider(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
         SliderRow(
             value = value,
             valueRange = valueRange,
@@ -125,6 +126,7 @@ private fun SliderRow(
         ) {
             Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
         }
+
         Slider(
             value = value,
             onValueChange = onValueChange,
@@ -134,6 +136,7 @@ private fun SliderRow(
                 .weight(1f)
                 .padding(horizontal = 6.dp),
         )
+
         FilledTonalIconButton(
             onClick = {
                 onValueChange((value + step).coerceIn(valueRange))

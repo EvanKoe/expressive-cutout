@@ -118,9 +118,6 @@ data class BehaviourSettings(
     val expandedSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val expandedSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY,
-    val showsWhenEmptyShowIcon: Boolean = SHOWS_WHEN_EMPTY_SHOW_ICON,
-    val showsWhenEmptyIcon: IconSource? = null,
-    val showsWhenEmptyIconColor: CutoutColor? = null,
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
     val showStatusDot: Boolean = DEFAULT_SHOW_STATUS_DOT,
@@ -172,7 +169,6 @@ data class BehaviourSettings(
         const val MIN_COLLAPSE_SECONDS = 1
         const val MAX_COLLAPSE_SECONDS = 15
         const val SHOWS_WHEN_EMPTY = false
-        const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
         const val DEFAULT_SHOW_STATUS_DOT = true
         const val CENTER_SHOW_LABELS = true
@@ -258,9 +254,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
                 ?: legacySwipeAction(prefs, left = false),
             showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
-            showsWhenEmptyShowIcon = prefs[SHOWS_WHEN_EMPTY_SHOW_ICON] ?: BehaviourSettings.SHOWS_WHEN_EMPTY_SHOW_ICON,
-            showsWhenEmptyIcon = prefs[SHOWS_WHEN_EMPTY_ICON]?.let { IconSource.decode(it) },
-            showsWhenEmptyIconColor = CutoutColor.deserialize(prefs[SHOWS_WHEN_EMPTY_ICON_COLOR]),
             showsWhenEmptyClickAction = prefs[SHOWS_WHEN_EMPTY_CLICK_ACTION]
                 ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
@@ -331,9 +324,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("expandedSwipeLeft", s.expandedSwipeLeft.name)
             put("expandedSwipeRight", s.expandedSwipeRight.name)
             put("showsWhenEmpty", s.showsWhenEmpty)
-            put("showsWhenEmptyShowIcon", s.showsWhenEmptyShowIcon)
-            put("showsWhenEmptyIcon", s.showsWhenEmptyIcon?.encode() ?: JSONObject.NULL)
-            put("showsWhenEmptyIconColor", s.showsWhenEmptyIconColor?.serialize() ?: JSONObject.NULL)
             put("showsWhenEmptyClickAction", s.showsWhenEmptyClickAction.name)
             put("showsWhenEmptyClickPackage", s.showsWhenEmptyClickPackage ?: JSONObject.NULL)
             put("showStatusDot", s.showStatusDot)
@@ -400,17 +390,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("splitIslandEnabled")) it[SPLIT_ISLAND_ENABLED] = obj.getBoolean("splitIslandEnabled")
             parseEnum<SatellitePosition>(obj, "satellitePosition")?.let { p -> it[SATELLITE_POSITION] = p.name }
             if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
-            if (obj.has("showsWhenEmptyShowIcon")) it[SHOWS_WHEN_EMPTY_SHOW_ICON] = obj.getBoolean("showsWhenEmptyShowIcon")
-            if (obj.has("showsWhenEmptyIcon")) {
-                val raw = if (obj.isNull("showsWhenEmptyIcon")) null else obj.optString("showsWhenEmptyIcon")
-                val icon = raw?.let { s -> IconSource.decode(s) }
-                if (icon == null) it.remove(SHOWS_WHEN_EMPTY_ICON) else it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
-            }
-            if (obj.has("showsWhenEmptyIconColor")) {
-                val raw = if (obj.isNull("showsWhenEmptyIconColor")) null else obj.optString("showsWhenEmptyIconColor")
-                val color = CutoutColor.deserialize(raw)
-                if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR) else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
-            }
             parseEnum<EmptyClickAction>(obj, "showsWhenEmptyClickAction")?.let { a -> it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = a.name }
             if (obj.has("showsWhenEmptyClickPackage")) {
                 val pkg = if (obj.isNull("showsWhenEmptyClickPackage")) null
@@ -601,28 +580,6 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[SHOW_STATUS_DOT] = enabled
     }
 
-    suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[SHOWS_WHEN_EMPTY_SHOW_ICON] = enabled
-    }
-
-    suspend fun setShowsWhenEmptyIcon(icon: IconSource) = context.behaviourDataStore.edit {
-        it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
-    }
-
-    /** Drop the chosen icon so the empty pill shows no glyph. */
-    suspend fun clearShowsWhenEmptyIcon() = context.behaviourDataStore.edit {
-        it.remove(SHOWS_WHEN_EMPTY_ICON)
-    }
-
-    /**
-     * Stores the empty pill's icon colour, or removes the key entirely for null so the icon falls
-     * back to the theme default.
-     */
-    suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
-        if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
-        else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
-    }
-
     suspend fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = context.behaviourDataStore.edit {
         it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
     }
@@ -708,10 +665,7 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val LEGACY_SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
         val LEGACY_SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
-        val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
         val SHOW_STATUS_DOT = booleanPreferencesKey("show_status_dot")
-        val SHOWS_WHEN_EMPTY_ICON = stringPreferencesKey("shows_when_empty_icon")
-        val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
         val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")
         val CENTER_SHORTCUTS = stringPreferencesKey("center_shortcuts")

@@ -62,6 +62,10 @@ import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.events.BatteryBus
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
@@ -84,6 +88,7 @@ import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
@@ -134,6 +139,7 @@ class IslandOverlayController(private val context: Context) {
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
+    private val emptyPillInfoPreferences = EmptyPillInfoPreferences(context)
     private val appPreferences = AppPreferences(context)
     private val permissionDotPreferences = PermissionDotPreferences(context)
     private val density = context.resources.displayMetrics.density
@@ -272,6 +278,9 @@ class IslandOverlayController(private val context: Context) {
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
+
+    /** The resting pill's clock / unread / battery settings; read by the composition and the touch region alike. */
+    private val emptyInfoState = MutableStateFlow(EmptyPillInfoSettings())
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
@@ -395,6 +404,7 @@ class IslandOverlayController(private val context: Context) {
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
+        observeEmptyPillInfo()
         observeNowPlaying()
         observeForegroundApp()
         observeOnCall()
@@ -692,6 +702,9 @@ class IslandOverlayController(private val context: Context) {
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
                 val exactWidthDp by displayWidthExactDp.collectAsStateWithLifecycle()
                 val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
+                val emptyInfo by emptyInfoState.collectAsStateWithLifecycle()
+                val unreadCounts by CutoutNotificationListenerService.unreadCounts.collectAsStateWithLifecycle()
+                val battery by BatteryBus.status.collectAsStateWithLifecycle()
                 val cameraLeftDp by cameraLeftEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
@@ -744,8 +757,9 @@ class IslandOverlayController(private val context: Context) {
                         expandedSwipeLeft = behaviour.expandedSwipeLeft,
                         expandedSwipeRight = behaviour.expandedSwipeRight,
                         showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
-                        emptyIcon = behaviour.showsWhenEmptyIcon.takeIf { behaviour.showsWhenEmptyShowIcon },
-                        emptyIconColor = behaviour.showsWhenEmptyIconColor,
+                        emptyInfo = emptyInfo,
+                        unreadCounts = unreadCounts,
+                        battery = battery,
                         emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
                         centerShortcuts = behaviour.centerShortcuts,
                         centerShowLabels = behaviour.centerShowLabels,
@@ -1002,6 +1016,57 @@ class IslandOverlayController(private val context: Context) {
     /** Mirrors the timer tile settings into [timerSettings]. */
     private fun observeTimerSettings() = scope.launch {
         timerTilePreferences.settings.collect { timerSettings = it }
+    }
+
+    /**
+     * Mirrors the resting pill's info settings into [emptyInfoState], and keeps the window and touch
+     * region in step with the unread count and battery presence, which both change the pill's width.
+     */
+    private fun observeEmptyPillInfo() {
+        scope.launch {
+            emptyPillInfoPreferences.settings.collect {
+                emptyInfoState.value = it
+                syncWindowSize()
+            }
+        }
+        scope.launch {
+            combine(
+                CutoutNotificationListenerService.unreadCounts,
+                BatteryBus.status.map { it != null },
+            ) { counts, hasBattery -> counts to hasBattery }
+                .distinctUntilChanged()
+                .collect { syncWindowSize() }
+        }
+    }
+
+    /**
+     * The resting pill's cutout: the collapsed one widened to hold the clock, unread count and battery
+     * on either side of the camera. Mirrors [DynamicIsland] so the touchable region matches the drawing.
+     */
+    private fun emptyPillCutout(collapsed: IslandDimensions): IslandDimensions {
+        val info = emptyInfoState.value
+        val sweData = SweData(CutoutNotificationListenerService.unreadCounts.value, BatteryBus.status.value)
+        val dotsEnabled = permissionDotEnabledState.value || PermissionDotPreviewBus.active.value
+        val dotRoomDp = if (dotsEnabled) {
+            emptyPillDotRoomDp(PermissionUsageMonitor.usage.value, collapsed.heightDp, permissionDotVerticalState.value)
+        } else {
+            0f
+        }
+        val onLeft = permissionDotPositionState.value == PermissionDotPosition.LEFT
+        val dotsLeftDp = if (onLeft) dotRoomDp else 0f
+        val dotsRightDp = if (onLeft) 0f else dotRoomDp
+        val (left, right) = emptyPillSideWidthsDp(
+            info,
+            collapsed.heightDp,
+            density,
+            sweData,
+            dotsLeftDp,
+            dotsRightDp,
+        )
+        return collapsed.asEmptyInfoCutout(
+            displayWidthDp.value, left, right, cameraRightEdgeDp.value,
+            centerIfFits = !emptyPillHasItems(info, sweData),
+        )
     }
 
     /**
@@ -1980,9 +2045,17 @@ class IslandOverlayController(private val context: Context) {
                     )
                 }
             }
+            currentEvent.value == null && !expanded && behaviourState.value.showsWhenEmpty &&
+                behaviourState.value.cutoutEnabled && !isStickToCameraLandscape() ->
+                emptyPillCutout(layout.collapsed)
             else -> layout.collapsed
         }
     }
+
+    /** Whether the display is landscape with the horizontal mode set to stick the island beside the camera. */
+    private fun isStickToCameraLandscape(): Boolean =
+        orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
 
     /**
      * Whether the shown call is drawn split — a narrow pill plus the detached hang-up capsule.
