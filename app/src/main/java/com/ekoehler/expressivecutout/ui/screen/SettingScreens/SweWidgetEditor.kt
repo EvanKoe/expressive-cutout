@@ -1,7 +1,13 @@
 package com.ekoehler.expressivecutout.ui.screen
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -57,6 +64,7 @@ import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryStatus
 import com.ekoehler.expressivecutout.overlay.EmptyPillInfoContent
 import com.ekoehler.expressivecutout.overlay.emptyPillSideWidthsDp
@@ -78,16 +86,15 @@ private val PreviewBattery = BatteryStatus(level = 82, charging = false)
 private val PreviewData = SweData(PreviewCounts, PreviewBattery)
 
 /**
- * The resting pill's widget editor: a live preview of the pill, a warning when it would run off the
- * screen, then one block per side listing its widgets in order with move / edit / remove controls
- * and an "Add widget" button. Adding opens a type picker; editing opens the widget's own settings
- * in a bottom sheet. Stateless apart from which sheet is open — every change goes out through the
- * lambdas and comes back in [settings].
+ * The resting pill's widget editor: one block per side listing its widgets in order with
+ * move / edit / remove controls and an "Add widget" button. Adding opens a type picker; editing
+ * opens the widget's own settings in a bottom sheet. The preview lives in [SwePreviewCard], which
+ * the screen places above. Stateless apart from which sheet is open — every change goes out through
+ * the lambdas and comes back in [settings].
  */
 @Composable
 internal fun SweWidgetEditor(
     settings: EmptyPillInfoSettings,
-    collapsed: IslandDimensions,
     onAdd: (InfoSide, SweWidget) -> Unit,
     onUpdate: (SweWidget) -> Unit,
     onMove: (id: String, delta: Int) -> Unit,
@@ -98,9 +105,6 @@ internal fun SweWidgetEditor(
     var editingId by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Preview and overflow warning
-        SwePreviewCard(settings = settings, collapsed = collapsed)
-
         // Left side
         SweSideSection(
             title = stringResource(R.string.swe_side_left_title),
@@ -150,11 +154,18 @@ internal fun SweWidgetEditor(
 }
 
 /**
- * A black pill drawn with the overlay's own widget code and sample data, centred on a camera dot,
- * plus a warning card when the computed pill is wider than the screen.
+ * A preview of the resting pill around a camera dot, drawn as [mode] asks. [SwePreviewMode.PILL]
+ * draws the black pill with the overlay's own widget code and sample data, plus a warning card when
+ * the computed pill is wider than the screen. [SwePreviewMode.HIDDEN_AREA] outlines the invisible
+ * tap area, [hiddenWidthPercent] of the screen wide. [SwePreviewMode.DOT] shows the bare camera.
  */
 @Composable
-private fun SwePreviewCard(settings: EmptyPillInfoSettings, collapsed: IslandDimensions) {
+internal fun SwePreviewCard(
+    settings: EmptyPillInfoSettings,
+    collapsed: IslandDimensions,
+    mode: SwePreviewMode,
+    hiddenWidthPercent: Int,
+) {
     val displayWidthDp = LocalConfiguration.current.screenWidthDp
     val density = LocalDensity.current.density
     val dims = remember(settings, collapsed, displayWidthDp, density) {
@@ -162,7 +173,22 @@ private fun SwePreviewCard(settings: EmptyPillInfoSettings, collapsed: IslandDim
         collapsed.asEmptyInfoCutout(displayWidthDp, left, right, DEFAULT_CAMERA_RADIUS_DP)
     }
     val pillWidthDp = displayWidthDp * dims.widthPercent / 100f
-    val overflows = pillWidthDp > displayWidthDp
+    val overflows = mode == SwePreviewMode.PILL && pillWidthDp > displayWidthDp
+    val hiddenArea = collapsed.asHiddenEmptyCutout(hiddenWidthPercent)
+    val pillShape = RoundedCornerShape(50)
+    val hiddenAreaWidthDp = displayWidthDp * hiddenArea.widthPercent / 100f
+    fun cameraPivot(offsetDp: Float, widthDp: Float) =
+        TransformOrigin(0.5f - offsetDp / widthDp.coerceAtLeast(1f), 0.5f)
+    fun growIn(pivot: TransformOrigin) =
+        fadeIn() + scaleIn(initialScale = PREVIEW_HIDDEN_SCALE, transformOrigin = pivot)
+    fun shrinkOut(pivot: TransformOrigin) =
+        fadeOut() + scaleOut(targetScale = PREVIEW_HIDDEN_SCALE, transformOrigin = pivot)
+    val pillPivot = cameraPivot(dims.offsetXDp.toFloat(), pillWidthDp)
+    val hiddenAreaPivot = cameraPivot(hiddenArea.offsetXDp.toFloat(), hiddenAreaWidthDp)
+    val cameraColor by animateColorAsState(
+        if (mode == SwePreviewMode.PILL) Color(PREVIEW_CAMERA_COLOR) else Color.Black,
+        label = "cameraColor",
+    )
 
     Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
         // Pill preview
@@ -178,32 +204,58 @@ private fun SwePreviewCard(settings: EmptyPillInfoSettings, collapsed: IslandDim
                 contentAlignment = Alignment.Center,
             ) {
                 // The overlay pill is always black with light ink on the real screen, so the preview
-                // copies those fixed colours rather than the app theme
-                Box(
-                    modifier = Modifier
-                        .offset(x = dims.offsetXDp.dp)
-                        .requiredWidth(pillWidthDp.dp)
-                        .height(collapsed.heightDp.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.Black),
+                // copies those fixed colours rather than the app theme. Qualified because the Card's
+                // ColumnScope overload can't be called from inside this Box. The offset sits on the
+                // animated layer itself: inside it, the shifted pill would overhang the layer and that
+                // strip only repaints once the animation ends.
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = mode == SwePreviewMode.PILL,
+                    modifier = Modifier.offset(x = dims.offsetXDp.dp),
+                    enter = growIn(pillPivot),
+                    exit = shrinkOut(pillPivot),
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides Color.White) {
-                        EmptyPillInfoContent(
-                            settings = settings,
-                            heightDp = collapsed.heightDp,
-                            data = PreviewData,
-                            enterDelayMs = 0L,
-                        )
+                    Box(
+                        modifier = Modifier
+                            .requiredWidth(pillWidthDp.dp)
+                            .height(collapsed.heightDp.dp)
+                            .clip(pillShape)
+                            .background(Color.Black),
+                    ) {
+                        CompositionLocalProvider(LocalContentColor provides Color.White) {
+                            EmptyPillInfoContent(
+                                settings = settings,
+                                heightDp = collapsed.heightDp,
+                                data = PreviewData,
+                                enterDelayMs = 0L,
+                            )
+                        }
                     }
                 }
 
-                // Camera hole
+                // Camera hole, grey only where it has to read against the black pill
                 Box(
                     modifier = Modifier
                         .size((DEFAULT_CAMERA_RADIUS_DP * CAMERA_DOT_SCALE).dp)
                         .clip(CircleShape)
-                        .background(Color(PREVIEW_CAMERA_COLOR)),
+                        .background(cameraColor),
                 )
+
+                // Hidden tap area
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = mode == SwePreviewMode.HIDDEN_AREA,
+                    modifier = Modifier.offset(x = hiddenArea.offsetXDp.dp),
+                    enter = growIn(hiddenAreaPivot),
+                    exit = shrinkOut(hiddenAreaPivot),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .requiredWidth(hiddenAreaWidthDp.dp)
+                            .height(collapsed.heightDp.dp)
+                            .clip(pillShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = HIDDEN_AREA_FILL_ALPHA))
+                            .border(HIDDEN_AREA_BORDER_DP.dp, MaterialTheme.colorScheme.primary, pillShape),
+                    )
+                }
             }
         }
 
@@ -468,4 +520,13 @@ private const val CAMERA_DOT_SCALE = 1.2f
 
 /** A dark grey for the camera hole, so it reads against the black pill. */
 private const val PREVIEW_CAMERA_COLOR = 0xFF2A2A3A
+
+/** How small the preview pill / tap area is when it starts growing in or finishes shrinking out. */
+private const val PREVIEW_HIDDEN_SCALE = 0.2f
+
+/** The hidden tap area's outline width in the preview, in dp. */
+private const val HIDDEN_AREA_BORDER_DP = 2
+
+/** The hidden tap area's fill opacity, so the camera dot stays visible underneath. */
+private const val HIDDEN_AREA_FILL_ALPHA = 0.2f
 

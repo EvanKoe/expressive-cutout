@@ -767,6 +767,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setShowsWhenEmpty(enabled)
     }
 
+    fun setShowEmptyCutout(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowEmptyCutout(enabled)
+    }
+
+    fun setHiddenEmptyWidthPercent(percent: Int) = viewModelScope.launch {
+        behaviourPreferences.setHiddenEmptyWidthPercent(percent)
+    }
+
     /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
     fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowStatusDot(enabled)

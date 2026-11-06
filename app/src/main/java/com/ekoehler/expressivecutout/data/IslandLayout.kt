@@ -278,6 +278,26 @@ fun IslandDimensions.asEmptyInfoCutout(
     )
 }
 
+/**
+ * The resting pill's tap area when the pill is hidden: this pill's own geometry with only the width
+ * replaced by the user's [widthPercent]. Called by both the overlay's drawing and its touch sizing,
+ * so the invisible pill and its window always cover the same area.
+ */
+fun IslandDimensions.asHiddenEmptyCutout(widthPercent: Int): IslandDimensions =
+    IslandDimensions.of(
+        widthPercent = widthPercent,
+        heightDp = heightDp,
+        offsetXDp = offsetXDp,
+        offsetYDp = offsetYDp,
+        cornerTopLeftDp = cornerTopLeftDp,
+        cornerTopRightDp = cornerTopRightDp,
+        cornerBottomLeftDp = cornerBottomLeftDp,
+        cornerBottomRightDp = cornerBottomRightDp,
+        topMarginDp = topMarginDp,
+        isNotch = isNotch,
+        notchFlareDp = notchFlareDp,
+    )
+
 /** Slack added to the info pill's computed width so rounding never clips its content. */
 private const val EMPTY_INFO_SAFETY_DP = 4f
 

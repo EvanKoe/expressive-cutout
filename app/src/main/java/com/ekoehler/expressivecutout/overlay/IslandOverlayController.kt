@@ -65,6 +65,7 @@ import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryBus
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
@@ -756,7 +757,9 @@ class IslandOverlayController(private val context: Context) {
                         normalSwipeRight = behaviour.normalSwipeRight,
                         expandedSwipeLeft = behaviour.expandedSwipeLeft,
                         expandedSwipeRight = behaviour.expandedSwipeRight,
-                        showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
+                        showsWhenEmpty = behaviour.emptyPillActive,
+                        showEmptyCutout = behaviour.showEmptyCutout,
+                        hiddenEmptyWidthPercent = behaviour.hiddenEmptyWidthPercent,
                         emptyInfo = emptyInfo,
                         unreadCounts = unreadCounts,
                         battery = battery,
@@ -1041,9 +1044,12 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * The resting pill's cutout: the collapsed one widened to hold the clock, unread count and battery
-     * on either side of the camera. Mirrors [DynamicIsland] so the touchable region matches the drawing.
+     * on either side of the camera, or the invisible tap area when the cutout is hidden. Mirrors
+     * [DynamicIsland] so the touchable region matches the drawing.
      */
     private fun emptyPillCutout(collapsed: IslandDimensions): IslandDimensions {
+        val behaviour = behaviourState.value
+        if (!behaviour.showEmptyCutout) return collapsed.asHiddenEmptyCutout(behaviour.hiddenEmptyWidthPercent)
         val info = emptyInfoState.value
         val sweData = SweData(CutoutNotificationListenerService.unreadCounts.value, BatteryBus.status.value)
         val dotsEnabled = permissionDotEnabledState.value || PermissionDotPreviewBus.active.value
@@ -1289,7 +1295,7 @@ class IslandOverlayController(private val context: Context) {
             publishCutoutWidth()
             setTouchable(
                 !previewPinned && (event != null || satelliteEvent.value != null ||
-                    (behaviour.showsWhenEmpty && behaviour.cutoutEnabled)),
+                    behaviour.emptyPillActive),
             )
         }
     }
@@ -1382,7 +1388,7 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun currentCutoutKind(): CutoutKind? {
         val shown = currentEvent.value != null || satelliteEvent.value != null ||
-            (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)
+            behaviourState.value.emptyPillActive
         return when {
             !shown -> null
             expanded -> CutoutKind.EXPANDED
@@ -2045,8 +2051,8 @@ class IslandOverlayController(private val context: Context) {
                     )
                 }
             }
-            currentEvent.value == null && !expanded && behaviourState.value.showsWhenEmpty &&
-                behaviourState.value.cutoutEnabled && !isStickToCameraLandscape() ->
+            currentEvent.value == null && !expanded && behaviourState.value.emptyPillActive &&
+                !isStickToCameraLandscape() ->
                 emptyPillCutout(layout.collapsed)
             else -> layout.collapsed
         }
@@ -2152,7 +2158,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
-                setTouchable(!pinned && (currentEvent.value != null || (behaviourState.value.showsWhenEmpty && behaviourState.value.cutoutEnabled)))
+                setTouchable(!pinned && (currentEvent.value != null || behaviourState.value.emptyPillActive))
                 syncWindowSize()
             }
     }
