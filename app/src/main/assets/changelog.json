@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.4.0-beta",
+    "description": "SWE, notch, Shizuku and gestures",
+    "features": [
+      "Expanded notch mode: a mode for expanded cutout that goes well with the noth mode",
+      "Music like: added a way to like songs in the media player when supported",
+      "Shizuku auto triggers for hiding notification bar icons",
+      "Persistent system events: they're not forced to disappear after a few seconds. System events can now chill with you",
+      "Gestures: configure gestures for the different cutouts",
+      "SWE widgets: you can now add and configure widgets in your SWE cutout",
+      "Show SWE cutout: you can now hide the SWE cutout while keeping its on tap action"
+    ],
+    "bugfixes": [
+      "Fixed hotspot system event (worked until Android 11)"
+    ]
+  },
+  {
     "version": "0.3.2-beta",
     "description": "Notch and 0.3.1 fixes",
     "features": [

@@ -581,6 +581,10 @@
     <string name="swe_side_empty">No widget on this side</string>
     <string name="swe_edit_widget">Edit widget</string>
     <string name="swe_overflow_warning">The pill is wider than the screen, so some widgets will be cut off</string>
+    <string name="swe_show_cutout">Show SWE cutout</string>
+    <string name="swe_show_cutout_desc">When off, the pill is invisible but tapping where it sits still runs the click action</string>
+    <string name="swe_hidden_width_title">Tap area width</string>
+    <string name="swe_hidden_width_desc">How wide the invisible area around the camera is</string>
     <string name="empty_info_clock_title">Clock</string>
     <string name="empty_info_side">Side</string>
     <string name="empty_info_side_left">Left</string>

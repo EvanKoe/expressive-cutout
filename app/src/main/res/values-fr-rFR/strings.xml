@@ -561,6 +561,10 @@
     <string name="swe_side_empty">Aucun widget de ce côté</string>
     <string name="swe_edit_widget">Modifier le widget</string>
     <string name="swe_overflow_warning">La pastille est plus large que l’écran : certains widgets seront coupés</string>
+    <string name="swe_show_cutout">Afficher l’encoche SWE</string>
+    <string name="swe_show_cutout_desc">Désactivée, la pilule est invisible mais toucher son emplacement déclenche toujours l’action au clic</string>
+    <string name="swe_hidden_width_title">Largeur de la zone tactile</string>
+    <string name="swe_hidden_width_desc">Largeur de la zone invisible autour de la caméra</string>
     <string name="empty_info_clock_title">Horloge</string>
     <string name="empty_info_side">Côté</string>
     <string name="empty_info_side_left">Gauche</string>

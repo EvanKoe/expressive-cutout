@@ -514,6 +514,10 @@
     <string name="swe_side_empty">Bu tarafta widget yok</string>
     <string name="swe_edit_widget">Widget\'ı düzenle</string>
     <string name="swe_overflow_warning">Hap ekrandan geniş, bazı widget\'lar kesilecek</string>
+    <string name="swe_show_cutout">SWE çentiğini göster</string>
+    <string name="swe_show_cutout_desc">Kapalıyken hap görünmez, ancak bulunduğu yere dokunmak yine de tıklama eylemini çalıştırır</string>
+    <string name="swe_hidden_width_title">Dokunma alanı genişliği</string>
+    <string name="swe_hidden_width_desc">Kameranın etrafındaki görünmez alanın genişliği</string>
     <string name="empty_info_clock_title">Saat</string>
     <string name="empty_info_side">Taraf</string>
     <string name="empty_info_side_left">Sol</string>
