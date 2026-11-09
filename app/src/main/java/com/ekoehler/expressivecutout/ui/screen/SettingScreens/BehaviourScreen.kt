@@ -91,14 +91,14 @@ internal fun BehaviourScreen(
     onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
-    // The bubble is parked beside the normal cutout, so it is the notch setting of that state that
-    // rules the split out — see satelliteAllowed in IslandOverlayController, which enforces it.
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val splitLockedByNotch = layout.collapsed.isNotch
     val splitIsland = behaviour.splitIslandEnabled && !splitLockedByNotch
+
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
         mutableStateOf(behaviour.normalDurationSeconds.toFloat())
     }
+
     var seconds by remember(behaviour.expandedCollapseSeconds) {
         mutableStateOf(behaviour.expandedCollapseSeconds.toFloat())
     }
@@ -112,8 +112,10 @@ internal fun BehaviourScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Title
         PageTitle(text = stringResource(R.string.behaviour_title))
 
+        // Landscape cutout mode
         OptionSelectionCard(
             modifier = Modifier.padding(bottom = 8.dp),
             title = stringResource(R.string.behaviour_horizontal_cutout),
@@ -128,7 +130,7 @@ internal fun BehaviourScreen(
             selectedValue = behaviour.horizontalCutoutMode,
             onSelectionChange = viewModel::setHorizontalCutoutMode,
         )
-        // Grouped list: the first item's top corners and the last item's bottom corners round.
+        // Hide on lockscreen
         SettingsToggleCard(
             shape = groupedShape(isFirst = true, isLast = false),
             title = stringResource(R.string.behaviour_hide_lockscreen),
@@ -136,6 +138,7 @@ internal fun BehaviourScreen(
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
         )
+        // Normal cutout duration
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
             label = stringResource(R.string.behaviour_normal_duration),
@@ -146,6 +149,7 @@ internal fun BehaviourScreen(
             onValueChange = { normalSeconds = it },
             onCommit = { viewModel.setNormalDurationSeconds(normalSeconds.roundToInt()) },
         )
+        // Auto-collapse
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_auto_collapse),
@@ -153,6 +157,7 @@ internal fun BehaviourScreen(
             checked = behaviour.expandedAutoCollapse,
             onCheckedChange = viewModel::setExpandedAutoCollapse,
         )
+        // Collapse delay, only while auto-collapse is on
         AnimatedVisibility(visible = behaviour.expandedAutoCollapse) {
             BehaviourSliderRow(
                 shape = groupedShape(isFirst = false, isLast = false),
@@ -165,6 +170,7 @@ internal fun BehaviourScreen(
                 onCommit = { viewModel.setExpandedCollapseSeconds(seconds.roundToInt()) },
             )
         }
+        // Disappear on shrink
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_disappear),
@@ -172,6 +178,7 @@ internal fun BehaviourScreen(
             checked = behaviour.expandedDisappearOnShrink,
             onCheckedChange = viewModel::setExpandedDisappearOnShrink,
         )
+        // Auto-expand notifications
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_notif_auto_expand),
@@ -179,6 +186,7 @@ internal fun BehaviourScreen(
             checked = behaviour.notificationsAutoExpand,
             onCheckedChange = viewModel::setNotificationsAutoExpand,
         )
+        // Ignore silent notifications
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_ignore_silent_notif),
@@ -186,6 +194,7 @@ internal fun BehaviourScreen(
             checked = behaviour.ignoreSilentNotifications,
             onCheckedChange = viewModel::setIgnoreSilentNotifications,
         )
+        // Pin notifications mode
         OptionSelectionCard(
             title = stringResource(R.string.behaviour_pin_notifications),
             description = stringResource(R.string.behaviour_pin_notifications_desc),
@@ -201,6 +210,7 @@ internal fun BehaviourScreen(
             isFirst = false,
             isLast = false,
         )
+        // Action buttons
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_action_buttons),
@@ -208,6 +218,7 @@ internal fun BehaviourScreen(
             checked = behaviour.showActionButtons,
             onCheckedChange = viewModel::setShowActionButtons,
         )
+        // Vibrate on tap
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_vibrateOnTap_title),
@@ -215,6 +226,7 @@ internal fun BehaviourScreen(
             checked = behaviour.vibrateOnTap,
             onCheckedChange = viewModel::setVibrateOnTap
         )
+        // Haptics on pop
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = splitLockedByNotch),
             title = stringResource(R.string.behaviour_hapticsOnPop_title),
@@ -231,6 +243,7 @@ internal fun BehaviourScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
+        // Split island
         SettingsToggleCard(
             shape = groupedShape(isFirst = splitLockedByNotch, isLast = false),
             title = stringResource(R.string.behaviour_split_island),
@@ -239,6 +252,8 @@ internal fun BehaviourScreen(
             onCheckedChange = viewModel::setSplitIslandEnabled,
             enabled = !splitLockedByNotch,
         )
+        
+        // Bubble position, only while the island is split
         AnimatedVisibility(visible = splitIsland) {
             SettingsSegmentedCard(
                 shape = groupedShape(isFirst = false, isLast = false),
@@ -251,6 +266,7 @@ internal fun BehaviourScreen(
                 onSelect = { viewModel.setSatellitePosition(SatellitePosition.entries[it]) },
             )
         }
+        // Shows when empty
         SettingsToggleNavCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_empty_pill),
@@ -262,6 +278,7 @@ internal fun BehaviourScreen(
                 onOpenShowsWhenEmpty()
             }
         )
+        // Dismiss notifications
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_dismissNotifs_title),
@@ -269,6 +286,7 @@ internal fun BehaviourScreen(
             checked = behaviour.dismissNotifications,
             onCheckedChange = viewModel::setDismissNotifications,
         )
+        // Alert on notification
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_alertOnNotif_title),
@@ -276,6 +294,7 @@ internal fun BehaviourScreen(
             checked = behaviour.alertOnNotification,
             onCheckedChange = viewModel::setAlertOnNotification,
         )
+        // Display while Do Not Disturb
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = true),
             title = stringResource(R.string.behaviour_displayWhileDnd_title),
