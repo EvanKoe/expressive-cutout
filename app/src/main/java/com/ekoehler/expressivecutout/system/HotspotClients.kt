@@ -1,9 +1,12 @@
 package com.ekoehler.expressivecutout.system
 
 import android.content.Context
+import android.os.Binder
 import android.os.IBinder
+import android.os.Parcel
 import android.util.Log
 import com.ekoehler.expressivecutout.BuildConfig
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 
@@ -77,13 +81,66 @@ object HotspotClients {
     }
 
     /**
-     * Asks the Wi-Fi service, as the shell user Shizuku lends us, to stop the hotspot, and reports
-     * whether it accepted. Blocks on a binder call, so run it off the main thread.
+     * Stops the hotspot and reports whether it went down. Asks the tethering service first, because
+     * the shell user Shizuku lends us holds `NETWORK_SETTINGS` there; the Wi-Fi service call is the
+     * fallback. Blocks on binder calls and waits up to [STOP_TIMEOUT_MS] for the result, so run it
+     * off the main thread.
+     */
+    suspend fun stopHotspot(): Boolean = stopThroughTethering() || stopThroughWifiService()
+
+    /**
+     * Asks the tethering service to stop Wi-Fi tethering as the shell user, and reports whether it
+     * answered [TETHER_ERROR_NO_ERROR]. The interface is oneway, so a rejection only arrives through
+     * the result listener; no answer within [STOP_TIMEOUT_MS] counts as a failure.
+     *
+     * ponytail: reaches the hidden `ITetheringConnector` AIDL by reflection and hardcodes the caller
+     * package to [SHELL_PACKAGE]; revisit if a release changes `stopTethering` or Shizuku runs as root.
+     */
+    private suspend fun stopThroughTethering(): Boolean {
+        val result = CompletableDeferred<Int>()
+        val resultBinder = object : Binder() {
+            override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+                if (code != FIRST_CALL_TRANSACTION) return super.onTransact(code, data, reply, flags)
+                data.enforceInterface(RESULT_LISTENER_DESCRIPTOR)
+                result.complete(data.readInt())
+                return true
+            }
+        }
+        val started = runCatching {
+            val listenerClass = Class.forName(RESULT_LISTENER_DESCRIPTOR)
+            val listener = Class.forName("$RESULT_LISTENER_DESCRIPTOR\$Stub")
+                .getMethod("asInterface", IBinder::class.java)
+                .invoke(null, resultBinder)
+            val tethering = Class.forName("android.net.ITetheringConnector\$Stub")
+                .getMethod("asInterface", IBinder::class.java)
+                .invoke(null, ShizukuBinderWrapper(SystemServiceHelper.getSystemService(TETHERING_SERVICE)))
+                ?: error("ITetheringConnector.asInterface returned null")
+            Class.forName("android.net.ITetheringConnector")
+                .getMethod(
+                    "stopTethering",
+                    Int::class.javaPrimitiveType,
+                    String::class.java,
+                    String::class.java,
+                    listenerClass,
+                )
+                .invoke(tethering, TETHERING_WIFI, SHELL_PACKAGE, null, listener)
+        }.onFailure { error -> Log.w(TAG, "Stopping the hotspot through tethering failed", error) }
+            .isSuccess
+        if (!started) return false
+        val code = withTimeoutOrNull(STOP_TIMEOUT_MS) { result.await() }
+        if (code != TETHER_ERROR_NO_ERROR) Log.w(TAG, "Tethering did not confirm the stop, result=$code")
+        return code == TETHER_ERROR_NO_ERROR
+    }
+
+    /**
+     * Asks the Wi-Fi service to stop the hotspot and reports whether it accepted. Only works when
+     * Shizuku runs as root: the shell user lacks `MAINLINE_NETWORK_STACK` there. Blocks on a binder
+     * call, so run it off the main thread.
      *
      * ponytail: calls the hidden `IWifiManager.stopSoftAp()` by reflection; revisit if a release
-     * renames it or the tethering service stops reacting to it.
+     * renames it.
      */
-    fun stopHotspot(): Boolean = runCatching {
+    private fun stopThroughWifiService(): Boolean = runCatching {
         val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService(Context.WIFI_SERVICE))
         val wifi = Class.forName("android.net.wifi.IWifiManager\$Stub")
             .getMethod("asInterface", IBinder::class.java)
@@ -171,6 +228,18 @@ object HotspotClients {
 
     private const val TAG = "HotspotClients"
     private const val POLL_INTERVAL_MS = 5000L
+
+    /**
+     * Values of the hidden tethering API: the service name, the Wi-Fi tethering type, the success
+     * result code, the package the shell user calls as, the result listener's binder descriptor,
+     * and how long to wait for that listener.
+     */
+    private const val TETHERING_SERVICE = "tethering"
+    private const val TETHERING_WIFI = 0
+    private const val TETHER_ERROR_NO_ERROR = 0
+    private const val SHELL_PACKAGE = "com.android.shell"
+    private const val RESULT_LISTENER_DESCRIPTOR = "android.net.IIntResultListener"
+    private const val STOP_TIMEOUT_MS = 3000L
     private const val DUMP_COMMAND =
         "dumpsys wifi | grep -E 'Dump of SoftApManager|mCurrentSoftApConfiguration|mCurrentSoftApInfoMap|getConnectedClientList'; ip neigh show"
     private const val BLOCK_DELIMITER = "Dump of SoftApManager"
