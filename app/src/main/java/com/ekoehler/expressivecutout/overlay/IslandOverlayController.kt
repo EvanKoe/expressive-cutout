@@ -801,6 +801,7 @@ class IslandOverlayController(private val context: Context) {
         composeView = view
         layoutParams = params
         installTouchableRegion(view)
+        syncTouchable()
     }
 
     /**
@@ -1293,12 +1294,9 @@ class IslandOverlayController(private val context: Context) {
      * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect { (event, behaviour) ->
+        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect {
             publishCutoutWidth()
-            setTouchable(
-                !previewPinned && (event != null || satelliteEvent.value != null ||
-                    behaviour.emptyPillActive),
-            )
+            syncTouchable()
         }
     }
 
@@ -1444,6 +1442,17 @@ class IslandOverlayController(private val context: Context) {
             params.y = targetY
             runCatching { windowManager.updateViewLayout(view, params) }
         }
+    }
+
+    /**
+     * Re-applies the touch flag from the current state. A newly added window needs it because it
+     * starts non-touchable.
+     */
+    private fun syncTouchable() {
+        setTouchable(
+            !previewPinned && (currentEvent.value != null || satelliteEvent.value != null ||
+                behaviourState.value.emptyPillActive),
+        )
     }
 
     /**
@@ -2189,7 +2198,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
-                setTouchable(!pinned && (currentEvent.value != null || behaviourState.value.emptyPillActive))
+                syncTouchable()
                 syncWindowSize()
             }
     }
