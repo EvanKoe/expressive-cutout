@@ -90,6 +90,11 @@ import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.system.HotspotClients
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
+import android.widget.Toast
+import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
@@ -256,6 +261,9 @@ class IslandOverlayController(private val context: Context) {
     private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
     private var eventColors: Map<SystemEventType, CutoutColor> = emptyMap()
+
+    /** Hotspot card options (count style, Turn-off colour) handed to every resolved event. */
+    private var hotspotCard: HotspotCard? = null
     /**
      * The system event currently on the pill, so its auto-dismiss uses that event's own duration
      * override (null while a notification or live tile is showing → the global normal duration).
@@ -396,6 +404,8 @@ class IslandOverlayController(private val context: Context) {
         observeEventPersistent()
         observeEventAnimatedIcons()
         observeEventColors()
+        observeHotspotCard()
+        HotspotClients.start(scope)
         observeEventDynamicColor()
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
@@ -435,6 +445,7 @@ class IslandOverlayController(private val context: Context) {
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
+        HotspotClients.stop()
         scope.cancel()
     }
 
@@ -515,6 +526,7 @@ class IslandOverlayController(private val context: Context) {
             animatedIconEnabled = eventAnimatedIcons,
             animatedIconLoop = eventAnimatedIconLoops,
             eventColorOverrides = eventColors,
+            hotspot = hotspotCard,
             appearance = appearanceState.value,
         ).copy(initiallyExpanded = false, normalOnly = false)
         isDeviceLocked = true
@@ -705,6 +717,8 @@ class IslandOverlayController(private val context: Context) {
                 val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
                 val emptyInfo by emptyInfoState.collectAsStateWithLifecycle()
                 val unreadCounts by CutoutNotificationListenerService.unreadCounts.collectAsStateWithLifecycle()
+                val hotspot by HotspotClients.state.collectAsStateWithLifecycle()
+                val shizukuStatus by ShizukuState.status.collectAsStateWithLifecycle()
                 val battery by BatteryBus.status.collectAsStateWithLifecycle()
                 val cameraLeftDp by cameraLeftEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
@@ -762,6 +776,9 @@ class IslandOverlayController(private val context: Context) {
                         hiddenEmptyWidthPercent = behaviour.hiddenEmptyWidthPercent,
                         emptyInfo = emptyInfo,
                         unreadCounts = unreadCounts,
+                        hotspot = hotspot,
+                        canTurnOffHotspot = shizukuStatus == ShizukuStatus.READY,
+                        onTurnOffHotspot = ::onTurnOffHotspot,
                         battery = battery,
                         emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
                         centerShortcuts = behaviour.centerShortcuts,
@@ -911,6 +928,29 @@ class IslandOverlayController(private val context: Context) {
         scope.launch { eventPreferences.animatedIconLoops.collect { eventAnimatedIconLoops = it } }
     }
 
+    /** Stops the hotspot through Shizuku, off the main thread because it is a blocking binder call. */
+    private fun onTurnOffHotspot() {
+        scope.launch(Dispatchers.IO) {
+            if (!HotspotClients.stopHotspot()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, R.string.hotspot_turn_off_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /** Mirrors the hotspot count and Turn-off colour options into [hotspotCard] and tells [HotspotClients] whether to poll. */
+    private fun observeHotspotCard() = scope.launch {
+        combine(
+            eventPreferences.hotspotCountEnabled,
+            eventPreferences.hotspotCountStyle,
+            eventPreferences.hotspotTurnOffColor,
+        ) { enabled, style, color ->
+            HotspotClients.setEnabled(enabled)
+            HotspotCard(style.takeIf { enabled }, color)
+        }.collect { hotspotCard = it }
+    }
+
     /** Mirrors the per-event colour overrides into [eventColors]. */
     private fun observeEventColors() = scope.launch {
         eventPreferences.colors.collect { eventColors = it }
@@ -999,6 +1039,7 @@ class IslandOverlayController(private val context: Context) {
             animatedIconEnabled = eventAnimatedIcons,
             animatedIconLoop = eventAnimatedIconLoops,
             eventColorOverrides = eventColors,
+            hotspot = hotspotCard,
             appearance = appearanceState.value,
         ).copy(
             initiallyExpanded = previous.initiallyExpanded,
@@ -2280,6 +2321,7 @@ class IslandOverlayController(private val context: Context) {
                 animatedIconEnabled = eventAnimatedIcons,
                 animatedIconLoop = eventAnimatedIconLoops,
                 eventColorOverrides = eventColors,
+                hotspot = hotspotCard,
                 appearance = appearanceState.value,
             ).copy(
                 initiallyExpanded = autoExpand,

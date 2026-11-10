@@ -118,12 +118,19 @@ data class UnreadWidget(
 
     /** The count on a star, a pill or bare, crossfading when the shape setting changes. */
     @Composable
-    override fun Content(data: SweData, heightDp: Int) {
-        val current = count(data.counts)
-        var lastCount by remember { mutableIntStateOf(current) }
+    override fun Content(data: SweData, heightDp: Int) = DrawCount(count(data.counts), heightDp)
 
-        if (current > 0) {
-            lastCount = current
+    /**
+     * Draws [count] on the widget's shape, keeping the last non-zero value while it fades out
+     * unless [showZero], in which case 0 is drawn as is. The overlay's hotspot badge calls it
+     * directly with [showZero] set.
+     */
+    @Composable
+    fun DrawCount(count: Int, heightDp: Int, showZero: Boolean = false) {
+        var lastCount by remember { mutableIntStateOf(count) }
+
+        if (count > 0 || showZero) {
+            lastCount = count
         }
 
         val fill by animateColorAsState(shapeColor?.resolve() ?: UNREAD_DEFAULT_FILL, label = "unreadFill")
@@ -167,67 +174,11 @@ data class UnreadWidget(
         }
     }
 
-    /** The shape, its colour and pill width when they apply, the number colour and silent counting. */
+    /** The badge style controls followed by the silent-counting toggle. */
     @Composable
     override fun Controls(onChange: (SweWidget) -> Unit) {
-        var pillWidth by remember(pillWidthPercent) { mutableFloatStateOf(pillWidthPercent.toFloat()) }
-
         Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-            // Badge shape
-            InfoSegmentCard(
-                title = stringResource(R.string.empty_info_unread_shape),
-                options = listOf(
-                    stringResource(R.string.empty_info_unread_shape_star),
-                    stringResource(R.string.empty_info_unread_shape_pill),
-                    stringResource(R.string.empty_info_unread_shape_none),
-                ),
-                selectedIndex = shape.ordinal,
-                onSelect = { onChange(copy(shape = UnreadShape.entries[it])) },
-                shape = groupedShape(isFirst = true),
-            )
-
-            // Badge colour, only when there is a badge
-            AnimatedVisibility(visible = shape != UnreadShape.NONE) {
-                ColorPickerCard(
-                    label = stringResource(R.string.empty_info_unread_shape_color),
-                    selected = shapeColor,
-                    onSelect = { onChange(copy(shapeColor = it)) },
-                    defaultLabel = stringResource(R.string.label_default),
-                    defaultColor = MaterialTheme.colorScheme.primary,
-                    shape = groupedShape(),
-                )
-            }
-
-            // Pill width, only for the pill shape
-            AnimatedVisibility(visible = shape == UnreadShape.PILL) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = groupedShape(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        AdjustableSlider(
-                            label = stringResource(R.string.empty_info_unread_pill_width),
-                            valueText = "${pillWidth.roundToInt()}%",
-                            value = pillWidth,
-                            valueRange = MIN_PILL_WIDTH_PERCENT.toFloat()..MAX_PILL_WIDTH_PERCENT.toFloat(),
-                            step = 10f,
-                            onValueChange = { pillWidth = it },
-                            onCommit = { onChange(copy(pillWidthPercent = pillWidth.roundToInt())) },
-                        )
-                    }
-                }
-            }
-
-            // Number colour
-            ColorPickerCard(
-                label = stringResource(R.string.empty_info_unread_text_color),
-                selected = textColor,
-                onSelect = { onChange(copy(textColor = it)) },
-                defaultLabel = stringResource(R.string.label_default),
-                defaultColor = MaterialTheme.colorScheme.onSurface,
-                shape = groupedShape(),
-            )
+            BadgeStyleControls(widget = this@UnreadWidget, onChange = onChange)
 
             // Silent notifications
             SettingsToggleCard(
@@ -308,6 +259,74 @@ data class UnreadWidget(
 
         /** The count as shown on the badge, capped at [UNREAD_CAP_TEXT]. */
         private fun unreadText(count: Int): String = if (count > UNREAD_CAP) UNREAD_CAP_TEXT else count.toString()
+    }
+}
+
+/**
+ * The shape, its colour and pill width when they apply, and the number colour of [widget]. Shared
+ * by the Unread widget editor and the hotspot device-count settings; the last card is left open so
+ * the caller can append its own.
+ */
+@Composable
+internal fun BadgeStyleControls(widget: UnreadWidget, onChange: (UnreadWidget) -> Unit) {
+    var pillWidth by remember(widget.pillWidthPercent) { mutableFloatStateOf(widget.pillWidthPercent.toFloat()) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+        // Badge shape
+        InfoSegmentCard(
+            title = stringResource(R.string.empty_info_unread_shape),
+            options = listOf(
+                stringResource(R.string.empty_info_unread_shape_star),
+                stringResource(R.string.empty_info_unread_shape_pill),
+                stringResource(R.string.empty_info_unread_shape_none),
+            ),
+            selectedIndex = widget.shape.ordinal,
+            onSelect = { onChange(widget.copy(shape = UnreadShape.entries[it])) },
+            shape = groupedShape(isFirst = true),
+        )
+
+        // Badge colour, only when there is a badge
+        AnimatedVisibility(visible = widget.shape != UnreadShape.NONE) {
+            ColorPickerCard(
+                label = stringResource(R.string.empty_info_unread_shape_color),
+                selected = widget.shapeColor,
+                onSelect = { onChange(widget.copy(shapeColor = it)) },
+                defaultLabel = stringResource(R.string.label_default),
+                defaultColor = MaterialTheme.colorScheme.primary,
+                shape = groupedShape(),
+            )
+        }
+
+        // Pill width, only for the pill shape
+        AnimatedVisibility(visible = widget.shape == UnreadShape.PILL) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = groupedShape(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    AdjustableSlider(
+                        label = stringResource(R.string.empty_info_unread_pill_width),
+                        valueText = "${pillWidth.roundToInt()}%",
+                        value = pillWidth,
+                        valueRange = UnreadWidget.MIN_PILL_WIDTH_PERCENT.toFloat()..UnreadWidget.MAX_PILL_WIDTH_PERCENT.toFloat(),
+                        step = 10f,
+                        onValueChange = { pillWidth = it },
+                        onCommit = { onChange(widget.copy(pillWidthPercent = pillWidth.roundToInt())) },
+                    )
+                }
+            }
+        }
+
+        // Number colour
+        ColorPickerCard(
+            label = stringResource(R.string.empty_info_unread_text_color),
+            selected = widget.textColor,
+            onSelect = { onChange(widget.copy(textColor = it)) },
+            defaultLabel = stringResource(R.string.label_default),
+            defaultColor = MaterialTheme.colorScheme.onSurface,
+            shape = groupedShape(),
+        )
     }
 }
 

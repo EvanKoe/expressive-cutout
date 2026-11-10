@@ -772,4 +772,11 @@
     <string name="width">Width</string>
     <string name="size">Size</string>
     <string name="height">Height</string>
+    <string name="hotspot_count_title">Show connected devices</string>
+    <string name="hotspot_count_desc">Show how many devices are connected to your hotspot, and list them when the event is expanded</string>
+    <string name="requires_shizuku_access">Requires Shizuku access</string>
+    <string name="requires_shizuku">Requires Shizuku</string>
+    <string name="hotspot_turn_off_color">Turn off button color</string>
+    <string name="hotspot_turn_off">Turn off</string>
+    <string name="hotspot_turn_off_failed">Couldn\'t turn the hotspot off</string>
 </resources>

@@ -752,4 +752,11 @@
     <string name="width">Largeur</string>
     <string name="size">Taille</string>
     <string name="height">Hauteur</string>
+    <string name="hotspot_count_title">Afficher les appareils connectés</string>
+    <string name="hotspot_count_desc">Affiche le nombre d’appareils connectés à votre point d’accès, et les liste quand l’évènement est déplié</string>
+    <string name="requires_shizuku_access">Nécessite l\'accès Shizuku</string>
+    <string name="requires_shizuku">Nécessite Shizuku</string>
+    <string name="hotspot_turn_off_color">Couleur du bouton Désactiver</string>
+    <string name="hotspot_turn_off">Désactiver</string>
+    <string name="hotspot_turn_off_failed">Impossible de désactiver le point d\'accès</string>
 </resources>

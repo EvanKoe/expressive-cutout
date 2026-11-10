@@ -214,9 +214,12 @@ import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.system.HotspotState
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.service.UnreadCounts
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.inkOn
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
@@ -532,6 +535,9 @@ fun DynamicIsland(
     hiddenEmptyWidthPercent: Int = BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
     emptyInfo: EmptyPillInfoSettings = EmptyPillInfoSettings(),
     unreadCounts: UnreadCounts = UnreadCounts(),
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
     battery: BatteryStatus? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
@@ -1375,6 +1381,9 @@ fun DynamicIsland(
                                         expandProgress = expandProgress,
                                         topMarginDp = expanded.topMarginDp,
                                         statusDotEnabled = statusDotEnabled,
+                                        hotspot = hotspot,
+                                        canTurnOffHotspot = canTurnOffHotspot,
+                                        onTurnOffHotspot = onTurnOffHotspot,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -1405,6 +1414,7 @@ fun DynamicIsland(
                                         statusDotStartDp = dotStartDp,
                                         iconPop = iconPop,
                                         statusDotEnabled = statusDotEnabled,
+                                        hotspot = hotspot,
                                     )
                                 }
                             }
@@ -2224,6 +2234,7 @@ private fun CollapsedContent(
     statusDotStartDp: Float? = null,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
     statusDotEnabled: Boolean = true,
+    hotspot: HotspotState = HotspotState(),
 ) {
     // The music tile's single transport button, opposite its cover. Never on the stuck-to-camera
     // pill (barely wider than the badge) nor beside the tiny player, which has no room for it.
@@ -2307,6 +2318,20 @@ private fun CollapsedContent(
                         .align(Alignment.CenterEnd)
                         .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
+            }
+        }
+        // Connected-device count (hotspot)
+        if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
+            val badge = event.hotspot?.badge
+            val count = hotspot.count
+            if (badge != null && count != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
+                ) {
+                    badge.DrawCount(count, heightDp, showZero = true)
+                }
             }
         }
         // Radiating status dot, between the badge and the camera
@@ -2993,6 +3018,9 @@ private fun ExpandedContent(
     expandProgress: Float = 1f,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     statusDotEnabled: Boolean = true,
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -3031,6 +3059,8 @@ private fun ExpandedContent(
         return
     }
     val density = LocalDensity.current
+    val hotspotCard = event.hotspot
+    val ssidTitle = hotspotCard != null && hotspot.ssid != null
     val relativeTime = rememberRelativeTime(event.postTimeMs)
     val headerText = formatNotificationHeader(
         appName = event.appName,
@@ -3126,14 +3156,14 @@ private fun ExpandedContent(
                         )
                     }
                     Text(
-                        text = event.label,
+                        text = if (ssidTitle) hotspot.ssid.orEmpty() else event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    event.detail?.let { detail ->
+                    event.detail?.takeIf { !ssidTitle }?.let { detail ->
                         Text(
                             text = detail,
                             color = LocalContentColor.current.copy(alpha = 0.70f),
@@ -3199,6 +3229,50 @@ private fun ExpandedContent(
                 }
             }
 
+            if (hotspotCard != null) {
+                // Connected devices
+                if (hotspot.clients.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    hotspot.clients.forEachIndexed { index, mac ->
+                        Text(
+                            text = mac,
+                            color = LocalContentColor.current,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    groupedShape(isFirst = index == 0, isLast = index == hotspot.clients.lastIndex),
+                                )
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                    }
+                }
+
+                // Turn off button
+                if (canTurnOffHotspot) {
+                    val turnOffFill = hotspotCard.turnOffColor?.resolve() ?: event.effectiveTint()
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .height(appearance.actionButtonHeightDp.dp)
+                                .clip(actionChipShape(appearance.actionButtonStyle))
+                                .background(turnOffFill)
+                                .clickable(onClick = onTurnOffHotspot)
+                                .padding(horizontal = 18.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.hotspot_turn_off),
+                                color = inkOn(turnOffFill),
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+
             // Fall back to the notification's own accent / a neutral tint when unset.
             val sendColor = appearance.sendButtonColor?.resolve() ?: event.accent
             when {
@@ -3238,6 +3312,17 @@ private fun ExpandedContent(
     }
 }
 
+/** The corner shape every expanded action button shares: rounded square for Material You, a pill otherwise. */
+private fun actionChipShape(style: ActionButtonStyle): Shape = when (style) {
+    ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+    else -> CircleShape
+}
+
+/** The tint the event's icon and accents resolve to: per-event override, then theme role, then the event's own accent. */
+@Composable
+private fun IslandEvent.effectiveTint(): Color =
+    colorOverride?.resolve() ?: if (useThemeColor) MaterialTheme.colorScheme.forRole(themeColorRole) else accent
+
 /**
  * A single action chip. [style] selects between the Material 3 Expressive and Material You looks;
  * [fill] is the base colour those looks derive their container/outline from.
@@ -3254,10 +3339,7 @@ private fun ActionChip(
     animatePress: Boolean = true,
     horizontalPaddingDp: Int = 18,
 ) {
-    val shape = when (style) {
-        ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
-        else -> CircleShape
-    }
+    val shape = actionChipShape(style)
     val container = when (style) {
         ActionButtonStyle.EXPRESSIVE_TONAL -> fill.copy(alpha = 0.22f)
         ActionButtonStyle.EXPRESSIVE_FILLED -> fill

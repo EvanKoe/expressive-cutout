@@ -43,6 +43,9 @@ import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.swe.SweWidget
+import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
@@ -165,6 +168,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
         )
+
+    val hotspotCountEnabled: StateFlow<Boolean> =
+        eventPreferences.hotspotCountEnabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    val hotspotCountStyle: StateFlow<UnreadWidget> =
+        eventPreferences.hotspotCountStyle.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UnreadWidget(id = "hotspot", countSilent = true),
+        )
+
+    val hotspotTurnOffColor: StateFlow<CutoutColor?> =
+        eventPreferences.hotspotTurnOffColor.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    val shizukuStatus: StateFlow<ShizukuStatus> = ShizukuState.status
 
     /** Per-event colour overrides; absent events follow their default accent (or the dynamic role). */
     val eventColors: StateFlow<Map<SystemEventType, CutoutColor>> =
@@ -382,6 +408,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
         eventPreferences.clearDuration(type)
+    }
+
+    fun setHotspotCountEnabled(enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setHotspotCountEnabled(enabled)
+    }
+
+    fun setHotspotTurnOffColor(color: CutoutColor?) = viewModelScope.launch {
+        eventPreferences.setHotspotTurnOffColor(color)
+    }
+
+    fun setHotspotCountStyle(style: UnreadWidget) = viewModelScope.launch {
+        eventPreferences.setHotspotCountStyle(style)
     }
 
     fun setEventColor(type: SystemEventType, color: CutoutColor) = viewModelScope.launch {
