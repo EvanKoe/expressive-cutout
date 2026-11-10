@@ -729,11 +729,14 @@
     <string name="profile_github_project_url">https://github.com/EvanKoe/expressive-cutout</string>
     <string name="profile_github_url">https://github.com/EvanKoe</string>
     <string name="profile_linkedin_url">https://www.linkedin.com/in/evan-koehler-it/</string>
+    <string name="profile_reddit_url">https://www.reddit.com/r/ExpressiveByEvan</string>
+    <string name="edroid_github_url">https://github.com/EvanKoe/E-Droid/</string>
     <string name="app_tagline">An offline dynamic island that follows Google\'s Material Expressive design</string>
     <string name="app_icon_description">Expressive Cutout icon</string>
-    <string name="dev_card_author">Made by Evan Koehler</string>
+    <string name="dev_card_author">Expressive By Evan</string>
     <string name="dev_card_github">View on GitHub</string>
     <string name="dev_card_linkedin">LinkedIn</string>
+    <string name="dev_card_reddit">Reddit</string>
     <string name="dev_card_avatar">Photo of the developer</string>
     <string name="profile_coffee_title">Buy me a coffee</string>
     <string name="profile_coffee_subtitle">Support the developer</string>
@@ -772,4 +775,6 @@
     <string name="width">Width</string>
     <string name="size">Size</string>
     <string name="height">Height</string>
+    <string name="edroid_title">Discover E-Droid</string>
+    <string name="edroid_desc">Discover E-Droid, your new Material Expressive F-Droid client</string>
 </resources>

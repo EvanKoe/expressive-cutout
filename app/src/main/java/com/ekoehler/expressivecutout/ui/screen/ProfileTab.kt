@@ -12,6 +12,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +49,7 @@ import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -54,14 +65,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -83,6 +97,18 @@ import com.ekoehler.expressivecutout.ui.theme.AppTheme
 enum class ProfileRoute { List, Changelog, PermissionDetails, Testing }
 
 /**
+ * Takes a hex color as a Long (0xARGB)
+ */
+private fun getButtonBgColor(bgColor: Long, fgColor: Long = 0xFFFF): ButtonColors {
+    return ButtonColors(
+        containerColor = Color(bgColor),
+        disabledContentColor = Color.Transparent,
+        contentColor = Color(fgColor),
+        disabledContainerColor = Color.Gray
+    )
+}
+
+/**
  * "Profile" destination: the app-wide theme choice, the version (which opens the changelog) and
  * links out to the project. The selected theme is persisted and applied at the root of the activity.
  */
@@ -98,6 +124,7 @@ fun ProfileTab(
     onImportSettings: () -> Unit,
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+
     AnimatedContent(
         targetState = route,
         transitionSpec = {
@@ -137,11 +164,13 @@ private fun ProfileList(
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val languages = remember(context) { AppLanguages.supported(context) }
+
     val versionName = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "—"
     }
+
     val openUrl = { url: String ->
         context.startActivity(
             Intent(Intent.ACTION_VIEW, url.toUri())
@@ -162,22 +191,21 @@ private fun ProfileList(
 
         Spacer(Modifier.height(24.dp))
 
+        // URLs
         val githubProjectUrl = stringResource(R.string.profile_github_project_url)
-        val githubProfileUrl = stringResource(R.string.profile_github_url)
         val coffeeUrl = stringResource(R.string.profile_coffee_url)
         val linkedInUrl = stringResource(R.string.profile_linkedin_url)
+        val edroidUrl = stringResource(R.string.edroid_github_url)
+        val redditUrl = stringResource(R.string.profile_reddit_url)
 
-        VersionCard(versionName = versionName, shape = cardShape(first = true), onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenChangelog()
-        })
-
+        // Theme switcher
         ThemeCard(
             selected = theme,
             onSelect = viewModel::setTheme,
-            shape = cardShape(),
+            shape = groupedShape(isFirst = true)
         )
 
+        // Language dropdown
         LanguageCard(
             languages = languages,
             selectedTag = language,
@@ -187,45 +215,50 @@ private fun ProfileList(
                     if (!AppLocale.appliedBySystem) (context as? Activity)?.recreate()
                 }
             },
-            shape = cardShape(),
+            shape = groupedShape()
         )
 
-        TestingCard(shape = cardShape(), onClick = {
+        // Testing triggers
+        TestingCard(shape = groupedShape(), onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onOpenTesting()
         })
 
-        ExportSettingsCard(cardShape(), onExportSettings, onImportSettings)
+        // Import/export settings
+        ExportSettingsCard(groupedShape(isLast = true), onExportSettings, onImportSettings)
 
-        PermissionDetailsCard(shape = cardShape(), onClick = {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Developer card
+        DevCard(
+            shape = groupedShape(isFirst = true),
+            onOpenGitHub = { openUrl(githubProjectUrl) },
+            onOpenCoffee = { openUrl(coffeeUrl) },
+            onOpenLinkedIn = { openUrl(linkedInUrl) },
+            onOpenReddit = { openUrl(redditUrl) }
+        )
+
+        // E-Droid card
+        EDroidProjectCard(
+            onClick = { openUrl(edroidUrl) },
+            shape = groupedShape(isLast = true)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Version
+        VersionCard(versionName = versionName, shape = groupedShape(isFirst = true), onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenChangelog()
+        })
+
+        // Permission detail screen
+        PermissionDetailsCard(shape = groupedShape(isLast = true), onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onOpenPermissionDetails()
         })
-
-        GitHubCard(shape = cardShape(), onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            openUrl(githubProjectUrl)
-        })
-
-        DevCard(
-            shape = cardShape(last = true),
-            onOpenGitHub = { openUrl(githubProfileUrl) },
-            onOpenCoffee = { openUrl(coffeeUrl) },
-            onOpenLinkedIn = { openUrl(linkedInUrl) },
-        )
     }
 }
-
-/**
- * The corners of a card stacked in the profile list: tight (4.dp) where it meets a neighbour, round
- * (24.dp) on the outer edges of the group, so the stack reads as one list rather than seven cards.
- */
-private fun cardShape(first: Boolean = false, last: Boolean = false) = RoundedCornerShape(
-    topStart = if (first) 24.dp else 4.dp,
-    topEnd = if (first) 24.dp else 4.dp,
-    bottomStart = if (last) 24.dp else 4.dp,
-    bottomEnd = if (last) 24.dp else 4.dp,
-)
 
 /**
  * The app's identity at the top of the tab: the launcher icon, the app name and the tagline.
@@ -281,7 +314,50 @@ private fun DevCard(
     onOpenGitHub: () -> Unit,
     onOpenCoffee: () -> Unit,
     onOpenLinkedIn: () -> Unit,
+    onOpenReddit: () -> Unit,
 ) {
+    /** Data for rendering social network buttons */
+    data class ContactButtonData(
+        val name: Int,
+        val icon: Int,
+        val onClick: () -> Unit,
+        val bgColor: Long,
+        val fgColor: Long = 0xFFFFFFFF
+    )
+
+    /**
+     * A single social network button
+     */
+    @Composable
+    fun ContactButton(data: ContactButtonData) {
+        Button(
+            onClick = data.onClick,
+            colors = getButtonBgColor(data.bgColor, data.fgColor)
+        ) {
+            Icon(
+                painter = painterResource(data.icon),
+                contentDescription = null,
+                tint = Color(data.fgColor),
+                modifier = Modifier.size(18.dp),
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = stringResource(data.name),
+                color = Color(data.fgColor)
+            )
+        }
+    }
+
+    // All buttons to render
+    val buttons: Array<ContactButtonData> = arrayOf(
+        ContactButtonData(R.string.dev_card_github, R.drawable.ic_github, onOpenGitHub, 0xFF1E1F22),
+        ContactButtonData(R.string.profile_coffee_title, R.drawable.buy_me_coffee_icon, onOpenCoffee, 0xFFFFDD00, 0xFF000000),
+        ContactButtonData(R.string.dev_card_linkedin, R.drawable.ic_linkedin, onOpenLinkedIn, 0xFF0A66C2),
+        ContactButtonData(R.string.dev_card_reddit, R.drawable.ic_reddit_logo, onOpenReddit, 0xFFF74300),
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
@@ -293,8 +369,10 @@ private fun DevCard(
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Dev profile picture
             DevAvatar()
 
+            // Made by Evan
             Text(
                 text = stringResource(R.string.dev_card_author),
                 style = MaterialTheme.typography.bodyLarge,
@@ -302,38 +380,12 @@ private fun DevCard(
                 modifier = Modifier.padding(vertical = 20.dp),
             )
 
-            // Wraps to a second line on narrow screens rather than squeezing either label.
+            // Social network buttons
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Button(onClick = onOpenGitHub) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_github),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.dev_card_github))
-                }
-                Button(onClick = onOpenCoffee) {
-                    Icon(
-                        imageVector = Icons.Rounded.Coffee,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.profile_coffee_title))
-                }
-                Button(onClick = onOpenLinkedIn) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_linkedin),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.dev_card_linkedin))
-                }
+                buttons.toList().forEach { ContactButton(it) }
             }
         }
     }
@@ -589,8 +641,10 @@ private fun VersionCard(versionName: String, shape: Shape, onClick: () -> Unit) 
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
+
                     if (preRelease) {
                         Spacer(Modifier.width(12.dp))
+
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primary,
@@ -604,12 +658,14 @@ private fun VersionCard(versionName: String, shape: Shape, onClick: () -> Unit) 
                         }
                     }
                 }
+
                 Text(
                     text = stringResource(R.string.profile_version_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
@@ -678,24 +734,32 @@ private fun TestingCard(shape: Shape, onClick: () -> Unit) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Testing icon
             Icon(
                 imageVector = Icons.Rounded.Science,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp),
             )
+
             Spacer(Modifier.width(20.dp))
+
             Column(modifier = Modifier.weight(1f)) {
+                // Title
                 Text(
                     text = stringResource(R.string.profile_testing_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
+
+                // Description
                 Text(
                     text = stringResource(R.string.profile_testing_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            // Open arrow
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
@@ -764,26 +828,35 @@ private fun ExportSettingsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = stringResource(R.string.profile_export_title), style = MaterialTheme.typography.titleMedium)
+            // Title
+            Text(
+                text = stringResource(R.string.profile_export_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            // Description
             Text(
                 text = stringResource(R.string.profile_export_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            // Buttons
             Row(
                 modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Export button
                 Button(
                     modifier = Modifier.weight(1f),
-                    onClick = onExportSettings
+                    onClick = onExportSettings,
                 ) {
                     Icon(imageVector = Icons.Rounded.Upload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.profile_export_export))
                 }
 
+                // Import button
                 Button(
                     modifier = Modifier.weight(1f),
                     onClick = onImportSettings
@@ -796,4 +869,124 @@ private fun ExportSettingsCard(
         }
 
     }
+}
+
+/**
+ * E-Droid self-promotion card
+ */
+@Composable
+private fun EDroidProjectCard(
+    shape: RoundedCornerShape = groupedShape(),
+    onClick: () -> Unit
+) {
+    // Colors
+    val surface: Color = Color(0xFFEADDFF)
+    val onSurface: Color = Color(0xFF1D1B20)
+    val onSurfaceVariant: Color = Color(0xFF49454F)
+    val primary: Color = Color(0xFF6750A4)
+    val onPrimary: Color = Color.White
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = surface),
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        onClick = onClick
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp)
+            ) {
+                // E-Droid logo
+                Image(
+                    painter = painterResource(R.drawable.edroid),
+                    contentDescription = stringResource(R.string.edroid_desc),
+                    modifier = Modifier.size(36.dp)
+                        .clip(shape = RoundedCornerShape(12.dp))
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Title
+                    Text(
+                        text = stringResource(R.string.edroid_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface
+                    )
+
+                    // Description
+                    Text(
+                        text = stringResource(R.string.edroid_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                }
+            }
+
+            // Wavy arrow panel, its outer corners cut by the card's own clip
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(120.dp)
+                    .background(color = primary, shape = RoundedStarShape)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = onPrimary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A rounded star ("cookie") larger than the panel it fills, centred towards the trailing edge.
+ * Only its scalloped leading side shows: the rest spills past the panel and is cut off by the
+ * card's clip. The outline is a circle whose radius swells and shrinks [POINTS] times around it,
+ * so every tip and every dip is equally soft. Mirrored in right-to-left layouts.
+ */
+private object RoundedStarShape : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val radius = size.width * RADIUS_FRACTION
+        val centerX = size.width *
+            if (layoutDirection == LayoutDirection.Ltr) CENTER_X_FRACTION else 1f - CENTER_X_FRACTION
+        val centerY = size.height / 2f
+
+        val path = Path()
+        for (i in 0..SAMPLES) {
+            val angle = 2f * PI.toFloat() * i / SAMPLES
+            val r = radius * (1f + DEPTH * cos(POINTS * angle))
+            val x = centerX + r * cos(angle)
+            val y = centerY + r * sin(angle)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        path.close()
+        return Outline.Generic(path)
+    }
+
+    /** Number of tips around the star. */
+    private const val POINTS = 10
+
+    /** How far the tips and dips swing from the base circle, as a fraction of the radius. */
+    private const val DEPTH = 0.08f
+
+    /** Base circle radius and centre, as fractions of the panel width. */
+    private const val RADIUS_FRACTION = 0.6f
+    private const val CENTER_X_FRACTION = 0.62f
+
+    /** Line segments used to trace the outline; enough that the curve reads as smooth. */
+    private const val SAMPLES = 180
 }
