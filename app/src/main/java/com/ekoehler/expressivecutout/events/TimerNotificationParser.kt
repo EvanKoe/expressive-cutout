@@ -7,45 +7,48 @@ import android.service.notification.StatusBarNotification
 import com.ekoehler.expressivecutout.core.CutoutSignal
 
 /**
- * Everything the timer tile needs, pulled out of a clock app's ongoing count-down notification.
- * A running timer carries [endElapsedRealtimeMs] (the [SystemClock.elapsedRealtime] point it hits
- * zero); a paused one carries a frozen [pausedRemainingMs] instead. Keeps the notification plumbing
- * out of the listener service.
+ * Everything the timer tile needs, pulled out of a clock app's ongoing timer or stopwatch
+ * notification. A running one carries [endElapsedRealtimeMs], the [SystemClock.elapsedRealtime]
+ * point of its zero (the end of a count-down, the start of a count-up); a paused one carries a
+ * frozen [pausedRemainingMs] instead (the time left, or the time elapsed when [countsUp]). Keeps
+ * the notification plumbing out of the listener service.
  */
 data class ParsedTimer(
     val endElapsedRealtimeMs: Long?,
     val pausedRemainingMs: Long?,
     val label: String?,
     val actions: List<CutoutSignal.Notification.Action>,
+    val countsUp: Boolean = false,
 )
 
 /**
- * Recognises and reads count-down timer notifications across the two ways Android surfaces them:
+ * Recognises and reads timer and stopwatch notifications across the two ways Android surfaces them:
  *
  *  - **Live Updates (Android 16+):** a "promoted ongoing" notification rendered with the
- *    `MetricStyle` template, whose critical metric is a counting-down time. Google Clock uses this;
- *    the remaining time lives in the metric's `value` bundle (`zeroElapsedRealtime` while running,
- *    `pausedDuration` while paused) — not in any title/text or the classic chronometer extras.
+ *    `MetricStyle` template, whose critical metric is a time in either direction. Google Clock and
+ *    TickTick use this; the time lives in the metric's `value` bundle (`zeroElapsedRealtime` while
+ *    running, `pausedDuration` while paused) — not in any title/text or the classic chronometer
+ *    extras.
  *  - **Classic chronometer:** the older format that sets a *counting-down* chronometer anchored to
- *    the notification's `when`. Kept as a fallback for clock apps that still use it.
+ *    the notification's `when`. Kept as a fallback for clock apps that still use it; it stays
+ *    countdown-only so a call's count-up chronometer is not mistaken for a timer.
  *
- * Keying off "a counting-down time" (rather than a package allow-list) works across clock apps and
- * never mistakes a call, whose chronometer counts *up*, for a timer.
+ * Keying off the metric's time (rather than a package allow-list) works across clock apps.
  */
 object TimerNotificationParser {
 
     /**
-     * Whether this notification is a countdown timer, by either the modern metric extras or the
-     * classic count-down chronometer.
+     * Whether this notification is a timer or stopwatch, by either the modern metric extras (any
+     * direction) or the classic count-down chronometer.
      */
     fun isTimer(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification ?: return false
         val extras = notification.extras ?: return false
-        return readMetricCountdown(extras) != null || isClassicCountdown(notification, extras)
+        return readMetricTimer(extras) != null || isClassicCountdown(notification, extras)
     }
 
     /**
-     * Reads a timer notification into the shape the timer tile needs: remaining time, label, and
+     * Reads a timer notification into the shape the timer tile needs: time, direction, label, and
      * the pause/stop actions.
      */
     fun parse(sbn: StatusBarNotification): ParsedTimer {
@@ -57,13 +60,14 @@ object TimerNotificationParser {
             CutoutSignal.Notification.Action(label, intent)
         }
 
-        val metric = extras?.let { readMetricCountdown(it) }
+        val metric = extras?.let { readMetricTimer(it) }
         if (metric != null) {
             return ParsedTimer(
                 endElapsedRealtimeMs = metric.endElapsedRealtimeMs,
                 pausedRemainingMs = metric.pausedRemainingMs,
                 label = metric.label ?: extras.notificationTitle(),
                 actions = actions,
+                countsUp = metric.countsUp,
             )
         }
 
@@ -76,27 +80,31 @@ object TimerNotificationParser {
             pausedRemainingMs = null,
             label = extras?.notificationTitle(),
             actions = actions,
+            countsUp = false,
         )
     }
 
-    /** The counting-down critical metric of a `MetricStyle` notification, or null if it isn't one. */
-    private fun readMetricCountdown(extras: Bundle): MetricCountdown? {
+    /**
+     * The critical metric of a `MetricStyle` notification as a timer (count-down or count-up), or
+     * null if it isn't one.
+     */
+    private fun readMetricTimer(extras: Bundle): MetricTimer? {
         @Suppress("DEPRECATION")
         val metrics = extras.get(KEY_METRICS) as? List<*> ?: return null
         if (metrics.isEmpty()) return null
         val criticalIndex = extras.getInt(KEY_CRITICAL_INDEX, 0)
         val metric = (metrics.getOrNull(criticalIndex) ?: metrics.firstOrNull()) as? Bundle ?: return null
         val value = metric.getBundle(KEY_VALUE) ?: return null
-        if (!value.getBoolean(KEY_COUNT_DOWN, false)) return null
+        val countsUp = !value.getBoolean(KEY_COUNT_DOWN, false)
 
         val label = metric.getString(KEY_LABEL)?.takeIf { it.isNotBlank() }
         val zeroElapsed = value.getLong(KEY_ZERO_ELAPSED, -1L)
         if (zeroElapsed > 0L) {
-            return MetricCountdown(endElapsedRealtimeMs = zeroElapsed, pausedRemainingMs = null, label = label)
+            return MetricTimer(endElapsedRealtimeMs = zeroElapsed, pausedRemainingMs = null, label = label, countsUp = countsUp)
         }
         if (value.containsKey(KEY_PAUSED_DURATION)) {
             val paused = value.getLong(KEY_PAUSED_DURATION, 0L).coerceAtLeast(0L)
-            return MetricCountdown(endElapsedRealtimeMs = null, pausedRemainingMs = paused, label = label)
+            return MetricTimer(endElapsedRealtimeMs = null, pausedRemainingMs = paused, label = label, countsUp = countsUp)
         }
         return null
     }
@@ -117,18 +125,20 @@ object TimerNotificationParser {
 
     /**
      * The timer state a modern clock app publishes directly, before it is turned into a tile.
-     * Either running (with an end time) or paused (with the remaining time frozen).
+     * Either running (with its zero point: the end of a count-down, the start of a count-up) or
+     * paused (with the remaining or elapsed time frozen), plus the direction it counts.
      */
-    private data class MetricCountdown(
+    private data class MetricTimer(
         val endElapsedRealtimeMs: Long?,
         val pausedRemainingMs: Long?,
         val label: String?,
+        val countsUp: Boolean,
     )
 
     /**
      * Keys the MetricStyle template stores its data under (mirrored by androidx
      * NotificationCompat's MetricStyle). Read defensively — any missing key just means "not a
-     * countdown we can read".
+     * timer we can read".
      */
     private const val KEY_METRICS = "android.metrics"
     private const val KEY_CRITICAL_INDEX = "android.metrics.criticalIndex"
