@@ -1230,9 +1230,9 @@ class IslandOverlayController(private val context: Context) {
     private fun isPinnedCall(): Boolean = callActive && currentEvent.value?.call != null
 
     /**
-     * Follow the live countdown so the timer cutout stays up for exactly as long as the timer runs.
-     * The timer is "active" while the clock app's count-down notification exists ([RunningTimerBus]
-     * non-null); when it is reset or finishes we hand the pill back to the normal auto-dismiss timer.
+     * Follow the live timer (counts down or up) so the timer cutout stays up for exactly as long as the timer runs.
+     * The timer is "active" while the clock app's timer notification exists ([RunningTimerBus]
+     * non-null); when it is reset or finishes we dismiss it at once.
      * Mirrors [observeOnCall].
      */
     private fun observeRunningTimer() = scope.launch {
@@ -1254,11 +1254,13 @@ class IslandOverlayController(private val context: Context) {
                 )
                 lastTimerEvent = currentEvent.value
             }
-            if (timerActive) dismissJob?.cancel() else scheduleDismiss()
+            // A timer that has ended takes its pill with it. Handing it to the auto-dismiss timer
+            // instead would leave a dead timer tile on the cutout for the whole normal duration.
+            if (timerActive) dismissJob?.cancel() else dismissIsland()
         }
     }
 
-    /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
+    /** The timer cutout should stay pinned up (no auto-dismiss) while a timer is running. */
     private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
 
     /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */

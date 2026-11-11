@@ -3062,7 +3062,7 @@ private fun ExpandedContent(
         )
         return
     }
-    // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
+    // The timer tile: icon + ticking time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
         TimerExpandedContent(
             event = event,

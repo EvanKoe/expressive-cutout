@@ -86,7 +86,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     private var currentCallKey: String? = null
 
     /**
-     * Key of the count-down notification currently driving the timer tile, mirroring
+     * Key of the timer notification currently driving the timer tile, mirroring
      * [currentCallKey].
      */
     private var currentTimerKey: String? = null
