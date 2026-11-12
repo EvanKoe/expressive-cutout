@@ -166,38 +166,36 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         }
     }
 
-    // No tab has an app bar: each screen carries its own heading (the app identity or a section
-    // title on the list, the screen title in the back pill), so a bar would only waste height at
-    // the top. A scrim mirroring the bottom one stands in for it.
     Scaffold { _ ->
         val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val statusBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        // The scrim is only a fade for *scrolled* content, so content at rest starts below it —
-        // same relationship the bottom padding has with the bottom scrim.
         val topScrimHeight = statusBarTopInset + 40.dp
+
         val contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
             top = topScrimHeight + 8.dp,
-            // Clear the floating nav bar (≈64dp tall) plus its bottom margin and the system bar.
             bottom = 96.dp + navBarBottomInset,
         )
 
         Box(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.surfaceContainer)) {
-            // Peek animation: as the user drags back, the content shrinks, rounds its corners
-            // and slides toward the swiped edge, revealing the surface beneath.
             val contentTransform = Modifier.graphicsLayer {
                 val p = backProgress.value
+
                 if (p > 0f) {
                     val scale = 1f - 0.08f * p
                     scaleX = scale
                     scaleY = scale
-                    translationX = (if (backEdge == BackEventCompat.EDGE_LEFT) 1f else -1f) * 16.dp.toPx() * p
+                    translationX =
+                        (if (backEdge == BackEventCompat.EDGE_LEFT) 1f else -1f) * 16.dp.toPx() * p
                     shape = RoundedCornerShape(32.dp.toPx() * p)
                     clip = true
                 }
             }
-            Box(modifier = Modifier.fillMaxSize().then(contentTransform)) {
+
+            Box(modifier = Modifier.fillMaxSize()
+                .then(contentTransform)
+            ) {
                 AnimatedContent(
                     targetState = current,
                     transitionSpec = {
@@ -245,14 +243,21 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
                             onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
                             onOpenTesting = { profileRoute = ProfileRoute.Testing },
-                            onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) } },
+                            onExportSettings = {
+                                viewModel.exportSettingsFromUI { s, p ->
+                                    onSettingsExported(
+                                        s,
+                                        p
+                                    )
+                                }
+                            },
                             onImportSettings = { importLauncher.launch(arrayOf("application/json")) },
                         )
                     }
                 }
             }
 
-            // Soft scrim so scrolled content fades out beneath the floating bottom bar.
+            // Fade bottom
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -267,8 +272,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     ),
             )
 
-            // Standing in for the app bar: content fades out under the status bar as it scrolls,
-            // instead of colliding with it.
+            // Fade top
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -295,11 +299,14 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
                         else -> stringResource(R.string.profile_version)
                     }
+
                     else -> when (settingsRoute) {
                         SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
                         SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
                         SettingsRoute.DynamicTileDetail ->
-                            selectedTile?.let { stringResource(it.labelRes) } ?: stringResource(R.string.dynamic_tiles_title)
+                            selectedTile?.let { stringResource(it.labelRes) }
+                                ?: stringResource(R.string.dynamic_tiles_title)
+
                         SettingsRoute.Apps -> stringResource(R.string.apps_title)
                         SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
                         SettingsRoute.Gestures -> stringResource(R.string.gestures_title)
@@ -315,15 +322,19 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                         SettingsRoute.EventDetail ->
                             selectedEvent?.let { stringResource(it.labelRes) }
                                 ?: stringResource(R.string.integrations_system_events_title)
+
                         else -> stringResource(R.string.section_icons_title)
                     }
                 }
+
+                // Go back navbar
                 BackNavBar(
                     title = title,
                     onBack = navigateBack,
                     modifier = barModifier,
                 )
             } else {
+                // Nav bar
                 ExpressiveNavBar(
                     items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
                     selectedIndex = selectedIndex,
