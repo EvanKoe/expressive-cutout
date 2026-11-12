@@ -70,6 +70,7 @@ import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SatellitePosition
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
@@ -816,6 +817,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
     fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowStatusDot(enabled)
+    }
+
+    /** Moves the system-event status dot to the given [side] of the camera hole. */
+    fun setStatusDotSide(side: StatusDotSide) = viewModelScope.launch {
+        behaviourPreferences.setStatusDotSide(side)
     }
 
     /** Appends [widget] to the end of [side]'s list on the resting pill. */

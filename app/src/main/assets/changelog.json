@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.4.1-beta",
+    "description": "SWE touch fix",
+    "features": [],
+    "bugfixes": [
+      "The SWE cutout no longer stops reacting to taps (no animation, no action) after locking and unlocking the device"
+    ]
+  },
+  {
     "version": "0.4.0-beta",
     "description": "SWE, notch, Shizuku and gestures",
     "features": [

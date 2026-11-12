@@ -186,6 +186,7 @@ import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.SentAlignment
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
@@ -548,6 +549,8 @@ fun DynamicIsland(
     hapticsOnPop: Boolean = false,
     /** Whether system-event pills may draw the radiating status dot on their trailing edge. */
     statusDotEnabled: Boolean = true,
+    /** Which side of the camera hole the status dot sits on. */
+    statusDotSide: StatusDotSide = StatusDotSide.LEFT,
     permissionDotsEnabled: Boolean = false,
     permissionUsage: PermissionUsage = PermissionUsage(),
     permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
@@ -926,7 +929,13 @@ fun DynamicIsland(
 
     // Room for dots beside that content: the pill grows to the right by this much and the content is
     // inset by the same amount, so the content doesn't move and the dots sit in the new space.
-    val collapsedTrailingInsetDp = if (showPermissionDots && !permissionDotsOnLeft && hasTrailingContent) {
+    val statusDotShown = !emptyPill && !isStickToCamera && !isTiny && !isCall && statusDotEnabled &&
+        (event ?: shownEvent)?.statusDotColor != null
+    val statusDotOnPill = statusDotShown && !isExpanded
+    val dotOnRight = statusDotSide == StatusDotSide.RIGHT
+    val collapsedTrailingInsetDp = if (showPermissionDots && !permissionDotsOnLeft &&
+        (hasTrailingContent || (statusDotOnPill && dotOnRight))
+    ) {
         permissionDotTrailingInsetDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
     } else {
         0
@@ -950,19 +959,24 @@ fun DynamicIsland(
     // Where the pill's leading edge sits from the screen's centre before any growth decides how far
     // the status dot is from the camera. A bubble beside the pill takes width from one side and
     // steps the centre away from it, which is what [satelliteShiftDp] and [satelliteSplitDp] carry.
-    val statusDotOnPill = !emptyPill && !isStickToCamera && !isTiny && !isCall && !isExpanded &&
-        statusDotEnabled && (event ?: shownEvent)?.statusDotColor != null
     val pillLeftEdgeDp = dims.offsetXDp + satelliteShiftDp -
         (displayWidthExactDp * dims.widthPercent / 100f - satelliteSplitDp) / 2f
     // The pill grows on its leading edge when the status dot would not otherwise fit between the
     // badge and the camera, the way it grows on the trailing edge to seat the permission dots.
+    val pillRightEdgeDp = pillLeftEdgeDp + (displayWidthExactDp * dims.widthPercent / 100f - satelliteSplitDp)
+    // Mirrored coordinates: the left-handed helpers measure from the pill's trailing edge when the dot is on the right.
+    // That edge is the drawn one, already pushed out by the permission dots' room
+    val dotEdgeDp = if (dotOnRight) -(pillRightEdgeDp + collapsedTrailingInsetDp) else pillLeftEdgeDp
+    val dotCameraDp = if (dotOnRight) cameraRightEdgeDp?.let { -it } else cameraLeftEdgeDp
+    val dotInsetDp = if (dotOnRight) collapsedTrailingInsetDp else collapsedLeadingInsetDp
     val statusDotGrowthDp = if (statusDotOnPill) {
-        statusDotLeadingGrowthDp(pillLeftEdgeDp, cameraLeftEdgeDp, collapsed.heightDp, collapsedLeadingInsetDp)
+        statusDotLeadingGrowthDp(dotEdgeDp, dotCameraDp, collapsed.heightDp, dotInsetDp, onRight = dotOnRight)
     } else {
         0
     }
     val dotStartDp = statusDotStartDp(
-        pillLeftEdgeDp, cameraLeftEdgeDp, collapsed.heightDp, collapsedLeadingInsetDp, statusDotGrowthDp,
+        dotEdgeDp, dotCameraDp, collapsed.heightDp, dotInsetDp, statusDotGrowthDp,
+        onRight = dotOnRight, expanded = isExpanded,
     )
     val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
         else (displayWidthExactDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp +
@@ -994,9 +1008,14 @@ fun DynamicIsland(
     // the tile's icon sits — stays put.
     val offsetX by animateDpAsState(
         if (isStickToCamera) 0.dp
-        else dims.offsetXDp.dp + ((collapsedTrailingInsetDp - statusDotGrowthDp) / 2f).dp + satelliteShiftDp.dp,
+        else dims.offsetXDp.dp +
+            ((collapsedTrailingInsetDp + if (dotOnRight) statusDotGrowthDp else -statusDotGrowthDp) / 2f).dp +
+            satelliteShiftDp.dp,
         spec, label = "islandOffsetX"
     )
+    val dotBandDp = if (isExpanded) expanded.topMarginDp else collapsed.heightDp
+    val dotEdge by animateDpAsState(dotStartDp.dp, spec, label = "statusDotEdge")
+    val dotTop by animateDpAsState(((dotBandDp - statusDotBoxDp(collapsed.heightDp)) / 2f).dp, spec, label = "statusDotTop")
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
     // In window mode the sliding island rounds itself; the window it slides in keeps the corners the
     // cutout was given in Size & position.
@@ -1411,7 +1430,6 @@ fun DynamicIsland(
                                         heightDp = collapsed.heightDp,
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
-                                        statusDotStartDp = dotStartDp,
                                         iconPop = iconPop,
                                         statusDotEnabled = statusDotEnabled,
                                         hotspot = hotspot,
@@ -1457,6 +1475,19 @@ fun DynamicIsland(
                             )
                         }
                     }
+
+                    // Radiating status dot: beside the camera on the pill, up in the header when expanded
+                    AnimatedStatusDot(
+                        color = (event ?: shownEvent)?.statusDotColor.takeIf { statusDotShown },
+                        sizeDp = (collapsed.heightDp * STATUS_DOT_SIZE_FRACTION).dp,
+                        modifier = Modifier
+                            .align(if (dotOnRight) Alignment.TopEnd else Alignment.TopStart)
+                            .padding(
+                                start = if (dotOnRight) 0.dp else dotEdge,
+                                end = if (dotOnRight) dotEdge else 0.dp,
+                                top = dotTop,
+                            ),
+                    )
                 }
             }
         }
@@ -2101,45 +2132,70 @@ private const val STATUS_DOT_SIZE_FRACTION = 0.18f
  * clipped.
  */
 private const val STATUS_DOT_BOX_SCALE = 2.5f
-/** The room left between the status dot's box and the camera hole. */
+/** The room left between the status dot's box and the camera hole, with the dot left of the camera. */
 private const val STATUS_DOT_CAMERA_GAP_DP = 4f
+/** The room left between the status dot itself (not its box) and the camera hole, with the dot right of it. */
+private const val STATUS_DOT_RIGHT_CAMERA_GAP_DP = 3f
+/** [STATUS_DOT_RIGHT_CAMERA_GAP_DP] on the expanded card, whose larger header reads tighter around the hole. */
+private const val STATUS_DOT_RIGHT_EXPANDED_CAMERA_GAP_DP = 4f
 
 /** The width of the status dot's box on a pill [heightDp] tall. */
 private fun statusDotBoxDp(heightDp: Int): Float = heightDp * STATUS_DOT_SIZE_FRACTION * STATUS_DOT_BOX_SCALE
 
 /**
- * The earliest the status dot's box can start from the pill's leading edge: past the badge and its
- * gap, then past [leadingInsetDp] of whatever else the caller draws on that side.
+ * The room between the status dot's box and the camera hole. On the right the dot hugs the camera:
+ * the gap is measured from the dot itself, so the box's ring margin may overlap the hole, and it is
+ * a little wider on the [expanded] card.
  */
-internal fun statusDotMinStartDp(heightDp: Int, leadingInsetDp: Int): Float =
-    heightDp * (COLLAPSED_BADGE_INSET_FRACTION + BADGE_SIZE_FRACTION + COLLAPSED_BADGE_INSET_FRACTION) +
-        leadingInsetDp
+private fun statusDotCameraGapDp(heightDp: Int, onRight: Boolean, expanded: Boolean = false): Float = if (onRight) {
+    val gap = if (expanded) STATUS_DOT_RIGHT_EXPANDED_CAMERA_GAP_DP else STATUS_DOT_RIGHT_CAMERA_GAP_DP
+    gap - (statusDotBoxDp(heightDp) - heightDp * STATUS_DOT_SIZE_FRACTION) / 2f
+} else {
+    STATUS_DOT_CAMERA_GAP_DP
+}
+
+/**
+ * The earliest the status dot's box can start from the pill's leading edge (its trailing edge when
+ * the caller feeds mirrored, negated coordinates for a dot [onRight]): past the edge inset, past the
+ * badge and its gap unless [onRight] (the badge only lives on the leading edge), then past
+ * [leadingInsetDp] of whatever else the caller draws on that side.
+ */
+internal fun statusDotMinStartDp(heightDp: Int, leadingInsetDp: Int, onRight: Boolean = false): Float {
+    val badgeDp = if (onRight) 0f else heightDp * (BADGE_SIZE_FRACTION + COLLAPSED_BADGE_INSET_FRACTION)
+    return heightDp * COLLAPSED_BADGE_INSET_FRACTION + badgeDp + leadingInsetDp
+}
 
 /**
  * How far the collapsed pill has to grow on its leading edge so the status dot fits between the
- * badge and the camera hole with [STATUS_DOT_CAMERA_GAP_DP] to spare. Zero when it already fits, or
+ * badge and the camera hole with [statusDotCameraGapDp] to spare. Zero when it already fits, or
  * when the device reports no cutout.
  *
  * Shared by [DynamicIsland]'s drawing and the overlay's window sizing, so the window and the
  * touchable region always cover the grown pill.
  *
+ * "Edge" means the leading edge, or the trailing edge when fed mirrored (negated) coordinates.
+ *
  * @param pillLeftEdgeDp the pill's leading edge before growing, from the screen's horizontal centre.
- * @param cameraLeftEdgeDp the camera's left edge, from the same centre.
+ * @param cameraLeftEdgeDp the camera's near edge, from the same centre.
  * @param leadingInsetDp room already taken beside the badge, see [statusDotMinStartDp].
+ * @param onRight whether the dot sits right of the camera and the caller fed mirrored coordinates.
  */
 internal fun statusDotLeadingGrowthDp(
     pillLeftEdgeDp: Float,
     cameraLeftEdgeDp: Float?,
     heightDp: Int,
     leadingInsetDp: Int,
+    onRight: Boolean = false,
 ): Int {
     if (cameraLeftEdgeDp == null) return 0
-    val dotEnd = pillLeftEdgeDp + statusDotMinStartDp(heightDp, leadingInsetDp) + statusDotBoxDp(heightDp)
-    return kotlin.math.ceil(dotEnd - (cameraLeftEdgeDp - STATUS_DOT_CAMERA_GAP_DP)).coerceAtLeast(0f).toInt()
+    val dotEnd = pillLeftEdgeDp + statusDotMinStartDp(heightDp, leadingInsetDp, onRight) + statusDotBoxDp(heightDp)
+    val limit = cameraLeftEdgeDp - statusDotCameraGapDp(heightDp, onRight)
+    return kotlin.math.ceil(dotEnd - limit).coerceAtLeast(0f).toInt()
 }
 
 /**
- * Where the status dot's box starts from the pill's leading edge once the pill has grown by
+ * Where the status dot's box starts from the pill's leading edge (trailing edge when fed mirrored,
+ * negated coordinates) once the pill has grown by
  * [growthDp]: flush against the camera's gap, and never closer to the badge than
  * [statusDotMinStartDp]. Without a known camera it stays just past the badge.
  */
@@ -2149,10 +2205,12 @@ internal fun statusDotStartDp(
     heightDp: Int,
     leadingInsetDp: Int,
     growthDp: Int,
+    onRight: Boolean = false,
+    expanded: Boolean = false,
 ): Float {
-    val minStart = statusDotMinStartDp(heightDp, leadingInsetDp)
+    val minStart = statusDotMinStartDp(heightDp, leadingInsetDp, onRight)
     if (cameraLeftEdgeDp == null) return minStart
-    val fromCamera = cameraLeftEdgeDp - STATUS_DOT_CAMERA_GAP_DP - statusDotBoxDp(heightDp) -
+    val fromCamera = cameraLeftEdgeDp - statusDotCameraGapDp(heightDp, onRight, expanded) - statusDotBoxDp(heightDp) -
         (pillLeftEdgeDp - growthDp)
     return maxOf(minStart, fromCamera)
 }
@@ -2221,9 +2279,6 @@ internal fun EventBadge(
  *   here because the collapsed content re-enters composition every time the island collapses back
  *   from expanded, which would otherwise re-fire the pop on a collapse. Null (the settings preview)
  *   leaves the badge at rest.
- * @param statusDotStartDp where the status dot's box starts, from the pill's leading edge. The caller
- *   works it out from the camera's position so the dot ends [STATUS_DOT_CAMERA_GAP_DP] short of the
- *   hole; null (the settings preview) parks it just past the badge.
  */
 @Composable
 private fun CollapsedContent(
@@ -2231,7 +2286,6 @@ private fun CollapsedContent(
     heightDp: Int,
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
-    statusDotStartDp: Float? = null,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
     statusDotEnabled: Boolean = true,
     hotspot: HotspotState = HotspotState(),
@@ -2320,6 +2374,7 @@ private fun CollapsedContent(
                 )
             }
         }
+        
         // Connected-device count (hotspot)
         if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
             val badge = event.hotspot?.badge
@@ -2334,6 +2389,7 @@ private fun CollapsedContent(
                 }
             }
         }
+        
         // Radiating status dot, between the badge and the camera
         if (!isStickToCamera) {
             AnimatedStatusDot(
@@ -2627,8 +2683,8 @@ private fun AnimatedStatusDot(
 }
 
 /**
- * A pulsing status dot, between the badge and the camera on the pill and beside the badge on the
- * expanded card, that radiates animated expanding rings
+ * A pulsing status dot, beside the camera on the pill and in the header band of the expanded card,
+ * that radiates animated expanding rings
  * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
  */
 @Composable
@@ -3140,10 +3196,6 @@ private fun ExpandedContent(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
-                AnimatedStatusDot(
-                    color = event.statusDotColor.takeIf { statusDotEnabled },
-                    sizeDp = 8.dp,
-                )
                 Column(modifier = Modifier.weight(1f)) {
                     if (headerText != null) {
                         Text(

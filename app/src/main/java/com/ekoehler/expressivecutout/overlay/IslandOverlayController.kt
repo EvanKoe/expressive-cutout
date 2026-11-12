@@ -60,6 +60,7 @@ import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.GlobalAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.SatellitePosition
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
@@ -789,6 +790,7 @@ class IslandOverlayController(private val context: Context) {
                         vibrateOnTap = behaviour.vibrateOnTap,
                         hapticsOnPop = behaviour.hapticsOnPop,
                         statusDotEnabled = behaviour.showStatusDot,
+                        statusDotSide = behaviour.statusDotSide,
                         permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
                         permissionUsage = permissionUsage,
                         permissionDotPosition = permissionDotPosition,
@@ -816,6 +818,7 @@ class IslandOverlayController(private val context: Context) {
         composeView = view
         layoutParams = params
         installTouchableRegion(view)
+        syncTouchable()
     }
 
     /**
@@ -1332,12 +1335,9 @@ class IslandOverlayController(private val context: Context) {
      * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect { (event, behaviour) ->
+        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect {
             publishCutoutWidth()
-            setTouchable(
-                !previewPinned && (event != null || satelliteEvent.value != null ||
-                    behaviour.emptyPillActive),
-            )
+            syncTouchable()
         }
     }
 
@@ -1404,8 +1404,11 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun publishCutoutWidth() {
         val kind = currentCutoutKind()
-        val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0
-        val grownForStatusDot = statusDotGrowthDp(expanded = false) > 0
+        val statusDotGrown = statusDotGrowthDp(expanded = false) > 0
+        val statusDotOnRight = behaviourState.value.statusDotSide == StatusDotSide.RIGHT
+        // A dot on the right grows the pill over the system-icon end, which the dots flag already covers
+        val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0 || (statusDotGrown && statusDotOnRight)
+        val grownForStatusDot = statusDotGrown && !statusDotOnRight
         val published = CutoutWidthBus.kind.value
         val grows = kind != null && (published == null || kind.ordinal > published.ordinal)
         cutoutWidthJob?.cancel()
@@ -1480,6 +1483,17 @@ class IslandOverlayController(private val context: Context) {
             params.y = targetY
             runCatching { windowManager.updateViewLayout(view, params) }
         }
+    }
+
+    /**
+     * Re-applies the touch flag from the current state. A newly added window needs it because it
+     * starts non-touchable.
+     */
+    private fun syncTouchable() {
+        setTouchable(
+            !previewPinned && (currentEvent.value != null || satelliteEvent.value != null ||
+                behaviourState.value.emptyPillActive),
+        )
     }
 
     /**
@@ -1594,13 +1608,14 @@ class IslandOverlayController(private val context: Context) {
         val diameterPx = (collapsed.heightDp * density).toInt()
         val gapPx = (SATELLITE_GAP_DP * density).toInt()
         val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
-        val leftGrowthPx = (statusDotGrowthDp(false) * density).toInt()
+        val growthPx = (statusDotGrowthDp(false) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + leftGrowthPx - splitPx +
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + growthPx - splitPx +
             notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 -
-            leftGrowthPx / 2 + satelliteShiftPx(splitPx)
+        val growthShiftPx = if (behaviourState.value.statusDotSide == StatusDotSide.RIGHT) growthPx / 2 else -growthPx / 2
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            growthShiftPx + satelliteShiftPx(splitPx)
         val step = pillWidthPx / 2 + gapPx + diameterPx / 2
         val satelliteCenterX = if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) {
             centerX - step
@@ -1631,16 +1646,17 @@ class IslandOverlayController(private val context: Context) {
         val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = currentHeightBonusDp(expanded)
         val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
-        val leftGrowthPx = (statusDotGrowthDp(expanded) * density).toInt()
+        val growthPx = (statusDotGrowthDp(expanded) * density).toInt()
         val splitPx = (satelliteSplitDp() * density).toInt()
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + leftGrowthPx - splitPx +
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + growthPx - splitPx +
             notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        // The pill grows to the right for the dots and to the left for the status dot, so its centre
-        // moves with it; a bubble beside it pushes the centre the other way by half of the width it
-        // gave up.
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 -
-            leftGrowthPx / 2 + satelliteShiftPx(splitPx)
+        // The pill grows to the right for the dots and to whichever side the status dot is on, so its
+        // centre moves with it; a bubble beside it pushes the centre the other way by half of the
+        // width it gave up.
+        val growthShiftPx = if (behaviourState.value.statusDotSide == StatusDotSide.RIGHT) growthPx / 2 else -growthPx / 2
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            growthShiftPx + satelliteShiftPx(splitPx)
         val topPx = (dims.offsetYDp * density).toInt()
         val bottomPx = ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonusDp) * density).toInt()
         return Rect(
@@ -1736,7 +1752,9 @@ class IslandOverlayController(private val context: Context) {
         if (event?.call != null) return 0
         // Only grown for a tile that writes on the trailing edge; elsewhere the dots fit as they are.
         if (event == null) return 0
-        if (!event.hasCollapsedTrailingContent()) return 0
+        val statusDotOnRight = event.statusDotColor != null && behaviourState.value.showStatusDot &&
+            behaviourState.value.statusDotSide == StatusDotSide.RIGHT && !isTinyTile(event)
+        if (!event.hasCollapsedTrailingContent() && !statusDotOnRight) return 0
         return permissionDotTrailingInsetDp(
             PermissionUsageMonitor.usage.value,
             layoutState.value.collapsed.heightDp,
@@ -1764,19 +1782,41 @@ class IslandOverlayController(private val context: Context) {
             behaviourState.value.satellitePosition == SatellitePosition.LEFT -> splitDp / 2f
             else -> -splitDp / 2f
         }
-        val pillLeftDp = collapsed.offsetXDp + shiftDp -
-            (displayWidthExactDp.value * collapsed.widthPercent / 100f - splitDp) / 2f
-        val leftDotsDp = if (permissionDotsOnLeft()) {
-            permissionDotLeadingInsetDp(
+        val pillWidthDp = displayWidthExactDp.value * collapsed.widthPercent / 100f - splitDp
+        val pillLeftDp = collapsed.offsetXDp + shiftDp - pillWidthDp / 2f
+        val onRight = behaviourState.value.statusDotSide == StatusDotSide.RIGHT
+        val sideDotsDp = when {
+            onRight && permissionDotsOnRight() -> permissionDotTrailingInsetDp(
                 PermissionUsageMonitor.usage.value,
                 collapsed.heightDp,
                 permissionDotVerticalState.value,
             )
-        } else {
-            0
+            !onRight && permissionDotsOnLeft() -> permissionDotLeadingInsetDp(
+                PermissionUsageMonitor.usage.value,
+                collapsed.heightDp,
+                permissionDotVerticalState.value,
+            )
+            else -> 0
         }
-        return statusDotLeadingGrowthDp(pillLeftDp, cameraLeftEdgeDp.value, collapsed.heightDp, leftDotsDp)
+        // The growth maths only knows the leading edge, so the right side is fed mirrored coordinates,
+        // from the drawn edge the permission dots have already pushed out
+        return if (onRight) {
+            statusDotLeadingGrowthDp(
+                -(pillLeftDp + pillWidthDp + sideDotsDp),
+                cameraRightEdgeDp.value?.let { -it },
+                collapsed.heightDp,
+                sideDotsDp,
+                onRight = true,
+            )
+        } else {
+            statusDotLeadingGrowthDp(pillLeftDp, cameraLeftEdgeDp.value, collapsed.heightDp, sideDotsDp)
+        }
     }
+
+    /** Whether the permission dots are showing, as [DynamicIsland] draws them, on the pill's right. */
+    private fun permissionDotsOnRight(): Boolean =
+        (permissionDotEnabledState.value || PermissionDotPreviewBus.active.value) &&
+            permissionDotPositionState.value == PermissionDotPosition.RIGHT
 
     /** Whether the permission dots are showing, as [DynamicIsland] draws them, on the pill's left. */
     private fun permissionDotsOnLeft(): Boolean =
@@ -2199,7 +2239,7 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
-                setTouchable(!pinned && (currentEvent.value != null || behaviourState.value.emptyPillActive))
+                syncTouchable()
                 syncWindowSize()
             }
     }
