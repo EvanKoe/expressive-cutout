@@ -7,6 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,14 +34,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.isNavigationBarContrastEnforced = false
+
         setContent {
             val viewModel: AppViewModel = viewModel()
             val theme by viewModel.theme.collectAsStateWithLifecycle()
             val darkTheme = theme.isDark()
+
             SideEffect {
-                WindowCompat.getInsetsController(window, window.decorView)
-                    .isAppearanceLightStatusBars = !darkTheme
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
             }
+
             ExpressiveCutoutTheme(appTheme = theme) {
                 MainScreen(viewModel)
             }
