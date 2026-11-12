@@ -1471,9 +1471,9 @@ fun DynamicIsland(
                         modifier = Modifier
                             .align(if (dotOnRight) Alignment.TopEnd else Alignment.TopStart)
                             .padding(
-                                start = if (dotOnRight) 0.dp else dotEdge,
-                                end = if (dotOnRight) dotEdge else 0.dp,
-                                top = dotTop,
+                                start = if (dotOnRight) 0.dp else dotEdge.coerceAtLeast(0.dp),
+                                end = if (dotOnRight) dotEdge.coerceAtLeast(0.dp) else 0.dp,
+                                top = dotTop.coerceAtLeast(0.dp),
                             ),
                     )
                 }
