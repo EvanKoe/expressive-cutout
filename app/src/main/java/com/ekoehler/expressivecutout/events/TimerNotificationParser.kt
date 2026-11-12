@@ -32,6 +32,9 @@ data class ParsedTimer(
  *  - **Classic chronometer:** the older format that sets a *counting-down* chronometer anchored to
  *    the notification's `when`. Kept as a fallback for clock apps that still use it; it stays
  *    countdown-only so a call's count-up chronometer is not mistaken for a timer.
+() *  - **Clock's shared extras:** BlackyHawky Clock also publishes `timerIsRunning` and
+ *    `timerRemainingMs` for third-party apps. Its paused timer carries no chronometer and no
+ *    metric, so these extras are the only way to see it; only the paused form is read from them.
  *
  * Keying off the metric's time (rather than a package allow-list) works across clock apps.
  */
@@ -44,8 +47,17 @@ object TimerNotificationParser {
     fun isTimer(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification ?: return false
         val extras = notification.extras ?: return false
-        return readMetricTimer(extras) != null || isClassicCountdown(notification, extras)
+        return readMetricTimer(extras) != null ||
+            isClassicCountdown(notification, extras) ||
+            readClockPausedRemaining(sbn.packageName, extras) != null
     }
+
+    /**
+     * Whether a timer may claim the tile. Clock re-posts every timer's notification on each change,
+     * so a paused timer must not steal the tile from the timer already shown under another key.
+     */
+    internal fun mayTakeTile(isPaused: Boolean, key: String, currentKey: String?): Boolean =
+        !isPaused || currentKey == null || key == currentKey
 
     /**
      * Reads a timer notification into the shape the timer tile needs: time, direction, label, and
@@ -68,6 +80,18 @@ object TimerNotificationParser {
                 label = metric.label ?: extras.notificationTitle(),
                 actions = actions,
                 countsUp = metric.countsUp,
+            )
+        }
+
+        val clockPausedMs = extras?.let { readClockPausedRemaining(sbn.packageName, it) }
+        
+        if (clockPausedMs != null) {
+            return ParsedTimer(
+                endElapsedRealtimeMs = null,
+                pausedRemainingMs = clockPausedMs,
+                label = extras.notificationTitle(),
+                actions = actions,
+                countsUp = false,
             )
         }
 
@@ -120,6 +144,25 @@ object TimerNotificationParser {
         return countsDown && showsChronometer && notification.`when` > 0L
     }
 
+    /**
+     * The frozen remaining time of a paused BlackyHawky Clock timer, read from its shared extras, or
+     * null when either extra is missing or the timer is running (the other formats cover that).
+     */
+    private fun readClockPausedRemaining(packageName: String, extras: Bundle): Long? {
+        val runningKey = packageName + SUFFIX_TIMER_IS_RUNNING
+        val remainingKey = packageName + SUFFIX_TIMER_REMAINING_MS
+        
+        if (!extras.containsKey(runningKey) || !extras.containsKey(remainingKey)) {
+            return null
+        }
+
+        if (extras.getBoolean(runningKey)) {
+            return null
+        }
+        
+        return extras.getLong(remainingKey).coerceAtLeast(0L)
+    }
+
     private fun Bundle.notificationTitle(): String? =
         getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
 
@@ -147,4 +190,11 @@ object TimerNotificationParser {
     private const val KEY_COUNT_DOWN = "countDown"
     private const val KEY_ZERO_ELAPSED = "zeroElapsedRealtime"
     private const val KEY_PAUSED_DURATION = "pausedDuration"
+
+    /**
+     * BlackyHawky Clock's shared timer extras. Each key is the posting app's package name followed
+     * by one of these suffixes, e.g. `com.best.deskclock.nightly.timerIsRunning`.
+     */
+    private const val SUFFIX_TIMER_IS_RUNNING = ".timerIsRunning"
+    private const val SUFFIX_TIMER_REMAINING_MS = ".timerRemainingMs"
 }
