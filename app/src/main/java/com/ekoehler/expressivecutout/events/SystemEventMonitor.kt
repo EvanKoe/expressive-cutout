@@ -31,6 +31,7 @@ import com.ekoehler.expressivecutout.core.DeviceLockBus
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.system.HotspotClients
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -238,6 +239,7 @@ class SystemEventMonitor(
                 ACTION_WIFI_AP_STATE_CHANGED -> {
                     val state = intent.getIntExtra(EXTRA_WIFI_AP_STATE, 0)
                     if (state == WIFI_AP_STATE_ENABLED) {
+                        HotspotClients.setHotspotOn(true)
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_ENABLED,
@@ -247,6 +249,7 @@ class SystemEventMonitor(
                             ),
                         )
                     } else if (state == WIFI_AP_STATE_DISABLED) {
+                        HotspotClients.setHotspotOn(false)
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_DISABLED,
@@ -255,6 +258,8 @@ class SystemEventMonitor(
                                 actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
                             ),
                         )
+                    } else if (state == WIFI_AP_STATE_FAILED) {
+                        HotspotClients.setHotspotOn(false)
                     }
                 }
                 AudioManager.RINGER_MODE_CHANGED_ACTION -> {
@@ -752,6 +757,7 @@ class SystemEventMonitor(
         const val EXTRA_WIFI_AP_STATE = "wifi_state"
         const val WIFI_AP_STATE_DISABLED = 11
         const val WIFI_AP_STATE_ENABLED = 13
+        const val WIFI_AP_STATE_FAILED = 14
         const val KEY_PIXEL_CHARGE_OPT_MODE = "charge_optimization_mode"
         const val PIXEL_CHARGE_OPT_MODE_LIMIT_80 = 2
         const val CHARGE_CAP_80 = 80
