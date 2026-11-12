@@ -1,7 +1,13 @@
 package com.ekoehler.expressivecutout.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -16,6 +22,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,12 +48,27 @@ fun BackNavBar(
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val arrowWidth by animateDpAsState(
+        targetValue = if (pressed) ARROW_PRESSED_WIDTH else ARROW_SIZE,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "backArrowWidth",
+    )
+
+    LaunchedEffect(pressed) {
+        if (pressed) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
 
     Surface(
-        modifier = modifier.clickable {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            onBack()
-        },
+        modifier = modifier.clickable(
+            interactionSource = interactionSource,
+            indication = LocalIndication.current,
+            onClick = onBack,
+        ),
         shape = RoundedCornerShape(32.dp),
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -69,7 +93,7 @@ fun BackNavBar(
             // Back arrow
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(width = arrowWidth, height = ARROW_SIZE)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
@@ -92,3 +116,10 @@ fun BackNavBar(
         }
     }
 }
+
+/**
+ * Back arrow pill geometry: a 44dp circle at rest that stretches into a pill while pressed.
+ * The bar is bottom-centred, so the extra width spreads evenly to both sides.
+ */
+private val ARROW_SIZE = 44.dp
+private val ARROW_PRESSED_WIDTH = 54.dp
