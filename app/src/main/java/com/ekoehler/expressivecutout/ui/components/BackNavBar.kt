@@ -39,8 +39,8 @@ fun BackNavBar(
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+
     Surface(
-        // The whole pill is the back target.
         modifier = modifier.clickable {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             onBack()
@@ -48,14 +48,14 @@ fun BackNavBar(
         shape = RoundedCornerShape(32.dp),
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = 6.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier
                 .then(
                     if (supportsBackdropBlur()) {
                         Modifier.backdropBlur(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = CONTAINER_ALPHA),
                             radius = BACKDROP_BLUR_RADIUS,
                         )
                     } else {
@@ -66,22 +66,26 @@ fun BackNavBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Back arrow
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(R.string.back),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
+
+            // Page title
             Text(
                 text = title,
                 fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 modifier = Modifier.padding(end = 20.dp),
             )
