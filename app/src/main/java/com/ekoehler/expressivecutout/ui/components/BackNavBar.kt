@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -45,12 +46,23 @@ fun BackNavBar(
             onBack()
         },
         shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.primary,
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shadowElevation = 6.dp,
     ) {
         Row(
-            modifier = Modifier.padding(all = 8.dp),
+            modifier = Modifier
+                .then(
+                    if (supportsBackdropBlur()) {
+                        Modifier.backdropBlur(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            radius = BACKDROP_BLUR_RADIUS,
+                        )
+                    } else {
+                        Modifier.background(MaterialTheme.colorScheme.primary)
+                    },
+                )
+                .padding(all = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

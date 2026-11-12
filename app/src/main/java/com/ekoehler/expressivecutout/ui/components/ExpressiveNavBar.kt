@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,9 @@ import androidx.compose.ui.unit.dp
 
 /** Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0). */
 private val EMPHASIZED_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+/** How strongly the page behind the bottom bars is blurred; shared with [BackNavBar]. */
+internal val BACKDROP_BLUR_RADIUS = 20.dp
 
 /** One destination in the [ExpressiveNavBar]. */
 data class NavBarItem(
@@ -52,16 +56,28 @@ fun ExpressiveNavBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val pr: Color = MaterialTheme.colorScheme.primary
+    val alpha: Float = 0.7f
+    val bg: Color = Color(pr.red, pr.green, pr.blue, alpha)
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.primary,
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         tonalElevation = 0.dp,
         shadowElevation = 6.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier
+                .then(
+                    if (supportsBackdropBlur()) {
+                        Modifier.backdropBlur(color = bg, radius = BACKDROP_BLUR_RADIUS)
+                    } else {
+                        Modifier.background(pr)
+                    },
+                )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
