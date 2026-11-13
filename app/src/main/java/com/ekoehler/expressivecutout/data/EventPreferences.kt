@@ -10,6 +10,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.swe.SweWidgets
+import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -107,6 +109,21 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         }.toMap()
     }
 
+    /** Whether the hotspot event shows how many devices are connected. Absent means off. */
+    val hotspotCountEnabled: Flow<Boolean> = context.eventDataStore.data.map { prefs ->
+        prefs[HOTSPOT_COUNT_ENABLED_KEY] ?: false
+    }
+
+    /** Background of the hotspot card's "Turn off" button; null means the event's own accent. */
+    val hotspotTurnOffColor: Flow<CutoutColor?> = context.eventDataStore.data.map { prefs ->
+        CutoutColor.deserialize(prefs[HOTSPOT_TURN_OFF_COLOR_KEY])
+    }
+
+    /** How the hotspot device count is drawn; absent or unreadable means a silent-counting star. */
+    val hotspotCountStyle: Flow<UnreadWidget> = context.eventDataStore.data.map { prefs ->
+        parseHotspotStyle(prefs[HOTSPOT_COUNT_STYLE_KEY])
+    }
+
     /**
      * Exports every per-event setting as JSON. The five [SystemEventType]-keyed maps become nested
      * objects whose keys are the event-type names (a JSONObject key must be a String, so the enum
@@ -126,6 +143,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
             put("persistent", persistent.first().toJsonObject { it })
             put("animatedIconLoops", animatedIconLoops.first().toJsonObject { it })
             put("colors", colors.first().toJsonObject { it.serialize() })
+            put("hotspotCountEnabled", hotspotCountEnabled.first())
+            put("hotspotCountStyle", hotspotCountStyle.first().toJson())
+            hotspotTurnOffColor.first()?.let { put("hotspotTurnOffColor", it.serialize()) }
         }.toString()
     }
 
@@ -166,6 +186,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
                     if (color == null) prefs.remove(type.colorKey) else prefs[type.colorKey] = color.serialize()
                 }
             }
+            if (obj.has("hotspotCountEnabled")) prefs[HOTSPOT_COUNT_ENABLED_KEY] = obj.getBoolean("hotspotCountEnabled")
+            obj.optJSONObject("hotspotCountStyle")?.let { prefs[HOTSPOT_COUNT_STYLE_KEY] = it.toString() }
+            obj.optString("hotspotTurnOffColor").takeIf { it.isNotEmpty() }?.let { prefs[HOTSPOT_TURN_OFF_COLOR_KEY] = it }
             if (obj.has("dynamicColor")) prefs[DYNAMIC_COLOR_KEY] = obj.getBoolean("dynamicColor")
             if (obj.has("dynamicColorRole") && !obj.isNull("dynamicColorRole")) {
                 runCatching { DynamicRole.valueOf(obj.optString("dynamicColorRole")) }.getOrNull()
@@ -224,6 +247,24 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         it[DYNAMIC_COLOR_OPACITY_KEY] = opacity.coerceIn(0f, 1f)
     }
 
+    suspend fun setHotspotCountEnabled(enabled: Boolean) = context.eventDataStore.edit {
+        it[HOTSPOT_COUNT_ENABLED_KEY] = enabled
+    }
+
+    /** Stores [color] for the "Turn off" button, or clears it when null so the accent applies again. */
+    suspend fun setHotspotTurnOffColor(color: CutoutColor?) = context.eventDataStore.edit {
+        if (color == null) it.remove(HOTSPOT_TURN_OFF_COLOR_KEY) else it[HOTSPOT_TURN_OFF_COLOR_KEY] = color.serialize()
+    }
+
+    suspend fun setHotspotCountStyle(style: UnreadWidget) = context.eventDataStore.edit {
+        it[HOTSPOT_COUNT_STYLE_KEY] = style.toJson().toString()
+    }
+
+    /** Reads a stored style, falling back to [DEFAULT_HOTSPOT_STYLE] when it is missing or not an unread widget. */
+    private fun parseHotspotStyle(raw: String?): UnreadWidget =
+        raw?.let { runCatching { SweWidgets.fromJson(JSONObject(it)) }.getOrNull() } as? UnreadWidget
+            ?: DEFAULT_HOTSPOT_STYLE
+
     private val SystemEventType.key: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_enabled_$name")
 
@@ -246,5 +287,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("events_dynamic_color")
         val DYNAMIC_COLOR_ROLE_KEY = stringPreferencesKey("events_dynamic_color_role")
         val DYNAMIC_COLOR_OPACITY_KEY = floatPreferencesKey("events_dynamic_color_opacity")
+        val HOTSPOT_COUNT_ENABLED_KEY = booleanPreferencesKey("events_hotspot_count_enabled")
+        val HOTSPOT_COUNT_STYLE_KEY = stringPreferencesKey("events_hotspot_count_style")
+        val HOTSPOT_TURN_OFF_COLOR_KEY = stringPreferencesKey("events_hotspot_turn_off_color")
+        val DEFAULT_HOTSPOT_STYLE = UnreadWidget(id = "hotspot", shape = UnreadShape.STAR, countSilent = true)
     }
 }

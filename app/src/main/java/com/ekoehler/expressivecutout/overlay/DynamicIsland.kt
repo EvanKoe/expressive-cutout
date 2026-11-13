@@ -215,9 +215,12 @@ import com.ekoehler.expressivecutout.data.PermissionDotPosition
 import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.system.HotspotState
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import com.ekoehler.expressivecutout.service.UnreadCounts
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.inkOn
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
@@ -533,6 +536,9 @@ fun DynamicIsland(
     hiddenEmptyWidthPercent: Int = BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
     emptyInfo: EmptyPillInfoSettings = EmptyPillInfoSettings(),
     unreadCounts: UnreadCounts = UnreadCounts(),
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
     battery: BatteryStatus? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
@@ -1393,6 +1399,10 @@ fun DynamicIsland(
                                         targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
                                         expandProgress = expandProgress,
                                         topMarginDp = expanded.topMarginDp,
+                                        statusDotEnabled = statusDotEnabled,
+                                        hotspot = hotspot,
+                                        canTurnOffHotspot = canTurnOffHotspot,
+                                        onTurnOffHotspot = onTurnOffHotspot,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
@@ -1421,6 +1431,8 @@ fun DynamicIsland(
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
                                         iconPop = iconPop,
+                                        statusDotEnabled = statusDotEnabled,
+                                        hotspot = hotspot,
                                     )
                                 }
                             }
@@ -1471,9 +1483,9 @@ fun DynamicIsland(
                         modifier = Modifier
                             .align(if (dotOnRight) Alignment.TopEnd else Alignment.TopStart)
                             .padding(
-                                start = if (dotOnRight) 0.dp else dotEdge,
-                                end = if (dotOnRight) dotEdge else 0.dp,
-                                top = dotTop,
+                                start = if (dotOnRight) 0.dp else dotEdge.coerceAtLeast(0.dp),
+                                end = if (dotOnRight) dotEdge.coerceAtLeast(0.dp) else 0.dp,
+                                top = dotTop.coerceAtLeast(0.dp),
                             ),
                     )
                 }
@@ -2275,6 +2287,8 @@ private fun CollapsedContent(
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
+    statusDotEnabled: Boolean = true,
+    hotspot: HotspotState = HotspotState(),
 ) {
     // The music tile's single transport button, opposite its cover. Never on the stuck-to-camera
     // pill (barely wider than the badge) nor beside the tiny player, which has no room for it.
@@ -2311,7 +2325,7 @@ private fun CollapsedContent(
         )
         // The timer tile shows the remaining time on the trailing edge, opposite its icon.
         if (event.timer != null && !isStickToCamera) {
-            timerRemainingText()?.let { remaining ->
+            timerDisplayText()?.let { remaining ->
                 Text(
                     text = remaining,
                     color = LocalContentColor.current,
@@ -2359,6 +2373,32 @@ private fun CollapsedContent(
                         .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
             }
+        }
+        
+        // Connected-device count (hotspot)
+        if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
+            val badge = event.hotspot?.badge
+            val count = hotspot.count
+            if (badge != null && count != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
+                ) {
+                    badge.DrawCount(count, heightDp, showZero = true)
+                }
+            }
+        }
+        
+        // Radiating status dot, between the badge and the camera
+        if (!isStickToCamera) {
+            AnimatedStatusDot(
+                color = event.statusDotColor.takeIf { statusDotEnabled },
+                sizeDp = (heightDp * STATUS_DOT_SIZE_FRACTION).dp,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = (statusDotStartDp ?: statusDotMinStartDp(heightDp, 0)).dp),
+            )
         }
     }
 }
@@ -2938,18 +2978,20 @@ private fun rememberAppIcon(packageName: String, themed: Boolean): LoadedAppIcon
 }
 
 /**
- * The remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
- * timer is present. Reads [RunningTimerBus]: a running timer ticks down against
+ * The time shown on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
+ * timer is present. Reads [RunningTimerBus]: a running timer ticks against
  * [SystemClock.elapsedRealtime] (re-derived a few times a second so the collapsed pill and expanded
- * card stay in sync), while a paused timer shows its frozen remainder without ticking. Seconds are
- * rounded up so a fresh 5:00 timer reads "5:00", and it lands on "0:00" exactly at zero.
+ * card stay in sync) — down towards its end for a countdown, up from its start for a count-up
+ * stopwatch — while a paused timer shows its frozen value without ticking. A countdown rounds
+ * seconds up so a fresh 5:00 timer reads "5:00" and lands on "0:00" exactly at zero; a count-up
+ * rounds seconds down so a fresh stopwatch reads "0:00" and only advances once a full second passed.
  */
 @Composable
-private fun timerRemainingText(): String? {
+private fun timerDisplayText(): String? {
     val timer by RunningTimerBus.state.collectAsStateWithLifecycle()
     val t = timer ?: return null
     val end = t.endElapsedRealtimeMs
-    val remainingMs = if (end != null) {
+    val ms = if (end != null) {
         var nowElapsed by remember(end) { mutableStateOf(SystemClock.elapsedRealtime()) }
         LaunchedEffect(end) {
             while (true) {
@@ -2957,11 +2999,11 @@ private fun timerRemainingText(): String? {
                 delay(250L)
             }
         }
-        (end - nowElapsed).coerceAtLeast(0L)
+        (if (t.countsUp) nowElapsed - end else end - nowElapsed).coerceAtLeast(0L)
     } else {
         (t.pausedRemainingMs ?: return null).coerceAtLeast(0L)
     }
-    return formatCallDuration((remainingMs + 999L) / 1_000L)
+    return formatCallDuration(if (t.countsUp) ms / 1_000L else (ms + 999L) / 1_000L)
 }
 
 /** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
@@ -3033,6 +3075,10 @@ private fun ExpandedContent(
     targetWidthDp: Int = 0,
     expandProgress: Float = 1f,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    statusDotEnabled: Boolean = true,
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
@@ -3060,7 +3106,7 @@ private fun ExpandedContent(
         )
         return
     }
-    // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
+    // The timer tile: icon + ticking time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
         TimerExpandedContent(
             event = event,
@@ -3071,6 +3117,8 @@ private fun ExpandedContent(
         return
     }
     val density = LocalDensity.current
+    val hotspotCard = event.hotspot
+    val ssidTitle = hotspotCard != null && hotspot.ssid != null
     val relativeTime = rememberRelativeTime(event.postTimeMs)
     val headerText = formatNotificationHeader(
         appName = event.appName,
@@ -3162,14 +3210,14 @@ private fun ExpandedContent(
                         )
                     }
                     Text(
-                        text = event.label,
+                        text = if (ssidTitle) hotspot.ssid.orEmpty() else event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    event.detail?.let { detail ->
+                    event.detail?.takeIf { !ssidTitle }?.let { detail ->
                         Text(
                             text = detail,
                             color = LocalContentColor.current.copy(alpha = 0.70f),
@@ -3235,6 +3283,50 @@ private fun ExpandedContent(
                 }
             }
 
+            if (hotspotCard != null) {
+                // Connected devices
+                if (hotspot.clients.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    hotspot.clients.forEachIndexed { index, mac ->
+                        Text(
+                            text = mac,
+                            color = LocalContentColor.current,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    groupedShape(isFirst = index == 0, isLast = index == hotspot.clients.lastIndex),
+                                )
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                    }
+                }
+
+                // Turn off button
+                if (canTurnOffHotspot) {
+                    val turnOffFill = hotspotCard.turnOffColor?.resolve() ?: event.effectiveTint()
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .height(appearance.actionButtonHeightDp.dp)
+                                .clip(actionChipShape(appearance.actionButtonStyle))
+                                .background(turnOffFill)
+                                .clickable(onClick = onTurnOffHotspot)
+                                .padding(horizontal = 18.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.hotspot_turn_off),
+                                color = inkOn(turnOffFill),
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
+
             // Fall back to the notification's own accent / a neutral tint when unset.
             val sendColor = appearance.sendButtonColor?.resolve() ?: event.accent
             when {
@@ -3274,6 +3366,17 @@ private fun ExpandedContent(
     }
 }
 
+/** The corner shape every expanded action button shares: rounded square for Material You, a pill otherwise. */
+private fun actionChipShape(style: ActionButtonStyle): Shape = when (style) {
+    ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+    else -> CircleShape
+}
+
+/** The tint the event's icon and accents resolve to: per-event override, then theme role, then the event's own accent. */
+@Composable
+private fun IslandEvent.effectiveTint(): Color =
+    colorOverride?.resolve() ?: if (useThemeColor) MaterialTheme.colorScheme.forRole(themeColorRole) else accent
+
 /**
  * A single action chip. [style] selects between the Material 3 Expressive and Material You looks;
  * [fill] is the base colour those looks derive their container/outline from.
@@ -3290,10 +3393,7 @@ private fun ActionChip(
     animatePress: Boolean = true,
     horizontalPaddingDp: Int = 18,
 ) {
-    val shape = when (style) {
-        ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
-        else -> CircleShape
-    }
+    val shape = actionChipShape(style)
     val container = when (style) {
         ActionButtonStyle.EXPRESSIVE_TONAL -> fill.copy(alpha = 0.22f)
         ActionButtonStyle.EXPRESSIVE_FILLED -> fill
@@ -5066,8 +5166,8 @@ private fun CallStatus(
 }
 
 /**
- * The timer tile's expanded layout: a timer icon + the ticking remaining time, and (when enabled)
- * the Reset / Add 1 min chips. The countdown is read live from [RunningTimerBus]; the chips fire the
+ * The timer tile's expanded layout: a timer icon + the ticking time, and (when enabled)
+ * the Reset / Add 1 min chips. The time is read live from [RunningTimerBus]; the chips fire the
  * clock app's own notification actions, coloured by [TimerTileOptions] (Reset apart from Add 1 min).
  */
 @Composable
@@ -5118,7 +5218,7 @@ private fun TimerExpandedContent(
                     }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
-                        text = timerRemainingText() ?: event.label,
+                        text = timerDisplayText() ?: event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,

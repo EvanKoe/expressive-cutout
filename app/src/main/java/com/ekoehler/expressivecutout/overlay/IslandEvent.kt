@@ -154,6 +154,8 @@ data class IslandEvent(
     val trailingText: String? = null,
     /** Color for [trailingText]. Null falls back to theme content color. */
     val trailingTextColor: Color? = null,
+    /** Hotspot card options when this is the hotspot event, or null for any other event. */
+    val hotspot: HotspotCard? = null,
     /** Additional multi-line detail strings rendered in the expanded island below [detail]. */
     val secondaryLines: List<String> = emptyList(),
     /** System Settings activity action to launch when the expanded island is tapped. */
@@ -299,4 +301,4 @@ fun IslandEvent.usesTinyCutout(callOngoing: Boolean): Boolean =
 fun IslandEvent.hasCollapsedTrailingContent(): Boolean =
     timer != null || progressData != null ||
         (media?.rightButton == true && !media.miniPlayer) ||
-        trailingText != null
+        trailingText != null || hotspot?.badge != null

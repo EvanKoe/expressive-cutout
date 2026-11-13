@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,6 +62,8 @@ import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.overlay.resolve
+import com.ekoehler.expressivecutout.swe.widgets.BadgeStyleControls
+import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.groupedShape
@@ -85,6 +88,10 @@ internal fun EventDetailScreen(
     val durations by viewModel.eventDurations.collectAsStateWithLifecycle()
     val persistentEvents by viewModel.eventPersistent.collectAsStateWithLifecycle()
     val persistent = persistentEvents[type] ?: false
+    val hotspotCountEnabled by viewModel.hotspotCountEnabled.collectAsStateWithLifecycle()
+    val hotspotCountStyle by viewModel.hotspotCountStyle.collectAsStateWithLifecycle()
+    val hotspotTurnOffColor by viewModel.hotspotTurnOffColor.collectAsStateWithLifecycle()
+    val shizukuStatus by viewModel.shizukuStatus.collectAsStateWithLifecycle()
     val eventColors by viewModel.eventColors.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val animatedIcons by viewModel.eventAnimatedIcons.collectAsStateWithLifecycle()
@@ -236,8 +243,47 @@ internal fun EventDetailScreen(
             defaultColor = colorFallback,
         )
 
+        if (type == SystemEventType.HOTSPOT_ENABLED) {
+            val shizukuReady = shizukuStatus == ShizukuStatus.READY
+            val showCount = hotspotCountEnabled && shizukuReady
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Connected devices toggle
+                SettingsToggleCard(
+                    title = stringResource(R.string.hotspot_count_title),
+                    description = stringResource(R.string.hotspot_count_desc),
+                    disabledReason = if (shizukuReady) null else stringResource(R.string.requires_shizuku_access),
+                    checked = hotspotCountEnabled,
+                    onCheckedChange = { viewModel.setHotspotCountEnabled(it) },
+                    enabled = shizukuReady,
+                    switchBadge = painterResource(R.drawable.ic_shizuku),
+                    shape = groupedShape(isFirst = true, isLast = !showCount),
+                )
+
+                // Badge style
+                AnimatedVisibility(visible = showCount) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BadgeStyleControls(
+                            widget = hotspotCountStyle,
+                            onChange = { viewModel.setHotspotCountStyle(it) },
+                        )
+
+                        // Turn off button colour
+                        ColorPickerCard(
+                            label = stringResource(R.string.hotspot_turn_off_color),
+                            selected = hotspotTurnOffColor,
+                            onSelect = { viewModel.setHotspotTurnOffColor(it) },
+                            defaultLabel = stringResource(R.string.label_default),
+                            defaultColor = colorFallback,
+                            shape = groupedShape(isLast = true),
+                        )
+                    }
+                }
+            }
+        }
+
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // Persis6tent event
+            // Persistent event
             if (type != SystemEventType.DEVICE_LOCKED) {
                 SettingsToggleCard(
                     title = stringResource(R.string.event_persistent_title),
