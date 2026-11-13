@@ -62,22 +62,23 @@ fun ExpressiveNavBar(
 ) {
     val pr: Color = MaterialTheme.colorScheme.primary
     val bg: Color = Color(pr.red, pr.green, pr.blue, CONTAINER_ALPHA)
+    val blurred = supportsBackdropBlur()
 
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(32.dp),
-        color = Color.Transparent,
+        color = if (blurred) Color.Transparent else pr,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        shadowElevation = if (blurred) 0.dp else 6.dp,
     ) {
         Row(
             modifier = Modifier
                 .then(
-                    if (supportsBackdropBlur()) {
+                    if (blurred) {
                         Modifier.backdropBlur(color = bg, radius = BACKDROP_BLUR_RADIUS)
                     } else {
-                        Modifier.background(pr)
+                        Modifier
                     },
                 )
                 .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -88,6 +89,7 @@ fun ExpressiveNavBar(
                 NavBarPill(
                     item = item,
                     selected = index == selectedIndex,
+                    blurred = blurred,
                     onClick = { onSelect(index) },
                 )
             }
@@ -95,27 +97,34 @@ fun ExpressiveNavBar(
     }
 }
 
+/**
+ * One destination of the [ExpressiveNavBar]. Colours invert with [blurred]: a primary pill on the
+ * frosted bar, or a surface pill on the solid primary bar used when backdrop blur is unavailable.
+ */
 @Composable
 private fun NavBarPill(
     item: NavBarItem,
     selected: Boolean,
+    blurred: Boolean,
     onClick: () -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
     val containerColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            Color.Transparent
+        targetValue = when {
+            !selected -> Color.Transparent
+            blurred -> colors.primary
+            else -> colors.surface
         },
         animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContainer",
     )
 
     val contentColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.surface
-        } else {
-            MaterialTheme.colorScheme.onSurface
+        targetValue = when {
+            blurred && selected -> colors.surface
+            blurred -> colors.onSurface
+            selected -> colors.primary
+            else -> colors.surface
         },
         animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContent",
