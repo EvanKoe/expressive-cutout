@@ -26,13 +26,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** Material 3 expressive "emphasized" easing — cubic-bezier(0.2, 0.0, 0.0, 1.0). */
 private val EMPHASIZED_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+/** How strongly the page behind the bottom bars is blurred; shared with [BackNavBar]. */
+internal val BACKDROP_BLUR_RADIUS: Dp = 40.dp
+
+/** Transparency for the navbar background color */
+internal const val CONTAINER_ALPHA: Float = 0.2f
 
 /** One destination in the [ExpressiveNavBar]. */
 data class NavBarItem(
@@ -52,16 +60,28 @@ fun ExpressiveNavBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val pr: Color = MaterialTheme.colorScheme.primary
+    val bg: Color = Color(pr.red, pr.green, pr.blue, CONTAINER_ALPHA)
+    val blurred = supportsBackdropBlur()
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.primary,
+        color = if (blurred) Color.Transparent else pr,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         tonalElevation = 0.dp,
-        shadowElevation = 6.dp,
+        shadowElevation = if (blurred) 0.dp else 6.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier
+                .then(
+                    if (blurred) {
+                        Modifier.backdropBlur(color = bg, radius = BACKDROP_BLUR_RADIUS)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -69,6 +89,7 @@ fun ExpressiveNavBar(
                 NavBarPill(
                     item = item,
                     selected = index == selectedIndex,
+                    blurred = blurred,
                     onClick = { onSelect(index) },
                 )
             }
@@ -76,26 +97,34 @@ fun ExpressiveNavBar(
     }
 }
 
+/**
+ * One destination of the [ExpressiveNavBar]. Colours invert with [blurred]: a primary pill on the
+ * frosted bar, or a surface pill on the solid primary bar used when backdrop blur is unavailable.
+ */
 @Composable
 private fun NavBarPill(
     item: NavBarItem,
     selected: Boolean,
+    blurred: Boolean,
     onClick: () -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
     val containerColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.surface
-        } else {
-            Color.Transparent
+        targetValue = when {
+            !selected -> Color.Transparent
+            blurred -> colors.primary
+            else -> colors.surface
         },
         animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContainer",
     )
+
     val contentColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surface
+        targetValue = when {
+            blurred && selected -> colors.surface
+            blurred -> colors.onSurface
+            selected -> colors.primary
+            else -> colors.surface
         },
         animationSpec = tween(durationMillis = 350, easing = EMPHASIZED_EASING),
         label = "navPillContent",
@@ -121,6 +150,7 @@ private fun NavBarPill(
             contentDescription = item.label,
             tint = contentColor,
         )
+
         AnimatedVisibility(
             visible = selected,
             enter = fadeIn(tween(durationMillis = 300, easing = EMPHASIZED_EASING)) +

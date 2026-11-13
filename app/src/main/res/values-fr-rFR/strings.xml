@@ -711,7 +711,7 @@
     <string name="profile_linkedin_url">https://www.linkedin.com/in/evan-koehler-it/</string>
     <string name="app_tagline">Une île dynamique hors ligne qui suit le design Material Expressive de Google</string>
     <string name="app_icon_description">Icône d’Expressive Cutout</string>
-    <string name="dev_card_author">Créé par Evan Koehler</string>
+    <string name="dev_card_author">Expressive par Evan</string>
     <string name="dev_card_github">Voir sur GitHub</string>
     <string name="dev_card_linkedin">LinkedIn</string>
     <string name="dev_card_avatar">Photo du développeur</string>

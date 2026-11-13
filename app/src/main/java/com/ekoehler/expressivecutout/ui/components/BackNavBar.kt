@@ -1,7 +1,14 @@
 package com.ekoehler.expressivecutout.ui.components
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -16,9 +23,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -38,41 +49,82 @@ fun BackNavBar(
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val arrowWidth by animateDpAsState(
+        targetValue = if (pressed) ARROW_PRESSED_WIDTH else ARROW_SIZE,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "backArrowWidth",
+    )
+
+    LaunchedEffect(pressed) {
+        if (pressed) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+
     Surface(
-        // The whole pill is the back target.
-        modifier = modifier.clickable {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            onBack()
-        },
+        modifier = modifier.clickable(
+            interactionSource = interactionSource,
+            indication = LocalIndication.current,
+            onClick = onBack,
+        ),
         shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.primary,
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = 6.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
-            modifier = Modifier.padding(all = 8.dp),
+            modifier = Modifier
+                .then(
+                    if (supportsBackdropBlur()) {
+                        Modifier.backdropBlur(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = CONTAINER_ALPHA),
+                            radius = BACKDROP_BLUR_RADIUS,
+                        )
+                    } else {
+                        Modifier.background(MaterialTheme.colorScheme.primary)
+                    },
+                )
+                .padding(all = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Back arrow
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(width = arrowWidth, height = ARROW_SIZE)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(R.string.back),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
+
+            // Page title
             Text(
                 text = title,
                 fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                modifier = Modifier.padding(end = 20.dp),
+                // Only the title animates its width: on the whole Row it re-animated the pressed arrow and clipped it
+                modifier = Modifier
+                    .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                    .padding(end = 20.dp),
             )
         }
     }
 }
+
+/**
+ * Back arrow pill geometry: a 48dp circle at rest that stretches into a pill while pressed.
+ * 48dp matches an [ExpressiveNavBar] pill, so both bars share one height and switching between
+ * them only animates the width. The bar is bottom-centred, so the extra width spreads evenly.
+ */
+private val ARROW_SIZE = 48.dp
+private val ARROW_PRESSED_WIDTH = 58.dp

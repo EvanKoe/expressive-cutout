@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.ekoehler.expressivecutout"
-    compileSdk = 35
+    // The minor level (37.2) is needed for RenderNode.setBackdropRenderEffect
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.ekoehler.expressivecutout"

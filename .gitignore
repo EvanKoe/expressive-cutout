@@ -21,5 +21,7 @@ google-services.json
 *~
 *.swp
 /docs/AUDIT-2026-09-03.md
-*plan-*.md
 *PLAN-*.md
+*plan-*.md
+.claude/
+.opencode/
