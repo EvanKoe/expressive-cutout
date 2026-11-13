@@ -1399,7 +1399,6 @@ fun DynamicIsland(
                                         targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
                                         expandProgress = expandProgress,
                                         topMarginDp = expanded.topMarginDp,
-                                        statusDotEnabled = statusDotEnabled,
                                         hotspot = hotspot,
                                         canTurnOffHotspot = canTurnOffHotspot,
                                         onTurnOffHotspot = onTurnOffHotspot,
@@ -1431,7 +1430,6 @@ fun DynamicIsland(
                                         isStickToCamera = isStickToCamera,
                                         trailingInsetDp = collapsedTrailingInsetDp,
                                         iconPop = iconPop,
-                                        statusDotEnabled = statusDotEnabled,
                                         hotspot = hotspot,
                                     )
                                 }
@@ -2287,7 +2285,6 @@ private fun CollapsedContent(
     isStickToCamera: Boolean = false,
     trailingInsetDp: Int = 0,
     iconPop: Animatable<Float, AnimationVector1D>? = null,
-    statusDotEnabled: Boolean = true,
     hotspot: HotspotState = HotspotState(),
 ) {
     // The music tile's single transport button, opposite its cover. Never on the stuck-to-camera
@@ -2388,17 +2385,6 @@ private fun CollapsedContent(
                     badge.DrawCount(count, heightDp, showZero = true)
                 }
             }
-        }
-        
-        // Radiating status dot, between the badge and the camera
-        if (!isStickToCamera) {
-            AnimatedStatusDot(
-                color = event.statusDotColor.takeIf { statusDotEnabled },
-                sizeDp = (heightDp * STATUS_DOT_SIZE_FRACTION).dp,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = (statusDotStartDp ?: statusDotMinStartDp(heightDp, 0)).dp),
-            )
         }
     }
 }
@@ -3075,7 +3061,6 @@ private fun ExpandedContent(
     targetWidthDp: Int = 0,
     expandProgress: Float = 1f,
     topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
-    statusDotEnabled: Boolean = true,
     hotspot: HotspotState = HotspotState(),
     canTurnOffHotspot: Boolean = false,
     onTurnOffHotspot: () -> Unit = {},

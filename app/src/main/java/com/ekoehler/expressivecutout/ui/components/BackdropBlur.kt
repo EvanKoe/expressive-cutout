@@ -22,13 +22,9 @@ import androidx.compose.ui.unit.Dp
 fun Modifier.backdropBlur(color: Color, radius: Dp): Modifier = drawWithCache {
     val blurNode = if (supportsBackdropBlur()) {
         RenderNode("backdropBlur").apply {
-            setPosition(0, 0, size.width.toInt(), size.height.toInt())
             setBackdropRenderEffect(
                 RenderEffect.createBlurEffect(radius.toPx(), radius.toPx(), Shader.TileMode.CLAMP),
             )
-            val canvas = beginRecording()
-            canvas.drawColor(color.toArgb())
-            endRecording()
         }
     } else {
         null
@@ -37,6 +33,10 @@ fun Modifier.backdropBlur(color: Color, radius: Dp): Modifier = drawWithCache {
     onDrawBehind {
         val canvas = drawContext.canvas.nativeCanvas
         if (blurNode != null && canvas.isHardwareAccelerated) {
+            // Re-recorded on every draw: a node recorded once in the cache kept a stale tint until a resize rebuilt it
+            blurNode.setPosition(0, 0, size.width.toInt(), size.height.toInt())
+            blurNode.beginRecording().drawColor(color.toArgb())
+            blurNode.endRecording()
             canvas.drawRenderNode(blurNode)
         } else {
             drawRect(color)
