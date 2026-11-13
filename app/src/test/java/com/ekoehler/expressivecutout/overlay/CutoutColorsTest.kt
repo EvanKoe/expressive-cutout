@@ -68,6 +68,7 @@ class CutoutColorsTest {
                 DynamicRole.PRIMARY -> mockDynamicPrimary
                 DynamicRole.SECONDARY -> mockDynamicSecondary
                 DynamicRole.TERTIARY -> Color(0xFF999999)
+                else -> Color(0xFF999999)
             }
         }
 

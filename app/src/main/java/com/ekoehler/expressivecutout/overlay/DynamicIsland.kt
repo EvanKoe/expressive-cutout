@@ -1483,9 +1483,9 @@ fun DynamicIsland(
                         modifier = Modifier
                             .align(if (dotOnRight) Alignment.TopEnd else Alignment.TopStart)
                             .padding(
-                                start = if (dotOnRight) 0.dp else dotEdge,
-                                end = if (dotOnRight) dotEdge else 0.dp,
-                                top = dotTop,
+                                start = if (dotOnRight) 0.dp else dotEdge.coerceAtLeast(0.dp),
+                                end = if (dotOnRight) dotEdge.coerceAtLeast(0.dp) else 0.dp,
+                                top = dotTop.coerceAtLeast(0.dp),
                             ),
                     )
                 }
@@ -2325,7 +2325,7 @@ private fun CollapsedContent(
         )
         // The timer tile shows the remaining time on the trailing edge, opposite its icon.
         if (event.timer != null && !isStickToCamera) {
-            timerRemainingText()?.let { remaining ->
+            timerDisplayText()?.let { remaining ->
                 Text(
                     text = remaining,
                     color = LocalContentColor.current,
@@ -2978,18 +2978,20 @@ private fun rememberAppIcon(packageName: String, themed: Boolean): LoadedAppIcon
 }
 
 /**
- * The remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
- * timer is present. Reads [RunningTimerBus]: a running timer ticks down against
+ * The time shown on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
+ * timer is present. Reads [RunningTimerBus]: a running timer ticks against
  * [SystemClock.elapsedRealtime] (re-derived a few times a second so the collapsed pill and expanded
- * card stay in sync), while a paused timer shows its frozen remainder without ticking. Seconds are
- * rounded up so a fresh 5:00 timer reads "5:00", and it lands on "0:00" exactly at zero.
+ * card stay in sync) — down towards its end for a countdown, up from its start for a count-up
+ * stopwatch — while a paused timer shows its frozen value without ticking. A countdown rounds
+ * seconds up so a fresh 5:00 timer reads "5:00" and lands on "0:00" exactly at zero; a count-up
+ * rounds seconds down so a fresh stopwatch reads "0:00" and only advances once a full second passed.
  */
 @Composable
-private fun timerRemainingText(): String? {
+private fun timerDisplayText(): String? {
     val timer by RunningTimerBus.state.collectAsStateWithLifecycle()
     val t = timer ?: return null
     val end = t.endElapsedRealtimeMs
-    val remainingMs = if (end != null) {
+    val ms = if (end != null) {
         var nowElapsed by remember(end) { mutableStateOf(SystemClock.elapsedRealtime()) }
         LaunchedEffect(end) {
             while (true) {
@@ -2997,11 +2999,11 @@ private fun timerRemainingText(): String? {
                 delay(250L)
             }
         }
-        (end - nowElapsed).coerceAtLeast(0L)
+        (if (t.countsUp) nowElapsed - end else end - nowElapsed).coerceAtLeast(0L)
     } else {
         (t.pausedRemainingMs ?: return null).coerceAtLeast(0L)
     }
-    return formatCallDuration((remainingMs + 999L) / 1_000L)
+    return formatCallDuration(if (t.countsUp) ms / 1_000L else (ms + 999L) / 1_000L)
 }
 
 /** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
@@ -3104,7 +3106,7 @@ private fun ExpandedContent(
         )
         return
     }
-    // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
+    // The timer tile: icon + ticking time, and its Reset / Add 1 min chips.
     if (event.timer != null) {
         TimerExpandedContent(
             event = event,
@@ -5164,8 +5166,8 @@ private fun CallStatus(
 }
 
 /**
- * The timer tile's expanded layout: a timer icon + the ticking remaining time, and (when enabled)
- * the Reset / Add 1 min chips. The countdown is read live from [RunningTimerBus]; the chips fire the
+ * The timer tile's expanded layout: a timer icon + the ticking time, and (when enabled)
+ * the Reset / Add 1 min chips. The time is read live from [RunningTimerBus]; the chips fire the
  * clock app's own notification actions, coloured by [TimerTileOptions] (Reset apart from Add 1 min).
  */
 @Composable
@@ -5216,7 +5218,7 @@ private fun TimerExpandedContent(
                     }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
-                        text = timerRemainingText() ?: event.label,
+                        text = timerDisplayText() ?: event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
