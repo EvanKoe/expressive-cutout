@@ -8,7 +8,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -292,60 +301,73 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
 
-            if (inSubScreen) {
-                val title = when (current) {
-                    HomeTab.Profile -> when (profileRoute) {
-                        ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
-                        ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
-                        else -> stringResource(R.string.profile_version)
+            val barTransition = updateTransition(targetState = inSubScreen, label = "bottomBar")
+            barTransition.AnimatedContent(
+                // Each bar draws its own pill, so clip to the pill while the width morphs; only then, to keep the fallback bar's shadow
+                modifier = barModifier.then(
+                    if (barTransition.isRunning) Modifier.clip(RoundedCornerShape(32.dp)) else Modifier,
+                ),
+                transitionSpec = {
+                    fadeIn() togetherWith fadeOut() using SizeTransform { _, _ ->
+                        // A title change is already animated by BackNavBar itself; animating it here too made the container trail the pill and crop it
+                        if (initialState == targetState) snap() else spring(stiffness = Spring.StiffnessMediumLow)
                     }
-
-                    else -> when (settingsRoute) {
-                        SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
-                        SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
-                        SettingsRoute.DynamicTileDetail ->
-                            selectedTile?.let { stringResource(it.labelRes) }
-                                ?: stringResource(R.string.dynamic_tiles_title)
-
-                        SettingsRoute.Apps -> stringResource(R.string.apps_title)
-                        SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
-                        SettingsRoute.Gestures -> stringResource(R.string.gestures_title)
-                        SettingsRoute.ShowsWhenEmpty -> stringResource(R.string.behaviour_empty_pill)
-                        SettingsRoute.Animation -> stringResource(R.string.animation_title)
-                        SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
-                        SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
-                        SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
-                        SettingsRoute.DismissWindow -> stringResource(R.string.appearance_window_dismiss_title)
-                        SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
-                        SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
-                        SettingsRoute.SystemEvents -> stringResource(R.string.integrations_system_events_title)
-                        SettingsRoute.EventDetail ->
-                            selectedEvent?.let { stringResource(it.labelRes) }
-                                ?: stringResource(R.string.integrations_system_events_title)
-
-                        else -> stringResource(R.string.section_icons_title)
-                    }
-                }
-
-                // Go back navbar
-                BackNavBar(
-                    title = title,
-                    onBack = navigateBack,
-                    modifier = barModifier,
-                )
-            } else {
-                // Nav bar
-                ExpressiveNavBar(
-                    items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
-                    selectedIndex = selectedIndex,
-                    onSelect = { index ->
-                        if (index != selectedIndex) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
+                contentAlignment = Alignment.Center,
+            ) { showBackBar ->
+                if (showBackBar) {
+                    val title = when (current) {
+                        HomeTab.Profile -> when (profileRoute) {
+                            ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
+                            ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
+                            else -> stringResource(R.string.profile_version)
                         }
-                        selectedIndex = index
-                    },
-                    modifier = barModifier,
-                )
+
+                        else -> when (settingsRoute) {
+                            SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
+                            SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
+                            SettingsRoute.DynamicTileDetail ->
+                                selectedTile?.let { stringResource(it.labelRes) }
+                                    ?: stringResource(R.string.dynamic_tiles_title)
+
+                            SettingsRoute.Apps -> stringResource(R.string.apps_title)
+                            SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
+                            SettingsRoute.Gestures -> stringResource(R.string.gestures_title)
+                            SettingsRoute.ShowsWhenEmpty -> stringResource(R.string.behaviour_empty_pill)
+                            SettingsRoute.Animation -> stringResource(R.string.animation_title)
+                            SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
+                            SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
+                            SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
+                            SettingsRoute.DismissWindow -> stringResource(R.string.appearance_window_dismiss_title)
+                            SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
+                            SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
+                            SettingsRoute.SystemEvents -> stringResource(R.string.integrations_system_events_title)
+                            SettingsRoute.EventDetail ->
+                                selectedEvent?.let { stringResource(it.labelRes) }
+                                    ?: stringResource(R.string.integrations_system_events_title)
+
+                            else -> stringResource(R.string.section_icons_title)
+                        }
+                    }
+
+                    // Go back navbar
+                    BackNavBar(
+                        title = title,
+                        onBack = navigateBack,
+                    )
+                } else {
+                    // Nav bar
+                    ExpressiveNavBar(
+                        items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
+                        selectedIndex = selectedIndex,
+                        onSelect = { index ->
+                            if (index != selectedIndex) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            selectedIndex = index
+                        },
+                    )
+                }
             }
         }
     }

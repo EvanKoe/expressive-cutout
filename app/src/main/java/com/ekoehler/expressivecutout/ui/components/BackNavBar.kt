@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -111,15 +112,19 @@ fun BackNavBar(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                modifier = Modifier.padding(end = 20.dp),
+                // Only the title animates its width: on the whole Row it re-animated the pressed arrow and clipped it
+                modifier = Modifier
+                    .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                    .padding(end = 20.dp),
             )
         }
     }
 }
 
 /**
- * Back arrow pill geometry: a 44dp circle at rest that stretches into a pill while pressed.
- * The bar is bottom-centred, so the extra width spreads evenly to both sides.
+ * Back arrow pill geometry: a 48dp circle at rest that stretches into a pill while pressed.
+ * 48dp matches an [ExpressiveNavBar] pill, so both bars share one height and switching between
+ * them only animates the width. The bar is bottom-centred, so the extra width spreads evenly.
  */
-private val ARROW_SIZE = 44.dp
-private val ARROW_PRESSED_WIDTH = 54.dp
+private val ARROW_SIZE = 48.dp
+private val ARROW_PRESSED_WIDTH = 58.dp

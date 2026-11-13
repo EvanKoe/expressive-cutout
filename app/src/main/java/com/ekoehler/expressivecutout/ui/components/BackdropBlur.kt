@@ -19,27 +19,30 @@ import androidx.compose.ui.unit.Dp
  * Clipping to a rounded shape is left to the parent (e.g. a `Surface`). No ancestor may draw into
  * an offscreen layer (`alpha` < 1, `blur`, a `RenderEffect`), or the backdrop it sees is empty.
  */
-fun Modifier.backdropBlur(color: Color, radius: Dp): Modifier = drawWithCache {
-    val blurNode = if (supportsBackdropBlur()) {
-        RenderNode("backdropBlur").apply {
-            setBackdropRenderEffect(
-                RenderEffect.createBlurEffect(radius.toPx(), radius.toPx(), Shader.TileMode.CLAMP),
+fun Modifier.backdropBlur(color: Color, radius: Dp): Modifier {
+    // Created outside the cache: the cache rebuilds on every resize, so a width animation would allocate a node per frame
+    val blurNode = if (supportsBackdropBlur()) RenderNode("backdropBlur") else null
+    var blurRadiusPx = Float.NaN
+
+    return drawWithCache {
+        if (blurNode != null && radius.toPx() != blurRadiusPx) {
+            blurRadiusPx = radius.toPx()
+            blurNode.setBackdropRenderEffect(
+                RenderEffect.createBlurEffect(blurRadiusPx, blurRadiusPx, Shader.TileMode.CLAMP),
             )
         }
-    } else {
-        null
-    }
 
-    onDrawBehind {
-        val canvas = drawContext.canvas.nativeCanvas
-        if (blurNode != null && canvas.isHardwareAccelerated) {
-            // Re-recorded on every draw: a node recorded once in the cache kept a stale tint until a resize rebuilt it
-            blurNode.setPosition(0, 0, size.width.toInt(), size.height.toInt())
-            blurNode.beginRecording().drawColor(color.toArgb())
-            blurNode.endRecording()
-            canvas.drawRenderNode(blurNode)
-        } else {
-            drawRect(color)
+        onDrawBehind {
+            val canvas = drawContext.canvas.nativeCanvas
+            if (blurNode != null && canvas.isHardwareAccelerated) {
+                // Re-recorded on every draw: a node recorded once in the cache kept a stale tint until a resize rebuilt it
+                blurNode.setPosition(0, 0, size.width.toInt(), size.height.toInt())
+                blurNode.beginRecording().drawColor(color.toArgb())
+                blurNode.endRecording()
+                canvas.drawRenderNode(blurNode)
+            } else {
+                drawRect(color)
+            }
         }
     }
 }
