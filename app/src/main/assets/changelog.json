@@ -1,10 +1,22 @@
 [
   {
     "version": "0.4.1-beta",
-    "description": "SWE touch fix",
-    "features": [],
+    "description": "Hotspot devices, blurred navbar and timer fixes",
+    "features": [
+      "Hotspot system event shows the number of connected devices",
+      "Status dot side setting, and the status dot now sits in the header of the expanded cutout",
+      "Reworked Profile tab UI",
+      "Blurred navigation bar with a back button animation (blur needs Android API 37.2+)",
+      "No contrast scrim behind the 3-button navigation bar"
+    ],
     "bugfixes": [
-      "The SWE cutout no longer stops reacting to taps (no animation, no action) after locking and unlocking the device"
+      "The SWE cutout no longer stops reacting to taps (no animation, no action) after locking and unlocking the device",
+      "The status dot sits closer to the physical camera",
+      "Crash when the status dot animation went to negative values",
+      "Turning the hotspot off is now detected",
+      "Upcoming timers now show in the timer dynamic tile",
+      "Timers from TickTick and other third-party apps are detected, with their buttons",
+      "Wrong blur colour on app start"
     ]
   },
   {
