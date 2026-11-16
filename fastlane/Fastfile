@@ -1,0 +1,58 @@
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:android)
+
+# Reads a value (e.g. versionName, versionCode) from app/build.gradle.kts, the single source of truth
+def gradle_value(key, source = File.read("../app/build.gradle.kts"))
+	source[/#{key}\s*=\s*"?([^"\s]+)"?/, 1] || UI.user_error!("#{key} not found")
+end
+
+# Fails unless versionName and versionCode were both bumped since the last release tag
+def ensure_version_bumped
+	sh("git fetch --tags", log: false)
+	version = gradle_value('versionName')
+	UI.user_error!("versionName #{version} is already released, bump it") if git_tag_exists(tag: version)
+
+	previous_tag = last_git_tag
+	previous_code = gradle_value('versionCode', sh("git show #{previous_tag}:app/build.gradle.kts", log: false)).to_i
+	code = gradle_value('versionCode').to_i
+	UI.user_error!("versionCode #{code} must be greater than #{previous_code} (#{previous_tag}), bump it") if code <= previous_code
+end
+
+# Absolute path of the renamed APK; absolute because Ruby code runs in fastlane/ but actions run in the project root
+def apk_path
+	File.expand_path("../ExpressiveCutout-v#{gradle_value('versionName')}.apk")
+end
+
+platform :android do
+  desc "Runs all the tests"
+  lane :test do
+    gradle(task: "test")
+  end
+
+	desc "Builds beta"
+	lane :build do
+		gradle(task: 'assembleRelease')
+		FileUtils.cp(lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH], apk_path)
+	end
+
+	desc "Create release"
+	lane :release do
+		ensure_version_bumped
+		build
+		version = gradle_value('versionName')
+		changelog = "metadata/android/en-US/changelogs/#{gradle_value('versionCode')}.txt"
+
+		set_github_release(
+			repository_name: "EvanKoe/expressive-cutout",
+			api_token: ENV["GITHUB_TOKEN"] || UI.user_error!("GITHUB_TOKEN not set"),
+			name: version,
+			tag_name: version,
+			description: File.exist?(changelog) ? File.read(changelog) : "No changelog provided",
+			commitish: "main",
+			is_prerelease: version.include?("-beta"),
+			upload_assets: [apk_path]
+		)
+	end
+end
