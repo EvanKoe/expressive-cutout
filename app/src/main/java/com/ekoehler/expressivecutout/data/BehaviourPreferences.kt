@@ -13,19 +13,41 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for every behaviour setting. */
 private val Context.behaviourDataStore: DataStore<Preferences> by preferencesDataStore(name = "behaviour_prefs")
 
 /** How the cutout behaves when the device is in horizontal/landscape orientation. */
 enum class HorizontalCutoutMode { HIDDEN, NORMAL_ONLY, STICK_TO_CAMERA, CENTER }
 
-/** Which horizontal swipe directions dismiss the cutout, when swipe-to-dismiss is enabled. */
-enum class SwipeDismissDirection { LEFT, RIGHT, BOTH }
+/**
+ * What a tap or vertical swipe on the island does. [NONE] ignores the gesture; [EXPAND] and
+ * [SHRINK] grow or collapse the island; [OPEN_APP] launches the event's app; [DISMISS] removes
+ * the current event.
+ */
+enum class GestureAction { NONE, EXPAND, SHRINK, OPEN_APP, DISMISS }
 
 /**
- * Which cutout state swipe-to-dismiss applies to. Ordered to match the settings selector
- * (Expanded / Both / Normal) so the ordinal doubles as the segment index.
+ * Which side of the primary pill the satellite bubble sits on when the island is split. The primary
+ * pill always keeps its camera-anchored centre, so only the bubble moves.
  */
-enum class SwipeDismissTarget { EXPANDED, BOTH, NORMAL }
+enum class SatellitePosition { LEFT, RIGHT }
+
+/**
+ * Which kinds of event the cutout keeps up until dismissed, without the user pressing the pin
+ * button. Ordered to match the settings selector.
+ */
+enum class PinNotificationsMode {
+    NONE,
+    NOTIFICATIONS,
+    SYSTEM_EVENTS,
+    BOTH;
+
+    /** True when notifications are pinned on arrival. */
+    val pinsNotifications: Boolean get() = this == NOTIFICATIONS || this == BOTH
+
+    /** True when system events are pinned on arrival. */
+    val pinsSystemEvents: Boolean get() = this == SYSTEM_EVENTS || this == BOTH
+}
 
 /**
  * How the island's appear / expand / collapse motion is driven. [EXPRESSIVE] uses Material 3
@@ -82,32 +104,54 @@ data class BehaviourSettings(
     val expandedCollapseSeconds: Int = DEFAULT_COLLAPSE_SECONDS,
     val expandedDisappearOnShrink: Boolean = DEFAULT_DISAPPEAR_ON_SHRINK,
     val notificationsAutoExpand: Boolean = DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
+    val ignoreSilentNotifications: Boolean = DEFAULT_IGNORE_SILENT_NOTIFICATIONS,
+    val pinNotificationsMode: PinNotificationsMode = DEFAULT_PIN_NOTIFICATIONS_MODE,
     val showActionButtons: Boolean = DEFAULT_SHOW_ACTION_BUTTONS,
     val toastOnAction: Boolean = DEFAULT_TOAST_ON_ACTION,
-    val shrinkOnSwipeUp: Boolean = DEFAULT_SHRINK_ON_SWIPE_UP,
-    val swipeToDismiss: Boolean = DEFAULT_SWIPE_TO_DISMISS,
-    val swipeDismissDirection: SwipeDismissDirection = DEFAULT_SWIPE_DISMISS_DIRECTION,
-    val swipeDismissTarget: SwipeDismissTarget = DEFAULT_SWIPE_DISMISS_TARGET,
+    val normalTap: GestureAction = DEFAULT_NORMAL_TAP,
+    val normalSwipeUp: GestureAction = DEFAULT_NORMAL_SWIPE_UP,
+    val expandedTap: GestureAction = DEFAULT_EXPANDED_TAP,
+    val expandedSwipeUp: GestureAction = DEFAULT_EXPANDED_SWIPE_UP,
+    val expandedSwipeDown: GestureAction = DEFAULT_EXPANDED_SWIPE_DOWN,
+    val normalSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val normalSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val expandedSwipeLeft: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
+    val expandedSwipeRight: GestureAction = DEFAULT_SWIPE_SIDEWAYS,
     val showsWhenEmpty: Boolean = SHOWS_WHEN_EMPTY,
-    val showsWhenEmptyShowIcon: Boolean = SHOWS_WHEN_EMPTY_SHOW_ICON,
-    val showsWhenEmptyIcon: IconSource? = null,
-    val showsWhenEmptyIconColor: CutoutColor? = null,
+    val showEmptyCutout: Boolean = SHOW_EMPTY_CUTOUT,
+    val hiddenEmptyWidthPercent: Int = DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
     val showsWhenEmptyClickAction: EmptyClickAction = DEFAULT_EMPTY_CLICK_ACTION,
     val showsWhenEmptyClickPackage: String? = null,
+    val showStatusDot: Boolean = DEFAULT_SHOW_STATUS_DOT,
+    val statusDotSide: StatusDotSide = DEFAULT_STATUS_DOT_SIDE,
     val centerShortcuts: List<CenterShortcut> = CenterShortcut.DEFAULTS,
     val centerShowLabels: Boolean = CENTER_SHOW_LABELS,
     val centerFillContainers: Boolean = CENTER_FILL_CONTAINERS,
     val centerThemedIcons: Boolean = CENTER_THEMED_ICONS,
     val vibrateOnTap: Boolean = DEFAULT_VIBRATE_ON_TAP,
+    val hapticsOnPop: Boolean = DEFAULT_HAPTICS_ON_POP,
+    val dismissNotifications: Boolean = DEFAULT_DISMISS_NOTIFICATIONS,
+    val displayWhileDnd: Boolean = DEFAULT_DISPLAY_WHILE_DND,
+    val alertOnNotification: Boolean = DEFAULT_ALERT_ON_NOTIFICATION,
+    val splitIslandEnabled: Boolean = DEFAULT_SPLIT_ISLAND_ENABLED,
+    val satellitePosition: SatellitePosition = DEFAULT_SATELLITE_POSITION,
 ) {
+    /**
+     * Whether the resting pill takes part in the overlay at all: SWE and the cutout are on, and the
+     * pill is either drawn or hidden with a click action left to catch. A hidden pill with no action
+     * would be an invisible strip that only blocks the status bar.
+     */
+    val emptyPillActive: Boolean
+        get() = showsWhenEmpty && cutoutEnabled &&
+            (showEmptyCutout || showsWhenEmptyClickAction != EmptyClickAction.NONE)
+
     companion object {
         const val DEFAULT_CUTOUT_ENABLED = true
         const val DEFAULT_HIDE_ON_LOCKSCREEN = false
         const val DEFAULT_HIDE_IN_LANDSCAPE = false
         const val DEFAULT_VIBRATE_ON_TAP = true
+        const val DEFAULT_HAPTICS_ON_POP = false
         val DEFAULT_HORIZONTAL_CUTOUT_MODE = HorizontalCutoutMode.CENTER
-        // Baseline for the island's primary expand/collapse transition; the reveal, background fade
-        // and other animations scale in proportion to it. Matches the tuned defaults in DynamicIsland.
         const val DEFAULT_ANIMATION_DURATION_MS = 220
         val DEFAULT_ANIMATION_STYLE = AnimationStyle.EXPRESSIVE
         val DEFAULT_ANIMATION_SPEED = AnimationSpeed.DEFAULT
@@ -118,12 +162,18 @@ data class BehaviourSettings(
         const val DEFAULT_COLLAPSE_SECONDS = 5
         const val DEFAULT_DISAPPEAR_ON_SHRINK = false
         const val DEFAULT_NOTIFICATIONS_AUTO_EXPAND = false
+        const val DEFAULT_IGNORE_SILENT_NOTIFICATIONS = false
+        val DEFAULT_PIN_NOTIFICATIONS_MODE = PinNotificationsMode.NONE
         const val DEFAULT_SHOW_ACTION_BUTTONS = true
         const val DEFAULT_TOAST_ON_ACTION = true
-        const val DEFAULT_SHRINK_ON_SWIPE_UP = true
-        const val DEFAULT_SWIPE_TO_DISMISS = true
-        val DEFAULT_SWIPE_DISMISS_DIRECTION = SwipeDismissDirection.BOTH
-        val DEFAULT_SWIPE_DISMISS_TARGET = SwipeDismissTarget.BOTH
+        val DEFAULT_NORMAL_TAP = GestureAction.EXPAND
+        val DEFAULT_NORMAL_SWIPE_UP = GestureAction.NONE
+        val DEFAULT_EXPANDED_TAP = GestureAction.OPEN_APP
+        val DEFAULT_EXPANDED_SWIPE_UP = GestureAction.SHRINK
+        val DEFAULT_EXPANDED_SWIPE_DOWN = GestureAction.NONE
+        val DEFAULT_SWIPE_SIDEWAYS = GestureAction.DISMISS
+        const val DEFAULT_SPLIT_ISLAND_ENABLED = true
+        val DEFAULT_SATELLITE_POSITION = SatellitePosition.RIGHT
         const val MIN_ANIMATION_DURATION_MS = 0
         const val MAX_ANIMATION_DURATION_MS = 1000
         const val MIN_NORMAL_SECONDS = 1
@@ -131,11 +181,17 @@ data class BehaviourSettings(
         const val MIN_COLLAPSE_SECONDS = 1
         const val MAX_COLLAPSE_SECONDS = 15
         const val SHOWS_WHEN_EMPTY = false
-        const val SHOWS_WHEN_EMPTY_SHOW_ICON = false
+        const val SHOW_EMPTY_CUTOUT = true
+        const val DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT = 30
         val DEFAULT_EMPTY_CLICK_ACTION = EmptyClickAction.NONE
+        const val DEFAULT_SHOW_STATUS_DOT = true
+        val DEFAULT_STATUS_DOT_SIDE = StatusDotSide.LEFT
         const val CENTER_SHOW_LABELS = true
         const val CENTER_FILL_CONTAINERS = false
         const val CENTER_THEMED_ICONS = false
+        const val DEFAULT_DISMISS_NOTIFICATIONS = false
+        const val DEFAULT_DISPLAY_WHILE_DND = false
+        const val DEFAULT_ALERT_ON_NOTIFICATION = false
     }
 }
 
@@ -179,30 +235,82 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 .coerceIn(BehaviourSettings.MIN_COLLAPSE_SECONDS, BehaviourSettings.MAX_COLLAPSE_SECONDS),
             expandedDisappearOnShrink = prefs[DISAPPEAR_ON_SHRINK] ?: BehaviourSettings.DEFAULT_DISAPPEAR_ON_SHRINK,
             notificationsAutoExpand = prefs[NOTIF_AUTO_EXPAND] ?: BehaviourSettings.DEFAULT_NOTIFICATIONS_AUTO_EXPAND,
+            ignoreSilentNotifications = prefs[IGNORE_SILENT_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_IGNORE_SILENT_NOTIFICATIONS,
+            pinNotificationsMode = prefs[PIN_NOTIFICATIONS_MODE]
+                ?.let { runCatching { PinNotificationsMode.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_PIN_NOTIFICATIONS_MODE,
             showActionButtons = prefs[SHOW_ACTION_BUTTONS] ?: BehaviourSettings.DEFAULT_SHOW_ACTION_BUTTONS,
             toastOnAction = prefs[TOAST_ON_ACTION] ?: BehaviourSettings.DEFAULT_TOAST_ON_ACTION,
-            shrinkOnSwipeUp = prefs[SHRINK_ON_SWIPE_UP] ?: BehaviourSettings.DEFAULT_SHRINK_ON_SWIPE_UP,
-            swipeToDismiss = prefs[SWIPE_TO_DISMISS] ?: BehaviourSettings.DEFAULT_SWIPE_TO_DISMISS,
-            swipeDismissDirection = prefs[SWIPE_DISMISS_DIRECTION]
-                ?.let { runCatching { SwipeDismissDirection.valueOf(it) }.getOrNull() }
-                ?: BehaviourSettings.DEFAULT_SWIPE_DISMISS_DIRECTION,
-            swipeDismissTarget = prefs[SWIPE_DISMISS_TARGET]
-                ?.let { runCatching { SwipeDismissTarget.valueOf(it) }.getOrNull() }
-                ?: BehaviourSettings.DEFAULT_SWIPE_DISMISS_TARGET,
+            normalTap = prefs[GESTURE_NORMAL_TAP]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_NORMAL_TAP,
+            normalSwipeUp = prefs[GESTURE_NORMAL_SWIPE_UP]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_NORMAL_SWIPE_UP,
+            expandedTap = prefs[GESTURE_EXPANDED_TAP]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_EXPANDED_TAP,
+            expandedSwipeUp = prefs[GESTURE_EXPANDED_SWIPE_UP]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: if (prefs[LEGACY_SHRINK_ON_SWIPE_UP] == false) GestureAction.NONE else GestureAction.SHRINK,
+            expandedSwipeDown = prefs[GESTURE_EXPANDED_SWIPE_DOWN]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_EXPANDED_SWIPE_DOWN,
+            normalSwipeLeft = prefs[GESTURE_NORMAL_SWIPE_LEFT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = true),
+            normalSwipeRight = prefs[GESTURE_NORMAL_SWIPE_RIGHT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = false),
+            expandedSwipeLeft = prefs[GESTURE_EXPANDED_SWIPE_LEFT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = true),
+            expandedSwipeRight = prefs[GESTURE_EXPANDED_SWIPE_RIGHT]
+                ?.let { runCatching { GestureAction.valueOf(it) }.getOrNull() }
+                ?: legacySwipeAction(prefs, left = false),
             showsWhenEmpty = prefs[SHOWS_WHEN_EMPTY] ?: BehaviourSettings.SHOWS_WHEN_EMPTY,
-            showsWhenEmptyShowIcon = prefs[SHOWS_WHEN_EMPTY_SHOW_ICON] ?: BehaviourSettings.SHOWS_WHEN_EMPTY_SHOW_ICON,
-            showsWhenEmptyIcon = prefs[SHOWS_WHEN_EMPTY_ICON]?.let { IconSource.decode(it) },
-            showsWhenEmptyIconColor = CutoutColor.deserialize(prefs[SHOWS_WHEN_EMPTY_ICON_COLOR]),
+            showEmptyCutout = prefs[SHOW_EMPTY_CUTOUT] ?: BehaviourSettings.SHOW_EMPTY_CUTOUT,
+            hiddenEmptyWidthPercent = (prefs[HIDDEN_EMPTY_WIDTH_PERCENT] ?: BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT)
+                .coerceIn(IslandDimensions.MIN_WIDTH_PERCENT, IslandDimensions.MAX_WIDTH_PERCENT),
             showsWhenEmptyClickAction = prefs[SHOWS_WHEN_EMPTY_CLICK_ACTION]
                 ?.let { runCatching { EmptyClickAction.valueOf(it) }.getOrNull() }
                 ?: BehaviourSettings.DEFAULT_EMPTY_CLICK_ACTION,
             showsWhenEmptyClickPackage = prefs[SHOWS_WHEN_EMPTY_CLICK_PACKAGE],
+            showStatusDot = prefs[SHOW_STATUS_DOT] ?: BehaviourSettings.DEFAULT_SHOW_STATUS_DOT,
+            statusDotSide = prefs[STATUS_DOT_SIDE]
+                ?.let { runCatching { StatusDotSide.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_STATUS_DOT_SIDE,
             centerShortcuts = CenterShortcut.decodeList(prefs[CENTER_SHORTCUTS]),
             centerShowLabels = prefs[CENTER_SHOW_LABELS] ?: BehaviourSettings.CENTER_SHOW_LABELS,
             centerFillContainers = prefs[CENTER_FILL_CONTAINERS] ?: BehaviourSettings.CENTER_FILL_CONTAINERS,
             centerThemedIcons = prefs[CENTER_THEMED_ICONS] ?: BehaviourSettings.CENTER_THEMED_ICONS,
-            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP
+            vibrateOnTap = prefs[VIBRATE_ON_TAP] ?: BehaviourSettings.DEFAULT_VIBRATE_ON_TAP,
+            /** If enabled, haptic feedback fires when the cutout appears and disappears */
+            hapticsOnPop = prefs[HAPTICS_ON_POP] ?: BehaviourSettings.DEFAULT_HAPTICS_ON_POP,
+            /** If enabled, remove Android notification pop-ups */
+            dismissNotifications = prefs[DISMISS_NOTIFICATIONS] ?: BehaviourSettings.DEFAULT_DISMISS_NOTIFICATIONS,
+            /** If enabled, notification cutout appears even when Do not disturb is enabled */
+            displayWhileDnd = prefs[DISPLAY_WHILE_DND] ?: BehaviourSettings.DEFAULT_DISPLAY_WHILE_DND,
+            /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+            alertOnNotification = prefs[ALERT_ON_NOTIFICATION] ?: BehaviourSettings.DEFAULT_ALERT_ON_NOTIFICATION,
+            /** If enabled, a displaced event stays visible in a satellite bubble beside the pill */
+            splitIslandEnabled = prefs[SPLIT_ISLAND_ENABLED] ?: BehaviourSettings.DEFAULT_SPLIT_ISLAND_ENABLED,
+            satellitePosition = prefs[SATELLITE_POSITION]
+                ?.let { runCatching { SatellitePosition.valueOf(it) }.getOrNull() }
+                ?: BehaviourSettings.DEFAULT_SATELLITE_POSITION,
         )
+    }
+
+    /**
+     * The sideways-swipe action for a user who never set the per-direction gestures, derived from
+     * the old global swipe-to-dismiss switch and its LEFT / RIGHT / BOTH direction so an upgrade
+     * keeps their behaviour.
+     */
+    private fun legacySwipeAction(prefs: Preferences, left: Boolean): GestureAction {
+        if (prefs[LEGACY_SWIPE_TO_DISMISS] == false) return GestureAction.NONE
+        val excludedDirection = if (left) "RIGHT" else "LEFT"
+        return if (prefs[LEGACY_SWIPE_DISMISS_DIRECTION] == excludedDirection) GestureAction.NONE
+        else BehaviourSettings.DEFAULT_SWIPE_SIDEWAYS
     }
 
     /** Exports the current, fully-resolved [BehaviourSettings] (defaults and clamping applied) as a JSON string. */
@@ -223,23 +331,37 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             put("expandedCollapseSeconds", s.expandedCollapseSeconds)
             put("expandedDisappearOnShrink", s.expandedDisappearOnShrink)
             put("notificationsAutoExpand", s.notificationsAutoExpand)
+            put("ignoreSilentNotifications", s.ignoreSilentNotifications)
+            put("pinNotificationsMode", s.pinNotificationsMode.name)
             put("showActionButtons", s.showActionButtons)
             put("toastOnAction", s.toastOnAction)
-            put("shrinkOnSwipeUp", s.shrinkOnSwipeUp)
-            put("swipeToDismiss", s.swipeToDismiss)
-            put("swipeDismissDirection", s.swipeDismissDirection.name)
-            put("swipeDismissTarget", s.swipeDismissTarget.name)
+            put("normalTap", s.normalTap.name)
+            put("normalSwipeUp", s.normalSwipeUp.name)
+            put("expandedTap", s.expandedTap.name)
+            put("expandedSwipeUp", s.expandedSwipeUp.name)
+            put("expandedSwipeDown", s.expandedSwipeDown.name)
+            put("normalSwipeLeft", s.normalSwipeLeft.name)
+            put("normalSwipeRight", s.normalSwipeRight.name)
+            put("expandedSwipeLeft", s.expandedSwipeLeft.name)
+            put("expandedSwipeRight", s.expandedSwipeRight.name)
             put("showsWhenEmpty", s.showsWhenEmpty)
-            put("showsWhenEmptyShowIcon", s.showsWhenEmptyShowIcon)
-            put("showsWhenEmptyIcon", s.showsWhenEmptyIcon?.encode() ?: JSONObject.NULL)
-            put("showsWhenEmptyIconColor", s.showsWhenEmptyIconColor?.serialize() ?: JSONObject.NULL)
+            put("showEmptyCutout", s.showEmptyCutout)
+            put("hiddenEmptyWidthPercent", s.hiddenEmptyWidthPercent)
             put("showsWhenEmptyClickAction", s.showsWhenEmptyClickAction.name)
             put("showsWhenEmptyClickPackage", s.showsWhenEmptyClickPackage ?: JSONObject.NULL)
+            put("showStatusDot", s.showStatusDot)
+            put("statusDotSide", s.statusDotSide.name)
             put("centerShortcuts", CenterShortcut.encodeList(s.centerShortcuts))
             put("centerShowLabels", s.centerShowLabels)
             put("centerFillContainers", s.centerFillContainers)
             put("centerThemedIcons", s.centerThemedIcons)
             put("vibrateOnTap", s.vibrateOnTap)
+            put("hapticsOnPop", s.hapticsOnPop)
+            put("dismissNotifications", s.dismissNotifications)
+            put("displayWhileDnd", s.displayWhileDnd)
+            put("alertOnNotification", s.alertOnNotification)
+            put("splitIslandEnabled", s.splitIslandEnabled)
+            put("satellitePosition", s.satellitePosition.name)
         }.toString()
     }
 
@@ -272,30 +394,37 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
                 .coerceIn(BehaviourSettings.MIN_COLLAPSE_SECONDS, BehaviourSettings.MAX_COLLAPSE_SECONDS)
             if (obj.has("expandedDisappearOnShrink")) it[DISAPPEAR_ON_SHRINK] = obj.getBoolean("expandedDisappearOnShrink")
             if (obj.has("notificationsAutoExpand")) it[NOTIF_AUTO_EXPAND] = obj.getBoolean("notificationsAutoExpand")
+            if (obj.has("ignoreSilentNotifications")) it[IGNORE_SILENT_NOTIFICATIONS] = obj.getBoolean("ignoreSilentNotifications")
+            parseEnum<PinNotificationsMode>(obj, "pinNotificationsMode")?.let { m -> it[PIN_NOTIFICATIONS_MODE] = m.name }
             if (obj.has("showActionButtons")) it[SHOW_ACTION_BUTTONS] = obj.getBoolean("showActionButtons")
             if (obj.has("toastOnAction")) it[TOAST_ON_ACTION] = obj.getBoolean("toastOnAction")
-            if (obj.has("shrinkOnSwipeUp")) it[SHRINK_ON_SWIPE_UP] = obj.getBoolean("shrinkOnSwipeUp")
-            if (obj.has("swipeToDismiss")) it[SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
-            parseEnum<SwipeDismissDirection>(obj, "swipeDismissDirection")?.let { d -> it[SWIPE_DISMISS_DIRECTION] = d.name }
-            parseEnum<SwipeDismissTarget>(obj, "swipeDismissTarget")?.let { t -> it[SWIPE_DISMISS_TARGET] = t.name }
+            if (obj.has("shrinkOnSwipeUp")) it[LEGACY_SHRINK_ON_SWIPE_UP] = obj.getBoolean("shrinkOnSwipeUp")
+            parseEnum<GestureAction>(obj, "normalTap")?.let { a -> it[GESTURE_NORMAL_TAP] = a.name }
+            parseEnum<GestureAction>(obj, "normalSwipeUp")?.let { a -> it[GESTURE_NORMAL_SWIPE_UP] = a.name }
+            parseEnum<GestureAction>(obj, "expandedTap")?.let { a -> it[GESTURE_EXPANDED_TAP] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeUp")?.let { a -> it[GESTURE_EXPANDED_SWIPE_UP] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeDown")?.let { a -> it[GESTURE_EXPANDED_SWIPE_DOWN] = a.name }
+            parseEnum<GestureAction>(obj, "normalSwipeLeft")?.let { a -> it[GESTURE_NORMAL_SWIPE_LEFT] = a.name }
+            parseEnum<GestureAction>(obj, "normalSwipeRight")?.let { a -> it[GESTURE_NORMAL_SWIPE_RIGHT] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeLeft")?.let { a -> it[GESTURE_EXPANDED_SWIPE_LEFT] = a.name }
+            parseEnum<GestureAction>(obj, "expandedSwipeRight")?.let { a -> it[GESTURE_EXPANDED_SWIPE_RIGHT] = a.name }
+            if (obj.has("swipeToDismiss")) it[LEGACY_SWIPE_TO_DISMISS] = obj.getBoolean("swipeToDismiss")
+            obj.optString("swipeDismissDirection").takeIf(String::isNotEmpty)
+                ?.let { d -> it[LEGACY_SWIPE_DISMISS_DIRECTION] = d }
+            if (obj.has("splitIslandEnabled")) it[SPLIT_ISLAND_ENABLED] = obj.getBoolean("splitIslandEnabled")
+            parseEnum<SatellitePosition>(obj, "satellitePosition")?.let { p -> it[SATELLITE_POSITION] = p.name }
             if (obj.has("showsWhenEmpty")) it[SHOWS_WHEN_EMPTY] = obj.getBoolean("showsWhenEmpty")
-            if (obj.has("showsWhenEmptyShowIcon")) it[SHOWS_WHEN_EMPTY_SHOW_ICON] = obj.getBoolean("showsWhenEmptyShowIcon")
-            if (obj.has("showsWhenEmptyIcon")) {
-                val raw = if (obj.isNull("showsWhenEmptyIcon")) null else obj.optString("showsWhenEmptyIcon")
-                val icon = raw?.let { s -> IconSource.decode(s) }
-                if (icon == null) it.remove(SHOWS_WHEN_EMPTY_ICON) else it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
-            }
-            if (obj.has("showsWhenEmptyIconColor")) {
-                val raw = if (obj.isNull("showsWhenEmptyIconColor")) null else obj.optString("showsWhenEmptyIconColor")
-                val color = CutoutColor.deserialize(raw)
-                if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR) else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
-            }
+            if (obj.has("showEmptyCutout")) it[SHOW_EMPTY_CUTOUT] = obj.getBoolean("showEmptyCutout")
+            if (obj.has("hiddenEmptyWidthPercent")) it[HIDDEN_EMPTY_WIDTH_PERCENT] = obj.getInt("hiddenEmptyWidthPercent")
+                .coerceIn(IslandDimensions.MIN_WIDTH_PERCENT, IslandDimensions.MAX_WIDTH_PERCENT)
             parseEnum<EmptyClickAction>(obj, "showsWhenEmptyClickAction")?.let { a -> it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = a.name }
             if (obj.has("showsWhenEmptyClickPackage")) {
                 val pkg = if (obj.isNull("showsWhenEmptyClickPackage")) null
                 else obj.optString("showsWhenEmptyClickPackage").takeIf { s -> s.isNotEmpty() }
                 if (pkg == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE) else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = pkg
             }
+            if (obj.has("showStatusDot")) it[SHOW_STATUS_DOT] = obj.getBoolean("showStatusDot")
+            parseEnum<StatusDotSide>(obj, "statusDotSide")?.let { d -> it[STATUS_DOT_SIDE] = d.name }
             if (obj.has("centerShortcuts") && !obj.isNull("centerShortcuts")) {
                 it[CENTER_SHORTCUTS] = obj.getString("centerShortcuts")
             }
@@ -303,6 +432,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
             if (obj.has("centerFillContainers")) it[CENTER_FILL_CONTAINERS] = obj.getBoolean("centerFillContainers")
             if (obj.has("centerThemedIcons")) it[CENTER_THEMED_ICONS] = obj.getBoolean("centerThemedIcons")
             if (obj.has("vibrateOnTap")) it[VIBRATE_ON_TAP] = obj.getBoolean("vibrateOnTap")
+            if (obj.has("hapticsOnPop")) it[HAPTICS_ON_POP] = obj.getBoolean("hapticsOnPop")
+            if (obj.has("dismissNotifications")) it[DISMISS_NOTIFICATIONS] = obj.getBoolean("dismissNotifications")
+            if (obj.has("displayWhileDnd")) it[DISPLAY_WHILE_DND] = obj.getBoolean("displayWhileDnd")
+            if (obj.has("alertOnNotification")) it[ALERT_ON_NOTIFICATION] = obj.getBoolean("alertOnNotification")
         }
     }
 
@@ -320,6 +453,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[HIDE_ON_LOCKSCREEN] = enabled
     }
 
+    /**
+     * Keeps the landscape switch and [HorizontalCutoutMode] in step: turning it on forces the mode
+     * to [HorizontalCutoutMode.HIDDEN], since "hide in landscape" is that mode under an older name.
+     * Mirrored by [setHorizontalCutoutMode].
+     */
     suspend fun setHideInLandscape(enabled: Boolean) = context.behaviourDataStore.edit {
         it[HIDE_IN_LANDSCAPE] = enabled
         if (enabled) {
@@ -327,6 +465,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         }
     }
 
+    /**
+     * Keeps [HorizontalCutoutMode] and the older landscape switch in step, so a reader of either
+     * sees the same thing. Mirrors [setHideInLandscape].
+     */
     suspend fun setHorizontalCutoutMode(mode: HorizontalCutoutMode) = context.behaviourDataStore.edit {
         it[HORIZONTAL_CUTOUT_MODE] = mode.name
         it[HIDE_IN_LANDSCAPE] = (mode == HorizontalCutoutMode.HIDDEN)
@@ -348,6 +490,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[ACTION_BUTTON_ANIMATION] = animation.name
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave an
+     * animation length the UI has no way to correct.
+     */
     suspend fun setAnimationDurationMs(ms: Int) = context.behaviourDataStore.edit {
         it[ANIMATION_DURATION_MS] = ms.coerceIn(
             BehaviourSettings.MIN_ANIMATION_DURATION_MS,
@@ -355,6 +501,15 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    /** If enabled, dismiss notifications automatically */
+    suspend fun setDismissNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISMISS_NOTIFICATIONS] = enabled
+    }
+
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * duration the UI has no way to correct.
+     */
     suspend fun setNormalDurationSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[NORMAL_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_NORMAL_SECONDS,
@@ -366,6 +521,10 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[AUTO_COLLAPSE] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * collapse delay the UI has no way to correct.
+     */
     suspend fun setCollapseSeconds(seconds: Int) = context.behaviourDataStore.edit {
         it[COLLAPSE_SECONDS] = seconds.coerceIn(
             BehaviourSettings.MIN_COLLAPSE_SECONDS,
@@ -381,6 +540,14 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[NOTIF_AUTO_EXPAND] = enabled
     }
 
+    suspend fun setIgnoreSilentNotifications(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[IGNORE_SILENT_NOTIFICATIONS] = enabled
+    }
+
+    suspend fun setPinNotificationsMode(mode: PinNotificationsMode) = context.behaviourDataStore.edit {
+        it[PIN_NOTIFICATIONS_MODE] = mode.name
+    }
+
     suspend fun setShowActionButtons(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHOW_ACTION_BUTTONS] = enabled
     }
@@ -389,48 +556,82 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[TOAST_ON_ACTION] = enabled
     }
 
-    suspend fun setShrinkOnSwipeUp(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[SHRINK_ON_SWIPE_UP] = enabled
+    suspend fun setNormalTap(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_TAP] = action.name
     }
 
-    suspend fun setSwipeToDismiss(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[SWIPE_TO_DISMISS] = enabled
+    suspend fun setNormalSwipeUp(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_SWIPE_UP] = action.name
     }
 
-    suspend fun setSwipeDismissDirection(direction: SwipeDismissDirection) = context.behaviourDataStore.edit {
-        it[SWIPE_DISMISS_DIRECTION] = direction.name
+    suspend fun setExpandedTap(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_TAP] = action.name
     }
 
-    suspend fun setSwipeDismissTarget(target: SwipeDismissTarget) = context.behaviourDataStore.edit {
-        it[SWIPE_DISMISS_TARGET] = target.name
+    suspend fun setExpandedSwipeUp(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_UP] = action.name
+    }
+
+    suspend fun setExpandedSwipeDown(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_DOWN] = action.name
+    }
+
+    suspend fun setNormalSwipeLeft(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_SWIPE_LEFT] = action.name
+    }
+
+    suspend fun setNormalSwipeRight(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_NORMAL_SWIPE_RIGHT] = action.name
+    }
+
+    suspend fun setExpandedSwipeLeft(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_LEFT] = action.name
+    }
+
+    suspend fun setExpandedSwipeRight(action: GestureAction) = context.behaviourDataStore.edit {
+        it[GESTURE_EXPANDED_SWIPE_RIGHT] = action.name
+    }
+
+    suspend fun setSplitIslandEnabled(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SPLIT_ISLAND_ENABLED] = enabled
+    }
+
+    suspend fun setSatellitePosition(position: SatellitePosition) = context.behaviourDataStore.edit {
+        it[SATELLITE_POSITION] = position.name
     }
 
     suspend fun setShowsWhenEmpty(enabled: Boolean) = context.behaviourDataStore.edit {
         it[SHOWS_WHEN_EMPTY] = enabled
     }
 
-    suspend fun setShowsWhenEmptyShowIcon(enabled: Boolean) = context.behaviourDataStore.edit {
-        it[SHOWS_WHEN_EMPTY_SHOW_ICON] = enabled
+    suspend fun setShowEmptyCutout(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOW_EMPTY_CUTOUT] = enabled
     }
 
-    suspend fun setShowsWhenEmptyIcon(icon: IconSource) = context.behaviourDataStore.edit {
-        it[SHOWS_WHEN_EMPTY_ICON] = icon.encode()
+    /** Clamps to the island's width range, so the hidden tap area is never narrower or wider than a pill can be. */
+    suspend fun setHiddenEmptyWidthPercent(percent: Int) = context.behaviourDataStore.edit {
+        it[HIDDEN_EMPTY_WIDTH_PERCENT] = percent.coerceIn(
+            IslandDimensions.MIN_WIDTH_PERCENT,
+            IslandDimensions.MAX_WIDTH_PERCENT,
+        )
     }
 
-    /** Drop the chosen icon so the empty pill shows no glyph. */
-    suspend fun clearShowsWhenEmptyIcon() = context.behaviourDataStore.edit {
-        it.remove(SHOWS_WHEN_EMPTY_ICON)
+    suspend fun setShowStatusDot(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[SHOW_STATUS_DOT] = enabled
     }
 
-    suspend fun setShowsWhenEmptyIconColor(color: CutoutColor?) = context.behaviourDataStore.edit {
-        if (color == null) it.remove(SHOWS_WHEN_EMPTY_ICON_COLOR)
-        else it[SHOWS_WHEN_EMPTY_ICON_COLOR] = color.serialize()
+    suspend fun setStatusDotSide(side: StatusDotSide) = context.behaviourDataStore.edit {
+        it[STATUS_DOT_SIDE] = side.name
     }
 
     suspend fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = context.behaviourDataStore.edit {
         it[SHOWS_WHEN_EMPTY_CLICK_ACTION] = action.name
     }
 
+    /**
+     * Stores the package the empty pill opens, or removes the key entirely for null so no app is
+     * bound to the tap.
+     */
     suspend fun setShowsWhenEmptyClickPackage(packageName: String?) = context.behaviourDataStore.edit {
         if (packageName == null) it.remove(SHOWS_WHEN_EMPTY_CLICK_PACKAGE)
         else it[SHOWS_WHEN_EMPTY_CLICK_PACKAGE] = packageName
@@ -461,6 +662,21 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         it[VIBRATE_ON_TAP] = enabled
     }
 
+    /** Sets whether haptic feedback fires when the cutout appears and disappears */
+    suspend fun setHapticsOnPop(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[HAPTICS_ON_POP] = enabled
+    }
+
+    /** Set if notifications appear while Do not disturb is on */
+    suspend fun setDisplayWhileDnd(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[DISPLAY_WHILE_DND] = enabled
+    }
+
+    /** If enabled, the island rings/vibrates itself when a new notification surfaces */
+    suspend fun setAlertOnNotification(enabled: Boolean) = context.behaviourDataStore.edit {
+        it[ALERT_ON_NOTIFICATION] = enabled
+    }
+
     private companion object {
         val CUTOUT_ENABLED = booleanPreferencesKey("cutout_enabled")
         val HIDE_ON_LOCKSCREEN = booleanPreferencesKey("hide_on_lockscreen")
@@ -476,16 +692,27 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val COLLAPSE_SECONDS = intPreferencesKey("expanded_collapse_seconds")
         val DISAPPEAR_ON_SHRINK = booleanPreferencesKey("expanded_disappear_on_shrink")
         val NOTIF_AUTO_EXPAND = booleanPreferencesKey("notifications_auto_expand")
+        val IGNORE_SILENT_NOTIFICATIONS = booleanPreferencesKey("ignore_silent_notifications")
+        val PIN_NOTIFICATIONS_MODE = stringPreferencesKey("pin_notifications_mode")
         val SHOW_ACTION_BUTTONS = booleanPreferencesKey("show_action_buttons")
         val TOAST_ON_ACTION = booleanPreferencesKey("toast_on_action")
-        val SHRINK_ON_SWIPE_UP = booleanPreferencesKey("shrink_on_swipe_up")
-        val SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
-        val SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
-        val SWIPE_DISMISS_TARGET = stringPreferencesKey("swipe_dismiss_target")
+        val LEGACY_SHRINK_ON_SWIPE_UP = booleanPreferencesKey("shrink_on_swipe_up")
+        val GESTURE_NORMAL_TAP = stringPreferencesKey("gesture_normal_tap")
+        val GESTURE_NORMAL_SWIPE_UP = stringPreferencesKey("gesture_normal_swipe_up")
+        val GESTURE_EXPANDED_TAP = stringPreferencesKey("gesture_expanded_tap")
+        val GESTURE_EXPANDED_SWIPE_UP = stringPreferencesKey("gesture_expanded_swipe_up")
+        val GESTURE_EXPANDED_SWIPE_DOWN = stringPreferencesKey("gesture_expanded_swipe_down")
+        val GESTURE_NORMAL_SWIPE_LEFT = stringPreferencesKey("gesture_normal_swipe_left")
+        val GESTURE_NORMAL_SWIPE_RIGHT = stringPreferencesKey("gesture_normal_swipe_right")
+        val GESTURE_EXPANDED_SWIPE_LEFT = stringPreferencesKey("gesture_expanded_swipe_left")
+        val GESTURE_EXPANDED_SWIPE_RIGHT = stringPreferencesKey("gesture_expanded_swipe_right")
+        val LEGACY_SWIPE_TO_DISMISS = booleanPreferencesKey("swipe_to_dismiss")
+        val LEGACY_SWIPE_DISMISS_DIRECTION = stringPreferencesKey("swipe_dismiss_direction")
         val SHOWS_WHEN_EMPTY = booleanPreferencesKey("shows_when_empty")
-        val SHOWS_WHEN_EMPTY_SHOW_ICON = booleanPreferencesKey("shows_when_empty_show_icon")
-        val SHOWS_WHEN_EMPTY_ICON = stringPreferencesKey("shows_when_empty_icon")
-        val SHOWS_WHEN_EMPTY_ICON_COLOR = stringPreferencesKey("shows_when_empty_icon_color")
+        val SHOW_EMPTY_CUTOUT = booleanPreferencesKey("show_empty_cutout")
+        val HIDDEN_EMPTY_WIDTH_PERCENT = intPreferencesKey("hidden_empty_width_percent")
+        val SHOW_STATUS_DOT = booleanPreferencesKey("show_status_dot")
+        val STATUS_DOT_SIDE = stringPreferencesKey("status_dot_side")
         val SHOWS_WHEN_EMPTY_CLICK_ACTION = stringPreferencesKey("shows_when_empty_click_action")
         val SHOWS_WHEN_EMPTY_CLICK_PACKAGE = stringPreferencesKey("shows_when_empty_click_package")
         val CENTER_SHORTCUTS = stringPreferencesKey("center_shortcuts")
@@ -493,5 +720,11 @@ class BehaviourPreferences(private val context: Context) : JsonSerializable {
         val CENTER_FILL_CONTAINERS = booleanPreferencesKey("center_fill_containers")
         val CENTER_THEMED_ICONS = booleanPreferencesKey("center_themed_icons")
         val VIBRATE_ON_TAP = booleanPreferencesKey("vibrate_on_tap")
+        val HAPTICS_ON_POP = booleanPreferencesKey("haptics_on_pop")
+        val DISMISS_NOTIFICATIONS = booleanPreferencesKey("dismiss_notifications")
+        val DISPLAY_WHILE_DND = booleanPreferencesKey("display_while_dnd")
+        val ALERT_ON_NOTIFICATION = booleanPreferencesKey("alert_on_notification")
+        val SPLIT_ISLAND_ENABLED = booleanPreferencesKey("split_island_enabled")
+        val SATELLITE_POSITION = stringPreferencesKey("satellite_position")
     }
 }

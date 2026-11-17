@@ -11,6 +11,7 @@ import android.content.Intent
  */
 class TestCallReceiver : BroadcastReceiver() {
 
+    /** Routes the test call notification's buttons back to [TestCaller]. */
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_END -> TestCaller.end()

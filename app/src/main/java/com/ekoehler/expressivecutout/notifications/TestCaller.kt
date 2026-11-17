@@ -41,6 +41,10 @@ object TestCaller {
     )
     private var next = 0
 
+    /**
+     * Starts a fake call, or ends the one already running so the same button both starts and stops
+     * it. Cycles through the sample callers so repeated taps exercise different name lengths.
+     */
     fun toggle(context: Context, kind: Kind) {
         if (OnCallBus.state.value != null) {
             end()
@@ -143,6 +147,7 @@ object TestCaller {
     /** Clear the fake call so the tile dismisses, exactly as a real dialer's notification removal would. */
     fun end() = OnCallBus.update(null)
 
+    /** Builds the [PendingIntent] behind one of the test call's buttons. */
     private fun broadcast(context: Context, requestCode: Int, action: String): PendingIntent {
         val intent = Intent(context, TestCallReceiver::class.java).setAction(action)
         var flags = PendingIntent.FLAG_UPDATE_CURRENT

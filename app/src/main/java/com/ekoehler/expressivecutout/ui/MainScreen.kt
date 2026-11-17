@@ -2,18 +2,22 @@ package com.ekoehler.expressivecutout.ui
 
 import android.content.Context
 import android.widget.Toast
-import android.widget.Toast.*
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.core.DynamicTile
@@ -71,6 +76,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * The three top-level tabs, in the order the nav bar shows them, each carrying its own label and
+ * icon.
+ */
 private enum class HomeTab(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector,
@@ -95,7 +104,9 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
     var selectedEventName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedEvent = selectedEventName?.let { name -> SystemEventType.entries.firstOrNull { it.name == name } }
     val tabs = HomeTab.entries
-    val current = tabs[selectedIndex]
+    // Guard a saved index from an older build that had more tabs than this one.
+    val current = tabs[selectedIndex.coerceIn(0, tabs.lastIndex)]
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
 
@@ -104,10 +115,9 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         (current == HomeTab.Profile && profileRoute != ProfileRoute.List)
 
     val navigateBack: () -> Unit = {
-        if (current == HomeTab.Profile) {
-            profileRoute = ProfileRoute.List
-        } else {
-            settingsRoute = settingsRoute.parent
+        when (current) {
+            HomeTab.Profile -> profileRoute = ProfileRoute.List
+            else -> settingsRoute = settingsRoute.parent
         }
     }
 
@@ -126,10 +136,10 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
      * When settings are exported, display a Toast as feedback
      */
     fun onSettingsExported(success: Boolean, path: String?) {
-        val toast = makeText(
+        val toast = Toast.makeText(
             context,
             if (success) "$exportSavedMsg $path" else exportFailedMsg,
-            LENGTH_SHORT
+            Toast.LENGTH_SHORT
         )
         toast.show()
     }
@@ -141,7 +151,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
             JsonSettings.ImportResult.NOT_A_SETTINGS_FILE -> importInvalidMsg
             JsonSettings.ImportResult.ERROR -> importFailedMsg
         }
-        makeText(context, message, LENGTH_SHORT).show()
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     // Opens the system file picker for a JSON document; the picked file is read and applied by the
@@ -165,42 +175,40 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
         }
     }
 
-    // No tab has an app bar: each screen carries its own heading (the app identity or a section
-    // title on the list, the screen title in the back pill), so a bar would only waste height at
-    // the top. A scrim mirroring the bottom one stands in for it.
     Scaffold { _ ->
         val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val statusBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        // The scrim is only a fade for *scrolled* content, so content at rest starts below it —
-        // same relationship the bottom padding has with the bottom scrim.
         val topScrimHeight = statusBarTopInset + 40.dp
+
         val contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
             top = topScrimHeight + 8.dp,
-            // Clear the floating nav bar (≈64dp tall) plus its bottom margin and the system bar.
             bottom = 96.dp + navBarBottomInset,
         )
 
         Box(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.surfaceContainer)) {
-            // Peek animation: as the user drags back, the content shrinks, rounds its corners
-            // and slides toward the swiped edge, revealing the surface beneath.
             val contentTransform = Modifier.graphicsLayer {
                 val p = backProgress.value
+
                 if (p > 0f) {
                     val scale = 1f - 0.08f * p
                     scaleX = scale
                     scaleY = scale
-                    translationX = (if (backEdge == BackEventCompat.EDGE_LEFT) 1f else -1f) * 16.dp.toPx() * p
+                    translationX =
+                        (if (backEdge == BackEventCompat.EDGE_LEFT) 1f else -1f) * 16.dp.toPx() * p
                     shape = RoundedCornerShape(32.dp.toPx() * p)
                     clip = true
                 }
             }
-            Box(modifier = Modifier.fillMaxSize().then(contentTransform)) {
+
+            Box(modifier = Modifier.fillMaxSize()
+                .then(contentTransform)
+            ) {
                 AnimatedContent(
                     targetState = current,
                     transitionSpec = {
-                        slideInHorizontally(tween(220, delayMillis = 90)) togetherWith slideOutHorizontally(tween(90))
+                        pageTransition(appearance.pageTransitionStyle)
                     },
                     label = "homeTab",
                 ) { tab ->
@@ -212,11 +220,6 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             selectedTile = selectedTile,
                             selectedEvent = selectedEvent,
                             onOpenSizePosition = { settingsRoute = SettingsRoute.SizePosition },
-                            onOpenEventIcons = { settingsRoute = SettingsRoute.EventIcons },
-                            onOpenEvent = { event ->
-                                selectedEventName = event.name
-                                settingsRoute = SettingsRoute.EventDetail
-                            },
                             onOpenDynamicTiles = { settingsRoute = SettingsRoute.DynamicTiles },
                             onOpenTile = { tile ->
                                 selectedTileName = tile.name
@@ -224,28 +227,46 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             },
                             onOpenApps = { settingsRoute = SettingsRoute.Apps },
                             onOpenBehaviour = { settingsRoute = SettingsRoute.Behaviour },
+                            onOpenGestures = { settingsRoute = SettingsRoute.Gestures },
                             onOpenShowsWhenEmpty = { settingsRoute = SettingsRoute.ShowsWhenEmpty },
                             onOpenAnimation = { settingsRoute = SettingsRoute.Animation },
                             onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                             onOpenBackground = { settingsRoute = SettingsRoute.Background },
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
+                            onOpenDismissWindow = { settingsRoute = SettingsRoute.DismissWindow },
+                            onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
+                            onOpenPermissionDot = { settingsRoute = SettingsRoute.PermissionDot },
+                            onOpenSystemEvents = { settingsRoute = SettingsRoute.SystemEvents },
+                            onOpenEvent = { event ->
+                                selectedEventName = event.name
+                                settingsRoute = SettingsRoute.EventDetail
+                            },
                         )
 
                         HomeTab.Permissions -> PermissionsTab(contentPadding)
+
                         HomeTab.Profile -> ProfileTab(
                             viewModel = viewModel,
                             contentPadding = contentPadding,
                             route = profileRoute,
                             onOpenChangelog = { profileRoute = ProfileRoute.Changelog },
                             onOpenPermissionDetails = { profileRoute = ProfileRoute.PermissionDetails },
-                            onExportSettings = { viewModel.exportSettingsFromUI { s, p -> onSettingsExported(s, p) }},
+                            onOpenTesting = { profileRoute = ProfileRoute.Testing },
+                            onExportSettings = {
+                                viewModel.exportSettingsFromUI { s, p ->
+                                    onSettingsExported(
+                                        s,
+                                        p
+                                    )
+                                }
+                            },
                             onImportSettings = { importLauncher.launch(arrayOf("application/json")) },
                         )
                     }
                 }
             }
 
-            // Soft scrim so scrolled content fades out beneath the floating bottom bar.
+            // Fade bottom
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -260,8 +281,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                     ),
             )
 
-            // Standing in for the app bar: content fades out under the status bar as it scrolls,
-            // instead of colliding with it.
+            // Fade top
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -281,45 +301,73 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
 
-            if (inSubScreen) {
-                val title = if (current == HomeTab.Profile) {
-                    when (profileRoute) {
-                        ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
-                        else -> stringResource(R.string.profile_version)
+            val barTransition = updateTransition(targetState = inSubScreen, label = "bottomBar")
+            barTransition.AnimatedContent(
+                // Each bar draws its own pill, so clip to the pill while the width morphs; only then, to keep the fallback bar's shadow
+                modifier = barModifier.then(
+                    if (barTransition.isRunning) Modifier.clip(RoundedCornerShape(32.dp)) else Modifier,
+                ),
+                transitionSpec = {
+                    fadeIn() togetherWith fadeOut() using SizeTransform { _, _ ->
+                        // A title change is already animated by BackNavBar itself; animating it here too made the container trail the pill and crop it
+                        if (initialState == targetState) snap() else spring(stiffness = Spring.StiffnessMediumLow)
                     }
-                } else when (settingsRoute) {
-                    SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
-                    SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
-                    SettingsRoute.DynamicTileDetail ->
-                        selectedTile?.let { stringResource(it.labelRes) } ?: stringResource(R.string.dynamic_tiles_title)
-                    SettingsRoute.EventDetail ->
-                        selectedEvent?.let { stringResource(it.labelRes) } ?: stringResource(R.string.section_icons_title)
-                    SettingsRoute.Apps -> stringResource(R.string.apps_title)
-                    SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
-                    SettingsRoute.ShowsWhenEmpty -> stringResource(R.string.behaviour_empty_pill)
-                    SettingsRoute.Animation -> stringResource(R.string.animation_title)
-                    SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
-                    SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
-                    SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
-                    else -> stringResource(R.string.section_icons_title)
-                }
-                BackNavBar(
-                    title = title,
-                    onBack = navigateBack,
-                    modifier = barModifier,
-                )
-            } else {
-                ExpressiveNavBar(
-                    items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
-                    selectedIndex = selectedIndex,
-                    onSelect = { index ->
-                        if (index != selectedIndex) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
+                contentAlignment = Alignment.Center,
+            ) { showBackBar ->
+                if (showBackBar) {
+                    val title = when (current) {
+                        HomeTab.Profile -> when (profileRoute) {
+                            ProfileRoute.PermissionDetails -> stringResource(R.string.profile_permissions_title)
+                            ProfileRoute.Testing -> stringResource(R.string.profile_testing_title)
+                            else -> stringResource(R.string.profile_version)
                         }
-                        selectedIndex = index
-                    },
-                    modifier = barModifier,
-                )
+
+                        else -> when (settingsRoute) {
+                            SettingsRoute.SizePosition -> stringResource(R.string.appearance_title)
+                            SettingsRoute.DynamicTiles -> stringResource(R.string.dynamic_tiles_title)
+                            SettingsRoute.DynamicTileDetail ->
+                                selectedTile?.let { stringResource(it.labelRes) }
+                                    ?: stringResource(R.string.dynamic_tiles_title)
+
+                            SettingsRoute.Apps -> stringResource(R.string.apps_title)
+                            SettingsRoute.Behaviour -> stringResource(R.string.behaviour_title)
+                            SettingsRoute.Gestures -> stringResource(R.string.gestures_title)
+                            SettingsRoute.ShowsWhenEmpty -> stringResource(R.string.behaviour_empty_pill)
+                            SettingsRoute.Animation -> stringResource(R.string.animation_title)
+                            SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
+                            SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
+                            SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
+                            SettingsRoute.DismissWindow -> stringResource(R.string.appearance_window_dismiss_title)
+                            SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)
+                            SettingsRoute.PermissionDot -> stringResource(R.string.permission_dot_title)
+                            SettingsRoute.SystemEvents -> stringResource(R.string.integrations_system_events_title)
+                            SettingsRoute.EventDetail ->
+                                selectedEvent?.let { stringResource(it.labelRes) }
+                                    ?: stringResource(R.string.integrations_system_events_title)
+
+                            else -> stringResource(R.string.section_icons_title)
+                        }
+                    }
+
+                    // Go back navbar
+                    BackNavBar(
+                        title = title,
+                        onBack = navigateBack,
+                    )
+                } else {
+                    // Nav bar
+                    ExpressiveNavBar(
+                        items = tabs.map { NavBarItem(stringResource(it.labelRes), it.icon) },
+                        selectedIndex = selectedIndex,
+                        onSelect = { index ->
+                            if (index != selectedIndex) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            selectedIndex = index
+                        },
+                    )
+                }
             }
         }
     }

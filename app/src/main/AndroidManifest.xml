@@ -3,18 +3,33 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Since Android 12L the hotspot on/off broadcast is only delivered to holders of this
+         permission, so without it the Hotspot system event never fires. Normal permission,
+         granted at install, read-only. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Needed only for the in-app "send test notification" button (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Lets the expanded phone tile's Mute and Speaker buttons route the live call's audio. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Optional. Lets the phone tile close on the platform's own call state the moment a call
+         ends, instead of waiting to notice the dialer's notification is gone. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Lets the app talk to Shizuku, which performs the privileged status-bar calls on our
+         behalf. Optional at runtime: everything except the Status bar screen works without it. -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <!-- Makes launchable apps visible to the package manager on Android 11+, so the Apps screen
-         can list them for the per-app allow/mute switches. -->
+         can list them for the per-app allow/mute switches. The explicit Shizuku and Shevery
+         entries are what let us tell "not installed" apart from "installed but not running". -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.hamondev.shevery" />
     </queries>
 
     <application
@@ -23,6 +38,7 @@
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ExpressiveCutout">
@@ -38,7 +54,22 @@
             </intent-filter>
         </activity>
 
-        <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY. -->
+        <!-- Shizuku's own initialisation hook: it binds this provider to hand our process the
+             privileged binder. Required by the Shizuku API, not something we call ourselves. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- Hosts the always-on cutout overlay via TYPE_ACCESSIBILITY_OVERLAY, which is why an
+             accessibility service is used at all: it removes the need for SYSTEM_ALERT_WINDOW.
+
+             It reads no screen content: it takes only the foreground app's package name (so
+             tiles can react to it). Nothing is stored or transmitted, and the app declares no
+             INTERNET permission. See res/xml/accessibility_service_config.xml for the exact scope. -->
         <service
             android:name=".service.CutoutAccessibilityService"
             android:exported="false"

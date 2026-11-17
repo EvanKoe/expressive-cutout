@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -13,212 +14,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
-import kotlin.math.roundToInt
 
+/** Backing store for every appearance setting: fills, strokes, icons and action buttons. */
 private val Context.appearanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "appearance_prefs")
-
-/**
- * A user-selectable colour for the island. Either a fixed ARGB value or [Dynamic], which resolves
- * to one of the system's Material You scheme roles at render time (so it follows the wallpaper on
- * Android 12+). Stored as a short string so it can live in a single preference key.
- */
-sealed interface CutoutColor {
-    data class Dynamic(val role: DynamicRole = DynamicRole.PRIMARY) : CutoutColor
-    data class Solid(val argb: Long) : CutoutColor
-
-    fun serialize(): String = when (this) {
-        is Dynamic -> "$DYNAMIC:${role.name}"
-        is Solid -> argb.toString()
-    }
-
-    companion object {
-        private const val DYNAMIC = "dynamic"
-
-        fun deserialize(value: String?): CutoutColor? = when {
-            value == null -> null
-            // Legacy bare "dynamic" (before roles) migrates to the primary accent.
-            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
-            value.startsWith("$DYNAMIC:") -> {
-                val role = runCatching { DynamicRole.valueOf(value.substringAfter(':')) }
-                    .getOrDefault(DynamicRole.PRIMARY)
-                Dynamic(role)
-            }
-            else -> value.toLongOrNull()?.let(::Solid)
-        }
-    }
-}
-
-/** Which Material You colour-scheme role a [CutoutColor.Dynamic] / [ColorSpec.Dynamic] follows. */
-enum class DynamicRole { PRIMARY, SECONDARY, TERTIARY }
-
-/** Direction a [CutoutFill.Gradient] runs across the island. */
-enum class GradientDirection { VERTICAL, DIAGONAL, HORIZONTAL }
-
-/**
- * A single resolvable colour used by a [CutoutFill] (as a solid fill or a gradient stop): either a
- * [Fixed] ARGB value or a Material You [Dynamic] role resolved at render time. Both carry an
- * opacity — [Fixed] in its ARGB alpha byte, [Dynamic] in [Dynamic.alpha] — so any colour can be
- * made translucent. Serialized without the `:` used by [Fixed] so gradients can delimit on `|`.
- */
-sealed interface ColorSpec {
-    data class Fixed(val argb: Long) : ColorSpec
-    data class Dynamic(val role: DynamicRole, val alpha: Float = 1f) : ColorSpec
-
-    /** 0f..1f opacity of this colour. */
-    val opacity: Float
-        get() = when (this) {
-            is Fixed -> ((argb ushr 24) and 0xFF) / 255f
-            is Dynamic -> alpha
-        }
-
-    /** A copy of this colour at the given [opacity] (0f..1f). */
-    fun withOpacity(opacity: Float): ColorSpec {
-        val a = (opacity.coerceIn(0f, 1f) * 255f).roundToInt().toLong()
-        return when (this) {
-            is Fixed -> Fixed((argb and 0x00FFFFFFL) or (a shl 24))
-            is Dynamic -> copy(alpha = opacity.coerceIn(0f, 1f))
-        }
-    }
-
-    fun serialize(): String = when (this) {
-        is Fixed -> argb.toString()
-        is Dynamic -> "$DYNAMIC:${role.name}:$alpha"
-    }
-
-    companion object {
-        private const val DYNAMIC = "dynamic"
-
-        fun deserialize(value: String?): ColorSpec? = when {
-            value == null -> null
-            // Legacy bare "dynamic" (from the old CutoutColor default).
-            value == DYNAMIC -> Dynamic(DynamicRole.PRIMARY)
-            value.startsWith("$DYNAMIC:") -> {
-                val parts = value.split(':')
-                val role = runCatching { DynamicRole.valueOf(parts[1]) }.getOrDefault(DynamicRole.PRIMARY)
-                val alpha = parts.getOrNull(2)?.toFloatOrNull() ?: 1f
-                Dynamic(role, alpha.coerceIn(0f, 1f))
-            }
-            // A bare ARGB number.
-            else -> value.toLongOrNull()?.let(::Fixed)
-        }
-    }
-}
-
-/**
- * The fill painted behind the island. Richer than [CutoutColor] (it also allows a two-colour
- * [Gradient]) and used only for the background, which has an independent value for the collapsed
- * ([AppearanceSettings.backgroundNormal]) and expanded ([AppearanceSettings.backgroundExpanded])
- * states. Serialized to a single string so it fits one preference key.
- *
- * [deserialize] also accepts the legacy [CutoutColor] encoding (`"dynamic"` or a bare ARGB number)
- * so an existing single background colour migrates into both states with no data loss.
- */
-sealed interface CutoutFill {
-    data class Solid(val color: ColorSpec) : CutoutFill
-    data class Gradient(
-        val start: ColorSpec,
-        val end: ColorSpec,
-        val direction: GradientDirection,
-    ) : CutoutFill
-
-    fun serialize(): String = when (this) {
-        is Solid -> color.serialize()
-        is Gradient -> listOf(GRADIENT, start.serialize(), end.serialize(), direction.name).joinToString("|")
-    }
-
-    companion object {
-        private const val GRADIENT = "gradient"
-
-        fun deserialize(value: String?): CutoutFill? = when {
-            value == null -> null
-            value.startsWith("$GRADIENT|") -> {
-                val parts = value.split('|')
-                val start = ColorSpec.deserialize(parts.getOrNull(1))
-                val end = ColorSpec.deserialize(parts.getOrNull(2))
-                val direction = runCatching { GradientDirection.valueOf(parts[3]) }
-                    .getOrDefault(GradientDirection.VERTICAL)
-                if (start != null && end != null) Gradient(start, end, direction) else null
-            }
-            // Anything else is a single colour (incl. the legacy "dynamic" / bare-ARGB encodings).
-            else -> ColorSpec.deserialize(value)?.let(::Solid)
-        }
-    }
-}
-
-/**
- * Visual treatment of the expanded island's action chips. Stored by [name] so it fits a single
- * preference key; a mix of Material 3 Expressive and Material You looks.
- */
-enum class ActionButtonStyle {
-    /** Material 3 Expressive: a translucent accent pill (the original look). */
-    EXPRESSIVE_TONAL,
-    /** Material 3 Expressive: a solid, fully-filled accent pill. */
-    EXPRESSIVE_FILLED,
-    /** Material You: a softly-rounded tonal container. */
-    MATERIAL_YOU,
-    /** An outlined chip over a transparent fill. */
-    OUTLINED,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ActionButtonStyle? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Horizontal placement of the expanded island's action-chip row. */
-enum class ActionButtonAlignment {
-    /** Chips hug the leading edge (the historical look). */
-    LEFT,
-    /** Chips are centred across the island. */
-    CENTER,
-    /** Chips hug the trailing edge. */
-    RIGHT,
-
-    /** Chips share the full width equally (each grows to fill), like CSS `flex: 1`. */
-    FULL,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ActionButtonAlignment? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Horizontal placement of the post-send "Sent" confirmation row shown before the island dismisses. */
-enum class SentAlignment {
-    /** Hugs the leading edge (the historical look). */
-    LEFT,
-    /** Centred across the island. */
-    CENTER,
-    /** Hugs the trailing edge. */
-    RIGHT,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): SentAlignment? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
-
-/** Visual treatment of the inline reply text field. */
-enum class ReplyInputStyle {
-    /** Material 3 Expressive: a fully-rounded (pill) field. */
-    EXPRESSIVE,
-    /** Material You: a generously 16dp-rounded field. */
-    MATERIAL_YOU,
-    /** Material 2: a lightly 4dp-rounded field. */
-    MATERIAL_2,
-
-    /** Cancel, field and send joined as one connected bar with rounded end-caps. */
-    SEGMENTED,
-    ;
-
-    companion object {
-        fun deserialize(value: String?): ReplyInputStyle? =
-            value?.let { name -> runCatching { valueOf(name) }.getOrNull() }
-    }
-}
 
 /**
  * Visual styling of the island that is independent of its geometry: whether it casts a shadow,
@@ -226,12 +24,25 @@ enum class ReplyInputStyle {
  *
  * The action-button block ([actionButtonStyle] … [cancelButtonOnLeft]) styles the chips and inline
  * reply field shown in the expanded cutout; whether they appear at all is [BehaviourSettings.showActionButtons].
+ *
+ * The dismiss block ([windowDismiss] … [dismissCornerBottomRightDp]) styles the swipe-to-dismiss
+ * gesture: with [windowDismiss] on, the island slides inside its own clipped box and uncovers a
+ * backdrop carrying the dismiss icon, instead of sliding away and fading out. The four corner
+ * radii round the sliding island itself, and a null one follows the expanded cutout's own corner.
  */
 data class AppearanceSettings(
     val shadowEnabled: Boolean = DEFAULT_SHADOW_ENABLED,
     val strokeEnabled: Boolean = DEFAULT_STROKE_ENABLED,
     val strokeWidthDp: Int = DEFAULT_STROKE_WIDTH_DP,
+    val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
+    val textColor: CutoutColor? = DEFAULT_TEXT_COLOR,
+    val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
+    val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
+    val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
+    val preferDynamicIconColor: Boolean = DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
+    val notificationColorMode: NotificationColorMode = DEFAULT_NOTIFICATION_COLOR_MODE,
+    val notificationCustomColor: CutoutColor? = null,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
@@ -243,6 +54,15 @@ data class AppearanceSettings(
     val replyInputStyle: ReplyInputStyle = DEFAULT_REPLY_INPUT_STYLE,
     val cancelButtonOnLeft: Boolean = DEFAULT_CANCEL_ON_LEFT,
     val sentAlignment: SentAlignment = DEFAULT_SENT_ALIGNMENT,
+    val pageTransitionStyle: PageTransitionStyle = DEFAULT_PAGE_TRANSITION_STYLE,
+    val windowDismiss: Boolean = DEFAULT_WINDOW_DISMISS,
+    val dismissIcon: IconSource? = DEFAULT_DISMISS_ICON,
+    val dismissIconColor: CutoutColor? = DEFAULT_DISMISS_ICON_COLOR,
+    val dismissBackdropColor: CutoutColor? = DEFAULT_DISMISS_BACKDROP_COLOR,
+    val dismissCornerTopLeftDp: Int? = null,
+    val dismissCornerTopRightDp: Int? = null,
+    val dismissCornerBottomLeftDp: Int? = null,
+    val dismissCornerBottomRightDp: Int? = null,
 ) {
     companion object {
         const val DEFAULT_SHADOW_ENABLED = true
@@ -250,26 +70,46 @@ data class AppearanceSettings(
         const val DEFAULT_STROKE_WIDTH_DP = 2
         const val MIN_STROKE_WIDTH_DP = 1
         const val MAX_STROKE_WIDTH_DP = 8
+        const val DEFAULT_STROKE_OPACITY = 1f
+        const val DEFAULT_SHOW_SOURCE_APP_NAME = true
+        const val DEFAULT_SHOW_TIMESTAMP = true
+        const val DEFAULT_SHOW_FULL_NOTIFICATION_TEXT = true
+        const val DEFAULT_PREFER_DYNAMIC_ICON_COLOR = false
+        val DEFAULT_NOTIFICATION_COLOR_MODE = NotificationColorMode.MATERIAL
 
-        // Match the pill's historical look: near-black fill, white stroke.
+        /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
         val DEFAULT_STROKE_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
+        /** null means automatic high-contrast text color based on background luminance. */
+        val DEFAULT_TEXT_COLOR: CutoutColor? = null
 
-        // null keeps the historical reply-button look: the send button matches the
-        // notification's own accent and the cancel button stays a neutral tint.
+        /**
+         * null keeps the historical reply-button look: the send button matches the notification's
+         * own accent and the cancel button stays a neutral tint.
+         */
         val DEFAULT_SEND_BUTTON_COLOR: CutoutColor? = null
         val DEFAULT_CANCEL_BUTTON_COLOR: CutoutColor? = null
 
-        // Defaults reproduce the original action-button look exactly.
+        /** Defaults reproduce the original action-button look exactly. */
         val DEFAULT_ACTION_BUTTON_STYLE = ActionButtonStyle.EXPRESSIVE_TONAL
-        // null follows the notification's own accent, as the chips historically did.
+        /** null follows the notification's own accent, as the chips historically did. */
         val DEFAULT_ACTION_BUTTON_COLOR: CutoutColor? = null
-        // Chips historically hugged the leading edge.
+        /** Chips historically hugged the leading edge. */
         val DEFAULT_ACTION_BUTTON_ALIGNMENT = ActionButtonAlignment.LEFT
         val DEFAULT_REPLY_INPUT_STYLE = ReplyInputStyle.EXPRESSIVE
         const val DEFAULT_CANCEL_ON_LEFT = false
-        // The confirmation historically hugged the leading edge.
+        /** The confirmation historically hugged the leading edge. */
         val DEFAULT_SENT_ALIGNMENT = SentAlignment.LEFT
+        val DEFAULT_PAGE_TRANSITION_STYLE = PageTransitionStyle.FADE
+
+        /** The historical dismiss animation — slide away and fade out — stays the default. */
+        const val DEFAULT_WINDOW_DISMISS = false
+        /** null draws the built-in trash glyph. */
+        val DEFAULT_DISMISS_ICON: IconSource? = null
+        /** null picks the icon colour for contrast against whatever the backdrop resolves to. */
+        val DEFAULT_DISMISS_ICON_COLOR: CutoutColor? = null
+        /** null falls back to the theme's own raised surface. */
+        val DEFAULT_DISMISS_BACKDROP_COLOR: CutoutColor? = null
         const val DEFAULT_ACTION_BUTTON_HEIGHT_DP = 44
         const val MIN_ACTION_BUTTON_HEIGHT_DP = 36
         const val MAX_ACTION_BUTTON_HEIGHT_DP = 56
@@ -285,7 +125,16 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeEnabled = prefs[STROKE_ENABLED] ?: AppearanceSettings.DEFAULT_STROKE_ENABLED,
             strokeWidthDp = (prefs[STROKE_WIDTH] ?: AppearanceSettings.DEFAULT_STROKE_WIDTH_DP)
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP),
+            strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
+            textColor = CutoutColor.deserialize(prefs[TEXT_COLOR]),
+            showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
+            showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
+            showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT] ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
+            preferDynamicIconColor = prefs[PREFER_DYNAMIC_ICON_COLOR] ?: AppearanceSettings.DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
+            notificationColorMode = NotificationColorMode.deserialize(prefs[NOTIFICATION_COLOR_MODE])
+                ?: AppearanceSettings.DEFAULT_NOTIFICATION_COLOR_MODE,
+            notificationCustomColor = CutoutColor.deserialize(prefs[NOTIFICATION_CUSTOM_COLOR]),
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
             backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
@@ -306,6 +155,17 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             cancelButtonOnLeft = prefs[CANCEL_ON_LEFT] ?: AppearanceSettings.DEFAULT_CANCEL_ON_LEFT,
             sentAlignment = SentAlignment.deserialize(prefs[SENT_ALIGNMENT])
                 ?: AppearanceSettings.DEFAULT_SENT_ALIGNMENT,
+            pageTransitionStyle = PageTransitionStyle.entries.firstOrNull {
+                it.name == prefs[PAGE_TRANSITION_STYLE]
+            } ?: AppearanceSettings.DEFAULT_PAGE_TRANSITION_STYLE,
+            windowDismiss = prefs[WINDOW_DISMISS] ?: AppearanceSettings.DEFAULT_WINDOW_DISMISS,
+            dismissIcon = prefs[DISMISS_ICON]?.let { IconSource.decode(it) },
+            dismissIconColor = CutoutColor.deserialize(prefs[DISMISS_ICON_COLOR]),
+            dismissBackdropColor = CutoutColor.deserialize(prefs[DISMISS_BACKDROP_COLOR]),
+            dismissCornerTopLeftDp = prefs[DISMISS_CORNER_TL]?.coerceIn(CORNER_RANGE),
+            dismissCornerTopRightDp = prefs[DISMISS_CORNER_TR]?.coerceIn(CORNER_RANGE),
+            dismissCornerBottomLeftDp = prefs[DISMISS_CORNER_BL]?.coerceIn(CORNER_RANGE),
+            dismissCornerBottomRightDp = prefs[DISMISS_CORNER_BR]?.coerceIn(CORNER_RANGE),
         )
     }
 
@@ -316,7 +176,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("shadowEnabled", s.shadowEnabled)
             put("strokeEnabled", s.strokeEnabled)
             put("strokeWidthDp", s.strokeWidthDp)
+            put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
+            put("textColor", s.textColor?.serialize() ?: JSONObject.NULL)
+            put("showSourceAppName", s.showSourceAppName)
+            put("showTimestamp", s.showTimestamp)
+            put("showFullNotificationText", s.showFullNotificationText)
+            put("preferDynamicIconColor", s.preferDynamicIconColor)
+            put("notificationColorMode", s.notificationColorMode.name)
+            put("notificationCustomColor", s.notificationCustomColor?.serialize() ?: JSONObject.NULL)
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
             put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
@@ -328,6 +196,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("replyInputStyle", s.replyInputStyle.name)
             put("cancelButtonOnLeft", s.cancelButtonOnLeft)
             put("sentAlignment", s.sentAlignment.name)
+            put("pageTransitionStyle", s.pageTransitionStyle.name)
+            put("windowDismiss", s.windowDismiss)
+            put("dismissIcon", s.dismissIcon?.encode() ?: JSONObject.NULL)
+            put("dismissIconColor", s.dismissIconColor?.serialize() ?: JSONObject.NULL)
+            put("dismissBackdropColor", s.dismissBackdropColor?.serialize() ?: JSONObject.NULL)
+            put("dismissCornerTopLeftDp", s.dismissCornerTopLeftDp ?: JSONObject.NULL)
+            put("dismissCornerTopRightDp", s.dismissCornerTopRightDp ?: JSONObject.NULL)
+            put("dismissCornerBottomLeftDp", s.dismissCornerBottomLeftDp ?: JSONObject.NULL)
+            put("dismissCornerBottomRightDp", s.dismissCornerBottomRightDp ?: JSONObject.NULL)
         }.toString()
     }
 
@@ -343,9 +220,20 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("strokeEnabled")) it[STROKE_ENABLED] = obj.getBoolean("strokeEnabled")
             if (obj.has("strokeWidthDp")) it[STROKE_WIDTH] = obj.getInt("strokeWidthDp")
                 .coerceIn(AppearanceSettings.MIN_STROKE_WIDTH_DP, AppearanceSettings.MAX_STROKE_WIDTH_DP)
+            if (obj.has("strokeOpacity")) it[STROKE_OPACITY] = obj.getDouble("strokeOpacity").toFloat().coerceIn(0f, 1f)
             if (obj.has("strokeColor") && !obj.isNull("strokeColor")) {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
+            it.applyNullableColor(obj, "textColor", TEXT_COLOR)
+            if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
+            if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
+            if (obj.has("showFullNotificationText")) it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
+            if (obj.has("preferDynamicIconColor")) it[PREFER_DYNAMIC_ICON_COLOR] = obj.getBoolean("preferDynamicIconColor")
+            if (obj.has("notificationColorMode")) {
+                NotificationColorMode.deserialize(obj.optString("notificationColorMode"))
+                    ?.let { m -> it[NOTIFICATION_COLOR_MODE] = m.name }
+            }
+            it.applyNullableColor(obj, "notificationCustomColor", NOTIFICATION_CUSTOM_COLOR)
             if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
                 CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
             }
@@ -370,6 +258,25 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             if (obj.has("sentAlignment")) {
                 SentAlignment.deserialize(obj.optString("sentAlignment"))?.let { a -> it[SENT_ALIGNMENT] = a.name }
             }
+            if (obj.has("showFullNotificationText")) {
+                it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
+            }
+            if (obj.has("pageTransitionStyle")) {
+                PageTransitionStyle.entries.firstOrNull { it.name == obj.optString("pageTransitionStyle") }
+                    ?.let { style -> it[PAGE_TRANSITION_STYLE] = style.name }
+            }
+            if (obj.has("windowDismiss")) it[WINDOW_DISMISS] = obj.getBoolean("windowDismiss")
+            if (obj.has("dismissIcon")) {
+                val raw = if (obj.isNull("dismissIcon")) null else obj.optString("dismissIcon")
+                val icon = raw?.let { s -> IconSource.decode(s) }
+                if (icon == null) it.remove(DISMISS_ICON) else it[DISMISS_ICON] = icon.encode()
+            }
+            it.applyNullableColor(obj, "dismissIconColor", DISMISS_ICON_COLOR)
+            it.applyNullableColor(obj, "dismissBackdropColor", DISMISS_BACKDROP_COLOR)
+            it.applyNullableCorner(obj, "dismissCornerTopLeftDp", DISMISS_CORNER_TL)
+            it.applyNullableCorner(obj, "dismissCornerTopRightDp", DISMISS_CORNER_TR)
+            it.applyNullableCorner(obj, "dismissCornerBottomLeftDp", DISMISS_CORNER_BL)
+            it.applyNullableCorner(obj, "dismissCornerBottomRightDp", DISMISS_CORNER_BR)
         }
     }
 
@@ -385,6 +292,16 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) remove(key) else this[key] = color.serialize()
     }
 
+    /** Sets [key] from a nullable corner field: a JSON null (or missing radius) clears the override. */
+    private fun MutablePreferences.applyNullableCorner(
+        obj: JSONObject,
+        field: String,
+        key: Preferences.Key<Int>,
+    ) {
+        if (!obj.has(field)) return
+        if (obj.isNull(field)) remove(key) else this[key] = obj.getInt(field).coerceIn(CORNER_RANGE)
+    }
+
     suspend fun setShadowEnabled(enabled: Boolean) = context.appearanceDataStore.edit {
         it[SHADOW_ENABLED] = enabled
     }
@@ -393,6 +310,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[STROKE_ENABLED] = enabled
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * stroke width the UI has no way to correct.
+     */
     suspend fun setStrokeWidth(widthDp: Int) = context.appearanceDataStore.edit {
         it[STROKE_WIDTH] = widthDp.coerceIn(
             AppearanceSettings.MIN_STROKE_WIDTH_DP,
@@ -400,8 +321,41 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         )
     }
 
+    suspend fun setStrokeOpacity(opacity: Float) = context.appearanceDataStore.edit {
+        it[STROKE_OPACITY] = opacity.coerceIn(0f, 1f)
+    }
+
     suspend fun setStrokeColor(color: CutoutColor) = context.appearanceDataStore.edit {
         it[STROKE_COLOR] = color.serialize()
+    }
+
+    /** A null [color] clears the override, restoring automatic contrast-based text color. */
+    suspend fun setTextColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
+    }
+
+    suspend fun setShowSourceAppName(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_SOURCE_APP_NAME] = enabled
+    }
+
+    suspend fun setShowTimestamp(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_TIMESTAMP] = enabled
+    }
+
+    suspend fun setShowFullNotificationText(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[SHOW_FULL_NOTIFICATION_TEXT] = enabled
+    }
+
+    suspend fun setPreferDynamicIconColor(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[PREFER_DYNAMIC_ICON_COLOR] = enabled
+    }
+
+    suspend fun setNotificationColorMode(mode: NotificationColorMode) = context.appearanceDataStore.edit {
+        it[NOTIFICATION_COLOR_MODE] = mode.name
+    }
+
+    suspend fun setNotificationCustomColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(NOTIFICATION_CUSTOM_COLOR) else it[NOTIFICATION_CUSTOM_COLOR] = color.serialize()
     }
 
     suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
@@ -431,6 +385,10 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(ACTION_BUTTON_COLOR) else it[ACTION_BUTTON_COLOR] = color.serialize()
     }
 
+    /**
+     * Clamps to the range the settings slider offers, so an imported settings file can't leave a
+     * button height the UI has no way to correct.
+     */
     suspend fun setActionButtonHeight(heightDp: Int) = context.appearanceDataStore.edit {
         it[ACTION_BUTTON_HEIGHT] = heightDp.coerceIn(
             AppearanceSettings.MIN_ACTION_BUTTON_HEIGHT_DP,
@@ -454,12 +412,71 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         it[SENT_ALIGNMENT] = alignment.name
     }
 
+    /** Persists the page transition style used by in-app navigation. */
+    suspend fun setPageTransitionStyle(style: PageTransitionStyle) = context.appearanceDataStore.edit {
+        it[PAGE_TRANSITION_STYLE] = style.name
+    }
+
+    suspend fun setWindowDismiss(enabled: Boolean) = context.appearanceDataStore.edit {
+        it[WINDOW_DISMISS] = enabled
+    }
+
+    /** Overrides the glyph on the dismiss backdrop. Paired with [clearDismissIcon]. */
+    suspend fun setDismissIcon(icon: IconSource) = context.appearanceDataStore.edit {
+        it[DISMISS_ICON] = icon.encode()
+    }
+
+    /** Drops the override, so the backdrop falls back to the built-in trash glyph. */
+    suspend fun clearDismissIcon() = context.appearanceDataStore.edit {
+        it.remove(DISMISS_ICON)
+    }
+
+    /** A null [color] clears the override, restoring automatic contrast against the backdrop. */
+    suspend fun setDismissIconColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(DISMISS_ICON_COLOR) else it[DISMISS_ICON_COLOR] = color.serialize()
+    }
+
+    /** A null [color] clears the override, restoring the theme-driven default. */
+    suspend fun setDismissBackdropColor(color: CutoutColor?) = context.appearanceDataStore.edit {
+        if (color == null) it.remove(DISMISS_BACKDROP_COLOR) else it[DISMISS_BACKDROP_COLOR] = color.serialize()
+    }
+
+    /** Rounds the sliding island's four corners, clamped to the range the sliders offer. */
+    suspend fun setDismissCorners(topLeft: Int, topRight: Int, bottomLeft: Int, bottomRight: Int) =
+        context.appearanceDataStore.edit {
+            it[DISMISS_CORNER_TL] = topLeft.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_TR] = topRight.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_BL] = bottomLeft.coerceIn(CORNER_RANGE)
+            it[DISMISS_CORNER_BR] = bottomRight.coerceIn(CORNER_RANGE)
+        }
+
+    /** Drops the override, so the sliding island follows the expanded cutout's own corners again. */
+    suspend fun clearDismissCorners() = context.appearanceDataStore.edit {
+        it.remove(DISMISS_CORNER_TL)
+        it.remove(DISMISS_CORNER_TR)
+        it.remove(DISMISS_CORNER_BL)
+        it.remove(DISMISS_CORNER_BR)
+    }
+
     private companion object {
+        /** The radii the corner sliders offer, shared by the store's clamping. */
+        val CORNER_RANGE = IslandDimensions.MIN_CORNER_DP..IslandDimensions.MAX_CORNER_DP
+
         val SHADOW_ENABLED = booleanPreferencesKey("shadow_enabled")
         val STROKE_ENABLED = booleanPreferencesKey("stroke_enabled")
         val STROKE_WIDTH = intPreferencesKey("stroke_width_dp")
+        val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
-        // Legacy single-colour key, still read to migrate existing installs into the two new keys.
+        val TEXT_COLOR = stringPreferencesKey("text_color")
+        val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
+        val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
+        val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
+        val PREFER_DYNAMIC_ICON_COLOR = booleanPreferencesKey("prefer_dynamic_icon_color")
+        val NOTIFICATION_COLOR_MODE = stringPreferencesKey("notification_color_mode")
+        val NOTIFICATION_CUSTOM_COLOR = stringPreferencesKey("notification_custom_color")
+        /**
+         * Legacy single-colour key, still read to migrate existing installs into the two new keys.
+         */
         val BACKGROUND_COLOR = stringPreferencesKey("background_color")
         val BACKGROUND_NORMAL = stringPreferencesKey("background_normal")
         val BACKGROUND_EXPANDED = stringPreferencesKey("background_expanded")
@@ -472,5 +489,14 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val REPLY_INPUT_STYLE = stringPreferencesKey("reply_input_style")
         val CANCEL_ON_LEFT = booleanPreferencesKey("cancel_button_on_left")
         val SENT_ALIGNMENT = stringPreferencesKey("sent_alignment")
+        val PAGE_TRANSITION_STYLE = stringPreferencesKey("page_transition_style")
+        val WINDOW_DISMISS = booleanPreferencesKey("window_dismiss")
+        val DISMISS_ICON = stringPreferencesKey("dismiss_icon")
+        val DISMISS_ICON_COLOR = stringPreferencesKey("dismiss_icon_color")
+        val DISMISS_BACKDROP_COLOR = stringPreferencesKey("dismiss_backdrop_color")
+        val DISMISS_CORNER_TL = intPreferencesKey("dismiss_corner_top_left_dp")
+        val DISMISS_CORNER_TR = intPreferencesKey("dismiss_corner_top_right_dp")
+        val DISMISS_CORNER_BL = intPreferencesKey("dismiss_corner_bottom_left_dp")
+        val DISMISS_CORNER_BR = intPreferencesKey("dismiss_corner_bottom_right_dp")
     }
 }

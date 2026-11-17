@@ -39,9 +39,11 @@ import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.data.PageTransitionStyle
 import com.ekoehler.expressivecutout.overlay.IslandMotion
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -64,6 +66,7 @@ internal fun AnimationScreen(
     contentPadding: PaddingValues,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var animationMs by remember(behaviour.animationDurationMs) {
         mutableStateOf(behaviour.animationDurationMs.toFloat())
     }
@@ -76,6 +79,8 @@ internal fun AnimationScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
+        PageTitle(text = stringResource(R.string.animation_title))
+
         AnimationExampleCard(
             shape = groupedShape(isFirst = true, isLast = true),
             speed = behaviour.animationSpeed,
@@ -161,12 +166,28 @@ internal fun AnimationScreen(
             selectedIndex = behaviour.actionButtonAnimation.ordinal,
             onSelect = { viewModel.setActionButtonAnimation(ActionButtonAnimation.entries[it]) },
         )
+
+        // In-app navigation motion. Unlike everything above it does not touch the island, so it
+        // sits last, in its own group.
+        AnimationSegmentedRow(
+            shape = groupedShape(isFirst = true, isLast = true),
+            label = stringResource(R.string.appearance_page_transition_title),
+            description = stringResource(R.string.appearance_page_transition_desc),
+            options = listOf(
+                stringResource(R.string.appearance_page_transition_fade),
+                stringResource(R.string.appearance_page_transition_slide),
+            ),
+            selectedIndex = PageTransitionStyle.entries.indexOf(appearance.pageTransitionStyle),
+            onSelect = { viewModel.setPageTransitionStyle(PageTransitionStyle.entries[it]) },
+        )
     }
 }
 
-// The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
-private val ExampleCollapsedSize = DpSize(96.dp, 30.dp)
-private val ExampleExpandedSize = DpSize(230.dp, 56.dp)
+/**
+ * The example pills' collapsed / expanded sizes, loosely matching the real cutout's proportions.
+ */
+private val EXAMPLE_COLLAPSED_SIZE = DpSize(96.dp, 30.dp)
+private val EXAMPLE_EXPANDED_SIZE = DpSize(230.dp, 56.dp)
 
 /**
  * A live side-by-side example of the two animation styles: both pills expand and collapse on a
@@ -222,11 +243,11 @@ private fun AnimationExampleCard(
  *  properties (and spec) the real island animates between its normal and expanded shapes. */
 @Composable
 private fun ExamplePill(label: String, motion: IslandMotion, expanded: Boolean) {
-    val target = if (expanded) ExampleExpandedSize else ExampleCollapsedSize
+    val target = if (expanded) EXAMPLE_EXPANDED_SIZE else EXAMPLE_COLLAPSED_SIZE
     val width by animateDpAsState(target.width, motion.dp(), label = "exampleWidth")
     val height by animateDpAsState(target.height, motion.dp(), label = "exampleHeight")
     val corner by animateDpAsState(
-        if (expanded) 24.dp else ExampleCollapsedSize.height / 2,
+        if (expanded) 24.dp else EXAMPLE_COLLAPSED_SIZE.height / 2,
         motion.dp(),
         label = "exampleCorner",
     )
@@ -240,7 +261,7 @@ private fun ExamplePill(label: String, motion: IslandMotion, expanded: Boolean) 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ExampleExpandedSize.height),
+                .height(EXAMPLE_EXPANDED_SIZE.height),
             contentAlignment = Alignment.TopCenter,
         ) {
             Box(
@@ -260,6 +281,7 @@ private fun AnimationSegmentedRow(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    description: String? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -271,6 +293,13 @@ private fun AnimationSegmentedRow(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(text = label, style = MaterialTheme.typography.titleMedium)
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             ExpressiveSegmentedRow(
                 options = options,
                 selectedIndex = selectedIndex,

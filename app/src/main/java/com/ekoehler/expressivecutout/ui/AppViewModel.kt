@@ -6,12 +6,12 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Path
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ekoehler.expressivecutout.core.CutoutKind
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.core.stateFamily
 import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
@@ -22,12 +22,12 @@ import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
+import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.SentAlignment
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
+import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.CutoutFill
@@ -38,19 +38,39 @@ import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.JsonSerializable
+import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.JsonSettings
+import com.ekoehler.expressivecutout.swe.SweWidget
+import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
+import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.LanguagePreferences
 import com.ekoehler.expressivecutout.data.LayoutPreferences
+import com.ekoehler.expressivecutout.data.LockscreenRule
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
+import com.ekoehler.expressivecutout.data.RecentColorPreferences
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotKinds
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.PermissionDotPreferences
+import com.ekoehler.expressivecutout.data.PageTransitionStyle
+import com.ekoehler.expressivecutout.data.PinNotificationsMode
+import com.ekoehler.expressivecutout.data.StatusBarHideMode
+import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.data.SatellitePosition
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
@@ -59,10 +79,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileWriter
 import java.io.IOException
-import kotlin.io.encoding.Base64
 
 /**
  * Holds UI-facing state for the icon customisation screen and mediates writes to
@@ -73,6 +90,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = IconPreferences(application)
     private val layoutPreferences = LayoutPreferences(application)
     private val themePreferences = ThemePreferences(application)
+    private val languagePreferences = LanguagePreferences(application)
     private val behaviourPreferences = BehaviourPreferences(application)
     private val appearancePreferences = AppearancePreferences(application)
     private val eventPreferences = EventPreferences(application)
@@ -80,8 +98,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val musicTilePreferences = MusicTilePreferences(application)
     private val phoneTilePreferences = PhoneTilePreferences(application)
     private val timerTilePreferences = TimerTilePreferences(application)
-    private val assistantTilePreferences = AssistantTilePreferences(application)
+    private val emptyPillInfoPreferences = EmptyPillInfoPreferences(application)
     private val appPreferences = AppPreferences(application)
+    private val recentColorPreferences = RecentColorPreferences(application)
+    private val statusBarPreferences = StatusBarPreferences(application)
+    private val permissionDotPreferences = PermissionDotPreferences(application)
 
     val customIcons: StateFlow<Map<SystemEventType, IconSource>> =
         preferences.customIcons.stateIn(
@@ -134,12 +155,43 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyMap(),
         )
 
+    /** Per system event: whether it stays on the cutout while its state lasts (absent = off). */
+    val eventPersistent: StateFlow<Map<SystemEventType, Boolean>> =
+        eventPreferences.persistent.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val eventAnimatedIconLoops: StateFlow<Map<SystemEventType, Boolean>> =
         eventPreferences.animatedIconLoops.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
         )
+
+    val hotspotCountEnabled: StateFlow<Boolean> =
+        eventPreferences.hotspotCountEnabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    val hotspotCountStyle: StateFlow<UnreadWidget> =
+        eventPreferences.hotspotCountStyle.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UnreadWidget(id = "hotspot", countSilent = true),
+        )
+
+    val hotspotTurnOffColor: StateFlow<CutoutColor?> =
+        eventPreferences.hotspotTurnOffColor.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    val shizukuStatus: StateFlow<ShizukuStatus> = ShizukuState.status
 
     /** Per-event colour overrides; absent events follow their default accent (or the dynamic role). */
     val eventColors: StateFlow<Map<SystemEventType, CutoutColor>> =
@@ -193,11 +245,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = TimerTileSettings(),
         )
 
-    val assistantTile: StateFlow<AssistantTileSettings> =
-        assistantTilePreferences.settings.stateIn(
+    val emptyPillInfo: StateFlow<EmptyPillInfoSettings> =
+        emptyPillInfoPreferences.settings.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = AssistantTileSettings(),
+            initialValue = EmptyPillInfoSettings(),
         )
 
     val layout: StateFlow<IslandLayout> =
@@ -213,6 +265,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = AppTheme.SYSTEM,
         )
+
+    val language: StateFlow<String> = languagePreferences.language
 
     val behaviour: StateFlow<BehaviourSettings> =
         behaviourPreferences.settings.stateIn(
@@ -235,6 +289,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val jsonSections: Map<String, JsonSerializable> = mapOf(
         JsonSettings.THEME to themePreferences,
+        JsonSettings.LANGUAGE to languagePreferences,
         JsonSettings.LAYOUT to layoutPreferences,
         JsonSettings.ICONS to preferences,
         JsonSettings.BEHAVIOUR to behaviourPreferences,
@@ -244,8 +299,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         JsonSettings.MUSIC_TILE to musicTilePreferences,
         JsonSettings.PHONE_TILE to phoneTilePreferences,
         JsonSettings.TIMER_TILE to timerTilePreferences,
-        JsonSettings.ASSISTANT_TILE to assistantTilePreferences,
+        JsonSettings.EMPTY_PILL_INFO to emptyPillInfoPreferences,
         JsonSettings.APPS to appPreferences,
+        JsonSettings.RECENT_COLORS to recentColorPreferences,
+        JsonSettings.STATUS_BAR to statusBarPreferences,
+        JsonSettings.PERMISSION_DOT to permissionDotPreferences,
     )
 
     /** Exports every settings store as one JSON document; see [JsonSettings.export]. */
@@ -314,19 +372,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setImageIcon(type: SystemEventType, uri: String) = viewModelScope.launch {
-        preferences.setIcon(type, IconSource.Image(uri))
+        forEachState(type) { preferences.setIcon(it, IconSource.Image(uri)) }
     }
 
     fun setMaterialIcon(type: SystemEventType, iconName: String) = viewModelScope.launch {
-        preferences.setIcon(type, IconSource.Material(iconName))
+        forEachState(type) { preferences.setIcon(it, IconSource.Material(iconName)) }
     }
 
     fun resetIcon(type: SystemEventType) = viewModelScope.launch {
-        preferences.clearIcon(type)
+        forEachState(type) { preferences.clearIcon(it) }
     }
 
     fun setEventEnabled(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
-        eventPreferences.setEnabled(type, enabled)
+        forEachState(type) { eventPreferences.setEnabled(it, enabled) }
     }
 
     fun setEventDynamicColor(enabled: Boolean) = viewModelScope.launch {
@@ -345,24 +403,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         eventPreferences.setDuration(type, seconds)
     }
 
+    fun setEventPersistent(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setPersistent(type, enabled)
+    }
+
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
         eventPreferences.clearDuration(type)
     }
 
+    fun setHotspotCountEnabled(enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setHotspotCountEnabled(enabled)
+    }
+
+    fun setHotspotTurnOffColor(color: CutoutColor?) = viewModelScope.launch {
+        eventPreferences.setHotspotTurnOffColor(color)
+    }
+
+    fun setHotspotCountStyle(style: UnreadWidget) = viewModelScope.launch {
+        eventPreferences.setHotspotCountStyle(style)
+    }
+
     fun setEventColor(type: SystemEventType, color: CutoutColor) = viewModelScope.launch {
-        eventPreferences.setColor(type, color)
+        forEachState(type) { eventPreferences.setColor(it, color) }
     }
 
     fun resetEventColor(type: SystemEventType) = viewModelScope.launch {
-        eventPreferences.clearColor(type)
+        forEachState(type) { eventPreferences.clearColor(it) }
     }
 
     fun setEventAnimatedIcon(type: SystemEventType, enabled: Boolean) = viewModelScope.launch {
-        eventPreferences.setAnimatedIcon(type, enabled)
+        forEachState(type) { eventPreferences.setAnimatedIcon(it, enabled) }
     }
 
     fun setEventAnimatedIconLoop(type: SystemEventType, loop: Boolean) = viewModelScope.launch {
-        eventPreferences.setAnimatedIconLoop(type, loop)
+        forEachState(type) { eventPreferences.setAnimatedIconLoop(it, loop) }
+    }
+
+    /** Applies a per-event setting to every state in the event's integration family. */
+    private suspend fun forEachState(
+        type: SystemEventType,
+        action: suspend (SystemEventType) -> Unit,
+    ) {
+        type.stateFamily.members.forEach { action(it) }
     }
 
     fun setTileEnabled(tile: DynamicTile, enabled: Boolean) = viewModelScope.launch {
@@ -373,6 +455,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appPreferences.setEnabled(packageName, enabled)
     }
 
+    fun setAppsEnabled(packageNames: Collection<String>, enabled: Boolean) = viewModelScope.launch {
+        appPreferences.setEnabled(packageNames, enabled)
+    }
+
     fun setAppNormalOnly(packageName: String, normalOnly: Boolean) = viewModelScope.launch {
         appPreferences.setNormalOnly(packageName, normalOnly)
     }
@@ -381,8 +467,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setShowAlbumArt(enabled)
     }
 
+    fun setMusicShowAlbumBackground(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setShowAlbumBackground(enabled)
+    }
+
+    fun setMusicAlbumBackgroundDim(dim: Float) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundDim(dim)
+    }
+
+    fun setMusicAlbumBackgroundBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundBlur(enabled)
+    }
+
+    fun setMusicAlbumBackgroundBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setAlbumBackgroundBlurRadius(radius)
+    }
+
     fun setMusicRotateAlbumArt(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setRotateAlbumArt(enabled)
+    }
+
+    fun setMusicCircleCover(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setCircleCover(enabled)
     }
 
     fun setMusicAlbumArtStroke(enabled: Boolean) = viewModelScope.launch {
@@ -391,6 +497,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicAlbumArtStrokeColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setAlbumArtStrokeColor(color)
+    }
+
+    fun setMusicCoverFallbackColor(color: CutoutColor?) = viewModelScope.launch {
+        musicTilePreferences.setCoverFallbackColor(color)
     }
 
     fun setMusicExpandOnPlay(enabled: Boolean) = viewModelScope.launch {
@@ -417,8 +527,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         phoneTilePreferences.setShowActions(enabled)
     }
 
+    fun setPhoneShowButtonLabels(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setShowButtonLabels(enabled)
+    }
+
     fun setPhoneExpandedIncomingLayout(enabled: Boolean) = viewModelScope.launch {
         phoneTilePreferences.setExpandedIncomingLayout(enabled)
+    }
+
+    fun setPhoneMiniCall(enabled: Boolean) = viewModelScope.launch {
+        phoneTilePreferences.setMiniCall(enabled)
     }
 
     fun setPhoneIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
@@ -431,6 +549,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPhoneOtherButtonColor(color: CutoutColor) = viewModelScope.launch {
         phoneTilePreferences.setOtherButtonColor(color)
+    }
+
+    fun setPhoneIncomingAnswerColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingAnswerColor(color)
+    }
+
+    fun setPhoneIncomingHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setIncomingHangUpColor(color)
+    }
+
+    fun setPhoneExpandedHangUpColor(color: CutoutColor) = viewModelScope.launch {
+        phoneTilePreferences.setExpandedHangUpColor(color)
     }
 
     fun setTimerShowActions(enabled: Boolean) = viewModelScope.launch {
@@ -449,22 +579,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         timerTilePreferences.setAddButtonColor(color)
     }
 
-    fun setAssistantDisplayAnswerInCutout(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setDisplayAnswerInCutout(enabled)
-    }
-
-    fun setAssistantMaxCutoutHeightPercent(percent: Int) = viewModelScope.launch {
-        assistantTilePreferences.setMaxCutoutHeightPercent(percent)
-    }
-
-    fun setAssistantIconContainerColor(color: CutoutColor?) = viewModelScope.launch {
-        assistantTilePreferences.setIconContainerColor(color)
-    }
-
-    fun setAssistantUseAnimatedIcon(enabled: Boolean) = viewModelScope.launch {
-        assistantTilePreferences.setUseAnimatedIcon(enabled)
-    }
-
     fun setMusicSkipColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setSkipColor(color)
     }
@@ -477,6 +591,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         musicTilePreferences.setSkipCornerPercent(percent)
     }
 
+    fun setMusicSkipBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setSkipBlur(enabled)
+    }
+
+    fun setMusicSkipBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setSkipBlurRadius(radius)
+    }
+
     fun setMusicPlayPauseColor(color: CutoutColor?) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseColor(color)
     }
@@ -487,6 +609,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicPlayPauseCornerPercent(percent: Int) = viewModelScope.launch {
         musicTilePreferences.setPlayPauseCornerPercent(percent)
+    }
+
+    fun setMusicPlayPauseBlur(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseBlur(enabled)
+    }
+
+    fun setMusicPlayPauseBlurRadius(radius: Int) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseBlurRadius(radius)
+    }
+
+    fun setMusicPreviousExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousExpand(enabled)
+    }
+
+    fun setMusicPreviousText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPreviousText(enabled)
+    }
+
+    fun setMusicPreviousTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPreviousTextWidth(width)
+    }
+
+    fun setMusicNextExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextExpand(enabled)
+    }
+
+    fun setMusicNextText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setNextText(enabled)
+    }
+
+    fun setMusicNextTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setNextTextWidth(width)
+    }
+
+    fun setMusicPlayPauseExpand(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseExpand(enabled)
+    }
+
+    fun setMusicPlayPauseText(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseText(enabled)
+    }
+
+    fun setMusicPlayPauseTextWidth(width: Float) = viewModelScope.launch {
+        musicTilePreferences.setPlayPauseTextWidth(width)
     }
 
     fun applyMusicSkipPreset(preset: MusicButtonStyle) = viewModelScope.launch {
@@ -505,9 +671,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         layoutPreferences.setExpanded(dimensions)
     }
 
+    fun setExpandedDesign(design: ExpandedDesign) = viewModelScope.launch {
+        layoutPreferences.setExpandedDesign(design)
+    }
+
     fun resetLayout() = viewModelScope.launch { layoutPreferences.reset() }
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch { themePreferences.setTheme(theme) }
+
+    /**
+     * Switches the app to the language tagged [tag]. The store applies it to the process straight
+     * away; on Android 12 and below the caller still has to restart the activity for the UI it is
+     * showing to be re-read in the new language.
+     */
+    fun setLanguage(tag: String) = languagePreferences.setLanguage(tag)
 
     fun setCutoutEnabled(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setCutoutEnabled(enabled)
@@ -515,6 +692,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setVibrateOnTap(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setVibrateOnTap(enabled)
+    }
+
+    fun setHapticsOnPop(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setHapticsOnPop(enabled)
     }
 
     fun setHideOnLockscreen(enabled: Boolean) = viewModelScope.launch {
@@ -569,6 +750,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setNotificationsAutoExpand(enabled)
     }
 
+    fun setIgnoreSilentNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setIgnoreSilentNotifications(enabled)
+    }
+
+    fun setPinNotificationsMode(mode: PinNotificationsMode) = viewModelScope.launch {
+        behaviourPreferences.setPinNotificationsMode(mode)
+    }
+
     fun setShowActionButtons(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowActionButtons(enabled)
     }
@@ -577,36 +766,106 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setToastOnAction(enabled)
     }
 
-    fun setShrinkOnSwipeUp(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setShrinkOnSwipeUp(enabled)
+    fun setNormalTap(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalTap(action)
     }
 
-    fun setSwipeToDismiss(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setSwipeToDismiss(enabled)
+    fun setNormalSwipeUp(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeUp(action)
+    }
+
+    fun setExpandedTap(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedTap(action)
+    }
+
+    fun setExpandedSwipeUp(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeUp(action)
+    }
+
+    fun setExpandedSwipeDown(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeDown(action)
+    }
+
+    fun setNormalSwipeLeft(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeLeft(action)
+    }
+
+    fun setNormalSwipeRight(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setNormalSwipeRight(action)
+    }
+
+    fun setExpandedSwipeLeft(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeLeft(action)
+    }
+
+    fun setExpandedSwipeRight(action: GestureAction) = viewModelScope.launch {
+        behaviourPreferences.setExpandedSwipeRight(action)
     }
 
     fun setShowsWhenEmpty(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowsWhenEmpty(enabled)
     }
 
-    fun setShowsWhenEmptyShowIcon(enabled: Boolean) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyShowIcon(enabled)
+    fun setShowEmptyCutout(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowEmptyCutout(enabled)
     }
 
-    fun setShowsWhenEmptyImageIcon(uri: String) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Image(uri))
+    fun setHiddenEmptyWidthPercent(percent: Int) = viewModelScope.launch {
+        behaviourPreferences.setHiddenEmptyWidthPercent(percent)
     }
 
-    fun setShowsWhenEmptyMaterialIcon(iconName: String) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIcon(IconSource.Material(iconName))
+    /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
+    fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setShowStatusDot(enabled)
     }
 
-    fun resetShowsWhenEmptyIcon() = viewModelScope.launch {
-        behaviourPreferences.clearShowsWhenEmptyIcon()
+    /** Moves the system-event status dot to the given [side] of the camera hole. */
+    fun setStatusDotSide(side: StatusDotSide) = viewModelScope.launch {
+        behaviourPreferences.setStatusDotSide(side)
     }
 
-    fun setShowsWhenEmptyIconColor(color: CutoutColor?) = viewModelScope.launch {
-        behaviourPreferences.setShowsWhenEmptyIconColor(color)
+    /** Appends [widget] to the end of [side]'s list on the resting pill. */
+    fun addSweWidget(side: InfoSide, widget: SweWidget) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { it.withSide(side, it.on(side) + widget) }
+    }
+
+    /** Replaces the stored widget that has [widget]'s id with [widget], keeping its side and place. */
+    fun updateSweWidget(widget: SweWidget) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            s.copy(
+                left = s.left.map { if (it.id == widget.id) widget else it },
+                right = s.right.map { if (it.id == widget.id) widget else it },
+            )
+        }
+    }
+
+    /** Moves the widget with [id] by [delta] places within its own side; out-of-range moves do nothing. */
+    fun moveSweWidget(id: String, delta: Int) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            val side = s.sideOf(id) ?: return@update s
+            val list = s.on(side)
+            val from = list.indexOfFirst { it.id == id }
+            val to = from + delta
+            if (to !in list.indices) return@update s
+            s.withSide(side, list.toMutableList().apply { add(to, removeAt(from)) })
+        }
+    }
+
+    /** Moves the widget with [id] to the end of [side]; nothing happens if it is already there. */
+    fun setSweWidgetSide(id: String, side: InfoSide) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            val from = s.sideOf(id) ?: return@update s
+            if (from == side) return@update s
+            val widget = s.on(from).first { it.id == id }
+            s.withSide(from, s.on(from).filterNot { it.id == id }).withSide(side, s.on(side) + widget)
+        }
+    }
+
+    /** Removes the widget with [id] from whichever side holds it. */
+    fun removeSweWidget(id: String) = viewModelScope.launch {
+        emptyPillInfoPreferences.update { s ->
+            s.copy(left = s.left.filterNot { it.id == id }, right = s.right.filterNot { it.id == id })
+        }
     }
 
     fun setShowsWhenEmptyClickAction(action: EmptyClickAction) = viewModelScope.launch {
@@ -633,28 +892,310 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         behaviourPreferences.setCenterThemedIcons(enabled)
     }
 
-    fun setSwipeDismissDirection(direction: SwipeDismissDirection) = viewModelScope.launch {
-        behaviourPreferences.setSwipeDismissDirection(direction)
+    fun setSplitIslandEnabled(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setSplitIslandEnabled(enabled)
     }
 
-    fun setSwipeDismissTarget(target: SwipeDismissTarget) = viewModelScope.launch {
-        behaviourPreferences.setSwipeDismissTarget(target)
+    fun setSatellitePosition(position: SatellitePosition) = viewModelScope.launch {
+        behaviourPreferences.setSatellitePosition(position)
     }
 
     fun setShadowEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setShadowEnabled(enabled)
     }
 
+    /** Saves the page transition style used by in-app navigation. */
+    fun setPageTransitionStyle(style: PageTransitionStyle) = viewModelScope.launch {
+        appearancePreferences.setPageTransitionStyle(style)
+    }
+
+    /** Switches the dismiss swipe between sliding the island away and sliding it inside its own box. */
+    fun setWindowDismiss(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setWindowDismiss(enabled)
+    }
+
+    fun setDismissImageIcon(uri: String) = viewModelScope.launch {
+        appearancePreferences.setDismissIcon(IconSource.Image(uri))
+    }
+
+    fun setDismissMaterialIcon(iconName: String) = viewModelScope.launch {
+        appearancePreferences.setDismissIcon(IconSource.Material(iconName))
+    }
+
+    fun resetDismissIcon() = viewModelScope.launch {
+        appearancePreferences.clearDismissIcon()
+    }
+
+    fun setDismissIconColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setDismissIconColor(color)
+    }
+
+    fun setDismissBackdropColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setDismissBackdropColor(color)
+    }
+
+    fun setDismissCorners(topLeft: Int, topRight: Int, bottomLeft: Int, bottomRight: Int) = viewModelScope.launch {
+        appearancePreferences.setDismissCorners(topLeft, topRight, bottomLeft, bottomRight)
+    }
+
+    fun resetDismissCorners() = viewModelScope.launch {
+        appearancePreferences.clearDismissCorners()
+    }
+
+    /**
+     * When the system status bar's notification icons are hidden: never, only while the island is
+     * drawn wider than its normal cutout, or the whole time. Saved even while Shizuku is
+     * unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val notificationIconsMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.notificationIconsMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatusBarHideMode.OFF,
+        )
+
+    fun setNotificationIconsMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsMode(mode)
+    }
+
+    /**
+     * When the system status bar's info icons (battery, Wi-Fi, signal) are hidden. These sit at the
+     * far end of the bar, so a pill that already covers the notification icons at rest often still
+     * leaves these alone — which is why each setting carries its own [StatusBarHideMode].
+     */
+    val systemInfoMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.systemInfoMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatusBarHideMode.OFF,
+        )
+
+    fun setSystemInfoMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoMode(mode)
+    }
+
+    /** When the system status bar's clock is hidden. See [notificationIconsMode]. */
+    val clockMode: StateFlow<StatusBarHideMode> =
+        statusBarPreferences.clockMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatusBarHideMode.OFF,
+        )
+
+    fun setClockMode(mode: StatusBarHideMode) = viewModelScope.launch {
+        statusBarPreferences.setClockMode(mode)
+    }
+
+    /** The [CutoutKind]s that hide the notification icons while their mode is AUTO. */
+    val notificationIconsAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.notificationIconsAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setNotificationIconsAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the system info icons while their mode is AUTO. */
+    val systemInfoAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.systemInfoAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setSystemInfoAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoAutoTriggers(triggers)
+    }
+
+    /** The [CutoutKind]s that hide the clock while its mode is AUTO. */
+    val clockAutoTriggers: StateFlow<Set<CutoutKind>> =
+        statusBarPreferences.clockAutoTriggers.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = CutoutKind.DEFAULT_AUTO_TRIGGERS,
+        )
+
+    fun setClockAutoTriggers(triggers: Set<CutoutKind>) = viewModelScope.launch {
+        statusBarPreferences.setClockAutoTriggers(triggers)
+    }
+
+    /** The lock-screen override for the notification icons rule. */
+    val notificationIconsLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.notificationIconsLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setNotificationIconsLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setNotificationIconsLockscreen(rule)
+    }
+
+    /** The lock-screen override for the system info icons rule. */
+    val systemInfoLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.systemInfoLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setSystemInfoLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setSystemInfoLockscreen(rule)
+    }
+
+    /** The lock-screen override for the clock rule. */
+    val clockLockscreen: StateFlow<LockscreenRule> =
+        statusBarPreferences.clockLockscreen.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = LockscreenRule(),
+        )
+
+    fun setClockLockscreen(rule: LockscreenRule) = viewModelScope.launch {
+        statusBarPreferences.setClockLockscreen(rule)
+    }
+
+    /**
+     * Whether the user wants the system to silence its own alerts (sound, vibration, heads-up) for
+     * new notifications, leaving the island as the only thing that reacts. Saved even while Shizuku
+     * is unreachable; `StatusBarIconController` applies it as soon as the bridge is back.
+     */
+    val silenceSystemAlerts: StateFlow<Boolean> =
+        statusBarPreferences.silenceAlerts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setSilenceSystemAlerts(silence: Boolean) = viewModelScope.launch {
+        statusBarPreferences.setSilenceAlerts(silence)
+    }
+
+    /**
+     * Whether the user wants the island to mark live microphone, camera and location use. Saved even
+     * while Shizuku is unreachable; `PermissionUsageMonitor` starts reading as soon as the bridge is
+     * back, and reports nothing until then.
+     */
+    val permissionDotEnabled: StateFlow<Boolean> =
+        permissionDotPreferences.enabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotEnabled(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setEnabled(enabled)
+    }
+
+    /** Which end of the collapsed pill the permission dots sit on. */
+    val permissionDotPosition: StateFlow<PermissionDotPosition> =
+        permissionDotPreferences.position.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotPosition.RIGHT,
+        )
+
+    fun setPermissionDotPosition(position: PermissionDotPosition) = viewModelScope.launch {
+        permissionDotPreferences.setPosition(position)
+    }
+
+    /** Whether the dots stack vertically rather than running along the pill. */
+    val permissionDotVertical: StateFlow<Boolean> =
+        permissionDotPreferences.vertical.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    fun setPermissionDotVertical(vertical: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setVertical(vertical)
+    }
+
+    /** Which resources get a dot; one switched off is neither polled for nor drawn. */
+    val permissionDotKinds: StateFlow<PermissionDotKinds> =
+        permissionDotPreferences.kinds.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotKinds(),
+        )
+
+    fun setPermissionDotLocation(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setLocation(enabled)
+    }
+
+    fun setPermissionDotCamera(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setCamera(enabled)
+    }
+
+    fun setPermissionDotMicrophone(enabled: Boolean) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophone(enabled)
+    }
+
+    /** The colour each dot is drawn in, one per watched resource. */
+    val permissionDotColors: StateFlow<PermissionDotColors> =
+        permissionDotPreferences.colors.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PermissionDotColors(),
+        )
+
+    fun setPermissionDotLocationColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setLocationColor(color)
+    }
+
+    fun setPermissionDotCameraColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setCameraColor(color)
+    }
+
+    fun setPermissionDotMicrophoneColor(color: CutoutColor) = viewModelScope.launch {
+        permissionDotPreferences.setMicrophoneColor(color)
+    }
+
     fun setStrokeEnabled(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setStrokeEnabled(enabled)
+    }
+
+    fun setShowSourceAppName(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowSourceAppName(enabled)
+    }
+
+    fun setShowTimestamp(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowTimestamp(enabled)
+    }
+
+    fun setShowFullNotificationText(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setShowFullNotificationText(enabled)
+    }
+
+    fun setPreferDynamicIconColor(enabled: Boolean) = viewModelScope.launch {
+        appearancePreferences.setPreferDynamicIconColor(enabled)
+    }
+
+    fun setNotificationColorMode(mode: NotificationColorMode) = viewModelScope.launch {
+        appearancePreferences.setNotificationColorMode(mode)
+    }
+
+    fun setNotificationCustomColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setNotificationCustomColor(color)
     }
 
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
         appearancePreferences.setStrokeWidth(widthDp)
     }
 
+    fun setStrokeOpacity(opacity: Float) = viewModelScope.launch {
+        appearancePreferences.setStrokeOpacity(opacity)
+    }
+
     fun setStrokeColor(color: CutoutColor) = viewModelScope.launch {
         appearancePreferences.setStrokeColor(color)
+    }
+
+    fun setTextColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTextColor(color)
     }
 
     fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {
@@ -703,5 +1244,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setMusicShowProgress(enabled: Boolean) = viewModelScope.launch {
         musicTilePreferences.setShowProgress(enabled)
+    }
+
+    fun setMusicMiniPlayer(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setMiniPlayer(enabled)
+    }
+
+    fun setMusicRightButton(enabled: Boolean) = viewModelScope.launch {
+        musicTilePreferences.setRightButton(enabled)
+    }
+
+    fun setMusicRightButtonAction(action: MusicRightButtonAction) = viewModelScope.launch {
+        musicTilePreferences.setRightButtonAction(action)
+    }
+
+    fun setDismissNotifications(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDismissNotifications(enabled)
+    }
+
+    fun setDisplayWhileDnd(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setDisplayWhileDnd(enabled)
+    }
+
+    fun setAlertOnNotification(enabled: Boolean) = viewModelScope.launch {
+        behaviourPreferences.setAlertOnNotification(enabled)
     }
 }

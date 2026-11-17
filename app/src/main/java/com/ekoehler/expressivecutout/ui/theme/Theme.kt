@@ -38,25 +38,25 @@ fun ExpressiveCutoutTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
 
         darkTheme -> darkColorScheme(
-            primary = SeedPrimary,
-            secondary = SeedSecondary,
-            tertiary = SeedTertiary,
-            background = DarkBackground,
-            surface = DarkSurface,
+            primary = SEED_PRIMARY,
+            secondary = SEED_SECONDARY,
+            tertiary = SEED_TERTIARY,
+            background = DARK_BACKGROUND,
+            surface = DARK_SURFACE,
         )
 
         else -> lightColorScheme(
-            primary = SeedPrimary,
-            secondary = SeedSecondary,
-            tertiary = SeedTertiary,
-            background = LightBackground,
-            surface = LightSurface,
+            primary = SEED_PRIMARY,
+            secondary = SEED_SECONDARY,
+            tertiary = SEED_TERTIARY,
+            background = LIGHT_BACKGROUND,
+            surface = LIGHT_SURFACE,
         )
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography,
+        typography = APP_TYPOGRAPHY,
         content = content,
     )
 }

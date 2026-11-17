@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import android.graphics.drawable.shapes.RoundRectShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
@@ -51,6 +53,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,11 +65,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.findFirstRoot
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -76,19 +81,33 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.model.content.RectangleShape
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.IslandPreviewBus
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.NotificationColorMode
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.DefaultPresetColors
+import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
+import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
+import com.ekoehler.expressivecutout.ui.components.MaterialCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
 
-/** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
-private val DefaultDynamicRoles = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
+/** Label shown for each notification colour source in its options card. */
+private val NotificationColorMode.titleRes: Int
+    get() = when (this) {
+        NotificationColorMode.MATERIAL -> R.string.appearance_notification_color_material
+        NotificationColorMode.APP -> R.string.appearance_notification_color_app
+        NotificationColorMode.OTHER -> R.string.appearance_notification_color_other
+    }
 
 @Composable
 internal fun AppearanceScreen(
@@ -96,28 +115,40 @@ internal fun AppearanceScreen(
     contentPadding: PaddingValues,
     onOpenBackground: () -> Unit,
     onOpenActionButtons: () -> Unit,
+    onOpenDismissWindow: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
     var strokeWidth by remember(appearance.strokeWidthDp) { mutableStateOf(appearance.strokeWidthDp.toFloat()) }
+    var strokeOpacity by remember(appearance.strokeOpacity) { mutableStateOf(appearance.strokeOpacity) }
+
+    LaunchedEffect(Unit) {
+        IslandPreviewBus.setExpandedPreview(false)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        PageTitle(text = stringResource(R.string.appearance_section_title))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Shadow toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
+            shape = groupedShape(isFirst = true),
             title = stringResource(R.string.appearance_shadow_title),
             description = stringResource(R.string.appearance_shadow_desc),
             checked = appearance.shadowEnabled,
             onCheckedChange = viewModel::setShadowEnabled,
         )
 
+        // Stroke toggle
         SettingsToggleCard(
-            shape = RoundedCornerShape(24.dp),
             title = stringResource(R.string.appearance_stroke_title),
             description = stringResource(R.string.appearance_stroke_desc),
             checked = appearance.strokeEnabled,
@@ -125,55 +156,203 @@ internal fun AppearanceScreen(
         )
 
         AnimatedVisibility(visible = appearance.strokeEnabled) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Stroke width slider
+                MaterialCard {
                     AdjustableSlider(
                         label = stringResource(R.string.appearance_stroke_width),
                         valueText = "${strokeWidth.roundToInt()} dp",
                         value = strokeWidth,
                         valueRange = AppearanceSettings.MIN_STROKE_WIDTH_DP.toFloat()..
-                            AppearanceSettings.MAX_STROKE_WIDTH_DP.toFloat(),
+                                AppearanceSettings.MAX_STROKE_WIDTH_DP.toFloat(),
                         step = 1f,
                         onValueChange = { strokeWidth = it },
                         onCommit = { viewModel.setStrokeWidth(strokeWidth.roundToInt()) },
                     )
                 }
+
+                // Stroke color selector
+                ColorPickerCard(
+                    label = stringResource(R.string.appearance_stroke_color),
+                    selected = appearance.strokeColor,
+                    onSelect = { it?.let(viewModel::setStrokeColor) },
+                    allowAppIcon = true
+                )
+
+                // Stroke opacity slider
+                MaterialCard {
+                    AdjustableSlider(
+                        label = stringResource(R.string.appearance_stroke_opacity),
+                        valueText = "${(strokeOpacity * 100).roundToInt()}%",
+                        value = strokeOpacity,
+                        valueRange = 0f..1f,
+                        step = 0.05f,
+                        onValueChange = { strokeOpacity = it },
+                        onCommit = { viewModel.setStrokeOpacity(strokeOpacity) },
+                    )
+                }
             }
+        }
+
+        // Show app name toggle
+        SettingsToggleCard(
+            shape = groupedShape(),
+            title = stringResource(R.string.appearance_show_app_name_title),
+            description = stringResource(R.string.appearance_show_app_name_desc),
+            checked = appearance.showSourceAppName,
+            onCheckedChange = viewModel::setShowSourceAppName,
+        )
+
+        // Multi-line text scroll toggle
+        SettingsToggleCard(
+            shape = groupedShape(),
+            title = stringResource(R.string.appearance_show_full_notification_text_title),
+            description = stringResource(R.string.appearance_show_full_notification_text_desc),
+            checked = appearance.showFullNotificationText,
+            onCheckedChange = viewModel::setShowFullNotificationText,
+        )
+
+        // Dynamic icon color toggle
+        SettingsToggleCard(
+            shape = groupedShape(),
+            title = stringResource(R.string.appearance_prefer_dynamic_icon_color_title),
+            description = stringResource(R.string.appearance_prefer_dynamic_icon_color_desc),
+            checked = appearance.preferDynamicIconColor,
+            onCheckedChange = viewModel::setPreferDynamicIconColor,
+        )
+
+        // Notification color mode
+        OptionSelectionCard(
+            title = stringResource(R.string.appearance_notification_color_title),
+            options = NotificationColorMode.entries.map { mode ->
+                SelectableOption(value = mode, title = stringResource(mode.titleRes))
+            },
+            selectedValue = appearance.notificationColorMode,
+            onSelectionChange = viewModel::setNotificationColorMode,
+            isFirst = false,
+            isLast = false,
+        )
+
+        // Custom notification color
+        AnimatedVisibility(visible = appearance.notificationColorMode == NotificationColorMode.OTHER) {
             ColorPickerCard(
-                label = stringResource(R.string.appearance_stroke_color),
-                selected = appearance.strokeColor,
-                onSelect = { it?.let(viewModel::setStrokeColor) },
+                selected = appearance.notificationCustomColor,
+                onSelect = viewModel::setNotificationCustomColor,
+                dynamicRoles = emptyList(),
+                allowAppIcon = false,
+                shape = groupedShape(),
             )
         }
 
-        // Opens the dedicated screen for the collapsed/expanded background fills (solid colours
-        // and gradients, one per state).
-        BackgroundCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenBackground()
-        })
+        // Text color selector
+        ColorPickerCard(
+            label = stringResource(R.string.appearance_text_color),
+            selected = appearance.textColor,
+            onSelect = viewModel::setTextColor,
+            defaultLabel = stringResource(R.string.appearance_text_color_auto),
+            shape = groupedShape(),
+            allowAppIcon = true,
+        )
 
-        // Opens the dedicated screen for the expanded cutout's action chips and reply field
-        // (including the send/cancel reply-button colours).
-        ActionButtonsCard(onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onOpenActionButtons()
-        })
+        // Show timestamp toggle
+        SettingsToggleCard(
+            shape = groupedShape(isLast = true),
+            title = stringResource(R.string.appearance_show_timestamp_title),
+            description = stringResource(R.string.appearance_show_timestamp_desc),
+            checked = appearance.showTimestamp,
+            onCheckedChange = viewModel::setShowTimestamp,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Dismiss window screen navigation
+        DismissWindowCard(
+            shape = groupedShape(isFirst = true, isLast = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenDismissWindow()
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Background color screen navigation
+        BackgroundCard(
+            shape = groupedShape(isFirst = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenBackground()
+            }
+        )
+
+        // Action buttons screen navigation
+        ActionButtonsCard(
+            shape = groupedShape(isLast = true),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenActionButtons()
+            }
+        )
+    }
+}
+
+/** A clickable card that navigates to the dedicated dismiss-window screen. */
+@Composable
+private fun DismissWindowCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.appearance_window_dismiss_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.appearance_window_dismiss_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
 /** A clickable card that navigates to the dedicated background-fill screen. */
 @Composable
-private fun BackgroundCard(onClick: () -> Unit) {
+private fun BackgroundCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -211,12 +390,15 @@ private fun BackgroundCard(onClick: () -> Unit) {
 
 /** A clickable card that navigates to the dedicated action-buttons screen. */
 @Composable
-private fun ActionButtonsCard(onClick: () -> Unit) {
+private fun ActionButtonsCard(
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = groupedShape()
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(
@@ -252,97 +434,6 @@ private fun ActionButtonsCard(onClick: () -> Unit) {
     }
 }
 
-/**
- * The single, shared colour-selection card used by every screen that edits a [CutoutColor]. It
- * offers, in order: an optional "default" swatch (a null selection, for settings whose default
- * follows another colour, e.g. the reply buttons), several Material You dynamic-role swatches, a
- * custom pick (opens [ColorPickerDialog] with a hex field), and a row of predefined swatches.
- *
- * The predefined colours default to [DefaultPresetColors] (black, white, dark/light grey, blue,
- * red, green) but any screen can pass its own [presetColors]; likewise the dynamic roles shown can
- * be overridden via [dynamicRoles].
- */
-@Composable
-internal fun ColorPickerCard(
-    label: String,
-    selected: CutoutColor?,
-    onSelect: (CutoutColor?) -> Unit,
-    defaultLabel: String? = null,
-    defaultColor: Color? = null,
-    presetColors: List<Long> = DefaultPresetColors,
-    dynamicRoles: List<DynamicRole> = DefaultDynamicRoles,
-    roundedCorners: Dp = 24.dp
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val customArgb = (selected as? CutoutColor.Solid)?.argb
-        ?.takeIf { argb -> presetColors.none { it == argb } }
-    val currentColor = selected?.resolve() ?: defaultColor ?: Color.White
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(roundedCorners),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.titleMedium)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    // Breathing room so the selected swatch's enlarged ring isn't clipped at the edges.
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Optional "use the default" swatch (null selection), then the Material You dynamic
-                // roles, then the custom picker, then the predefined swatches.
-                if (defaultLabel != null) {
-                    ColorSwatch(
-                        color = defaultColor ?: MaterialTheme.colorScheme.primary,
-                        selected = selected == null,
-                        badge = Icons.Rounded.RestartAlt,
-                        badgeDescription = defaultLabel,
-                        onClick = { onSelect(null) },
-                    )
-                }
-                dynamicRoles.forEach { role ->
-                    ColorSwatch(
-                        color = CutoutColor.Dynamic(role).resolve(),
-                        selected = (selected as? CutoutColor.Dynamic)?.role == role,
-                        badge = Icons.Rounded.AutoAwesome,
-                        badgeDescription = role.dynamicDescription(),
-                        onClick = { onSelect(CutoutColor.Dynamic(role)) },
-                    )
-                }
-                CustomColorSwatch(
-                    selectedColor = customArgb?.let { Color(it) },
-                    onClick = { showPicker = true },
-                )
-                presetColors.forEach { argb ->
-                    ColorSwatch(
-                        color = Color(argb),
-                        selected = selected == CutoutColor.Solid(argb),
-                        onClick = { onSelect(CutoutColor.Solid(argb)) },
-                    )
-                }
-            }
-        }
-    }
-
-    if (showPicker) {
-        ColorPickerDialog(
-            initial = currentColor,
-            onConfirm = { picked ->
-                showPicker = false
-                onSelect(CutoutColor.Solid(picked.toArgb().toLong() and 0xFFFFFFFFL))
-            },
-            onDismiss = { showPicker = false },
-        )
-    }
-}
-
 /** The Material You scheme role's human-readable label, for a swatch's content description. */
 @Composable
 fun DynamicRole.dynamicDescription(): String = stringResource(
@@ -350,6 +441,16 @@ fun DynamicRole.dynamicDescription(): String = stringResource(
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary
         DynamicRole.TERTIARY -> R.string.cd_color_dynamic_tertiary
+        DynamicRole.SURFACE_CONTAINER_LOWEST -> R.string.cd_color_dynamic_surface_lowest
+        DynamicRole.SURFACE_CONTAINER_LOW -> R.string.cd_color_dynamic_surface_low
+        DynamicRole.SURFACE_CONTAINER -> R.string.cd_color_dynamic_surface
+        DynamicRole.SURFACE_CONTAINER_HIGH -> R.string.cd_color_dynamic_surface_high
+        DynamicRole.SURFACE_CONTAINER_HIGHEST -> R.string.cd_color_dynamic_surface_highest
+        DynamicRole.SURFACE_CONTAINER_LOWEST_DARK -> R.string.cd_color_dynamic_surface_lowest_dark
+        DynamicRole.SURFACE_CONTAINER_LOW_DARK -> R.string.cd_color_dynamic_surface_low_dark
+        DynamicRole.SURFACE_CONTAINER_DARK -> R.string.cd_color_dynamic_surface_dark
+        DynamicRole.SURFACE_CONTAINER_HIGH_DARK -> R.string.cd_color_dynamic_surface_high_dark
+        DynamicRole.SURFACE_CONTAINER_HIGHEST_DARK -> R.string.cd_color_dynamic_surface_highest_dark
     },
 )
 
@@ -359,39 +460,40 @@ internal fun ColorSwatch(
     selected: Boolean,
     onClick: () -> Unit,
     badge: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    badgePainter: androidx.compose.ui.graphics.painter.Painter? = null,
     badgeDescription: String? = null,
 ) {
-    val ring = MaterialTheme.colorScheme.primary
-    // A faint border keeps near-white swatches visible against the card.
-    val edge = MaterialTheme.colorScheme.outlineVariant
-    // Expressive: the selected swatch springs up a touch and its ring thickens.
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1f,
+        targetValue = if (selected) 1.4f else 1f,
         animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow),
         label = "swatchScale",
     )
-    val ringWidth by animateDpAsState(
-        targetValue = if (selected) 3.dp else 1.dp,
+    val borderRadius by animateDpAsState(
+        targetValue = if (selected) 24.dp else 4.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "swatchRing",
+        label = "swatchRadius",
     )
+
     Box(
         modifier = Modifier
-            .size(44.dp)
-            .scale(scale)
-            .clip(CircleShape)
+            .height(44.dp)
+            .width((52 * scale).dp)
+            .clip(shape = RoundedCornerShape(borderRadius))
             .background(color)
-            .border(
-                width = ringWidth,
-                color = if (selected) ring else edge,
-                shape = CircleShape,
-            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         // Contrast the marks against the swatch itself.
         val markColor = if (color.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
-        if (badge != null) {
+
+        if (badgePainter != null) {
+            Icon(
+                painter = badgePainter,
+                contentDescription = badgeDescription,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(20.dp),
+            )
+        } else if (badge != null) {
             Icon(
                 imageVector = badge,
                 contentDescription = badgeDescription,
@@ -420,6 +522,7 @@ internal fun CustomColorSwatch(
 ) {
     val ring = MaterialTheme.colorScheme.primary
     val edge = MaterialTheme.colorScheme.outlineVariant
+
     val rainbow = remember {
         Brush.sweepGradient(
             listOf(
@@ -429,23 +532,20 @@ internal fun CustomColorSwatch(
             ),
         )
     }
+
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clip(CircleShape)
+            .clip(shape = RoundedCornerShape(4.dp))
             .then(
                 if (selectedColor != null) Modifier.background(selectedColor)
                 else Modifier.background(rainbow),
             )
-            .border(
-                width = if (selectedColor != null) 3.dp else 1.dp,
-                color = if (selectedColor != null) ring else edge,
-                shape = CircleShape,
-            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        val markColor = if ((selectedColor ?: Color.White).luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+        val markColor = if ((selectedColor ?: Color.Black).luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+
         Icon(
             imageVector = Icons.Rounded.Colorize,
             contentDescription = stringResource(R.string.cd_color_custom),

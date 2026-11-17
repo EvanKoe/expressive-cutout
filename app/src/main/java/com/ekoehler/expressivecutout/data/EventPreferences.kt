@@ -10,11 +10,14 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.swe.SweWidgets
+import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the per-event settings: enabled, duration, colour and animated icon. */
 private val Context.eventDataStore: DataStore<Preferences> by preferencesDataStore(name = "event_prefs")
 
 /**
@@ -75,6 +78,17 @@ class EventPreferences(private val context: Context) : JsonSerializable {
     }
 
     /**
+     * Per-event choice for whether the event stays on the cutout for as long as its state lasts
+     * instead of auto-dismissing after the cutout duration. Only events the user has explicitly
+     * toggled appear here; absent means off.
+     */
+    val persistent: Flow<Map<SystemEventType, Boolean>> = context.eventDataStore.data.map { prefs ->
+        SystemEventType.entries.mapNotNull { type ->
+            prefs[type.persistentKey]?.let { enabled -> type to enabled }
+        }.toMap()
+    }
+
+    /**
      * Per-event choice for whether the animated icon loops (else it plays once and holds). Absent
      * means the event's own built-in default (see [animationLoopsByDefault]).
      */
@@ -95,8 +109,23 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         }.toMap()
     }
 
+    /** Whether the hotspot event shows how many devices are connected. Absent means off. */
+    val hotspotCountEnabled: Flow<Boolean> = context.eventDataStore.data.map { prefs ->
+        prefs[HOTSPOT_COUNT_ENABLED_KEY] ?: false
+    }
+
+    /** Background of the hotspot card's "Turn off" button; null means the event's own accent. */
+    val hotspotTurnOffColor: Flow<CutoutColor?> = context.eventDataStore.data.map { prefs ->
+        CutoutColor.deserialize(prefs[HOTSPOT_TURN_OFF_COLOR_KEY])
+    }
+
+    /** How the hotspot device count is drawn; absent or unreadable means a silent-counting star. */
+    val hotspotCountStyle: Flow<UnreadWidget> = context.eventDataStore.data.map { prefs ->
+        parseHotspotStyle(prefs[HOTSPOT_COUNT_STYLE_KEY])
+    }
+
     /**
-     * Exports every per-event setting as JSON. The four [SystemEventType]-keyed maps become nested
+     * Exports every per-event setting as JSON. The five [SystemEventType]-keyed maps become nested
      * objects whose keys are the event-type names (a JSONObject key must be a String, so the enum
      * key is converted with [Enum.name]); per-event colours are their [CutoutColor.serialize] strings.
      */
@@ -111,15 +140,19 @@ class EventPreferences(private val context: Context) : JsonSerializable {
             put("dynamicColorOpacity", dynamicColorOpacity.first().toDouble())
             put("durations", durations.first().toJsonObject { it })
             put("animatedIcons", animatedIcons.first().toJsonObject { it })
+            put("persistent", persistent.first().toJsonObject { it })
             put("animatedIconLoops", animatedIconLoops.first().toJsonObject { it })
             put("colors", colors.first().toJsonObject { it.serialize() })
+            put("hotspotCountEnabled", hotspotCountEnabled.first())
+            put("hotspotCountStyle", hotspotCountStyle.first().toJson())
+            hotspotTurnOffColor.first()?.let { put("hotspotTurnOffColor", it.serialize()) }
         }.toString()
     }
 
     /**
      * Applies every per-event setting exported by [toJson]. The [enabled] map is dense (one entry
      * per event, defaulting an absent name to enabled); the sparse override maps (durations, animated
-     * icons, loops, colours) are applied as a full replacement — an event present in the map gets its
+     * icons, persistent, loops, colours) are applied as a full replacement — an event present in the map gets its
      * override, an event absent has any existing override cleared — so the imported state matches the
      * document exactly. Done in one edit.
      */
@@ -128,6 +161,7 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         val enabled = obj.optJSONObject("enabled")
         val durations = obj.optJSONObject("durations")
         val animated = obj.optJSONObject("animatedIcons")
+        val persistent = obj.optJSONObject("persistent")
         val loops = obj.optJSONObject("animatedIconLoops")
         val colors = obj.optJSONObject("colors")
 
@@ -141,6 +175,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
                 animated?.let {
                     if (it.has(name)) prefs[type.animatedKey] = it.getBoolean(name) else prefs.remove(type.animatedKey)
                 }
+                persistent?.let {
+                    if (it.has(name)) prefs[type.persistentKey] = it.getBoolean(name) else prefs.remove(type.persistentKey)
+                }
                 loops?.let {
                     if (it.has(name)) prefs[type.loopKey] = it.getBoolean(name) else prefs.remove(type.loopKey)
                 }
@@ -149,6 +186,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
                     if (color == null) prefs.remove(type.colorKey) else prefs[type.colorKey] = color.serialize()
                 }
             }
+            if (obj.has("hotspotCountEnabled")) prefs[HOTSPOT_COUNT_ENABLED_KEY] = obj.getBoolean("hotspotCountEnabled")
+            obj.optJSONObject("hotspotCountStyle")?.let { prefs[HOTSPOT_COUNT_STYLE_KEY] = it.toString() }
+            obj.optString("hotspotTurnOffColor").takeIf { it.isNotEmpty() }?.let { prefs[HOTSPOT_TURN_OFF_COLOR_KEY] = it }
             if (obj.has("dynamicColor")) prefs[DYNAMIC_COLOR_KEY] = obj.getBoolean("dynamicColor")
             if (obj.has("dynamicColorRole") && !obj.isNull("dynamicColorRole")) {
                 runCatching { DynamicRole.valueOf(obj.optString("dynamicColorRole")) }.getOrNull()
@@ -186,6 +226,10 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         it[type.animatedKey] = enabled
     }
 
+    suspend fun setPersistent(type: SystemEventType, enabled: Boolean) = context.eventDataStore.edit {
+        it[type.persistentKey] = enabled
+    }
+
     suspend fun setAnimatedIconLoop(type: SystemEventType, loop: Boolean) = context.eventDataStore.edit {
         it[type.loopKey] = loop
     }
@@ -198,9 +242,28 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         it[DYNAMIC_COLOR_ROLE_KEY] = role.name
     }
 
+    /** Clamps to 0f..1f, the range the opacity slider offers. */
     suspend fun setDynamicColorOpacity(opacity: Float) = context.eventDataStore.edit {
         it[DYNAMIC_COLOR_OPACITY_KEY] = opacity.coerceIn(0f, 1f)
     }
+
+    suspend fun setHotspotCountEnabled(enabled: Boolean) = context.eventDataStore.edit {
+        it[HOTSPOT_COUNT_ENABLED_KEY] = enabled
+    }
+
+    /** Stores [color] for the "Turn off" button, or clears it when null so the accent applies again. */
+    suspend fun setHotspotTurnOffColor(color: CutoutColor?) = context.eventDataStore.edit {
+        if (color == null) it.remove(HOTSPOT_TURN_OFF_COLOR_KEY) else it[HOTSPOT_TURN_OFF_COLOR_KEY] = color.serialize()
+    }
+
+    suspend fun setHotspotCountStyle(style: UnreadWidget) = context.eventDataStore.edit {
+        it[HOTSPOT_COUNT_STYLE_KEY] = style.toJson().toString()
+    }
+
+    /** Reads a stored style, falling back to [DEFAULT_HOTSPOT_STYLE] when it is missing or not an unread widget. */
+    private fun parseHotspotStyle(raw: String?): UnreadWidget =
+        raw?.let { runCatching { SweWidgets.fromJson(JSONObject(it)) }.getOrNull() } as? UnreadWidget
+            ?: DEFAULT_HOTSPOT_STYLE
 
     private val SystemEventType.key: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_enabled_$name")
@@ -210,6 +273,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
 
     private val SystemEventType.animatedKey: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_animated_$name")
+
+    private val SystemEventType.persistentKey: Preferences.Key<Boolean>
+        get() = booleanPreferencesKey("event_persistent_$name")
 
     private val SystemEventType.loopKey: Preferences.Key<Boolean>
         get() = booleanPreferencesKey("event_animated_loop_$name")
@@ -221,5 +287,9 @@ class EventPreferences(private val context: Context) : JsonSerializable {
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("events_dynamic_color")
         val DYNAMIC_COLOR_ROLE_KEY = stringPreferencesKey("events_dynamic_color_role")
         val DYNAMIC_COLOR_OPACITY_KEY = floatPreferencesKey("events_dynamic_color_opacity")
+        val HOTSPOT_COUNT_ENABLED_KEY = booleanPreferencesKey("events_hotspot_count_enabled")
+        val HOTSPOT_COUNT_STYLE_KEY = stringPreferencesKey("events_hotspot_count_style")
+        val HOTSPOT_TURN_OFF_COLOR_KEY = stringPreferencesKey("events_hotspot_turn_off_color")
+        val DEFAULT_HOTSPOT_STYLE = UnreadWidget(id = "hotspot", shape = UnreadShape.STAR, countSilent = true)
     }
 }

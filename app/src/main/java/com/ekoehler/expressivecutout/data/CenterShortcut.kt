@@ -36,6 +36,10 @@ sealed interface CenterShortcut {
             is Global, is Panel, is LaunchApp -> false
         }
 
+    /**
+     * Encodes to a single tagged string so the shortcut fits one preference key. Read back by
+     * [decode].
+     */
     fun encode(): String = when (this) {
         is Global -> "$GLOBAL_TAG$SEPARATOR${action.name}"
         Torch -> TORCH_TAG

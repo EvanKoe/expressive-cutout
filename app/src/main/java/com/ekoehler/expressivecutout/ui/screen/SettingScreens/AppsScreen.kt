@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.util.LruCache
+import android.widget.Space
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,11 +40,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults.colors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -55,19 +60,31 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.time.temporal.IsoFields
+
+/** An installed app the user can allow or mute. Icons are loaded per row, not held here. */
+internal data class InstalledApp(
+    val packageName: String,
+    val label: String,
+)
 
 /**
  * Lists every launchable app on the device with a switch per app. Turning an app off mutes it on
@@ -105,7 +122,7 @@ internal fun AppsScreen(
         return
     }
 
-    val filtered = remember(loaded, query) {
+    val filtered: List<InstalledApp> = remember(loaded, query) {
         val needle = query.trim()
         if (needle.isEmpty()) {
             loaded
@@ -116,41 +133,94 @@ internal fun AppsScreen(
             }
         }
     }
+
+    val listState = rememberLazyListState()
+    val allSelected = filtered.isNotEmpty() && filtered.none { it.packageName in disabled }
+    var sweepAnchor by remember { mutableIntStateOf(0) }
+
+    val onSelectAllChange: (Boolean) -> Unit = { enabled ->
+        sweepAnchor = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
+        viewModel.setAppsEnabled(filtered.map(InstalledApp::packageName), enabled)
+    }
+
     val lastIndex = filtered.lastIndex
 
     LazyColumn(
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
     ) {
         item(key = "header") {
             Column {
+                PageTitle(text = stringResource(R.string.apps_title))
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
                     text = stringResource(R.string.apps_screen_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Search bar
+                TextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = groupedShape(isFirst = true),
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     placeholder = { Text(stringResource(R.string.apps_search_hint)) },
+                    colors = colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent
+                    ),
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Select all
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = groupedShape(isLast = true),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectAllChange(!allSelected) }
+                            .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (allSelected) R.string.deselect_all else R.string.select_all
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        Switch(checked = allSelected, onCheckedChange = { onSelectAllChange(!allSelected) })
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
+
 
         if (filtered.isEmpty()) {
             item(key = "empty") {
                 Text(
                     text = stringResource(R.string.apps_none_found),
                     style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(vertical = 24.dp)
+                        .fillMaxWidth(),
                 )
             }
         }
@@ -160,6 +230,7 @@ internal fun AppsScreen(
                 app = app,
                 shape = appGroupShape(index = index, lastIndex = lastIndex),
                 enabled = app.packageName !in disabled,
+                switchDelayMillis = sweepDelayMillis(index - sweepAnchor),
                 normalOnly = app.packageName in normalOnly,
                 expanded = expandedPackage == app.packageName,
                 onExpandToggle = {
@@ -172,25 +243,47 @@ internal fun AppsScreen(
     }
 }
 
-// Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp.
-// Hoisted to constants rather than built per item — with a few hundred rows the allocation churn
-// during a fling is pure waste.
-private val GroupShapeFirst = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-private val GroupShapeMiddle = RoundedCornerShape(4.dp)
-private val GroupShapeLast = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp)
-private val GroupShapeOnly = RoundedCornerShape(32.dp)
+/**
+ * Grouped-list corners: the group's outer corners (first top, last bottom) are 32dp, rest 4dp.
+ * Hoisted to constants rather than built per item — with a few hundred rows the allocation churn
+ * during a fling is pure waste.
+ */
+private val GROUP_SHAPE_FIRST = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+private val GROUP_SHAPE_MIDDLE = RoundedCornerShape(4.dp)
+private val GROUP_SHAPE_LAST = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 32.dp, bottomEnd = 32.dp)
+private val GROUP_SHAPE_ONLY = RoundedCornerShape(32.dp)
 
+/**
+ * The shape one row takes in a grouped list: fully round when alone, rounded on the outer edge at
+ * either end, and squared off in the middle.
+ */
 private fun appGroupShape(index: Int, lastIndex: Int): Shape = when {
-    index == 0 && index == lastIndex -> GroupShapeOnly
-    index == 0 -> GroupShapeFirst
-    index == lastIndex -> GroupShapeLast
-    else -> GroupShapeMiddle
+    index == 0 && index == lastIndex -> GROUP_SHAPE_ONLY
+    index == 0 -> GROUP_SHAPE_FIRST
+    index == lastIndex -> GROUP_SHAPE_LAST
+    else -> GROUP_SHAPE_MIDDLE
 }
+
+/**
+ * The per-row stagger of a select-all sweep, and how many rows it keeps accumulating over. A
+ * screenful is about nine rows, so the cap only bites on rows below the fold, which would otherwise
+ * sit on a stale state for seconds.
+ */
+private const val SWEEP_STEP_MS = 35
+private const val SWEEP_MAX_STEPS = 12
+
+/** How long the row [stepsFromAnchor] positions into a select-all sweep waits before it follows. */
+private fun sweepDelayMillis(stepsFromAnchor: Int): Int =
+    stepsFromAnchor.coerceIn(0, SWEEP_MAX_STEPS) * SWEEP_STEP_MS
 
 /**
  * One app: identity and the allow switch on the collapsed row, with the per-app options revealed
  * underneath when the row is tapped. The chevron rotates to advertise that there is more here —
  * without it the extra settings would be invisible.
+ *
+ * @param switchDelayMillis how long the switch waits before catching up with [enabled] when the
+ *   change came from elsewhere, which is what turns a select-all into a cascade down the list. A
+ *   tap on this row's own switch is never delayed.
  */
 @Composable
 private fun AppCard(
@@ -199,6 +292,7 @@ private fun AppCard(
     enabled: Boolean,
     normalOnly: Boolean,
     expanded: Boolean,
+    switchDelayMillis: Int,
     onExpandToggle: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onNormalOnlyChange: (Boolean) -> Unit,
@@ -207,6 +301,15 @@ private fun AppCard(
         targetValue = if (expanded) 180f else 0f,
         label = "appChevron",
     )
+    // Tracking the switch locally is also what makes a direct tap feel instant: it flips here first,
+    // so by the time the store echoes the change back there is nothing left to wait for.
+    var switchChecked by remember { mutableStateOf(enabled) }
+    LaunchedEffect(enabled) {
+        if (switchChecked != enabled) {
+            delay(switchDelayMillis.toLong())
+            switchChecked = enabled
+        }
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
@@ -265,7 +368,13 @@ private fun AppCard(
                         .background(MaterialTheme.colorScheme.outlineVariant),
                 )
                 Spacer(Modifier.width(12.dp))
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
+                Switch(
+                    checked = switchChecked,
+                    onCheckedChange = {
+                        switchChecked = it
+                        onEnabledChange(it)
+                    },
+                )
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -293,7 +402,7 @@ private fun AppCard(
                         Switch(
                             checked = normalOnly,
                             onCheckedChange = onNormalOnlyChange,
-                            enabled = enabled,
+                            enabled = switchChecked,
                         )
                     }
                 }
@@ -346,12 +455,6 @@ internal fun AppIcon(packageName: String) {
     }
 }
 
-/** An installed app the user can allow or mute. Icons are loaded per row, not held here. */
-internal data class InstalledApp(
-    val packageName: String,
-    val label: String,
-)
-
 /**
  * Every app with a launcher entry, minus this one, sorted by name. Resolving the launcher intent
  * (rather than asking for every installed package) keeps the list to apps the user recognises and
@@ -397,6 +500,10 @@ private fun Drawable.toListIconBitmap(): ImageBitmap {
     return bitmap.asImageBitmap()
 }
 
+/**
+ * Pixel size app icons are decoded at for the list, small enough that a long app list doesn't hold
+ * full-resolution bitmaps.
+ */
 private const val ICON_PX = 96
 
 /**

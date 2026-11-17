@@ -1,5 +1,5 @@
 [versions]
-agp = "8.7.3"
+agp = "8.13.2"
 kotlin = "2.1.0"
 coreKtx = "1.15.0"
 lifecycle = "2.8.7"
@@ -8,8 +8,14 @@ composeBom = "2024.12.01"
 datastore = "1.1.1"
 savedstate = "1.2.1"
 lottie = "6.6.2"
+shizuku = "13.1.5"
+hiddenapibypass = "6.1"
+# Last release built on Compose 1.7 / Kotlin 2.1; 1.6+ pulls Compose 1.8, 2.x needs Kotlin 2.4
+haze = "1.5.4"
+junit = "4.13.2"
 
 [libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
@@ -27,6 +33,11 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 
 lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
+
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenapibypass" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

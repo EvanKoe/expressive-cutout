@@ -23,11 +23,15 @@ import kotlin.coroutines.resume
  */
 object CenterShortcutExecutor {
 
-    // Hosts the brief torch-state read only; no work — and no camera listener — lives here at rest.
+    /**
+     * Hosts the brief torch-state read only; no work — and no camera listener — lives here at rest.
+     */
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
-    // How long to wait for the camera service to report the current torch state before giving up
-    // (e.g. the flash is busy in another app). Kept tight — the state callback is near-immediate.
+    /**
+     * How long to wait for the camera service to report the current torch state before giving up
+     * (e.g. the flash is busy in another app). Kept tight — the state callback is near-immediate.
+     */
     private const val TORCH_STATE_TIMEOUT_MS = 500L
 
     /** Runs the shortcut. Returns true if it could be dispatched; false means it isn't available here. */
@@ -38,11 +42,19 @@ object CenterShortcutExecutor {
         is CenterShortcut.LaunchApp -> launchApp(shortcut.packageName, context)
     }
 
+    /**
+     * Performs a global accessibility action, refusing it on a platform older than the action needs
+     * rather than letting the framework reject it.
+     */
     private fun performGlobal(shortcut: CenterShortcut.Global): Boolean {
         if (Build.VERSION.SDK_INT < shortcut.action.minSdk) return false
         return CutoutAccessibilityService.performGlobal(shortcut.action.action)
     }
 
+    /**
+     * Launches [packageName]'s main activity, returning false when the app publishes no launcher
+     * entry.
+     */
     private fun launchApp(packageName: String, context: Context): Boolean {
         val launch = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
         return startIntent(launch, context)

@@ -1,5 +1,112 @@
 [
   {
+    "version": "0.4.1-beta",
+    "description": "Hotspot devices, blurred navbar and timer fixes",
+    "features": [
+      "Hotspot system event shows the number of connected devices",
+      "Status dot side setting, and the status dot now sits in the header of the expanded cutout",
+      "Reworked Profile tab UI",
+      "Blurred navigation bar with a back button animation (blur needs Android API 37.2+)",
+      "No contrast scrim behind the 3-button navigation bar"
+    ],
+    "bugfixes": [
+      "The SWE cutout no longer stops reacting to taps (no animation, no action) after locking and unlocking the device",
+      "The status dot sits closer to the physical camera",
+      "Crash when the status dot animation went to negative values",
+      "Turning the hotspot off is now detected",
+      "Upcoming timers now show in the timer dynamic tile",
+      "Timers from TickTick and other third-party apps are detected, with their buttons",
+      "Wrong blur colour on app start"
+    ]
+  },
+  {
+    "version": "0.4.0-beta",
+    "description": "SWE, notch, Shizuku and gestures",
+    "features": [
+      "Expanded notch mode: a mode for expanded cutout that goes well with the noth mode",
+      "Music like: added a way to like songs in the media player when supported",
+      "Shizuku auto triggers for hiding notification bar icons",
+      "Persistent system events: they're not forced to disappear after a few seconds. System events can now chill with you",
+      "Gestures: configure gestures for the different cutouts",
+      "SWE widgets: you can now add and configure widgets in your SWE cutout",
+      "Show SWE cutout: you can now hide the SWE cutout while keeping its on tap action"
+    ],
+    "bugfixes": [
+      "Fixed hotspot system event (worked until Android 11)"
+    ]
+  },
+  {
+    "version": "0.3.2-beta",
+    "description": "Notch and 0.3.1 fixes",
+    "features": [
+      "Notch mode: allows you to display a nice notch instead of the island",
+      "Blur cover in music dynamic tile",
+      "Notification icon color: tint the notification icon (and its source app name and timestamp) with the Material color, the app's own color, or a custom color"
+    ],
+    "bugfixes": [
+      "Swiping a notification away on the island now also clears it from the notification panel",
+      "\"Automatically dismiss notifications\" is renamed \"Keep notifications out of shade\" to describe what it actually does"
+    ]
+  },
+  {
+    "version": "0.3.1-beta",
+    "description": "Music fixes, status bar auto hide and UI animations",
+    "features": [
+      "Customization for the music tile (blur buttons, dim background...)",
+      "Auto-hide system icons when permission dots expand the normal cutout on the right",
+      "DIAW (Dismiss inside a window): a new cool animation when dismissing the expanded cutout"
+    ],
+    "bugfixes": [
+      "Permission dots used to override right icons/texts in the normal cutout. They now expand the cutout to the right",
+      "Adaptive colors used to fallback automatically on the music dynamic tile (buttons, ring, cover fallback...)"
+    ]
+  },
+  {
+    "version": "0.3.0-beta",
+    "description": "Music and call tile rework, translations and status-bar automation",
+    "features": [
+      "Reworked music tile: customisable buttons (colour, text), wavy progress bar, cover art as the background, a mini player, a right-hand button on the normal cutout, and optimisations throughout",
+      "Reworked call tile: customisable buttons (colour, text), mini call, and a whole new normal cutout UI",
+      "Titles and UI improvements",
+      "Translations (EN, FR, TR)",
+      "Shevery support (to be user tested)",
+      "The notification icons, system icons and clock can each be hidden always, or automatically while the cutout is wider than usual"
+    ],
+    "bugfixes": [
+      "The call tile now closes when the call ends"
+    ]
+  },
+  {
+    "version": "0.2.0-beta",
+    "description": "Shizuku, adaptive colours and permission dots",
+    "features": [
+      "Automatically dismiss notifications once the island has shown them (best-effort — Android allows nothing better)",
+      "Display notifications while Do Not Disturb is on, tied to automatic dismissal",
+      "Shizuku implementation: hide notification heads-up, the clock, notification icons and system icons",
+      "Recent colours are saved in the colour picker",
+      "Haptics when the island pops",
+      "Click outside the island to close it (anuragdeshpande)",
+      "Persistent lock / unlock icons (anuragdeshpande)",
+      "Permission dots for location, camera and microphone",
+      "Adaptive colour for text, background, stroke and buttons (anuragdeshpande)",
+      "Option to ignore silent notifications (anuragdeshpande)",
+      "The expanded notification grows to fit multi-line text (anuragdeshpande)",
+      "Page transitions (anuragdeshpande)",
+      "More system events (anuragdeshpande)",
+      "Split mode",
+      "Contributing rules and coding style",
+      "@Stable and @Immutable refactor, so the island skips recomposition it doesn't need"
+    ],
+    "bugfixes": [
+      "Progress notifications",
+      "Notification loop for the same app",
+      "Stick to camera in horizontal mode",
+      "The music cover was not a circle",
+      "The custom expanded height no longer applies to the music tile, which sizes itself from its own content",
+      "The album cover comes back on its own after an app update, instead of waiting for the next track"
+    ]
+  },
+  {
     "version": "0.1.3-beta",
     "description": "Settings save, SWE and progress bar",
     "features": [

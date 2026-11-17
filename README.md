@@ -39,11 +39,6 @@ be uploaded: no accounts, no analytics, no tracking.
 ## Screenshots
 
 <!-- Screenshots go here. -->
-| | | |
-|-|-|-|
-|<img width="864" height="1939" alt="Screenshot_20260729-153011" src="https://github.com/user-attachments/assets/9f7e4724-bd91-4486-8f0e-9500906024d2" />|<img width="1080" height="2424" alt="Screenshot_20260729-153006" src="https://github.com/user-attachments/assets/e803d2a2-8e9b-41e0-8688-54affaefa355" />|<img width="864" height="1939" alt="Screenshot_20260729-153043" src="https://github.com/user-attachments/assets/84f40ce3-7ef0-41b4-9d89-3790008de5bc" />|
-| <img width="1080" height="2424" alt="Screenshot_20260807-111655" src="https://github.com/user-attachments/assets/7c4b132c-54ec-471b-a4c3-bf7ddc7d8846" /> | <img width="1080" height="2424" alt="Screenshot_20260807-111746" src="https://github.com/user-attachments/assets/1d59ac95-0dfb-4b4b-9b8c-2814eb436da1" /> | <img width="1080" height="2424" alt="Screenshot_20260807-112035" src="https://github.com/user-attachments/assets/33542dec-9d6b-456a-bc14-c779c1d07a00" /> |
- | <img width="1080" height="2424" alt="Screenshot_20260807-112215" src="https://github.com/user-attachments/assets/e33224c9-fe29-4fa2-b580-e0e8a10c7237" /> |
 
 ---
 
@@ -62,6 +57,42 @@ optimisation so the island stays reliable in the background.
 
 Join our [Discord server](https://discord.gg/SNfcuuJeYF) for feedback, feature requests, bug report and share with the Expressive by Evan community!
 
+<table>
+ <tr>
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105109" src="https://github.com/user-attachments/assets/a8baa083-8ae0-400e-8c64-be51dde517dd" />
+   <sub><b>Settings tab</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105118" src="https://github.com/user-attachments/assets/fc0cb5d9-268f-446c-9404-01523cb73ef3" />
+   <sub><b>Home screen</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105209" src="https://github.com/user-attachments/assets/4edac07d-a49b-4f41-b18c-d59769098495" />
+   <sub><b>Appearance settings</b></sub>
+  </td>
+ </tr>
+
+ <tr>
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105513" src="https://github.com/user-attachments/assets/2233784a-1be2-4814-ac25-b3b7d72720d2" />
+   <sub><b>Music tile</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105542" src="https://github.com/user-attachments/assets/b54b2d1b-24f9-4672-b3b9-8d12ac41d876" />
+   <sub><b>Call tile</b></sub>
+  </td>
+
+  <td>
+   <img width="1080" height="2410" alt="Screenshot_20261006-105619" src="https://github.com/user-attachments/assets/7719a864-651e-4c39-ad4b-6939938d5b87" />
+   <sub><b>Reply to messages</b></sub>
+  </td>
+ </tr>
+</table>
+
 ---
 
 ## Features
@@ -74,26 +105,35 @@ DISCLAIMER: This app was made as a project to learn Jetpack Compose. I used AI t
 | **Music tile** | Now-playing title and artist · album art on the collapsed island, optionally spinning while playback runs and stopping when paused · previous / play-pause / next controls on the expanded island |
 | **Phone tile** | Live ongoing call with the caller's name, contact photo and running duration · the dialer's own call actions, such as Hang up · incoming-call view with the caller's number and answer / decline buttons, opening the in-call screen on tap · optional taller two-row incoming layout with full-width buttons |
 | **Timer tile** | Mirrors the running countdown from your clock app, including Android 16+ live-update timers · the clock app's real buttons and labels, such as Add 1 min and Reset · Pause flips to Resume live |
-| **System events** | Charging started and stopped · battery low · Wi-Fi connected and lost · headphones in and out · USB connected and removed · device unlocked |
-| **Per-event customisation** | Pick any icon from the full Material icon library, with a search filter · animated icons with an optional loop · per-event colour override · per-event on-screen duration · one Material You colour for every event at once |
+| **System events** | Charging started and stopped · battery low · Wi-Fi connected and lost · headphones in and out · USB connected and removed · hotspot on and off · device unlocked |
+| **Privacy dots** *(Shizuku)* | Marks the cutout while an app is using the camera (green), the microphone (red) or your location (blue) · each dot switched on its own, with its own colour · dots on the left or right, in a row or stacked in a column |
+| **Status bar** *(Shizuku)* | Hide the system status bar's notification icons, so only the island reports them · hide the battery, Wi-Fi and signal icons · hide the clock · silence system alerts at the source, so sounds, vibration and heads-up pop-ups are muted and only the island alerts you · a separate rule for the lock screen |
+| **Per-app control** | Turn an app off and nothing it posts reaches the cutout, neither notifications nor media · keep an app on the normal island and never the expanded one · searchable app list |
+| **Per-event customisation** | Pick any icon from the full Material icon library, with a search filter · animated icons with an optional loop · per-event colour override · per-event on-screen duration (or keep it up for as long as its state lasts) · one Material You colour for every event at once |
 | **Size & position** | Independent width and height for the normal and expanded island · corner radius set for all corners, top / bottom, or each corner on its own · vertical and horizontal position · live preview with a light / dark background toggle · reset to default |
 | **Appearance** | Solid or gradient background, separately for the normal and expanded island, with direction and opacity · soft shadow · outline stroke with its own width and colour · Material You, preset or custom hex colours everywhere · light, dark or system app theme |
 | **Action buttons** | Four button styles (Expressive tonal, Expressive filled, Material You, Outlined) · four reply-field styles, including a segmented bar · button colour and height · cancel button on the left or beside send · tile-specific button colours for the phone and timer tiles |
 | **Animations** | Expressive spring or ease-in-out style · slow / default / fast speed · big / normal / small bounce · animation duration scaled from 0 to 1000 ms · tuned against a live example |
-| **Behaviour & gestures** | Auto-collapse after a delay, or stay expanded until tapped · disappear entirely when it shrinks · swipe up to shrink · swipe sideways to dismiss, with a direction and a choice of which sizes it applies to · hide on lockscreen, tearing the overlay down completely so it uses no resources |
-| **Privacy** | No internet permission at all, so nothing can leave the device · no analytics or tracking · never queries your installed apps · every permission explained in-app, and the whole manifest is documented on the Permission details screen |
+| **Behaviour & gestures** | Auto-collapse after a delay, or stay expanded until tapped · disappear entirely when it shrinks · swipe up to shrink · swipe left or right to dismiss, set separately for the normal and expanded cutout · hide on lockscreen, tearing the overlay down completely so it uses no resources |
+| **Privacy** | No internet permission at all, so nothing can leave the device · no analytics or tracking · screen content is read for features only, never stored and never sent · every permission explained in-app, and the whole manifest is documented on the Permission details screen |
 | **Testing** | Send yourself a test notification with reply and action buttons · trigger a test ongoing call and a test incoming call · preview any system event on the island from its detail screen |
 
 ---
 
 ## Permissions
 
-Your data privacy matters. The app only requests the absolute minimum permissions required to function. Plus, it has no INTERNET access permission, which means nothing is sent on the Internet: no analytics, no usage data, no notification content stored anywhere. Everything stays on your phone. Always. Here are the required permissions:
-- Notification access: to display your notifications in the dynamic island,
-- Accessibility service: to display over other apps (no screen content is read),  
+Your data privacy matters. The app only requests the absolute minimum permissions required to function. Plus, it has no INTERNET access permission, which means nothing is sent on the Internet: no analytics, no usage data, no notification content stored anywhere. Everything stays on your phone. Always. This list is the whole manifest, and every entry is explained at greater length in the app, on the Permission details screen. Here are the permissions:
+- Notification access: to display your notifications in the dynamic island. Android ties media access to the same grant, so this is also what lets the music tile show what is playing and control it,
+- Accessibility service: to display over other apps. It may also read screen content, but only to make features work: it reads which app is in the foreground (so a tile can hide while you are in that app). That is all it looks at — every other app is a package name and nothing more. Whatever is read is drawn on the island and immediately dropped: it is never written to storage, never logged, and — since the app has no internet permission — cannot be sent anywhere,  
+- Vibration: for haptic feedback in the app and on the cutout,  
 - Ignore battery optimisation (optional): to make sure battery optimisation does not kill the app,  
 - Post notification (optional): for testing purpose,  
-- Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it
+- Audio settings: so the expanded phone tile's Mute and Speaker buttons can route a live call's audio, since no dialer offers either as a notification action. It records nothing — this permission cannot,  
+- Phone state (optional): it reports only whether a call is ringing, connected or over — no phone number, no caller identity, no call log. It lets the phone tile close the moment you hang up, instead of waiting to notice the dialer's notification is gone. Without it the tile still closes, just a few seconds later,  
+- Shizuku (optional): only for the two features Android reserves for the shell user — hiding the system status bar icons, and reading which apps are using the microphone, camera or location for the privacy dots. Shizuku is a separate app you install and start yourself, and you approve this app in its interface. Without it, those two features are unavailable and everything else works as normal,  
+- Network state: it can just read if you are connected to the internet (for the Wifi event), but cannot access it,  
+- Wi-Fi state: since Android 12L the system only tells apps holding this permission when the hotspot turns on or off, so it is what makes the Hotspot event fire. Read-only, granted automatically: it cannot switch Wi-Fi or the hotspot, cannot see connected devices, and gives no internet access,  
+- App list visibility (`<queries>`, not a permission you grant): on Android 11+ an app sees no other app unless it says what it needs to see. This one asks for apps that have a launcher icon, so the Apps screen can list them for the per-app switches, an app's icon can colour the island, and the app can tell whether Shizuku is installed. It is deliberately not `QUERY_ALL_PACKAGES`
 
 ## Special thanks
 

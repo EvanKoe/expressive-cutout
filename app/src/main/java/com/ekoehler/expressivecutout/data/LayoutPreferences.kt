@@ -4,14 +4,17 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the collapsed and expanded island geometry. */
 private val Context.layoutDataStore: DataStore<Preferences> by preferencesDataStore(name = "layout_prefs")
 
 /**
@@ -24,6 +27,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         IslandLayout(
             collapsed = prefs.readDimensions(Keys.Collapsed, IslandLayout.DEFAULT_COLLAPSED),
             expanded = prefs.readDimensions(Keys.Expanded, IslandLayout.DEFAULT_EXPANDED),
+            expandedDesign = prefs[EXPANDED_DESIGN_KEY].toExpandedDesign(),
         )
     }
 
@@ -36,6 +40,7 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         return JSONObject().apply {
             put("collapsed", l.collapsed.toJsonObject())
             put("expanded", l.expanded.toJsonObject())
+            put("expandedDesign", l.expandedDesign.name)
         }.toString()
     }
 
@@ -48,8 +53,14 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         val obj = JSONObject(json)
         obj.optJSONObject("collapsed")?.toDimensionsOrNull()?.let { setCollapsed(it) }
         obj.optJSONObject("expanded")?.toDimensionsOrNull()?.let { setExpanded(it) }
+        obj.optString("expandedDesign").takeIf { it.isNotEmpty() }?.let { setExpandedDesign(it.toExpandedDesign()) }
     }
 
+    /**
+     * Reads one island geometry out of an imported settings file, returning null if any field is
+     * missing or malformed rather than throwing — a partial import leaves the stored layout
+     * untouched.
+     */
     private fun JSONObject.toDimensionsOrNull(): IslandDimensions? = runCatching {
         IslandDimensions.of(
             widthPercent = getInt("widthPercent"),
@@ -60,9 +71,16 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerTopRightDp = getInt("cornerTopRightDp"),
             cornerBottomLeftDp = getInt("cornerBottomLeftDp"),
             cornerBottomRightDp = getInt("cornerBottomRightDp"),
+            topMarginDp = optInt("topMarginDp", IslandDimensions.DEFAULT_TOP_MARGIN_DP),
+            isNotch = optBoolean("isNotch", false),
+            notchFlareDp = optInt("notchFlareDp", IslandDimensions.DEFAULT_NOTCH_FLARE_DP),
         )
     }.getOrNull()
 
+    /**
+     * Writes one island geometry for export, field by field so the JSON stays readable and
+     * hand-editable.
+     */
     private fun IslandDimensions.toJsonObject(): JSONObject = JSONObject().apply {
         put("widthPercent", widthPercent)
         put("heightDp", heightDp)
@@ -72,6 +90,9 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         put("cornerTopRightDp", cornerTopRightDp)
         put("cornerBottomLeftDp", cornerBottomLeftDp)
         put("cornerBottomRightDp", cornerBottomRightDp)
+        put("topMarginDp", topMarginDp)
+        put("isNotch", isNotch)
+        put("notchFlareDp", notchFlareDp)
     }
 
     suspend fun setCollapsed(dimensions: IslandDimensions) = context.layoutDataStore.edit {
@@ -82,7 +103,15 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         it.writeDimensions(Keys.Expanded, dimensions)
     }
 
+    suspend fun setExpandedDesign(design: ExpandedDesign) = context.layoutDataStore.edit {
+        it[EXPANDED_DESIGN_KEY] = design.name
+    }
+
     suspend fun reset() = context.layoutDataStore.edit { it.clear() }
+
+    /** An unknown or missing name falls back to the island design, so a stale file never breaks the overlay. */
+    private fun String?.toExpandedDesign(): ExpandedDesign =
+        ExpandedDesign.entries.firstOrNull { it.name == this } ?: ExpandedDesign.ISLAND
 
     private fun Preferences.readDimensions(keys: Keys, default: IslandDimensions) =
         IslandDimensions.of(
@@ -94,8 +123,15 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
             cornerTopRightDp = this[keys.cornerTopRight] ?: default.cornerTopRightDp,
             cornerBottomLeftDp = this[keys.cornerBottomLeft] ?: default.cornerBottomLeftDp,
             cornerBottomRightDp = this[keys.cornerBottomRight] ?: default.cornerBottomRightDp,
+            topMarginDp = this[keys.topMargin] ?: default.topMarginDp,
+            isNotch = this[keys.notch] ?: default.isNotch,
+            notchFlareDp = this[keys.notchFlare] ?: default.notchFlareDp,
         )
 
+    /**
+     * Writes one island geometry into preferences under [keys], which is what lets the collapsed
+     * and expanded states share this code with different key sets.
+     */
     private fun MutablePreferences.writeDimensions(keys: Keys, dimensions: IslandDimensions) {
         this[keys.width] = dimensions.widthPercent
         this[keys.height] = dimensions.heightDp
@@ -105,6 +141,13 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         this[keys.cornerTopRight] = dimensions.cornerTopRightDp
         this[keys.cornerBottomLeft] = dimensions.cornerBottomLeftDp
         this[keys.cornerBottomRight] = dimensions.cornerBottomRightDp
+        this[keys.topMargin] = dimensions.topMarginDp
+        this[keys.notch] = dimensions.isNotch
+        this[keys.notchFlare] = dimensions.notchFlareDp
+    }
+
+    private companion object {
+        val EXPANDED_DESIGN_KEY = stringPreferencesKey("expanded_design")
     }
 
     /** The preference keys backing one island state. */
@@ -117,6 +160,9 @@ class LayoutPreferences(private val context: Context) : JsonSerializable {
         val cornerTopRight = intPreferencesKey("${prefix}_corner_tr")
         val cornerBottomLeft = intPreferencesKey("${prefix}_corner_bl")
         val cornerBottomRight = intPreferencesKey("${prefix}_corner_br")
+        val topMargin = intPreferencesKey("${prefix}_top_margin")
+        val notch = booleanPreferencesKey("${prefix}_notch")
+        val notchFlare = intPreferencesKey("${prefix}_notch_flare")
 
         companion object {
             val Collapsed = Keys("collapsed")

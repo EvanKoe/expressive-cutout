@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.core
 
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +27,10 @@ data class NowPlaying(
     val packageName: String,
     val title: String?,
     val artist: String?,
+    /** Track artwork used by the compact pill. */
     val albumArt: ImageBitmap?,
+    /** Album artwork used by the expanded background, when the player publishes it separately. */
+    val albumBackgroundArt: ImageBitmap? = null,
     val isPlaying: Boolean,
     val transport: MediaTransport,
     /** Where playback has got to, or null for a session that publishes no position. */
@@ -65,6 +69,7 @@ data class MediaProgress(
 }
 
 /** The transport actions the music tile exposes. Backed by the active media session's controls. */
+@Stable
 interface MediaTransport {
     fun previous()
     fun playPause()

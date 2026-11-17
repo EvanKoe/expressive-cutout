@@ -25,24 +25,19 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.RadioButton
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.view.HapticFeedbackConstantsCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
+import com.ekoehler.expressivecutout.data.PinNotificationsMode
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.overlay.expandedActionsExtraDp
 import com.ekoehler.expressivecutout.ui.AppViewModel
-import com.ekoehler.expressivecutout.ui.components.ExpressiveSegmentedRow
+import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
+import com.ekoehler.expressivecutout.ui.components.PageTitle
+import com.ekoehler.expressivecutout.ui.components.SelectableOption
 import kotlin.math.roundToInt
 
 /** Grouped-list item shape: large outer corners at the group ends, small between items. */
@@ -53,6 +48,42 @@ private fun groupedShape(isFirst: Boolean, isLast: Boolean) = RoundedCornerShape
     bottomEnd = if (isLast) 32.dp else 4.dp,
 )
 
+/** Label shown for each landscape cutout mode in the options card. */
+private val HorizontalCutoutMode.titleRes: Int
+    get() = when (this) {
+        HorizontalCutoutMode.HIDDEN -> R.string.horizontal_cutout_hidden
+        HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only
+        HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera
+        HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center
+    }
+
+/** One-line explanation shown under each landscape cutout mode. */
+private val HorizontalCutoutMode.descriptionRes: Int
+    get() = when (this) {
+        HorizontalCutoutMode.HIDDEN -> R.string.horizontal_cutout_hidden_desc
+        HorizontalCutoutMode.NORMAL_ONLY -> R.string.horizontal_cutout_normal_only_desc
+        HorizontalCutoutMode.STICK_TO_CAMERA -> R.string.horizontal_cutout_stick_to_camera_desc
+        HorizontalCutoutMode.CENTER -> R.string.horizontal_cutout_center_desc
+    }
+
+/** Label shown for each pin mode in the options card. */
+private val PinNotificationsMode.titleRes: Int
+    get() = when (this) {
+        PinNotificationsMode.NONE -> R.string.behaviour_pin_notifications_none
+        PinNotificationsMode.NOTIFICATIONS -> R.string.behaviour_pin_notifications_notifications
+        PinNotificationsMode.SYSTEM_EVENTS -> R.string.behaviour_pin_notifications_system_events
+        PinNotificationsMode.BOTH -> R.string.behaviour_pin_notifications_both
+    }
+
+/** One-line explanation shown under each pin mode. */
+private val PinNotificationsMode.descriptionRes: Int
+    get() = when (this) {
+        PinNotificationsMode.NONE -> R.string.behaviour_pin_notifications_none_desc
+        PinNotificationsMode.NOTIFICATIONS -> R.string.behaviour_pin_notifications_notifications_desc
+        PinNotificationsMode.SYSTEM_EVENTS -> R.string.behaviour_pin_notifications_system_events_desc
+        PinNotificationsMode.BOTH -> R.string.behaviour_pin_notifications_both_desc
+    }
+
 @Composable
 internal fun BehaviourScreen(
     viewModel: AppViewModel,
@@ -60,9 +91,14 @@ internal fun BehaviourScreen(
     onOpenShowsWhenEmpty: () -> Unit,
 ) {
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val splitLockedByNotch = layout.collapsed.isNotch
+    val splitIsland = behaviour.splitIslandEnabled && !splitLockedByNotch
+
     var normalSeconds by remember(behaviour.normalDurationSeconds) {
         mutableStateOf(behaviour.normalDurationSeconds.toFloat())
     }
+
     var seconds by remember(behaviour.expandedCollapseSeconds) {
         mutableStateOf(behaviour.expandedCollapseSeconds.toFloat())
     }
@@ -76,7 +112,25 @@ internal fun BehaviourScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Grouped list: the first item's top corners and the last item's bottom corners round.
+        // Title
+        PageTitle(text = stringResource(R.string.behaviour_title))
+
+        // Landscape cutout mode
+        OptionSelectionCard(
+            modifier = Modifier.padding(bottom = 8.dp),
+            title = stringResource(R.string.behaviour_horizontal_cutout),
+            description = stringResource(R.string.behaviour_horizontal_cutout_desc),
+            options = HorizontalCutoutMode.entries.map { mode ->
+                SelectableOption(
+                    value = mode,
+                    title = stringResource(mode.titleRes),
+                    description = stringResource(mode.descriptionRes),
+                )
+            },
+            selectedValue = behaviour.horizontalCutoutMode,
+            onSelectionChange = viewModel::setHorizontalCutoutMode,
+        )
+        // Hide on lockscreen
         SettingsToggleCard(
             shape = groupedShape(isFirst = true, isLast = false),
             title = stringResource(R.string.behaviour_hide_lockscreen),
@@ -84,32 +138,7 @@ internal fun BehaviourScreen(
             checked = behaviour.hideOnLockscreen,
             onCheckedChange = viewModel::setHideOnLockscreen,
         )
-        BehaviourRadioGroupCard(
-            shape = groupedShape(isFirst = false, isLast = false),
-            title = stringResource(R.string.behaviour_horizontal_cutout),
-            options = listOf(
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_hidden),
-                    description = stringResource(R.string.horizontal_cutout_hidden_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_normal_only),
-                    description = stringResource(R.string.horizontal_cutout_normal_only_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_stick_to_camera),
-                    description = stringResource(R.string.horizontal_cutout_stick_to_camera_desc),
-                ),
-                RadioOption(
-                    title = stringResource(R.string.horizontal_cutout_center),
-                    description = stringResource(R.string.horizontal_cutout_center_desc),
-                ),
-            ),
-            selectedIndex = behaviour.horizontalCutoutMode.ordinal,
-            onSelect = { index ->
-                viewModel.setHorizontalCutoutMode(HorizontalCutoutMode.entries[index])
-            },
-        )
+        // Normal cutout duration
         BehaviourSliderRow(
             shape = groupedShape(isFirst = false, isLast = false),
             label = stringResource(R.string.behaviour_normal_duration),
@@ -120,6 +149,7 @@ internal fun BehaviourScreen(
             onValueChange = { normalSeconds = it },
             onCommit = { viewModel.setNormalDurationSeconds(normalSeconds.roundToInt()) },
         )
+        // Auto-collapse
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_auto_collapse),
@@ -127,6 +157,7 @@ internal fun BehaviourScreen(
             checked = behaviour.expandedAutoCollapse,
             onCheckedChange = viewModel::setExpandedAutoCollapse,
         )
+        // Collapse delay, only while auto-collapse is on
         AnimatedVisibility(visible = behaviour.expandedAutoCollapse) {
             BehaviourSliderRow(
                 shape = groupedShape(isFirst = false, isLast = false),
@@ -139,6 +170,7 @@ internal fun BehaviourScreen(
                 onCommit = { viewModel.setExpandedCollapseSeconds(seconds.roundToInt()) },
             )
         }
+        // Disappear on shrink
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_disappear),
@@ -146,6 +178,7 @@ internal fun BehaviourScreen(
             checked = behaviour.expandedDisappearOnShrink,
             onCheckedChange = viewModel::setExpandedDisappearOnShrink,
         )
+        // Auto-expand notifications
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_notif_auto_expand),
@@ -153,6 +186,31 @@ internal fun BehaviourScreen(
             checked = behaviour.notificationsAutoExpand,
             onCheckedChange = viewModel::setNotificationsAutoExpand,
         )
+        // Ignore silent notifications
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_ignore_silent_notif),
+            description = stringResource(R.string.behaviour_ignore_silent_notif_desc),
+            checked = behaviour.ignoreSilentNotifications,
+            onCheckedChange = viewModel::setIgnoreSilentNotifications,
+        )
+        // Pin notifications mode
+        OptionSelectionCard(
+            title = stringResource(R.string.behaviour_pin_notifications),
+            description = stringResource(R.string.behaviour_pin_notifications_desc),
+            options = PinNotificationsMode.entries.map { mode ->
+                SelectableOption(
+                    value = mode,
+                    title = stringResource(mode.titleRes),
+                    description = stringResource(mode.descriptionRes),
+                )
+            },
+            selectedValue = behaviour.pinNotificationsMode,
+            onSelectionChange = viewModel::setPinNotificationsMode,
+            isFirst = false,
+            isLast = false,
+        )
+        // Action buttons
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_action_buttons),
@@ -160,13 +218,7 @@ internal fun BehaviourScreen(
             checked = behaviour.showActionButtons,
             onCheckedChange = viewModel::setShowActionButtons,
         )
-        SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
-            title = stringResource(R.string.behaviour_shrink_swipe_up),
-            description = stringResource(R.string.behaviour_shrink_swipe_up_desc),
-            checked = behaviour.shrinkOnSwipeUp,
-            onCheckedChange = viewModel::setShrinkOnSwipeUp,
-        )
+        // Vibrate on tap
         SettingsToggleCard(
             shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_vibrateOnTap_title),
@@ -174,41 +226,49 @@ internal fun BehaviourScreen(
             checked = behaviour.vibrateOnTap,
             onCheckedChange = viewModel::setVibrateOnTap
         )
+        // Haptics on pop
         SettingsToggleCard(
-            shape = groupedShape(isFirst = false, isLast = false),
-            title = stringResource(R.string.behaviour_swipe_dismiss),
-            description = stringResource(R.string.behaviour_swipe_dismiss_desc),
-            checked = behaviour.swipeToDismiss,
-            onCheckedChange = viewModel::setSwipeToDismiss,
+            shape = groupedShape(isFirst = false, isLast = splitLockedByNotch),
+            title = stringResource(R.string.behaviour_hapticsOnPop_title),
+            description = stringResource(R.string.behaviour_hapticsOnPop_desc),
+            checked = behaviour.hapticsOnPop,
+            onCheckedChange = viewModel::setHapticsOnPop,
         )
-        AnimatedVisibility(visible = behaviour.swipeToDismiss) {
-            Column (verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = false),
-                    label = stringResource(R.string.behaviour_swipe_direction),
-                    options = listOf(
-                        stringResource(R.string.swipe_dir_left),
-                        stringResource(R.string.swipe_dir_right),
-                        stringResource(R.string.swipe_dir_both),
-                    ),
-                    selectedIndex = behaviour.swipeDismissDirection.ordinal,
-                    onSelect = { viewModel.setSwipeDismissDirection(SwipeDismissDirection.entries[it]) },
-                )
-                BehaviourSegmentedRow(
-                    shape = groupedShape(isFirst = false, isLast = false),
-                    label = stringResource(R.string.behaviour_swipe_target),
-                    options = listOf(
-                        stringResource(R.string.swipe_target_expanded),
-                        stringResource(R.string.swipe_target_both),
-                        stringResource(R.string.swipe_target_normal),
-                    ),
-                    selectedIndex = behaviour.swipeDismissTarget.ordinal,
-                    onSelect = { viewModel.setSwipeDismissTarget(SwipeDismissTarget.entries[it]) },
-                )
-            }
+        // Says why the switch below is greyed out, which it can't say for itself.
+        AnimatedVisibility(visible = splitLockedByNotch) {
+            Text(
+                text = stringResource(R.string.behaviour_split_island_notch),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
         }
+        // Split island
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = splitLockedByNotch, isLast = false),
+            title = stringResource(R.string.behaviour_split_island),
+            description = stringResource(R.string.behaviour_split_island_desc),
+            checked = splitIsland,
+            onCheckedChange = viewModel::setSplitIslandEnabled,
+            enabled = !splitLockedByNotch,
+        )
+        
+        // Bubble position, only while the island is split
+        AnimatedVisibility(visible = splitIsland) {
+            SettingsSegmentedCard(
+                shape = groupedShape(isFirst = false, isLast = false),
+                label = stringResource(R.string.behaviour_satellite_position),
+                options = listOf(
+                    stringResource(R.string.satellite_position_left),
+                    stringResource(R.string.satellite_position_right),
+                ),
+                selectedIndex = behaviour.satellitePosition.ordinal,
+                onSelect = { viewModel.setSatellitePosition(SatellitePosition.entries[it]) },
+            )
+        }
+        // Shows when empty
         SettingsToggleNavCard(
-            shape = groupedShape(isFirst = false, isLast = true),
+            shape = groupedShape(isFirst = false, isLast = false),
             title = stringResource(R.string.behaviour_empty_pill),
             description = stringResource(R.string.behaviour_empty_pill_desc),
             checked = behaviour.showsWhenEmpty,
@@ -218,34 +278,30 @@ internal fun BehaviourScreen(
                 onOpenShowsWhenEmpty()
             }
         )
-    }
-}
-
-@Composable
-private fun BehaviourSegmentedRow(
-    shape: Shape,
-    label: String,
-    options: List<String>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.titleMedium)
-            ExpressiveSegmentedRow(
-                options = options,
-                selectedIndex = selectedIndex,
-                onSelect = onSelect,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        // Dismiss notifications
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_dismissNotifs_title),
+            description = stringResource(R.string.behaviour_dismissNotifs_desc),
+            checked = behaviour.dismissNotifications,
+            onCheckedChange = viewModel::setDismissNotifications,
+        )
+        // Alert on notification
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = false),
+            title = stringResource(R.string.behaviour_alertOnNotif_title),
+            description = stringResource(R.string.behaviour_alertOnNotif_desc),
+            checked = behaviour.alertOnNotification,
+            onCheckedChange = viewModel::setAlertOnNotification,
+        )
+        // Display while Do Not Disturb
+        SettingsToggleCard(
+            shape = groupedShape(isFirst = false, isLast = true),
+            title = stringResource(R.string.behaviour_displayWhileDnd_title),
+            description = stringResource(R.string.behaviour_displayWhileDnd_desc),
+            checked = behaviour.displayWhileDnd,
+            onCheckedChange = viewModel::setDisplayWhileDnd
+        )
     }
 }
 
@@ -278,57 +334,3 @@ private fun BehaviourSliderRow(
         }
     }
 }
-
-private data class RadioOption(
-    val title: String,
-    val description: String,
-)
-
-@Composable
-private fun BehaviourRadioGroupCard(
-    shape: Shape,
-    title: String,
-    options: List<RadioOption>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                options.forEachIndexed { index, option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(index) }
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = option.title, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                text = option.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        RadioButton(
-                            selected = (index == selectedIndex),
-                            onClick = { onSelect(index) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
@@ -49,13 +50,23 @@ internal class IslandMotion(
 
     /**
      * Like [dp] but critically damped (no overshoot), for a size that grows incrementally rather than
-     * in one jump — the assistant cutout's height as its answer streams in. The bouncy spatial spring
-     * re-overshoots every time the target nudges up (once per token), making the cutout visibly bob;
+     * in one jump — an expanded notification's height as its measured content settles. The bouncy
+     * spatial spring re-overshoots every time the target nudges, making the cutout visibly bob;
      * a critically damped spring chases the growing height smoothly instead. Ignores the bounce knob
      * by design, but still honours the speed knob and the duration slider.
      */
     fun dpSmooth(): AnimationSpec<Dp> =
         if (expressive) spring(dampingRatio = 1f, stiffness = spatialStiffness(speed), visibilityThreshold = Dp.VisibilityThreshold)
+        else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
+
+    /**
+     * Like [dp] but with no visible overshoot, for geometry fused to the screen edge (the notch-like
+     * expanded card), where any bounce pulls it off the bezel. Damped just under critical so it
+     * lands as quickly as [dp] instead of creeping into place like [dpSmooth]. Ignores the bounce
+     * knob by design.
+     */
+    fun dpFirm(): AnimationSpec<Dp> =
+        if (expressive) spring(dampingRatio = FIRM_DAMPING, stiffness = spatialStiffness(speed), visibilityThreshold = Dp.VisibilityThreshold)
         else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
 
     /**
@@ -100,30 +111,95 @@ internal class IslandMotion(
         }
     }
 
+    /**
+     * Pops a freshly arrived icon into the normal cutout: it starts at [POP_IN_START_SCALE] and
+     * springs up to rest, overshooting slightly. When an event lands on a cutout that is already on
+     * screen — the resting "shows when empty" pill, or one notification replacing another — neither
+     * the reveal nor the size transition runs, so this is the only thing marking the arrival.
+     *
+     * Snaps to the start scale itself, so a second arrival mid-animation restarts the pop instead of
+     * springing on from wherever the previous one had got to.
+     */
+    suspend fun popIn(scale: Animatable<Float, AnimationVector1D>) {
+        scale.snapTo(POP_IN_START_SCALE)
+        scale.animateTo(
+            targetValue = REST_SCALE,
+            animationSpec = if (expressive) spatialSpec(speed, bounce, visibilityThreshold = 0.0005f)
+            else tween(durationMillis = scaled(POP_IN_MS), easing = EaseInOutEasing),
+        )
+    }
+
     /** Alpha / colour motion: critically damped (no overshoot), so fades never over-brighten. */
     fun fade(): AnimationSpec<Float> =
         if (expressive) effectsSpec(speed)
         else tween(durationMillis = scaled(BASE_TRANSITION_MS), easing = EaseInOutEasing)
 
+    /**
+     * Scale motion for a control swapping in or out (the pin button and the "Pinned" tag): the
+     * user's spatial spring under [AnimationStyle.EXPRESSIVE], a short tween otherwise.
+     */
+    fun swapScale(): FiniteAnimationSpec<Float> =
+        if (expressive) spatialSpec(speed, bounce, visibilityThreshold = 0.001f)
+        else tween(durationMillis = SWAP_MS)
+
+    /** Alpha motion for the same swap: critically damped under expressive, so it never over-brightens. */
+    fun swapFade(): FiniteAnimationSpec<Float> =
+        if (expressive) effectsSpec(speed)
+        else tween(durationMillis = SWAP_MS)
+
+    /**
+     * The scale a swapping control starts from or shrinks to. Expressive stops short of zero because
+     * its spring undershoots the target, and a scale below zero would flip the control inside out.
+     */
+    val swapMinScale: Float = if (expressive) 0.5f else 0f
+
     companion object {
-        // The tuned baseline for the island's primary expand/collapse transition. Every tween-based
-        // animation is expressed relative to this, so the duration slider scales them in proportion.
+        /**
+         * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+         * animation is expressed relative to this, so the duration slider scales them in
+         * proportion.
+         */
         const val BASE_TRANSITION_MS = 220
 
-        // Standard ease-in-out — cubic-bezier(0.42, 0.0, 0.58, 1.0) — for AnimationStyle.EASE_IN_OUT.
+        /**
+         * Standard ease-in-out — cubic-bezier(0.42, 0.0, 0.58, 1.0) — for
+         * AnimationStyle.EASE_IN_OUT.
+         */
         private val EaseInOutEasing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
-        // The island's resting scale, i.e. the one the boop and the pop depart from and return to.
+        /**
+         * The island's resting scale, i.e. the one the boop and the pop depart from and return to.
+         */
         private const val REST_SCALE = 1f
 
-        // Damping for [pop]'s single-arc swell. Loose enough that the spring actually overshoots,
-        // tight enough that it settles in one swing rather than wobbling.
+        /**
+         * Damping for [pop]'s single-arc swell. Loose enough that the spring actually overshoots,
+         * tight enough that it settles in one swing rather than wobbling.
+         */
         private const val POP_DAMPING = 0.55f
 
-        // How far a spring launched from its target overshoots, as a fraction of velocity / omega:
-        // exp(-z * atan(sqrt(1 - z^2) / z) / sqrt(1 - z^2)), evaluated at z = POP_DAMPING.
-        // Keep in step with POP_DAMPING — it is only correct for that value.
+        /** Damping for [dpFirm]: ~0.15% overshoot, well under a dp at cutout scale. */
+        private const val FIRM_DAMPING = 0.9f
+
+        /**
+         * How far a spring launched from its target overshoots, as a fraction of velocity / omega:
+         * exp(-z * atan(sqrt(1 - z^2) / z) / sqrt(1 - z^2)), evaluated at z = POP_DAMPING. Keep in
+         * step with POP_DAMPING — it is only correct for that value.
+         */
         private const val POP_PEAK_RATIO = 0.5216f
+
+        /**
+         * Where [popIn] starts from. The badge is small enough on the pill that the growth has to be
+         * a good half of its resting size to register at all; the spring's overshoot scales with that
+         * travel too, so a lower start buys a taller pop at both ends of the arc.
+         */
+        private const val POP_IN_START_SCALE = 0.55f
+
+        /** [popIn]'s length under [AnimationStyle.EASE_IN_OUT], which has no spring to settle. */
+        private const val POP_IN_MS = 200
+
+        /** [swapScale] and [swapFade]'s length under [AnimationStyle.EASE_IN_OUT]. */
+        private const val SWAP_MS = 200
 
         /**
          * A spatial spring based on the Material 3 expressive MotionScheme tokens: [speed] sets the

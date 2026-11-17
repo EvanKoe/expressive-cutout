@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
+/** Backing store for the timer tile's settings. */
 private val Context.timerTileDataStore: DataStore<Preferences> by preferencesDataStore(name = "timer_tile_prefs")
 
 /** The timer tile's own settings, edited on its dedicated settings screen. */

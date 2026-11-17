@@ -3,20 +3,25 @@ package com.ekoehler.expressivecutout.overlay
 import android.app.PendingIntent
 import android.app.RemoteInput
 import androidx.annotation.RawRes
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 
 /**
  * A fully resolved, ready-to-render icon. Reducing every possible source (a Material
  * vector default, a user-picked image, or another app's launcher icon) to just two
  * cases keeps the [DynamicIsland] composable trivial and free of Android plumbing.
  */
+@Immutable
 sealed interface IslandIcon {
+    /** A Material vector, drawn in the accent colour and always sharp at any size. */
     data class Vector(val image: ImageVector) : IslandIcon
 
     /**
@@ -45,6 +50,7 @@ sealed interface IslandIcon {
         val clipEndFrame: Int? = null,
         val scale: Float = 1f,
         val tint: Boolean = false,
+        val speed: Float = 1f,
     ) : IslandIcon
 }
 
@@ -53,11 +59,14 @@ sealed interface IslandIcon {
  * line (shown when expanded); [detail] is an optional secondary line (e.g. a notification
  * title). The collapsed island shows only the icon.
  */
+@Immutable
 data class IslandEvent(
     val id: Long,
     val icon: IslandIcon,
     val label: String,
     val detail: String? = null,
+    val appName: String? = null,
+    val postTimeMs: Long? = null,
     val accent: Color,
     /**
      * When true the icon badge ignores [accent] and is drawn with a Material You role colour and
@@ -81,6 +90,11 @@ data class IslandEvent(
      */
     val iconContainerColor: CutoutColor? = null,
     val initiallyExpanded: Boolean = false,
+    /**
+     * The event never auto-hides: it stays in whichever slot it holds until the user dismisses it.
+     * Set by the "Pin notifications" setting or the pin button on the expanded card.
+     */
+    val pinned: Boolean = false,
     /**
      * The user set "Normal only" for the posting app on the Apps screen: this pill has no expanded
      * state, so a tap opens the app via [contentIntent] instead of toggling it open. Same treatment
@@ -119,22 +133,35 @@ data class IslandEvent(
      */
     val timer: TimerTileOptions? = null,
     /**
-     * When non-null this is the assistant tile: the island displays voice assistant speech/response text
-     * in the cutout, capped at [maxCutoutHeightPercent] of screen height. Null otherwise.
-     */
-    val assistant: AssistantTileOptions? = null,
-    /**
      * Contains the progress of this notification if it is a progress one.
      * Is null otherwise
      */
-    val progressData: ProgressData? = null
-)
-
-/** Which parts of the assistant tile to render (display text, max height). */
-data class AssistantTileOptions(
-    val displayAnswerInCutout: Boolean,
-    val maxCutoutHeightPercent: Int,
-    val answerText: String?,
+    val progressData: ProgressData? = null,
+    /** The package name of the app that posted this event, if any. */
+    val packageName: String? = null,
+    /** The primary branding color extracted from the posting app's default launcher icon, if any. */
+    val appColor: Color? = null,
+    /**
+     * Status indicator dot color (e.g. green for success/connected, red for danger/disconnected,
+     * yellow for warning, blue for neutral/lock). When non-null, a pulsing/radiating dot is rendered
+     * on the collapsed pill between the badge and the camera, and beside the badge on the expanded card.
+     */
+    val statusDotColor: Color? = null,
+    /**
+     * Trailing status text (e.g. battery percentage "85%") shown on the trailing edge of the collapsed
+     * island instead of a status dot.
+     */
+    val trailingText: String? = null,
+    /** Color for [trailingText]. Null falls back to theme content color. */
+    val trailingTextColor: Color? = null,
+    /** Hotspot card options when this is the hotspot event, or null for any other event. */
+    val hotspot: HotspotCard? = null,
+    /** Additional multi-line detail strings rendered in the expanded island below [detail]. */
+    val secondaryLines: List<String> = emptyList(),
+    /** System Settings activity action to launch when the expanded island is tapped. */
+    val actionIntentAction: String? = null,
+    /** Optional URI data to attach to [actionIntentAction]. */
+    val actionIntentUri: String? = null,
 )
 
 /** Which parts of the timer tile to render (and how its buttons look), per the tile's settings. */
@@ -151,19 +178,41 @@ data class CallTileOptions(
     val showPhoto: Boolean,
     val showDuration: Boolean,
     val showActions: Boolean,
+    /** Label the wide call buttons (Take / Hang up) beside their icon instead of showing the icon alone. */
+    val showButtonLabels: Boolean,
     /** Use the taller two-row layout for an incoming (ringing) call instead of the compact single row. */
     val incomingExpandedLayout: Boolean,
+    /**
+     * Draw the tiny cutout — the same small pill the music tile's "Mini player" uses, carrying only
+     * a call glyph — in place of a connected call's normal cutout. A tap still opens the expanded
+     * call controls. Ignored while the call is ringing: that layout carries the answer button.
+     */
+    val miniCall: Boolean = false,
     /** Fill of the hang-up / end-call button. */
     val hangUpColor: CutoutColor,
     /** Fill shared by every other call button. */
     val otherButtonColor: CutoutColor,
+    /** Fill of the Take (answer) button on a ringing call. */
+    val incomingAnswerColor: CutoutColor,
+    /** Fill of the Hang up (decline) button on a ringing call. */
+    val incomingHangUpColor: CutoutColor,
+    /** Fill of the hang-up button on the expanded call card. */
+    val expandedHangUpColor: CutoutColor,
 )
 
 /** Which parts of the music tile to render (and how the controls look), per the tile's settings. */
 data class MediaTileOptions(
     val showAlbumArt: Boolean,
+    /** Draw the album cover behind the expanded music player. */
+    val showAlbumBackground: Boolean = false,
+    /** How far that album background darkens towards black: 0 untouched, 1 black. */
+    val albumBackgroundDim: Float,
+    /** Blur radius of that album background in dp; null leaves it sharp. */
+    val albumBackgroundBlurRadius: Int? = null,
     /** Spin the album art while playback is live, freezing it when paused. */
     val rotateAlbumArt: Boolean,
+    /** Crop the cover to a full circle instead of a rounded square; implied by [rotateAlbumArt]. */
+    val circleCover: Boolean = false,
     /** Ring the album art, set apart from it by a small gap. */
     val albumArtStroke: Boolean = false,
     /** Colour of that ring; null falls back to the tile's accent. */
@@ -173,8 +222,38 @@ data class MediaTileOptions(
     val showProgress: Boolean = false,
     /** Look of the previous / next (skip) buttons. */
     val skipStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the previous button take the controls row's leftover width. */
+    val previousExpand: Boolean = false,
+    /** Label the expanded previous button "Previous" instead of drawing its icon. */
+    val previousText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val previousTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    /** Let the next button take the controls row's leftover width. */
+    val nextExpand: Boolean = false,
+    /** Label the expanded next button "Next" instead of drawing its icon. */
+    val nextText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val nextTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     /** Look of the central play / pause button. */
     val playPauseStyle: MusicButtonStyle = MusicButtonStyle.DEFAULT,
+    /** Let the play/pause button take the controls row's leftover width. */
+    val playPauseExpand: Boolean = false,
+    /** Label the expanded play/pause button "Play" / "Pause" instead of drawing its icon. */
+    val playPauseText: Boolean = false,
+    /** Roboto Flex `wdth` axis of that label. */
+    val playPauseTextWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    /**
+     * Draw the tiny cutout — a small pill holding only the note glyph and the cover — in place of
+     * the normal cutout while music plays. The expanded cutout is unchanged, and a tap still opens it.
+     */
+    val miniPlayer: Boolean = false,
+    /**
+     * Draw one transport button on the trailing edge of the normal cutout. Ignored while
+     * [miniPlayer] is on: the tiny pill has no room for it.
+     */
+    val rightButton: Boolean = false,
+    /** The action that button fires, and the icon it draws. */
+    val rightButtonAction: MusicRightButtonAction = MusicRightButtonAction.PLAY_PAUSE,
 )
 
 /**
@@ -182,6 +261,7 @@ data class MediaTileOptions(
  * when [reply] is non-null the chip opens an inline text field and the typed text is sent through
  * [intent] instead.
  */
+@Immutable
 data class IslandAction(
     val label: String,
     val intent: PendingIntent? = null,
@@ -193,8 +273,32 @@ data class IslandAction(
 )
 
 /** Everything needed to send an inline reply through a notification action's intent. */
+@Immutable
 data class IslandReply(
     val resultKey: String,
     val remoteInputs: List<RemoteInput>,
     val hint: String?,
 )
+
+/**
+ * Whether this event draws the tiny cutout in place of its own normal one: the music tile's "Mini
+ * player", or the phone tile's "Mini call" on a call that has already connected ([callOngoing]) —
+ * a ringing one keeps its layout so the answer button stays reachable. Shared by the overlay's
+ * rendering and its window sizing so the two always agree on the pill's geometry.
+ */
+fun IslandEvent.usesTinyCutout(callOngoing: Boolean): Boolean =
+    media?.miniPlayer == true || (call?.miniCall == true && callOngoing)
+
+/**
+ * Whether this event writes anything on the collapsed pill's trailing edge: the timer's remaining
+ * time, a progress ring, the music tile's transport button, a trailing text such as the battery
+ * percentage. The permission dots share that edge, so this is what
+ * decides whether the pill has to grow to the right to hold both.
+ *
+ * Shared by the overlay's rendering and its window sizing, exactly as [usesTinyCutout] is, so the
+ * two can't drift apart and leave the dots drawn outside the window that has to contain them.
+ */
+fun IslandEvent.hasCollapsedTrailingContent(): Boolean =
+    timer != null || progressData != null ||
+        (media?.rightButton == true && !media.miniPlayer) ||
+        trailingText != null || hotspot?.badge != null

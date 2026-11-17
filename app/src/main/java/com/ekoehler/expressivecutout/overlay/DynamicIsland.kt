@@ -6,19 +6,28 @@ import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -26,32 +35,44 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CallEnd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
@@ -60,54 +81,72 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
-import com.ekoehler.expressivecutout.core.DynamicTile
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbnb.lottie.LottieProperty
@@ -118,19 +157,24 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import android.net.Uri
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.toUpperCase
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.core.CallAudioBus
 import com.ekoehler.expressivecutout.core.MediaArtBus
+import com.ekoehler.expressivecutout.core.MediaLike
 import com.ekoehler.expressivecutout.core.MediaProgress
 import com.ekoehler.expressivecutout.core.NowPlaying
 import com.ekoehler.expressivecutout.core.NowPlayingBus
@@ -142,63 +186,113 @@ import com.ekoehler.expressivecutout.data.ActionButtonAlignment
 import com.ekoehler.expressivecutout.data.ActionButtonAnimation
 import com.ekoehler.expressivecutout.data.ActionButtonStyle
 import com.ekoehler.expressivecutout.data.SentAlignment
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.AnimationBounce
 import com.ekoehler.expressivecutout.data.AnimationSpeed
 import com.ekoehler.expressivecutout.data.AnimationStyle
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CenterShortcut
+import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
+import com.ekoehler.expressivecutout.data.BehaviourSettings
+import com.ekoehler.expressivecutout.events.BatteryStatus
+import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.CALL_MIN_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.data.IslandDimensions
+import com.ekoehler.expressivecutout.data.IslandLayout
 import com.ekoehler.expressivecutout.data.asCallCutout
+import com.ekoehler.expressivecutout.data.asSplitCallCutout
+import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.MusicButtonStyle
+import com.ekoehler.expressivecutout.data.MusicRightButtonAction
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.SatellitePosition
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
-import com.ekoehler.expressivecutout.data.SwipeDismissDirection
-import com.ekoehler.expressivecutout.data.SwipeDismissTarget
 import com.ekoehler.expressivecutout.service.ProgressData
+import com.ekoehler.expressivecutout.system.HotspotState
+import com.ekoehler.expressivecutout.system.PermissionUsage
+import com.ekoehler.expressivecutout.service.UnreadCounts
+import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.inkOn
+import com.ekoehler.expressivecutout.ui.components.groupedShape
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
+import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
+import com.ekoehler.expressivecutout.ui.components.WavyProgressBar
+import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 
-// Text colours for a dark fill; on a light fill we swap in a dark text colour (see contentColorFor).
-private val PillTextColor = Color(0xFFF5F5F5)
-private val PillTextColorDark = Color(0xFF0A0A0A)
+/**
+ * Text colours for a dark fill; on a light fill we swap in a dark text colour (see
+ * contentColorFor).
+ */
+private val PILL_TEXT_COLOR = Color(0xFFF5F5F5)
+private val PILL_TEXT_COLOR_DARK = Color(0xFF0A0A0A)
 
 /** Fallback fill for a button asked to be [MusicButtonStyle.filled] before the user picks a colour. */
-private val MusicButtonFilledDefault = Color(0xFFE0E0E0)
+private val MUSIC_BUTTON_FILLED_DEFAULT = Color(0xFFE0E0E0)
 
-// Vertical spacing added around the action row on top of the chip height itself.
-private const val ACTIONS_ROW_SPACING_DP = 14
+/**
+ * The expanded notification's progress bar: its thickness, and the gap holding it off the text
+ * above.
+ */
+private const val PROGRESS_BAR_HEIGHT_DP = 8
+private const val PROGRESS_BAR_TOP_GAP_DP = 6
 
-// How far the island must be dragged upward before a swipe-up collapses it.
-private const val SWIPE_UP_SHRINK_THRESHOLD_DP = 24
+/**
+ * Vertical spacing added around the action row on top of the chip height itself. Must equal the
+ * expanded column's own child spacing, or a notification with actions and one without end up with
+ * their header rows at different heights.
+ */
+private const val ACTIONS_ROW_SPACING_DP = 12
 
-// How far the island must be dragged sideways before releasing dismisses it.
+/** How far the island must be dragged up or down before a vertical swipe fires its gesture action. */
+private const val SWIPE_VERTICAL_THRESHOLD_DP = 24
+
+/**
+ * How far the expanded card may stretch downward under a swipe down. The overlay window keeps this
+ * much extra height below the expanded card so the stretch is never clipped.
+ */
+internal const val PULL_STRETCH_MAX_DP = 16
+
+/**
+ * Drag distance, as a multiple of [PULL_STRETCH_MAX_DP], over which the stretch reaches about two
+ * thirds of its maximum. Higher feels stiffer.
+ */
+private const val PULL_STRETCH_RESISTANCE = 3f
+
+/** How far the island must be dragged sideways before releasing dismisses it. */
 private const val SWIPE_DISMISS_THRESHOLD_DP = 90
 
-// How long the "reply sent" confirmation stays on screen before the reply is dispatched.
+/** How long the "reply sent" confirmation stays on screen before the reply is dispatched. */
 private const val REPLY_SENT_FEEDBACK_MS = 900L
 
-// Time for the rotating album art to complete one full turn.
+/** Time for the rotating album art to complete one full turn. */
 private const val ALBUM_SPIN_MS = 8000
 
-// The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
-// itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
-// the same on the collapsed pill and in the (larger) expanded layout.
+/**
+ * The optional ring around the album cover, as fractions of the cover's own footprint: the stroke
+ * itself, then the breathing space between it and the artwork. Kept proportional so the ring reads
+ * the same on the collapsed pill and in the (larger) expanded layout.
+ */
 private const val ALBUM_STROKE_FRACTION = 0.055f
 private const val ALBUM_STROKE_GAP_FRACTION = 0.06f
 
-// How often the music progress bar re-reads its own clock. The media session pushes nothing between
-// real changes, so this is the bar's only motion; a whole bar width is a track long, which makes
-// even a half-second step sub-pixel.
-private const val PROGRESS_TICK_MS = 500L
 
-// The tuned baseline for the island's primary expand/collapse transition. Every tween-based
-// animation is expressed relative to this, so the user's single "animation duration" knob scales
-// them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+/**
+ * The tuned baseline for the island's primary expand/collapse transition. Every tween-based
+ * animation is expressed relative to this, so the user's single "animation duration" knob scales
+ * them all in proportion (see `animScale` in DynamicIsland). Its default equals this value.
+ */
 private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 
 /**
@@ -209,6 +303,140 @@ private const val BASE_TRANSITION_MS = IslandMotion.BASE_TRANSITION_MS
 internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp + ACTIONS_ROW_SPACING_DP
 
 /**
+ * Calculates the total target height for an expanded notification card.
+ * Ensures the height is at least the base expanded height (plus any action button extra height
+ * and top margin offset beyond the default), and automatically adjusts upward if the measured
+ * content height requires more space, so action buttons and multi-line text are never squished.
+ */
+internal fun calculateExpandedNotificationHeightDp(
+    baseExpandedHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    measuredContentHeightDp: Int = 0,
+    buttonHeightDp: Int = 0,
+    hasActions: Boolean = false,
+    maxHeightLimitDp: Int = Int.MAX_VALUE,
+): Int {
+    val baseExtra = if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
+    val topMarginExtra = maxOf(0, topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
+    val baseHeight = baseExpandedHeightDp + baseExtra + topMarginExtra
+    if (measuredContentHeightDp > 0) {
+        return maxOf(baseHeight, measuredContentHeightDp).coerceAtMost(maxHeightLimitDp)
+    }
+    return baseHeight
+}
+
+/**
+ * Height of the music progress bar, matching Material 3's LinearProgressIndicator default track.
+ */
+private const val MEDIA_PROGRESS_HEIGHT_DP = 4
+
+/**
+ * Breathing room above and below the progress bar, on top of the column's own row spacing. Without
+ * it the bar reads as glued to the album row above and the transport buttons below.
+ */
+private const val MEDIA_PROGRESS_GAP_DP = 6
+
+/**
+ * Extra height added to the expanded music tile when it shows the progress bar: the bar itself, its
+ * own gap on each side, plus the spacing above it. Reserved separately from [expandedActionsExtraDp]
+ * because the bar is a third row in the same column — without its own allowance the track text is
+ * squeezed out of its slot and the bar, drawn after it, paints over the artist line.
+ */
+internal fun expandedMediaProgressExtraDp(): Int =
+    MEDIA_PROGRESS_HEIGHT_DP + MEDIA_PROGRESS_GAP_DP * 2 + ACTIONS_ROW_SPACING_DP
+
+/** The music tile's artwork/track row: the album badge's own size, which the text column matches. */
+private const val MEDIA_CONTENT_ROW_HEIGHT_DP = 44
+
+/** Bottom inset under the music tile's column, matching its layout's own bottom padding. */
+private const val MEDIA_EXPANDED_BOTTOM_PADDING_DP = 16
+
+/**
+ * Extra height reserved for the expanded music tile only, on top of what its rows strictly measure.
+ * The tile packs artwork, track text, the progress bar and the transport row into one column, and at
+ * the bare content height they read as cramped against each other and the cutout.
+ */
+private const val MEDIA_EXPANDED_EXTRA_HEIGHT_DP = 40
+
+/**
+ * The expanded music tile's base height, taken from its own content rather than the user's expanded
+ * height: the camera band, the artwork row, and the bottom inset. Its layout is a top-anchored column
+ * with no filler, so a taller card would strand the controls above dead space and a shorter one would
+ * squeeze them out of it entirely — hence the height knob is deliberately not applied here. The
+ * progress bar and transport controls are added on top of this by the usual height bonuses.
+ */
+internal fun mediaExpandedBaseHeightDp(topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP): Int =
+    topMarginDp + MEDIA_CONTENT_ROW_HEIGHT_DP + MEDIA_EXPANDED_BOTTOM_PADDING_DP +
+        MEDIA_EXPANDED_EXTRA_HEIGHT_DP
+
+/**
+ * Bottom inset under the action chips (or the text column when there are none). Kept equal to the
+ * expanded notification column's bottom padding so measured inner height converts back to island height.
+ */
+internal const val EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP = 18
+
+/** How far the "Pinned" tag is pulled in from the island's right edge, past the content padding. */
+private const val PINNED_TAG_END_INSET_DP = 6
+
+/** The scale animation grows from and shrinks to the island's right edge, where both controls sit. */
+private val PIN_SWAP_ORIGIN = TransformOrigin(1f, 0.5f)
+
+/**
+ * Island height from the inner expanded column (icon/text + chips), plus the camera band and bottom
+ * padding. [measuredInnerHeightDp] must not include those insets — that is what
+ * [onGloballyPositioned] reports when padding sits outside the callback.
+ *
+ * When nothing has been measured yet, falls back to the configured expanded height plus a chip row
+ * if [hasActions] so the first frame is not shorter than the chips.
+ */
+internal fun calculateExpandedNotificationHeightDp(
+    baseExpandedHeightDp: Int,
+    topMarginDp: Int = 36,
+    measuredInnerHeightDp: Int = 0,
+    buttonHeightDp: Int = 0,
+    hasActions: Boolean = false,
+    maxHeightLimitDp: Int = Int.MAX_VALUE,
+    bottomPaddingDp: Int = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP,
+): Int {
+    if (measuredInnerHeightDp <= 0) {
+        val fallback = baseExpandedHeightDp + if (hasActions) expandedActionsExtraDp(buttonHeightDp) else 0
+        return fallback.coerceAtMost(maxHeightLimitDp)
+    }
+
+    return (topMarginDp + measuredInnerHeightDp + bottomPaddingDp)
+        .coerceAtLeast(baseExpandedHeightDp)
+        .coerceAtMost(maxHeightLimitDp)
+}
+
+/**
+ * Estimates the total height needed to display an expanded notification given its text components,
+ * actions, and progress state, providing a smooth precomputed height target before expansion.
+ */
+internal fun estimateNotificationContentHeightDp(
+    topMarginDp: Int,
+    titleLines: Int = 1,
+    detailLines: Int = 1,
+    secondaryLinesCount: Int = 0,
+    hasHeader: Boolean = false,
+    hasActions: Boolean = false,
+    buttonHeightDp: Int = 44,
+    hasProgress: Boolean = false,
+    bottomPaddingDp: Int = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP,
+): Int {
+    val headerHeight = if (hasHeader) 16 else 0
+    val titleHeight = maxOf(1, titleLines) * 24
+    val detailHeight = maxOf(0, detailLines) * 20
+    val secondaryHeight = if (secondaryLinesCount > 0) secondaryLinesCount * 20 else 0
+    val progressHeight = if (hasProgress) (PROGRESS_BAR_HEIGHT_DP + PROGRESS_BAR_TOP_GAP_DP) else 0
+    val textBlockHeight = headerHeight + titleHeight + detailHeight + secondaryHeight + progressHeight
+
+    val contentRowHeight = maxOf(44, textBlockHeight)
+    val actionsHeight = if (hasActions) (ACTIONS_ROW_SPACING_DP + buttonHeightDp) else 0
+
+    return topMarginDp + contentRowHeight + actionsHeight + bottomPaddingDp
+}
+
+/**
  * A safe upper bound on the height the expanded "center" claims below the base expanded cutout. The
  * visible island fits its measured content exactly (see the height-bonus logic in [DynamicIsland]);
  * the controller reserves this for the host window and touchable region so they never clip the
@@ -216,8 +444,10 @@ internal fun expandedActionsExtraDp(buttonHeightDp: Int): Int = buttonHeightDp +
  */
 internal const val CENTER_SHORTCUTS_EXTRA_DP = 135
 
-// Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the center's
-// content, used when fitting the island height to its measured shortcut row.
+/**
+ * Gap between the camera cutout (cleared by a collapsed-pill-height band at the top) and the
+ * center's content, used when fitting the island height to its measured shortcut row.
+ */
 private const val CENTER_TOP_GAP_DP = 8
 
 /**
@@ -239,6 +469,20 @@ internal fun SentAlignment.toHorizontal(): Alignment.Horizontal = when (this) {
 }
 
 /**
+ * Which of the pill's three faces is showing, used as the cross-fade key for the island's content.
+ * Keying on [expanded] alone would swap an event for the resting empty pill in a single frame, so a
+ * music tile losing the cutout (playback ending, or the player app coming to the foreground with
+ * "Visible in player app" off) made its album cover vanish abruptly. Folding [emptyPill] into the
+ * key cross-dissolves that swap in both directions.
+ */
+private data class IslandContentKey(
+    val emptyPill: Boolean,
+    val expanded: Boolean,
+    /** The music tile's tiny "Mini player" pill, so toggling it cross-dissolves too. */
+    val tiny: Boolean = false,
+)
+
+/**
  * The interactive overlay island. The hosting window is a fixed size; the island's size,
  * position and corners are all animated here in Compose, so expand/collapse never resizes the
  * window (which caused per-frame relayout jank). Tapping toggles expanded; [forcedExpanded]
@@ -250,9 +494,22 @@ fun DynamicIsland(
     collapsed: IslandDimensions,
     expanded: IslandDimensions,
     displayWidthDp: Int,
+    displayWidthExactDp: Float = displayWidthDp.toFloat(),
+    /**
+     * The camera cutout's right edge in dp from the screen's horizontal centre, used only to hang
+     * the music tile's tiny "Mini player" pill off the hole. Null when the device reports no cutout.
+     */
+    cameraRightEdgeDp: Float? = null,
+    /**
+     * The camera cutout's left edge in dp from the screen's horizontal centre (negative left of it),
+     * which the status dot is parked beside. Null when the device reports no cutout.
+     */
+    cameraLeftEdgeDp: Float? = null,
     forcedExpanded: Boolean?,
+    collapseTrigger: Long = 0L,
     isStickToCamera: Boolean = false,
     isRotation270: Boolean = false,
+    snapGeometry: Boolean = false,
     offsetYDp: Int = 6,
     animationStyle: AnimationStyle,
     animationSpeed: AnimationSpeed,
@@ -263,27 +520,56 @@ fun DynamicIsland(
     autoCollapseMs: Long,
     appearance: AppearanceSettings,
     showActions: Boolean,
-    shrinkOnSwipeUp: Boolean,
-    swipeToDismiss: Boolean,
-    swipeDismissDirection: SwipeDismissDirection,
-    swipeDismissTarget: SwipeDismissTarget,
+    normalTap: GestureAction,
+    normalSwipeUp: GestureAction,
+    expandedTap: GestureAction,
+    expandedSwipeUp: GestureAction,
+    expandedSwipeDown: GestureAction,
+    normalSwipeLeft: GestureAction,
+    normalSwipeRight: GestureAction,
+    expandedSwipeLeft: GestureAction,
+    expandedSwipeRight: GestureAction,
     showsWhenEmpty: Boolean,
-    emptyIcon: IconSource? = null,
-    emptyIconColor: CutoutColor? = null,
+    /** Whether the resting pill is drawn; when false it is an invisible tap area of [hiddenEmptyWidthPercent]. */
+    showEmptyCutout: Boolean = true,
+    /** Width, in percent of the screen, of the invisible tap area used while [showEmptyCutout] is off. */
+    hiddenEmptyWidthPercent: Int = BehaviourSettings.DEFAULT_HIDDEN_EMPTY_WIDTH_PERCENT,
+    emptyInfo: EmptyPillInfoSettings = EmptyPillInfoSettings(),
+    unreadCounts: UnreadCounts = UnreadCounts(),
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
+    battery: BatteryStatus? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
     centerShowLabels: Boolean = true,
     centerFillContainers: Boolean = false,
     centerThemedIcons: Boolean = false,
     vibrateOnTap: Boolean = true,
+    hapticsOnPop: Boolean = false,
+    /** Whether system-event pills may draw the radiating status dot on their trailing edge. */
+    statusDotEnabled: Boolean = true,
+    /** Which side of the camera hole the status dot sits on. */
+    statusDotSide: StatusDotSide = StatusDotSide.LEFT,
+    permissionDotsEnabled: Boolean = false,
+    permissionUsage: PermissionUsage = PermissionUsage(),
+    permissionDotPosition: PermissionDotPosition = PermissionDotPosition.RIGHT,
+    permissionDotColors: PermissionDotColors = PermissionDotColors(),
+    permissionDotsVertical: Boolean = false,
+    /** The event the pill displaced, shown in a bubble beside it, or null when the island is whole. */
+    satellite: IslandEvent? = null,
+    satellitePosition: SatellitePosition = SatellitePosition.RIGHT,
+    onSatelliteClick: () -> Unit = {},
     onEmptyClick: () -> Unit = {},
     onCenterShortcut: (CenterShortcut) -> Unit = {},
     onExpandedChange: (Boolean) -> Unit,
     onActivate: () -> Unit,
+    onOpenCall: () -> Unit = onActivate,
     onAction: (IslandAction) -> Unit,
     onReply: (IslandAction, String) -> Unit,
     onReplyActiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onPinToggle: () -> Unit = {},
 ) {
     var lastEvent by remember { mutableStateOf<IslandEvent?>(null) }
     if (event != null) {
@@ -294,15 +580,18 @@ fun DynamicIsland(
     val emptyPill = event == null && showsWhenEmpty
 
     val initialExpandedState = if (forcedExpanded == false) false else (shownEvent?.initiallyExpanded ?: false)
-    var tapExpanded by remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    val tapExpandedState = remember(shownEvent?.id, forcedExpanded) { mutableStateOf(initialExpandedState) }
+    var tapExpanded by tapExpandedState
     var centerInteraction by remember { mutableStateOf(0) }
     var replyingTo by remember(shownEvent?.id) { mutableStateOf<IslandAction?>(null) }
     val replying = replyingTo != null
     var sentReply by remember(shownEvent?.id) { mutableStateOf<Pair<IslandAction, String>?>(null) }
     val confirmingSent = sentReply != null
     val isCall = shownEvent?.call != null
-    val isAssistantNormalOnly = shownEvent?.assistant != null && !shownEvent.assistant.displayAnswerInCutout
-    val isNormalOnly = isCall || isAssistantNormalOnly || shownEvent?.normalOnly == true
+    val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
+    val callIncoming = isCall && liveCall?.ongoing == false
+    // A ringing call owns its own layout and never expands; a connected one opens into the call controls.
+    val isNormalOnly = callIncoming || shownEvent?.normalOnly == true
     val centerExpanded = emptyPill && emptyOpensCenter && tapExpanded
     val isExpanded = when {
         forcedExpanded == false -> false
@@ -310,11 +599,38 @@ fun DynamicIsland(
         isNormalOnly -> false
         else -> forcedExpanded ?: tapExpanded
     }
+    val emptyPillHidden = emptyPill && !isExpanded && !showEmptyCutout
 
     val boopScale = remember { Animatable(1f) }
     val pressExpand = remember { Animatable(0f) }
+    val pullStretch = remember(shownEvent?.id) { Animatable(0f) }
     val pressWidens = actionButtonAnimation == ActionButtonAnimation.EXPAND
     val dismissOffsetX = remember(shownEvent?.id) { Animatable(0f) }
+    // The collapsed cutout only gets the window treatment with no resting pill to slide back into.
+    val windowDismiss = appearance.windowDismiss && !emptyPill && (isExpanded || !showsWhenEmpty)
+    // Set when a window-mode swipe dismisses into the resting pill: the window then outlives the
+    // island and shrinks into the pill, instead of vanishing and popping the pill in from a dot.
+    var windowSettling by remember(shownEvent?.id) { mutableStateOf(false) }
+    val canActivate = shownEvent?.contentIntent != null || shownEvent?.actionIntentAction != null
+    val dismissIsland = {
+        windowSettling = windowDismiss && showsWhenEmpty
+        onDismiss()
+    }
+    val performGesture: (GestureAction) -> Unit = { action ->
+        when (action) {
+            GestureAction.EXPAND -> tapExpanded = true
+            GestureAction.SHRINK -> tapExpanded = false
+            GestureAction.OPEN_APP -> if (canActivate) {
+                tapExpanded = false
+                onActivate()
+            }
+            GestureAction.DISMISS -> dismissIsland()
+            GestureAction.NONE -> Unit
+        }
+    }
+    // Derived so only these two flips recompose, not every frame of the slide.
+    val sliding by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value != 0f } }
+    val dismissGapOnStart by remember(dismissOffsetX) { derivedStateOf { dismissOffsetX.value > 0f } }
     val scope = rememberCoroutineScope()
 
     val animScale = animationDurationMs / BASE_TRANSITION_MS.toFloat()
@@ -323,14 +639,34 @@ fun DynamicIsland(
     val motion = remember(animationStyle, animationSpeed, animationBounce, animationDurationMs) {
         IslandMotion(animationStyle, animationSpeed, animationBounce, animationDurationMs)
     }
+    // Faded rather than snapped, so a hidden pill opening into the center (or closing back) is seen
+    // growing out of nothing and shrinking away instead of popping
+    val hiddenPillAlpha by animateFloatAsState(
+        targetValue = if (emptyPillHidden) 0f else 1f,
+        animationSpec = motion.fade(),
+        label = "hiddenPillAlpha",
+    )
+    // A shrink mid-pull restarts the drag detector without a release, so the stretch would stay on the normal pill
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded && pullStretch.value != 0f) pullStretch.animateTo(0f, motion.boop())
+    }
 
     LaunchedEffect(replying) { onReplyActiveChange(replying) }
     LaunchedEffect(isExpanded, event != null, emptyPill, emptyOpensCenter) {
         if (event != null || (emptyPill && emptyOpensCenter)) onExpandedChange(isExpanded)
     }
 
-    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction) {
-        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent) {
+    LaunchedEffect(collapseTrigger) {
+        if (collapseTrigger > 0L && forcedExpanded == null && isExpanded) {
+            tapExpanded = false
+            replyingTo = null
+        }
+    }
+
+    // Collapsing mid-swipe would shrink the island while it is translated aside, leaving a stray
+    // half-faded pill on the edge of the screen; the timer restarts once it springs back.
+    LaunchedEffect(tapExpanded, forcedExpanded, autoCollapse, autoCollapseMs, replying, confirmingSent, centerInteraction, sliding) {
+        if (forcedExpanded == null && tapExpanded && autoCollapse && !replying && !confirmingSent && !sliding) {
             delay(autoCollapseMs)
             tapExpanded = false
         }
@@ -338,10 +674,9 @@ fun DynamicIsland(
 
     val hasActions = showActions && (shownEvent?.actions?.isNotEmpty() == true)
     val hasMediaControls = shownEvent?.media?.showControls == true
+    val hasMediaProgress = shownEvent?.media?.showProgress == true
     val hasCallActions = shownEvent?.call?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
     val hasTimerActions = shownEvent?.timer?.showActions == true && (shownEvent?.actions?.isNotEmpty() == true)
-    val liveCall by OnCallBus.state.collectAsStateWithLifecycle()
-    val callIncoming = isCall && liveCall?.ongoing == false
     val callTwoRow = callIncoming && shownEvent?.call?.incomingExpandedLayout == true && hasCallActions
     val callTrailingButtons = when {
         !isCall || !hasCallActions -> 0
@@ -351,25 +686,144 @@ fun DynamicIsland(
     }
 
     val density = LocalDensity.current.density
-    val callWidthPercent = remember(isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density) {
+
+    // "Mini player" / "Mini call": while music plays or a call is connected, the normal cutout
+    // shrinks to a tiny pill. Every other event keeps the normal (or expanded) cutout the user chose.
+    val isTiny = !emptyPill && !isExpanded &&
+        shownEvent?.usesTinyCutout(callOngoing = liveCall?.ongoing == true) == true
+
+    // A connected call splits in two: a narrow pill and the detached hang-up capsule beside it.
+    // Never beside the resting empty pill: the dialer taking the call full screen clears the cutout
+    // while [shownEvent] still holds the call, and the capsule would hang on beside nothing.
+    val callSplit = !emptyPill && usesSplitCallCutout(
+        event = shownEvent,
+        callOngoing = liveCall?.ongoing == true,
+        expanded = isExpanded,
+        tiny = isTiny,
+    )
+    val callWidthPercent = remember(
+        isCall, shownEvent?.label, callTrailingButtons, callIncoming, displayWidthDp, density,
+    ) {
         if (isCall) {
             callCutoutWidthPercent(shownEvent.label, callTrailingButtons, callIncoming, displayWidthDp, density)
         } else {
             CALL_MIN_WIDTH_PERCENT
         }
     }
+    val callLongClock = callClockCarriesHours(liveCall?.startTimeMs)
+    val callSplitContentDp = remember(collapsed.heightDp, density, callLongClock) {
+        callSplitContentWidthDp(collapsed.heightDp, density, callLongClock)
+    }
+
+    // The dots belong on the collapsed pill only: the expanded card keeps its top clear for the
+    // camera, the call cutout already fills its trailing edge with the hang-up button, and the
+    // stuck-to-camera pill is barely wider than its own icon.
+    // Mounted for as long as the feature is on rather than only while something is in use, so each
+    // dot fades in and out with its own resource instead of appearing the instant the row exists.
+    val showPermissionDots = permissionDotsEnabled && !isExpanded && !isCall && !isStickToCamera &&
+        !isTiny
+    val permissionDotsOnLeft = permissionDotPosition == PermissionDotPosition.LEFT
+    // Lit dots take room on their side of the resting pill, so it grows to hold them beside the info.
+    val emptyDotRoomDp = if (emptyPill && showPermissionDots) {
+        emptyPillDotRoomDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0f
+    }
+    val emptyDotsLeftDp = if (permissionDotsOnLeft) emptyDotRoomDp else 0f
+    val emptyDotsRightDp = if (permissionDotsOnLeft) 0f else emptyDotRoomDp
+
+    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp, showEmptyCutout, hiddenEmptyWidthPercent) {
+        if (isStickToCamera) {
+            collapsed
+        } else if (!showEmptyCutout) {
+            collapsed.asHiddenEmptyCutout(hiddenEmptyWidthPercent)
+        } else {
+            val sweData = SweData(unreadCounts, battery)
+            val (left, right) = emptyPillSideWidthsDp(
+                emptyInfo, collapsed.heightDp, density, sweData, emptyDotsLeftDp, emptyDotsRightDp,
+            )
+            collapsed.asEmptyInfoCutout(
+                displayWidthDp, left, right, cameraRightEdgeDp,
+                centerIfFits = !emptyPillHasItems(emptyInfo, sweData),
+            )
+        }
+    }
 
     val dims = when {
-        emptyPill && !isExpanded -> collapsed
+        emptyPill && !isExpanded -> emptyPillCutout
+        isTiny -> collapsed.asTinyCutout(displayWidthDp, cameraRightEdgeDp)
         callTwoRow -> expanded
+        // A tapped-open connected call takes the full expanded cutout for its controls.
+        isCall && isExpanded -> expanded
+        // The split call keeps the normal pill's own height and corners, but is sized and placed
+        // around the camera hole so its badge and clock never end up behind it.
+        callSplit -> collapsed.asSplitCallCutout(displayWidthDp, callSplitContentDp, cameraRightEdgeDp)
         isCall -> collapsed.asCallCutout(callWidthPercent)
+        // The music tile keeps the expanded width, corners and offsets, but sizes itself from its own
+        // content — see [mediaExpandedBaseHeightDp].
+        isExpanded && shownEvent?.media != null ->
+            expanded.copy(heightDp = mediaExpandedBaseHeightDp(expanded.topMarginDp))
         isExpanded -> expanded
         else -> collapsed
     }
 
-    var assistantContentHeightDp by remember(shownEvent?.assistant != null) { mutableStateOf(0) }
+    var expandedNotificationHeightDp by remember(shownEvent?.id) { mutableStateOf(0) }
     var centerContentHeightDp by remember { mutableStateOf(0) }
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
+
+    val textMeasurer = rememberTextMeasurer()
+    val textDensity = LocalDensity.current
+    val precomputedNotificationHeightDp = remember(
+        shownEvent?.id,
+        shownEvent?.label,
+        shownEvent?.detail,
+        shownEvent?.progressData,
+        shownEvent?.actions,
+        showActions,
+        appearance.showFullNotificationText,
+        appearance.actionButtonHeightDp,
+        displayWidthDp,
+        expanded.widthPercent,
+    ) {
+        val e = shownEvent ?: return@remember 0
+        if (e.media != null || e.timer != null || e.call != null) return@remember 0
+
+        val availableWidthDp = displayWidthDp * expanded.widthPercent / 100 - 36
+        val textWidthDp = maxOf(100, availableWidthDp - 44 - 14)
+        val textWidthPx = with(textDensity) { textWidthDp.dp.roundToPx() }
+
+        val titleMeasured = textMeasurer.measure(
+            text = e.label,
+            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+            constraints = Constraints(maxWidth = textWidthPx),
+            maxLines = 1,
+        )
+        val titleHeightDp = with(textDensity) { titleMeasured.size.height.toDp().value.roundToInt() }
+
+        val detailMaxLines = if (appearance.showFullNotificationText) 20 else 2
+        val detailHeightDp = if (e.detail.isNullOrEmpty()) {
+            0
+        } else {
+            val measured = textMeasurer.measure(
+                text = e.detail,
+                style = TextStyle(fontSize = 12.sp),
+                constraints = Constraints(maxWidth = textWidthPx),
+                maxLines = detailMaxLines,
+            )
+            with(textDensity) { measured.size.height.toDp().value.roundToInt() }
+        }
+
+        val progressHeightDp = if (e.progressData != null) (PROGRESS_BAR_HEIGHT_DP + PROGRESS_BAR_TOP_GAP_DP) else 0
+        val textColumnHeightDp = titleHeightDp + detailHeightDp + progressHeightDp
+        val contentRowHeightDp = maxOf(44, textColumnHeightDp)
+        val notificationHasActions = showActions && e.actions.isNotEmpty()
+        val actionsHeightDp = if (notificationHasActions) {
+            ACTIONS_ROW_SPACING_DP + appearance.actionButtonHeightDp
+        } else {
+            0
+        }
+        contentRowHeightDp + actionsHeightDp
+    }
 
     val heightBonus = when {
         emptyPill && isExpanded -> {
@@ -380,14 +834,26 @@ fun DynamicIsland(
             }
         }
         emptyPill -> 0
-        isExpanded && shownEvent?.assistant != null && shownEvent.assistant.displayAnswerInCutout -> {
-            val maxCutoutHeightDp = (screenHeightDp * shownEvent.assistant.maxCutoutHeightPercent / 100)
-            val fitHeightDp = if (assistantContentHeightDp > 0) assistantContentHeightDp else 110
-            val targetHeightDp = fitHeightDp.coerceIn(110, maxCutoutHeightDp)
-            (targetHeightDp - dims.heightDp)
+        isExpanded && shownEvent?.media != null -> {
+            val controlsExtra = if (hasMediaControls) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+            controlsExtra + if (hasMediaProgress) expandedMediaProgressExtraDp() else 0
         }
-        isExpanded && (hasActions || hasMediaControls || hasCallActions || hasTimerActions) ->
-            expandedActionsExtraDp(appearance.actionButtonHeightDp)
+        isExpanded && shownEvent?.timer != null ->
+            if (hasTimerActions) expandedActionsExtraDp(appearance.actionButtonHeightDp) else 0
+        isExpanded && isCall -> callExpandedExtraDp(hasCallActions)
+        isExpanded -> {
+            val maxCutoutHeightDp = (screenHeightDp * 0.70f).toInt()
+            val innerHeightDp = maxOf(precomputedNotificationHeightDp, expandedNotificationHeightDp)
+            val targetHeightDp = calculateExpandedNotificationHeightDp(
+                baseExpandedHeightDp = dims.heightDp,
+                topMarginDp = expanded.topMarginDp,
+                measuredInnerHeightDp = innerHeightDp,
+                buttonHeightDp = appearance.actionButtonHeightDp,
+                hasActions = hasActions,
+                maxHeightLimitDp = maxCutoutHeightDp,
+            )
+            targetHeightDp - dims.heightDp
+        }
         callTwoRow -> callIncomingExtraDp()
         else -> 0
     }
@@ -402,10 +868,20 @@ fun DynamicIsland(
         )
     }
 
+    // The normal cutout's icon pops in whenever a new event takes the pill over. What counts as
+    // "new" is deliberately not the event id: a live tile re-resolves on every refresh (a media
+    // progress tick, a timer second) and gets a fresh id each time, which would re-pop constantly.
+    // A notification's key survives its own updates, and a tile's label survives its lifetime.
+    val iconPop = remember { Animatable(1f) }
+    val iconPopKey = event?.let { it.notificationKey ?: it.label }
+    LaunchedEffect(iconPopKey) {
+        if (iconPopKey != null) motion.popIn(iconPop)
+    }
+
     LaunchedEffect(emptyPill) {
         if (emptyPill) {
             tapExpanded = false
-            if (dismissOffsetX.value != 0f) {
+            if (dismissOffsetX.value != 0f && !windowSettling) {
                 reveal.snapTo(0f)
                 dismissOffsetX.snapTo(0f)
                 reveal.animateTo(1f, animationSpec = motion.float(baseMs = 320))
@@ -413,31 +889,206 @@ fun DynamicIsland(
         }
     }
 
-    val spec: AnimationSpec<Dp> = if (reveal.value == 0f) snap() else motion.dp()
-    val isAssistantAnswer = isExpanded && shownEvent?.assistant?.displayAnswerInCutout == true
+    // Stuck to the camera the island has exactly one placement and one size for the whole
+    // orientation, so there is never anything to animate towards — and springing into it on arrival
+    // is what reads as the pill sliding in from where it was in portrait.
+    val snapAllGeometry = reveal.value == 0f || snapGeometry || isStickToCamera
+    // The notch-like card is fused to the screen edge, so an overshoot pulls it visibly off the bezel
+    val spec: AnimationSpec<Dp> = when {
+        snapAllGeometry -> snap()
+        dims.bottomEars -> motion.dpFirm()
+        else -> motion.dp()
+    }
+    val isDynamicHeight = isExpanded && (precomputedNotificationHeightDp > 0 || expandedNotificationHeightDp > 0)
     val heightSpec: AnimationSpec<Dp> = when {
-        reveal.value == 0f -> snap()
-        isAssistantAnswer -> motion.dpSmooth()
+        snapAllGeometry -> snap()
+        isDynamicHeight -> motion.dpSmooth()
         else -> spec
     }
 
-    val width by animateDpAsState(
-        if (isStickToCamera) collapsed.heightDp.dp else (displayWidthDp * dims.widthPercent / 100f).dp,
-        spec, label = "islandWidth"
+    // Only a tile that writes on the trailing edge — the timer's remaining time, a progress ring,
+    // a battery percentage, the status dot — has anything for the dots to collide with. Everything
+    // else has empty pill there, so the dots fit as they are and the pill is left at the width the
+    // user chose.
+    //
+    // Dropped for the resting pill, which is nobody's event: [shownEvent] outlives the cutout being
+    // cleared, so an adaptive fill would keep wearing the last app's colour until something replaced it.
+    val surfaceColor = if (emptyPill) null else shownEvent?.primaryColor()
+
+    // Read from [event] or [shownEvent]: keeps the trailing width stable while the pill is visible
+    // or fading out, but clears it for the resting empty pill.
+    val hasTrailingContent = !emptyPill &&
+        (event ?: shownEvent)?.hasCollapsedTrailingContent() == true
+
+    // The status dot sits between the badge and the camera, so it steps past dots drawn on the left
+    val collapsedLeadingInsetDp = if (showPermissionDots && permissionDotsOnLeft) {
+        permissionDotLeadingInsetDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0
+    }
+
+    // Room for dots beside that content: the pill grows to the right by this much and the content is
+    // inset by the same amount, so the content doesn't move and the dots sit in the new space.
+    val statusDotShown = !emptyPill && !isStickToCamera && !isTiny && !isCall && statusDotEnabled &&
+        (event ?: shownEvent)?.statusDotColor != null
+    val statusDotOnPill = statusDotShown && !isExpanded
+    val dotOnRight = statusDotSide == StatusDotSide.RIGHT
+    val collapsedTrailingInsetDp = if (showPermissionDots && !permissionDotsOnLeft &&
+        (hasTrailingContent || (statusDotOnPill && dotOnRight))
+    ) {
+        permissionDotTrailingInsetDp(permissionUsage, collapsed.heightDp, permissionDotsVertical)
+    } else {
+        0
+    }
+
+    // With a bubble up, the pair shares the normal cutout's width rather than growing past it: the
+    // pill gives up the bubble's diameter plus the gap, and the two together still span exactly the
+    // width the user chose. Both the width and the offset below animate, so the pill visibly makes
+    // room rather than jumping.
+    val satelliteSharing = satellite != null && !isExpanded && !isCall && !isStickToCamera &&
+        !isTiny
+    val satelliteSplitDp = if (satelliteSharing) collapsed.heightDp + SATELLITE_GAP_DP else 0
+    // The pair stays centred on the span the pill had to itself, so the pill's own centre steps away
+    // from the side the bubble takes by half of what it gave up.
+    val satelliteShiftDp = when {
+        !satelliteSharing -> 0f
+        satellitePosition == SatellitePosition.LEFT -> satelliteSplitDp / 2f
+        else -> -satelliteSplitDp / 2f
+    }
+
+    // Where the pill's leading edge sits from the screen's centre before any growth decides how far
+    // the status dot is from the camera. A bubble beside the pill takes width from one side and
+    // steps the centre away from it, which is what [satelliteShiftDp] and [satelliteSplitDp] carry.
+    val pillLeftEdgeDp = dims.offsetXDp + satelliteShiftDp -
+        (displayWidthExactDp * dims.widthPercent / 100f - satelliteSplitDp) / 2f
+    // The pill grows on its leading edge when the status dot would not otherwise fit between the
+    // badge and the camera, the way it grows on the trailing edge to seat the permission dots.
+    val pillRightEdgeDp = pillLeftEdgeDp + (displayWidthExactDp * dims.widthPercent / 100f - satelliteSplitDp)
+    // Mirrored coordinates: the left-handed helpers measure from the pill's trailing edge when the dot is on the right.
+    // That edge is the drawn one, already pushed out by the permission dots' room
+    val dotEdgeDp = if (dotOnRight) -(pillRightEdgeDp + collapsedTrailingInsetDp) else pillLeftEdgeDp
+    val dotCameraDp = if (dotOnRight) cameraRightEdgeDp?.let { -it } else cameraLeftEdgeDp
+    val dotInsetDp = if (dotOnRight) collapsedTrailingInsetDp else collapsedLeadingInsetDp
+    val statusDotGrowthDp = if (statusDotOnPill) {
+        statusDotLeadingGrowthDp(dotEdgeDp, dotCameraDp, collapsed.heightDp, dotInsetDp, onRight = dotOnRight)
+    } else {
+        0
+    }
+    val dotStartDp = statusDotStartDp(
+        dotEdgeDp, dotCameraDp, collapsed.heightDp, dotInsetDp, statusDotGrowthDp,
+        onRight = dotOnRight, expanded = isExpanded,
+    )
+    val targetWidth = if (isStickToCamera) collapsed.heightDp.dp
+        else (displayWidthExactDp * dims.widthPercent / 100f).dp + collapsedTrailingInsetDp.dp +
+            statusDotGrowthDp.dp - satelliteSplitDp.dp
+    val targetHeight = if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp
+        else (dims.heightDp + heightBonus).dp
+    val width by animateDpAsState(targetWidth, spec, label = "islandWidth")
+    val height by animateDpAsState(targetHeight, heightSpec, label = "islandHeight")
+
+    // While the window shrinks into the resting pill, its panel turns into the pill's own colour and
+    // the dismiss glyph fades out, so the hand-over to the real pill is seamless.
+    val settle = animateFloatAsState(
+        targetValue = if (windowSettling && emptyPill) 1f else 0f,
+        animationSpec = motion.fade(),
+        label = "dismissSettle",
     )
 
-    val height by animateDpAsState(
-        if (isStickToCamera) (displayWidthDp * dims.widthPercent / 100f).dp else (dims.heightDp + heightBonus).dp,
-        heightSpec, label = "islandHeight"
-    )
+    // The island stays slid aside until the window has fully shrunk and turned into the pill, so the
+    // pill never shows mid-shrink
+    LaunchedEffect(windowSettling && emptyPill, targetWidth, targetHeight) {
+        if (!windowSettling || !emptyPill) return@LaunchedEffect
+        snapshotFlow { width == targetWidth && height == targetHeight && settle.value >= 1f }.first { it }
+        dismissOffsetX.snapTo(0f)
+        windowSettling = false
+    }
 
     val cornerRadius = (collapsed.heightDp / 2f).dp
-    val offsetX by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetXDp.dp, spec, label = "islandOffsetX")
+    // Half the extra width, so the pill grows on its trailing edge only and its leading edge — where
+    // the tile's icon sits — stays put.
+    val offsetX by animateDpAsState(
+        if (isStickToCamera) 0.dp
+        else dims.offsetXDp.dp +
+            ((collapsedTrailingInsetDp + if (dotOnRight) statusDotGrowthDp else -statusDotGrowthDp) / 2f).dp +
+            satelliteShiftDp.dp,
+        spec, label = "islandOffsetX"
+    )
+    val dotBandDp = if (isExpanded) expanded.topMarginDp else collapsed.heightDp
+    val dotEdge by animateDpAsState(dotStartDp.dp, spec, label = "statusDotEdge")
+    val dotTop by animateDpAsState(((dotBandDp - statusDotBoxDp(collapsed.heightDp)) / 2f).dp, spec, label = "statusDotTop")
     val offsetY by animateDpAsState(if (isStickToCamera) 0.dp else dims.offsetYDp.dp, spec, label = "islandOffsetY")
-    val topLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopLeftDp.dp, spec, label = "cornerTL")
-    val topRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerTopRightDp.dp, spec, label = "cornerTR")
-    val bottomLeft by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "cornerBL")
-    val bottomRight by animateDpAsState(if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "cornerBR")
+    // In window mode the sliding island rounds itself; the window it slides in keeps the corners the
+    // cutout was given in Size & position.
+    fun innerCorner(override: Int?, own: Int) =
+        (if (windowDismiss && isExpanded) override ?: own else own).dp
+
+    // A notch has no top radius — the flare replaces the corner it sits on — so the stored value is
+    // held at zero while one is up. That is also what makes the morph out of a notch continuous: the
+    // top corners open from nothing exactly as the ears pull in, instead of snapping to a radius
+    // that was animating unseen underneath them.
+    val notched = dims.isNotch
+    fun topCorner(corner: Dp) = if (notched) 0.dp else corner
+
+    // Stuck to the camera the island runs down the side of the screen, so a notch there flares into
+    // that edge instead of the top one — the same shape, a quarter turn round.
+    val notchEdge = when {
+        !isStickToCamera -> NotchEdge.TOP
+        isRotation270 -> NotchEdge.RIGHT
+        else -> NotchEdge.LEFT
+    }
+
+    val topLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopLeftDp, dims.cornerTopLeftDp)),
+        spec, label = "cornerTL"
+    )
+    val topRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius
+        else topCorner(innerCorner(appearance.dismissCornerTopRightDp, dims.cornerTopRightDp)),
+        spec, label = "cornerTR"
+    )
+    val bottomLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerBottomLeftDp, dims.cornerBottomLeftDp),
+        spec, label = "cornerBL"
+    )
+    val bottomRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else innerCorner(appearance.dismissCornerBottomRightDp, dims.cornerBottomRightDp),
+        spec, label = "cornerBR"
+    )
+
+    val windowTopLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopLeftDp.dp), spec, label = "windowCornerTL"
+    )
+    val windowTopRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else topCorner(dims.cornerTopRightDp.dp), spec, label = "windowCornerTR"
+    )
+    val windowBottomLeft by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerBottomLeftDp.dp, spec, label = "windowCornerBL"
+    )
+    val windowBottomRight by animateDpAsState(
+        if (isStickToCamera) cornerRadius else dims.cornerBottomRightDp.dp, spec, label = "windowCornerBR"
+    )
+    val flareTarget = if (notched) dims.notchFlareDp.dp else 0.dp
+    // The ears are the one part of the silhouette with no counterpart in a plain pill, so there is
+    // nothing for them to morph into — the shape swaps outright the moment the flare leaves or
+    // reaches zero. Running them well ahead of the transition around them keeps that swap short in
+    // both directions: growing or shrinking, the island is only ever briefly between silhouettes.
+    // The reveal is not affected, since it scales the flare itself (see revealFlare).
+    val flareSpec: AnimationSpec<Dp> = if (snapAllGeometry) {
+        snap()
+    } else {
+        tween(durationMillis = scaled(NOTCH_EAR_TRANSITION_MS))
+    }
+    val notchFlare by animateDpAsState(flareTarget, flareSpec, label = "notchFlare")
+    // The notch-like design's bottom ears take the lower corner radii and hang below the body. They
+    // have no counterpart in a plain pill either, so they ride the same fast swap as the notch ears.
+    val eared = dims.bottomEars && !isStickToCamera
+    val bottomEarLeft by animateDpAsState(
+        if (eared) dims.cornerBottomLeftDp.dp else 0.dp, flareSpec, label = "bottomEarLeft",
+    )
+    val bottomEarRight by animateDpAsState(
+        if (eared) dims.cornerBottomRightDp.dp else 0.dp, flareSpec, label = "bottomEarRight",
+    )
     val expandProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
         animationSpec = motion.fade(),
@@ -445,193 +1096,249 @@ fun DynamicIsland(
     )
 
     val dotDp = collapsed.heightDp.dp
-    val revealWidth = lerpDp(dotDp, width, reveal.value)
-    val revealHeight = lerpDp(dotDp, height, reveal.value)
+    // The ears grow with the reveal like the radii do, so a notch unfolds out of the dot rather than
+    // popping in at full width. Clamped non-negative for the same reason the radii are: the spring
+    // undershoots its target, and a negative flare reaches Modifier.padding, which rejects it.
+    val revealFlare = lerpDp(0.dp, notchFlare, reveal.value).coerceAtLeast(0.dp)
+    // The ears hang off the ends rather than eating into the body, so the pill still measures the
+    // width the user chose. Everything downstream — the bubble and the hang-up capsule parked beside
+    // it, the window, the touchable region — steps off this total. Stuck to the camera the island
+    // runs down the screen, so the ears grow it the other way.
+    val earsAlongWidth = if (isStickToCamera) 0.dp else revealFlare * 2
+    val earsAlongHeight = if (isStickToCamera) revealFlare * 2 else 0.dp
+    val revealEarLeft = lerpDp(0.dp, bottomEarLeft, reveal.value).coerceAtLeast(0.dp)
+    val revealEarRight = lerpDp(0.dp, bottomEarRight, reveal.value).coerceAtLeast(0.dp)
+    // The ears only read as part of the screen edge while the card sits on it. As a swipe slides it
+    // away they shrink to nothing over the first half of the dismiss threshold, and the stored
+    // bottom radii round in over the second — a corner can't carry both at once, so one follows the
+    // other. In window mode the card slides inside a static window, which keeps its ears instead.
+    val slide = if (windowDismiss) 0f else {
+        (abs(dismissOffsetX.value) / (SWIPE_DISMISS_THRESHOLD_DP * density)).coerceIn(0f, 1f)
+    }
+    val slidEarLeft = revealEarLeft * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidEarRight = revealEarRight * (1f - (slide * 2f).coerceAtMost(1f))
+    val slidBottomGrow = if (eared) (slide * 2f - 1f).coerceAtLeast(0f) else 1f
+    val earsBelow = maxOf(slidEarLeft, slidEarRight)
+    val revealWidth = lerpDp(dotDp, width, reveal.value) + earsAlongWidth
+    val revealHeight = lerpDp(dotDp, height, reveal.value) + earsAlongHeight + earsBelow
     val dotCorner = dotDp / 2
     val revealTopLeft = lerpDp(dotCorner, topLeft, reveal.value)
     val revealTopRight = lerpDp(dotCorner, topRight, reveal.value)
     val revealBottomLeft = lerpDp(dotCorner, bottomLeft, reveal.value)
     val revealBottomRight = lerpDp(dotCorner, bottomRight, reveal.value)
+    val revealWindowTopLeft = lerpDp(dotCorner, windowTopLeft, reveal.value)
+    val revealWindowTopRight = lerpDp(dotCorner, windowTopRight, reveal.value)
+    val revealWindowBottomLeft = lerpDp(dotCorner, windowBottomLeft, reveal.value)
+    val revealWindowBottomRight = lerpDp(dotCorner, windowBottomRight, reveal.value)
+
+    // The bubble is hidden whenever the expanded card is up (it would claim the same room), during a
+    // call (the call cutout fills its own trailing edge) and when stuck to the camera. Kept in a
+    // remembered slot like the pill's own event so it can animate out after being cleared.
+    var lastSatellite by remember { mutableStateOf<IslandEvent?>(null) }
+    if (satellite != null) lastSatellite = satellite
+    val satelliteShown = satelliteSharing && present
+    val satelliteReveal = remember { Animatable(0f) }
+    LaunchedEffect(satelliteShown) {
+        satelliteReveal.animateTo(
+            targetValue = if (satelliteShown) 1f else 0f,
+            animationSpec = motion.float(baseMs = if (satelliteShown) 320 else 200),
+        )
+    }
+
+    // The capsule gets an animatable of its own for the same reason the bubble does: it has to be
+    // able to scale away while the pill it is parked beside stays up as the resting empty cutout.
+    val callSplitReveal = remember { Animatable(0f) }
+    LaunchedEffect(callSplit) {
+        callSplitReveal.animateTo(
+            targetValue = if (callSplit) 1f else 0f,
+            animationSpec = motion.float(baseMs = if (callSplit) 320 else 200),
+        )
+    }
 
     val haptic = LocalHapticFeedback.current
 
+    val hasEvent = event != null
+    var lastHasEvent by remember { mutableStateOf(hasEvent) }
+    LaunchedEffect(hasEvent) {
+        if (hapticsOnPop && hasEvent != lastHasEvent) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastHasEvent = hasEvent
+    }
+
     CompositionLocalProvider(LocalActionButtonAnimation provides actionButtonAnimation) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(isExpanded, forcedExpanded) {
+                if (!isExpanded || forcedExpanded != null) return@pointerInput
+                detectTapGestures(
+                    onTap = {
+                        tapExpanded = false
+                        replyingTo = null
+                    }
+                )
+            }
+    ) {
         val stickAlignment = if (isRotation270) Alignment.CenterEnd else Alignment.CenterStart
         val stickPaddingStart = if (isStickToCamera && !isRotation270) offsetYDp.dp else 0.dp
         val stickPaddingEnd = if (isStickToCamera && isRotation270) offsetYDp.dp else 0.dp
+
+        val islandShape = cornerShape(
+            revealTopLeft,
+            revealTopRight,
+            revealBottomLeft * slidBottomGrow,
+            revealBottomRight * slidBottomGrow,
+            revealFlare,
+            notchEdge,
+            slidEarLeft,
+            slidEarRight,
+        )
+        val windowShape = cornerShape(
+            revealWindowTopLeft,
+            revealWindowTopRight,
+            revealWindowBottomLeft,
+            revealWindowBottomRight,
+            revealFlare,
+            notchEdge,
+            revealEarLeft,
+            revealEarRight,
+        )
+        // The expanded island stays truncated by the window even at rest, which is the whole point
+        // of the mode; the collapsed pill only gets clipped mid-swipe, so a press can still widen it.
+        val windowed = (windowDismiss && (isExpanded || sliding)) || windowSettling
+        // The outline belongs to whichever shape the user actually sees the edge of.
+        val outline = appearance.outlineStroke(surfaceColor, surfaceColor)
+        val windowStroke = outline.takeIf { windowed }
 
         Box(
             modifier = Modifier
                 .align(if (isStickToCamera) stickAlignment else Alignment.TopCenter)
                 .padding(start = stickPaddingStart, end = stickPaddingEnd)
-                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY),
+                .offset(x = if (isStickToCamera) 0.dp else offsetX, y = if (isStickToCamera) 0.dp else offsetY)
+                .then(
+                    if (windowed) {
+                        Modifier
+                            .graphicsLayer {
+                                shape = windowShape
+                                // One fade for the whole window: the island, the backdrop behind it,
+                                // the stroke and this layer's own shadow.
+                                alpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
+                                // The island's shadow is cut away by the clip below, so the window
+                                // casts it instead.
+                                shadowElevation = if (appearance.shadowEnabled) {
+                                    ISLAND_SHADOW_ELEVATION_DP.dp.toPx()
+                                } else {
+                                    0f
+                                }
+                            }
+                            // Outside the clip, so the stroke keeps its full width on the curve.
+                            .then(windowStroke?.let { Modifier.outlineBorder(it, windowShape) } ?: Modifier)
+                            .graphicsLayer {
+                                shape = windowShape
+                                clip = true
+                            }
+                    } else {
+                        Modifier
+                    }
+                ),
         ) {
             if (present || reveal.value > 0f) {
+                if (windowed && sliding) {
+                    DismissBackdrop(
+                        appearance = appearance,
+                        appColor = surfaceColor,
+                        iconSize = badgeIconSizeFor(collapsed.heightDp),
+                        gapOnStart = dismissGapOnStart,
+                        modifier = Modifier.matchParentSize(),
+                        settle = { settle.value },
+                    )
+                }
                 IslandSurface(
                     modifier = Modifier
                         .width(revealWidth)
-                        .height(revealHeight)
+                        .height(revealHeight + PULL_STRETCH_MAX_DP.dp * pullStretch.value)
                         .graphicsLayer {
-                            val extraPx = PressExpandDp.toPx() * 2f * pressExpand.value
+                            val extraPx = PRESS_EXPAND_DP.toPx() * 2f * pressExpand.value
                             val widen = if (size.width > 0f) (size.width + extraPx) / size.width else 1f
                             scaleX = boopScale.value * widen
                             scaleY = boopScale.value
                             translationX = dismissOffsetX.value
                             val travel = abs(dismissOffsetX.value) / size.width.coerceAtLeast(1f)
                             val revealAlpha = (reveal.value / 0.2f).coerceIn(0f, 1f)
-                            alpha = (1f - travel).coerceIn(0.25f, 1f) * revealAlpha
+                            val fade = if (windowDismiss) 1f else (1f - travel).coerceIn(0.25f, 1f)
+                            // The window layer fades everything inside it, so this must not fade twice.
+                            val shownAlpha = if (windowed) 1f else fade * revealAlpha
+                            // Hidden, not removed: the surface stays laid out so taps on the empty area still land.
+                            alpha = shownAlpha * hiddenPillAlpha
                         }
-                        .pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, shownEvent?.id) {
-                            if (forcedExpanded == true) {
-                                return@pointerInput
-                            }
-
-                            detectTapGestures(
-                                onPress = {
-                                    if (replying) {
-                                        return@detectTapGestures
-                                    }
-
-                                    if (!isExpanded) {
-                                        scope.launch {
-                                            if (pressWidens) {
-                                                pressExpand.animateTo(1f, motion.boop())
-                                            } else {
-                                                // Empty cutout scale tap animation
-                                                boopScale.animateTo(0.96f, motion.boop())
-                                            }
-                                        }
-                                    }
-
-                                    tryAwaitRelease()
-
-                                    if (!isExpanded) {
-                                        scope.launch {
-                                            if (pressWidens) {
-                                                pressExpand.animateTo(0f, motion.boop())
-                                            } else {
-                                                boopScale.animateTo(1f, motion.boop())
-                                            }
-                                        }
-                                    }
-                                },
-                                onTap = {
-                                    if (vibrateOnTap) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-
-                                    if (emptyPill) {
-                                        // "Open center" expands the resting pill into the shortcut
-                                        // grid (a second tap toggles it closed); every other "On
-                                        // click" action (e.g. open an app) runs via onEmptyClick.
-                                        if (emptyOpensCenter) {
-                                            if (forcedExpanded == null) {
-                                                tapExpanded = !tapExpanded
-                                                if (tapExpanded) {
-                                                    scope.launch { motion.pop(boopScale, peak = 1.03f) }
-                                                }
-                                            }
-                                        } else {
-                                            onEmptyClick()
-                                        }
-                                        return@detectTapGestures
-                                    }
-
-                                    // While typing a reply, ignore taps on the surface itself.
-                                    if (replying) return@detectTapGestures
-
-                                    // The phone tile is normal-only, so a tap never toggles it open;
-                                    // instead it opens the dialer's in-call screen (its content intent).
-                                    if (isNormalOnly) {
-                                        if (shownEvent.contentIntent != null) onActivate()
-                                        return@detectTapGestures
-                                    }
-
-                                    // Tap to open the app
-                                    if ((isExpanded || forcedExpanded == false) && shownEvent?.contentIntent != null) {
-                                        tapExpanded = false
-                                        onActivate()
-                                    } else if (forcedExpanded == null) {
-                                        tapExpanded = !tapExpanded
-                                        if (isExpanded) {
-                                            scope.launch {
-                                                motion.pop(boopScale, peak = 1.02f)
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                        // Swipe up on the expanded island to shrink it back to the normal cutout.
-                        .pointerInput(forcedExpanded, isExpanded, replying, shrinkOnSwipeUp, emptyPill, shownEvent?.id) {
-                            // The resting empty cutout has no expanded state to shrink back from, so
-                            // don't install the detector at all — it would only swallow vertical drags.
-                            if (forcedExpanded != null || !shrinkOnSwipeUp || emptyPill) return@pointerInput
-                            val threshold = SWIPE_UP_SHRINK_THRESHOLD_DP.dp.toPx()
-                            var dragTotal = 0f
-                            detectVerticalDragGestures(
-                                onDragStart = { dragTotal = 0f },
-                                onDragEnd = {
-                                    if (isExpanded && !replying && dragTotal <= -threshold) {
-                                        tapExpanded = false
-                                    }
-                                },
-                            ) { change, dragAmount ->
-                                dragTotal += dragAmount
-                                change.consume()
-                            }
-                        }
-                        // Swipe sideways to dismiss the cutout (and, for a notification, clear it from
-                        // the system). Only the direction(s) and cutout state(s) the user allows let go.
-                        .pointerInput(forcedExpanded, swipeToDismiss, swipeDismissDirection, swipeDismissTarget, isExpanded, replying, emptyPill, shownEvent?.id) {
-                            val targetAllows = when (swipeDismissTarget) {
-                                SwipeDismissTarget.BOTH -> true
-                                SwipeDismissTarget.EXPANDED -> isExpanded
-                                SwipeDismissTarget.NORMAL -> !isExpanded
-                            }
-                            // The resting empty cutout is meant to stay: a swipe must neither slide it
-                            // away nor clear the departed notification it still remembers.
-                            if (forcedExpanded != null || !swipeToDismiss || replying || emptyPill || !targetAllows) return@pointerInput
-                            val allowLeft = swipeDismissDirection != SwipeDismissDirection.RIGHT
-                            val allowRight = swipeDismissDirection != SwipeDismissDirection.LEFT
-                            val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
-                            detectHorizontalDragGestures(
-                                onDragEnd = {
-                                    val x = dismissOffsetX.value
-                                    val dismiss = (x <= -threshold && allowLeft) || (x >= threshold && allowRight)
-                                    if (dismiss) {
-                                        onDismiss()
-                                    } else {
-                                        scope.launch {
-                                            dismissOffsetX.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
-                                            )
-                                        }
-                                    }
-                                },
-                                onDragCancel = { scope.launch { dismissOffsetX.animateTo(0f) } },
-                            ) { change, dragAmount ->
-                                // Clamp to the allowed direction(s) so a disabled side can't be dragged.
-                                val next = (dismissOffsetX.value + dragAmount).let {
-                                    when {
-                                        !allowLeft -> it.coerceAtLeast(0f)
-                                        !allowRight -> it.coerceAtMost(0f)
-                                        else -> it
-                                    }
-                                }
-                                scope.launch { dismissOffsetX.snapTo(next) }
-                                change.consume()
-                            }
-                        },
-                    shape = cornerShape(revealTopLeft, revealTopRight, revealBottomLeft, revealBottomRight),
+                        .islandTapGestures(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            isExpanded = isExpanded,
+                            isNormalOnly = isNormalOnly,
+                            replying = replying,
+                            emptyPill = emptyPill,
+                            emptyOpensCenter = emptyOpensCenter,
+                            pressWidens = pressWidens,
+                            vibrateOnTap = vibrateOnTap,
+                            scope = scope,
+                            motion = motion,
+                            haptic = haptic,
+                            boopScale = boopScale,
+                            pressExpand = pressExpand,
+                            tapExpanded = tapExpandedState,
+                            tapAction = if (isExpanded) expandedTap else normalTap,
+                            canActivate = canActivate,
+                            perform = performGesture,
+                            onEmptyClick = onEmptyClick,
+                            onActivate = onActivate,
+                        )
+                        .islandVerticalSwipe(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            replying = replying,
+                            emptyPill = emptyPill,
+                            upAction = if (isExpanded) expandedSwipeUp else normalSwipeUp,
+                            downAction = if (isExpanded) expandedSwipeDown else GestureAction.NONE,
+                            perform = performGesture,
+                            isExpanded = isExpanded,
+                            pullStretch = pullStretch,
+                            scope = scope,
+                            motion = motion,
+                        )
+                        .islandSwipeToDismiss(
+                            event = shownEvent,
+                            forcedExpanded = forcedExpanded,
+                            leftAction = if (isExpanded) expandedSwipeLeft else normalSwipeLeft,
+                            rightAction = if (isExpanded) expandedSwipeRight else normalSwipeRight,
+                            replying = replying,
+                            emptyPill = emptyPill,
+                            scope = scope,
+                            dismissOffsetX = dismissOffsetX,
+                            onDismiss = dismissIsland,
+                        ),
+                    shape = islandShape,
                     appearance = appearance,
+                    drawStroke = !windowed,
                     progress = expandProgress,
+                    appColor = surfaceColor,
+                    adaptiveColor = surfaceColor,
+                    contentInsetHorizontal = earsAlongWidth / 2,
+                    contentInsetVertical = earsAlongHeight / 2,
+                    contentInsetBottom = earsBelow,
                 ) {
-                    Crossfade(targetState = isExpanded, animationSpec = tween(scaled(150)), label = "islandContent") { showExpanded ->
-                        if (emptyPill) {
-                            if (showExpanded) {
+                    Crossfade(
+                        targetState = IslandContentKey(
+                            emptyPill = emptyPill,
+                            expanded = isExpanded,
+                            tiny = isTiny,
+                        ),
+                        animationSpec = tween(scaled(150)),
+                        label = "islandContent"
+                    ) { content ->
+                        if (content.emptyPill) {
+                            if (content.expanded) {
                                 CenterContent(
                                     shortcuts = centerShortcuts,
                                     showLabels = centerShowLabels,
@@ -645,30 +1352,60 @@ fun DynamicIsland(
                                         // In-place toggles (torch) keep the center open; everything
                                         // else closes it as we act, so it isn't left over the screen
                                         // (and out of a screenshot the shortcut may trigger).
-                                        if (!shortcut.keepsCenterOpen) tapExpanded = false
+                                        if (!shortcut.keepsCenterOpen) {
+                                            tapExpanded = false
+                                        }
+
                                         onCenterShortcut(shortcut)
                                     },
                                 )
-                            } else if (emptyIcon != null) {
-                                EmptyPillContent(
-                                    icon = emptyIcon,
-                                    containerColor = emptyIconColor,
-                                    heightDp = collapsed.heightDp,
-                                    isStickToCamera = isStickToCamera,
-                                )
+                            } else if (!isStickToCamera) {
+                                EmptyPillInfoContent(emptyInfo, collapsed.heightDp, SweData(unreadCounts, battery), emptyDotsLeftDp, emptyDotsRightDp)
                             }
                         } else {
                             shownEvent?.let { e ->
-                                if (e.call != null) {
-                                    CallNormalContent(event = e, onAction = onAction)
-                                } else if (showExpanded) {
+                                if (content.tiny) {
+                                    TinyTileContent(
+                                        event = e,
+                                        heightDp = collapsed.heightDp,
+                                        iconPop = iconPop,
+                                    )
+                                } else if (e.call != null) {
+                                    if (content.expanded) {
+                                        CallExpandedContent(
+                                            event = e,
+                                            call = e.call,
+                                            onCall = liveCall,
+                                            topMarginDp = expanded.topMarginDp,
+                                            onAction = onAction,
+                                            onOpen = {
+                                                tapExpanded = false
+                                                onOpenCall()
+                                            },
+                                        )
+                                    } else {
+                                        CallNormalContent(
+                                            event = e,
+                                            heightDp = dims.heightDp,
+                                            appearance = appearance,
+                                            onAction = onAction,
+                                        )
+                                    }
+                                } else if (content.expanded) {
                                     ExpandedContent(
                                         event = e,
                                         showActions = showActions,
                                         appearance = appearance,
+                                        targetWidthDp = displayWidthDp * expanded.widthPercent / 100,
+                                        expandProgress = expandProgress,
+                                        topMarginDp = expanded.topMarginDp,
+                                        hotspot = hotspot,
+                                        canTurnOffHotspot = canTurnOffHotspot,
+                                        onTurnOffHotspot = onTurnOffHotspot,
                                         replyingTo = replyingTo,
                                         replySent = confirmingSent,
                                         progressData = e.progressData,
+                                        motion = motion,
                                         onAction = onAction,
                                         onStartReply = { replyingTo = it },
                                         onCancelReply = { replyingTo = null },
@@ -683,18 +1420,428 @@ fun DynamicIsland(
                                             replyingTo = null
                                         },
                                         onDismiss = onDismiss,
-                                        onHeightMeasured = { assistantContentHeightDp = it },
+                                        onPinToggle = onPinToggle,
+                                        onHeightMeasured = { hDp -> expandedNotificationHeightDp = hDp },
                                     )
                                 } else {
-                                    CollapsedContent(e, collapsed.heightDp, isStickToCamera)
+                                    CollapsedContent(
+                                        event = e,
+                                        heightDp = collapsed.heightDp,
+                                        isStickToCamera = isStickToCamera,
+                                        trailingInsetDp = collapsedTrailingInsetDp,
+                                        iconPop = iconPop,
+                                        hotspot = hotspot,
+                                    )
                                 }
                             }
                         }
                     }
+
+                    // Microphone / camera / location dots
+                    AnimatedVisibility(
+                        visible = showPermissionDots,
+                        modifier = Modifier.fillMaxSize(),
+                        enter = fadeIn(motion.swapFade()),
+                        exit = fadeOut(motion.swapFade()),
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            PermissionDotRow(
+                                usage = permissionUsage,
+                                colors = permissionDotColors,
+                                heightDp = collapsed.heightDp,
+                                vertical = permissionDotsVertical,
+                                modifier = Modifier
+                                    .align(
+                                        if (permissionDotsOnLeft) Alignment.CenterStart
+                                        else Alignment.CenterEnd
+                                    )
+                                    .padding(
+                                        start = if (permissionDotsOnLeft) {
+                                            if (emptyPill) emptyPillEdgeInsetDp(collapsed.heightDp).dp
+                                            else permissionDotStartInsetDp(collapsed.heightDp).dp
+                                        } else {
+                                            0.dp
+                                        },
+                                        end = if (permissionDotsOnLeft) {
+                                            0.dp
+                                        } else if (emptyPill) {
+                                            emptyPillEdgeInsetDp(collapsed.heightDp).dp
+                                        } else {
+                                            permissionDotEndInsetDp(collapsed.heightDp).dp
+                                        },
+                                    ),
+                            )
+                        }
+                    }
+
+                    // Radiating status dot: beside the camera on the pill, up in the header when expanded
+                    AnimatedStatusDot(
+                        color = (event ?: shownEvent)?.statusDotColor.takeIf { statusDotShown },
+                        sizeDp = (collapsed.heightDp * STATUS_DOT_SIZE_FRACTION).dp,
+                        modifier = Modifier
+                            .align(if (dotOnRight) Alignment.TopEnd else Alignment.TopStart)
+                            .padding(
+                                start = if (dotOnRight) 0.dp else dotEdge.coerceAtLeast(0.dp),
+                                end = if (dotOnRight) dotEdge.coerceAtLeast(0.dp) else 0.dp,
+                                top = dotTop.coerceAtLeast(0.dp),
+                            ),
+                    )
                 }
             }
         }
+
+        // Placed as a sibling of the pill rather than wrapping both in a Row: the pill keeps its own
+        // centred, camera-anchored offset, so it can never slide off the cutout as a bubble appears
+        // or leaves. The bubble tracks the pill's animated width instead, staying glued to its edge.
+        lastSatellite?.takeIf { satelliteReveal.value > 0.01f }?.let { bubble ->
+            val diameterDp = collapsed.heightDp
+            val step = revealWidth / 2 + SATELLITE_GAP_DP.dp + (diameterDp / 2).dp
+            val satelliteOffsetX =
+                if (satellitePosition == SatellitePosition.LEFT) offsetX - step else offsetX + step
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(x = satelliteOffsetX, y = offsetY),
+            ) {
+                SatelliteBubble(
+                    event = bubble,
+                    diameterDp = diameterDp,
+                    appearance = appearance,
+                    onClick = onSatelliteClick,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = satelliteReveal.value
+                        scaleY = satelliteReveal.value
+                        alpha = satelliteReveal.value
+                    },
+                )
+            }
+        }
+
+        // The connected call's hang-up button, parked beside the pill the same way: the pill keeps
+        // its own centred, camera-anchored offset and the capsule tracks its animated trailing edge.
+        val capsuleAction = shownEvent?.actions?.firstOrNull { it.destructive }
+            ?: shownEvent?.actions?.firstOrNull()
+        val capsuleCall = shownEvent?.call
+        val capsuleReveal = minOf(reveal.value, callSplitReveal.value)
+        if (capsuleAction != null && capsuleCall != null && capsuleReveal > 0.01f) {
+            val capsuleWidthDp = callSplitHangUpWidthDp(dims.heightDp)
+            val step = revealWidth / 2 + callSplitGapDp(notched).dp + (capsuleWidthDp / 2).dp
+            // Dropped and shortened by the same amount beside a notch, so it keeps the notch's own
+            // bottom line while clearing the screen edge the notch is flush with. The width is left
+            // alone: the capsule stays as wide as the pill is tall, which is what the touchable
+            // region reserves for it.
+            val capsuleInsetDp = if (notched) CALL_SPLIT_NOTCH_INSET_DP else 0
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(x = offsetX + step, y = offsetY + capsuleInsetDp.dp),
+            ) {
+                CallHangUpCapsule(
+                    call = capsuleCall,
+                    hangUp = capsuleAction,
+                    heightDp = dims.heightDp - capsuleInsetDp,
+                    widthDp = capsuleWidthDp,
+                    onAction = onAction,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = capsuleReveal
+                        scaleY = capsuleReveal
+                        alpha = capsuleReveal
+                    },
+                )
+            }
+        }
     }
+    }
+}
+
+/**
+ * Press-and-tap gestures for the island surface, lifted out of the layout so the composable reads as
+ * structure. A press "boops" the collapsed pill and releases on lift: [pressWidens] chooses between
+ * briefly widening it by [PRESS_EXPAND_DP] on each side and scaling it down. While a reply is being
+ * typed the surface ignores presses and taps entirely. A tap runs [tapAction] (the user's choice for
+ * the current state) through [perform]: the resting empty pill opens the shortcut center when
+ * [emptyOpensCenter] is set and otherwise runs its own click action, and a normal-only tile (a
+ * ringing call) never expands and goes straight to its content intent. On an island forced
+ * collapsed an expand action falls back to opening the app. An island forced open takes no
+ * gestures at all.
+ */
+private fun Modifier.islandTapGestures(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    isExpanded: Boolean,
+    isNormalOnly: Boolean,
+    replying: Boolean,
+    emptyPill: Boolean,
+    emptyOpensCenter: Boolean,
+    pressWidens: Boolean,
+    vibrateOnTap: Boolean,
+    scope: CoroutineScope,
+    motion: IslandMotion,
+    haptic: HapticFeedback,
+    boopScale: Animatable<Float, AnimationVector1D>,
+    pressExpand: Animatable<Float, AnimationVector1D>,
+    tapExpanded: MutableState<Boolean>,
+    tapAction: GestureAction,
+    canActivate: Boolean,
+    perform: (GestureAction) -> Unit,
+    onEmptyClick: () -> Unit,
+    onActivate: () -> Unit,
+): Modifier = pointerInput(forcedExpanded, isExpanded, replying, emptyPill, pressWidens, event?.id, tapAction, canActivate) {
+    if (forcedExpanded == true) return@pointerInput
+
+    detectTapGestures(
+        onPress = {
+            if (replying) return@detectTapGestures
+
+            if (!isExpanded) {
+                scope.launch {
+                    if (pressWidens) {
+                        pressExpand.animateTo(1f, motion.boop())
+                    } else {
+                        boopScale.animateTo(0.96f, motion.boop())
+                    }
+                }
+            }
+
+            tryAwaitRelease()
+
+            if (!isExpanded) {
+                scope.launch {
+                    if (pressWidens) {
+                        pressExpand.animateTo(0f, motion.boop())
+                    } else {
+                        boopScale.animateTo(1f, motion.boop())
+                    }
+                }
+            }
+        },
+        onTap = {
+            if (vibrateOnTap) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+
+            if (emptyPill) {
+                if (!emptyOpensCenter) {
+                    onEmptyClick()
+                } else if (forcedExpanded == null) {
+                    tapExpanded.value = !tapExpanded.value
+                    if (tapExpanded.value) {
+                        scope.launch { motion.pop(boopScale, peak = 1.03f) }
+                    }
+                }
+                return@detectTapGestures
+            }
+
+            if (replying) return@detectTapGestures
+
+            if (isNormalOnly) {
+                if (canActivate) onActivate()
+                return@detectTapGestures
+            }
+
+            val action = if (forcedExpanded == false && tapAction == GestureAction.EXPAND) {
+                GestureAction.OPEN_APP
+            } else {
+                tapAction
+            }
+            perform(action)
+            if (isExpanded && action == GestureAction.SHRINK) {
+                scope.launch { motion.pop(boopScale, peak = 1.02f) }
+            }
+        },
+    )
+}
+
+/**
+ * Runs [upAction] or [downAction] through [perform] when a drag up or down past
+ * [SWIPE_VERTICAL_THRESHOLD_DP] is released. While expanded, a downward drag also stretches the card
+ * through [pullStretch], with resistance that grows as it nears [PULL_STRETCH_MAX_DP], and lets go
+ * with the release speed so it bounces back on the user's own spring. The detector is left uninstalled whenever it could not act anyway
+ * (a forced state, both actions set to none, or the resting empty pill) so it never swallows a
+ * vertical drag meant for whatever is underneath.
+ */
+private fun Modifier.islandVerticalSwipe(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    replying: Boolean,
+    emptyPill: Boolean,
+    upAction: GestureAction,
+    downAction: GestureAction,
+    perform: (GestureAction) -> Unit,
+    isExpanded: Boolean,
+    pullStretch: Animatable<Float, AnimationVector1D>,
+    scope: CoroutineScope,
+    motion: IslandMotion,
+): Modifier = pointerInput(forcedExpanded, replying, emptyPill, event?.id, upAction, downAction, isExpanded) {
+    val idle = upAction == GestureAction.NONE && downAction == GestureAction.NONE
+    if (forcedExpanded != null || idle || emptyPill) return@pointerInput
+
+    val threshold = SWIPE_VERTICAL_THRESHOLD_DP.dp.toPx()
+    val stretches = isExpanded && !replying
+    val resistancePx = PULL_STRETCH_MAX_DP.dp.toPx() * PULL_STRETCH_RESISTANCE
+    val tracker = VelocityTracker()
+    var dragTotal = 0f
+
+    fun springBack(fingerVelocity: Float) {
+        if (!stretches) return
+        // The stretch is 1 - e^(-d / r), so its rate of change is (1 - stretch) / r times the finger's.
+        val velocity = fingerVelocity.coerceAtLeast(0f) * (1f - pullStretch.value) / resistancePx
+        scope.launch { pullStretch.animateTo(0f, motion.float(), initialVelocity = velocity) }
+    }
+
+    detectVerticalDragGestures(
+        onDragStart = {
+            dragTotal = 0f
+            tracker.resetTracking()
+        },
+        onDragEnd = {
+            springBack(tracker.calculateVelocity().y)
+            if (!replying) {
+                if (dragTotal <= -threshold) {
+                    perform(upAction)
+                } else if (dragTotal >= threshold) {
+                    perform(downAction)
+                }
+            }
+        },
+        onDragCancel = { springBack(0f) },
+    ) { change, dragAmount ->
+        dragTotal += dragAmount
+        tracker.addPosition(change.uptimeMillis, change.position)
+        change.consume()
+        if (stretches) {
+            val stretch = 1f - exp(-dragTotal.coerceAtLeast(0f) / resistancePx)
+            scope.launch { pullStretch.snapTo(stretch) }
+        }
+    }
+}
+
+/**
+ * Swipe sideways to dismiss the cutout past [SWIPE_DISMISS_THRESHOLD_DP], which for a notification
+ * also clears it from the system. The caller passes the current size's [leftAction] and
+ * [rightAction]; only a side set to [GestureAction.DISMISS] can be dragged (the offset is clamped
+ * to the allowed side), and a drag that stops short springs back to rest. The resting empty
+ * cutout is meant to stay, so a swipe must neither slide it away nor clear the departed
+ * notification it still remembers.
+ */
+private fun Modifier.islandSwipeToDismiss(
+    event: IslandEvent?,
+    forcedExpanded: Boolean?,
+    leftAction: GestureAction,
+    rightAction: GestureAction,
+    replying: Boolean,
+    emptyPill: Boolean,
+    scope: CoroutineScope,
+    dismissOffsetX: Animatable<Float, AnimationVector1D>,
+    onDismiss: () -> Unit,
+): Modifier = pointerInput(forcedExpanded, leftAction, rightAction, replying, emptyPill, event?.id) {
+    val allowLeft = leftAction == GestureAction.DISMISS
+    val allowRight = rightAction == GestureAction.DISMISS
+    if (forcedExpanded != null || (!allowLeft && !allowRight) || replying || emptyPill) return@pointerInput
+
+    val threshold = SWIPE_DISMISS_THRESHOLD_DP.dp.toPx()
+    detectHorizontalDragGestures(
+        onDragEnd = {
+            val x = dismissOffsetX.value
+            val dismiss = (x <= -threshold && allowLeft) || (x >= threshold && allowRight)
+            if (dismiss) {
+                onDismiss()
+            } else {
+                scope.launch {
+                    dismissOffsetX.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
+                    )
+                }
+            }
+        },
+        onDragCancel = { scope.launch { dismissOffsetX.animateTo(0f) } },
+    ) { change, dragAmount ->
+        val next = (dismissOffsetX.value + dragAmount).let {
+            when {
+                !allowLeft -> it.coerceAtLeast(0f)
+                !allowRight -> it.coerceAtMost(0f)
+                else -> it
+            }
+        }
+        scope.launch { dismissOffsetX.snapTo(next) }
+        change.consume()
+    }
+}
+
+
+/** The elevation the island casts when its shadow is switched on. */
+private const val ISLAND_SHADOW_ELEVATION_DP = 6
+
+/**
+ * How long a notch's ears take to grow or pull in when the island morphs between a notch and a state
+ * that isn't one — deliberately shorter than the transition around it, so the ears are settled well
+ * before the body has finished changing shape. Scaled by the user's animation-duration setting like
+ * every other timing.
+ */
+private const val NOTCH_EAR_TRANSITION_MS = 110
+
+/** How far the dismiss glyph sits from the window edge it is pinned to. */
+private const val DISMISS_GLYPH_INSET_DP = 20
+
+/**
+ * The panel uncovered behind the island while a window-mode dismiss swipe slides it aside. The
+ * glyph is pinned to the edge the island is leaving ([gapOnStart] when it slides right), so it
+ * always lands in the gap rather than under the island, and defaults to a trash can when the user
+ * has picked no icon of their own. A picked image is drawn untinted: flattening a photo or a logo
+ * to a single colour would destroy it, so the icon colour reaches Material glyphs only.
+ *
+ * [settle] (0 to 1) is how far the panel has turned back into the normal cutout: its colour
+ * cross-fades to the normal background while the glyph fades out. Read inside draw lambdas, so a
+ * moving value never recomposes the panel.
+ */
+@Composable
+internal fun DismissBackdrop(
+    appearance: AppearanceSettings,
+    appColor: Color?,
+    iconSize: Dp,
+    gapOnStart: Boolean,
+    modifier: Modifier = Modifier,
+    settle: () -> Float = { 0f },
+) {
+    val restingBrush = appearance.backgroundNormal.resolveBrush(appColor, appColor)
+    val backdrop = appearance.dismissBackdropColor?.resolve(appColor, appColor)
+        ?: MaterialTheme.colorScheme.surfaceContainerHigh
+    val glyphColor = appearance.dismissIconColor?.resolve(appColor, appColor)
+        ?: if (backdrop.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    val resolved = rememberResolvedIcon(appearance.dismissIcon)
+
+    Box(
+        modifier = modifier.background(backdrop),
+        contentAlignment = if (gapOnStart) Alignment.CenterStart else Alignment.CenterEnd,
+    ) {
+        // Normal cutout fill, fading in over the panel colour
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = settle() }
+                .background(restingBrush),
+        )
+        val placement = Modifier
+            .padding(horizontal = DISMISS_GLYPH_INSET_DP.dp)
+            .size(iconSize)
+            .graphicsLayer { alpha = 1f - settle() }
+        val bitmap = resolved.bitmap
+        if (bitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = placement,
+            )
+        } else {
+            Icon(
+                imageVector = resolved.vector ?: Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = glyphColor,
+                modifier = placement,
+            )
+        }
     }
 }
 
@@ -708,12 +1855,31 @@ fun IslandPreview(
     cornerTopRightDp: Int,
     cornerBottomLeftDp: Int,
     cornerBottomRightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     expanded: Boolean,
     appearance: AppearanceSettings = AppearanceSettings(),
     showActions: Boolean = true,
+    collapsedHeightDp: Int = IslandLayout.DEFAULT_COLLAPSED.heightDp,
+    onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
+    // [ExpandedContent] measures its inner column only, so the camera band and the column's bottom
+    // padding have to be added back before the value can be used as an island height — otherwise the
+    // pill ends up short by both insets and the chip row is clipped against its bottom edge.
+    var measuredInnerHeightDp by remember(event.id, expanded, topMarginDp, appearance.actionButtonHeightDp, showActions) {
+        mutableStateOf(0)
+    }
+    val hasActions = showActions && event.actions.isNotEmpty()
+    fun islandHeightFor(innerHeightDp: Int): Int = calculateExpandedNotificationHeightDp(
+        baseExpandedHeightDp = heightDp,
+        topMarginDp = topMarginDp,
+        measuredInnerHeightDp = innerHeightDp,
+        buttonHeightDp = appearance.actionButtonHeightDp,
+        hasActions = hasActions,
+    )
+    val effectiveHeightDp = if (expanded) islandHeightFor(measuredInnerHeightDp) else heightDp
+    val eventPrimaryColor = event.primaryColor()
     IslandSurface(
-        modifier = Modifier.size(width, heightDp.dp),
+        modifier = Modifier.size(width, effectiveHeightDp.dp),
         shape = cornerShape(
             topLeft = cornerTopLeftDp.dp,
             topRight = cornerTopRightDp.dp,
@@ -723,18 +1889,25 @@ fun IslandPreview(
         appearance = appearance,
         // A static preview shows one state outright, so snap the fill to it.
         progress = if (expanded) 1f else 0f,
+        appColor = eventPrimaryColor,
+        adaptiveColor = eventPrimaryColor,
     ) {
         if (expanded) {
             ExpandedContent(
                 event = event,
                 showActions = showActions,
                 appearance = appearance,
+                topMarginDp = topMarginDp,
                 replyingTo = null,
                 replySent = false,
                 onAction = {},
                 onStartReply = {},
                 onCancelReply = {},
                 onSendReply = {},
+                onHeightMeasured = { measured ->
+                    measuredInnerHeightDp = measured
+                    onHeightMeasured?.invoke(islandHeightFor(measured))
+                },
             )
         } else {
             CollapsedContent(event, heightDp)
@@ -743,70 +1916,169 @@ fun IslandPreview(
 }
 
 /**
+ * The island's outline stroke, or null when the user has it switched off. The stroke's own opacity
+ * folds into the colour's alpha.
+ */
+@Composable
+internal fun AppearanceSettings.outlineStroke(appColor: Color?, adaptiveColor: Color?): BorderStroke? {
+    if (!strokeEnabled) return null
+    val baseColor = strokeColor.resolve(appColor, adaptiveColor)
+    return BorderStroke(
+        width = strokeWidthDp.dp,
+        color = baseColor.copy(alpha = (baseColor.alpha * strokeOpacity).coerceIn(0f, 1f)),
+    )
+}
+
+/**
  * The island's surface: shadow, optional stroke and the background fill. [progress] (0 = collapsed,
  * 1 = expanded) cross-fades the normal fill into the expanded fill, so if the two states use
  * different colours (or gradients) the background morphs in lockstep with the size animation.
+ *
+ * @param contentInsetHorizontal keeps [content] clear of a shape that doesn't use the full width of
+ *   its box — the flared ears of a [NotchShape]. The fills still cover the whole shape, ears
+ *   included; only the content is pulled in.
+ * @param contentInsetVertical the same, for a notch turned onto a side edge, whose ears run down the
+ *   box rather than across it.
+ * @param contentInsetBottom the same, for the bottom ears of a [NotchLikeShape], which hang below
+ *   the body rather than beside it.
  */
 @Composable
-private fun IslandSurface(
+internal fun IslandSurface(
     modifier: Modifier,
     shape: Shape,
     appearance: AppearanceSettings,
     progress: Float,
+    appColor: Color? = null,
+    adaptiveColor: Color? = null,
+    drawStroke: Boolean = true,
+    contentInsetHorizontal: Dp = 0.dp,
+    contentInsetVertical: Dp = 0.dp,
+    contentInsetBottom: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
-    val normalBrush = appearance.backgroundNormal.resolveBrush()
-    val expandedBrush = appearance.backgroundExpanded.resolveBrush()
+    val normalBrush = appearance.backgroundNormal.resolveBrush(appColor, adaptiveColor)
+    val expandedBrush = appearance.backgroundExpanded.resolveBrush(appColor, adaptiveColor)
+    val normalBaseColor = appearance.backgroundNormal.resolveBaseColor(appColor, adaptiveColor)
+    val expandedBaseColor = appearance.backgroundExpanded.resolveBaseColor(appColor, adaptiveColor)
+    val currentBaseColor = lerp(normalBaseColor, expandedBaseColor, progress)
+
     val repColor = lerp(
-        appearance.backgroundNormal.representativeColor(),
-        appearance.backgroundExpanded.representativeColor(),
+        appearance.backgroundNormal.representativeColor(appColor, adaptiveColor),
+        appearance.backgroundExpanded.representativeColor(appColor, adaptiveColor),
         progress,
     )
 
-    val contentColor = if (repColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
-    val border = if (appearance.strokeEnabled) {
-        BorderStroke(appearance.strokeWidthDp.dp, appearance.strokeColor.resolve())
-    } else {
-        null
-    }
+    val autoContentColor = if (repColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    val contentColor = appearance.textColor?.resolve(appColor, adaptiveColor) ?: autoContentColor
+    val border = if (drawStroke) appearance.outlineStroke(appColor, adaptiveColor) else null
+    // [Surface] strokes a shape whole, with no way to leave a segment out, so a notch draws its own.
+    val notch = shape as? NotchShape
+    val notchBorder =
+        if (notch != null && border != null) Modifier.notchBorder(border, notch) else Modifier
 
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .then(notchBorder)
+            .background(currentBaseColor, shape),
         shape = shape,
-        color = Color.Transparent,
+        color = currentBaseColor,
         contentColor = contentColor,
-        shadowElevation = if (appearance.shadowEnabled) 6.dp else 0.dp,
+        shadowElevation = if (appearance.shadowEnabled) ISLAND_SHADOW_ELEVATION_DP.dp else 0.dp,
         tonalElevation = 0.dp,
-        border = border,
+        border = if (notch == null) border else null,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxSize().background(normalBrush))
-            if (progress > 0f) {
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            Box(modifier = Modifier.fillMaxSize().background(currentBaseColor)) {
+                Box(modifier = Modifier.fillMaxSize().background(normalBrush))
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = progress }
+                            .background(expandedBrush),
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { alpha = progress }
-                        .background(expandedBrush),
-                )
+                        .padding(horizontal = contentInsetHorizontal, vertical = contentInsetVertical)
+                        .padding(bottom = contentInsetBottom)
+                ) {
+                    content()
+                }
             }
-            content()
         }
     }
 }
+
+/**
+ * Strokes a notch's outline everywhere except along its top edge, which lies on the screen's own
+ * edge where a line reads as a stray mark rather than part of the shape. Stroked at double width and
+ * clipped to the silhouette so only the inner half lands, which is what [Modifier.border] does for
+ * every other island shape — the two have to look identical where they do overlap.
+ */
+private fun Modifier.notchBorder(stroke: BorderStroke, shape: NotchShape) = drawWithContent {
+    drawContent()
+    val widthPx = stroke.width.toPx()
+    if (widthPx <= 0f) return@drawWithContent
+    clipPath(shape.path(size, this, includeFlatEdge = true)) {
+        drawPath(
+            path = shape.path(size, this@drawWithContent, includeFlatEdge = false),
+            brush = stroke.brush,
+            style = Stroke(widthPx * 2f),
+        )
+    }
+}
+
+/**
+ * The island's outline: [Modifier.border] for an ordinary rounded shape, and a top-edge-less stroke
+ * for a notch. Lets a call site that doesn't know which shape it has draw the right one.
+ */
+private fun Modifier.outlineBorder(stroke: BorderStroke, shape: Shape): Modifier =
+    if (shape is NotchShape) notchBorder(stroke, shape) else border(stroke, shape)
 
 /**
  * Builds a rounded shape with each corner independently sized (LTR-mapped). Corners are clamped to
  * be non-negative: the spring animation driving the radii overshoots below its target, so easing a
  * corner down to 0 dp momentarily produces a negative value, which Compose refuses to render
  * ("RoundRect with negative corners could not be rendered"). Clamping yields a plain rectangle at 0.
+ *
+ * A positive [flare] swaps in the [NotchShape] instead, whose outward-curving top corners replace
+ * the top radii entirely. A positive [earLeft] or [earRight] swaps in the [NotchLikeShape], whose
+ * lower corners are concave ears. At zero for both this returns exactly what it always did, so a
+ * state that is neither renders through the same path as before.
  */
-private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: Dp) =
+private fun cornerShape(
+    topLeft: Dp,
+    topRight: Dp,
+    bottomLeft: Dp,
+    bottomRight: Dp,
+    flare: Dp = 0.dp,
+    edge: NotchEdge = NotchEdge.TOP,
+    earLeft: Dp = 0.dp,
+    earRight: Dp = 0.dp,
+): Shape = if (flare > 0.dp) {
+    NotchShape(
+        flare = flare,
+        bottomLeft = bottomLeft.coerceAtLeast(0.dp),
+        bottomRight = bottomRight.coerceAtLeast(0.dp),
+        edge = edge,
+    )
+} else if (earLeft > 0.dp || earRight > 0.dp) {
+    NotchLikeShape(
+        topLeft = topLeft.coerceAtLeast(0.dp),
+        topRight = topRight.coerceAtLeast(0.dp),
+        earLeft = earLeft,
+        earRight = earRight,
+    )
+} else {
     RoundedCornerShape(
         topStart = topLeft.coerceAtLeast(0.dp),
         topEnd = topRight.coerceAtLeast(0.dp),
         bottomStart = bottomLeft.coerceAtLeast(0.dp),
         bottomEnd = bottomRight.coerceAtLeast(0.dp),
     )
+}
 
 /**
  * The cover to draw for the music tile, or null to fall back to the note glyph. The media session's
@@ -815,61 +2087,242 @@ private fun cornerShape(topLeft: Dp, topRight: Dp, bottomLeft: Dp, bottomRight: 
  * on package so a stale cover is never drawn over a different player's track.
  */
 @Composable
-private fun albumArtFor(event: IslandEvent, nowPlaying: NowPlaying?): ImageBitmap? {
+internal fun albumArtFor(
+    event: IslandEvent,
+    nowPlaying: NowPlaying?,
+    expandedBackground: Boolean = false,
+): ImageBitmap? {
     val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
-    if (event.media?.showAlbumArt != true) return null
-    return nowPlaying?.albumArt
+    if (event.media?.showAlbumArt != true &&
+        !(expandedBackground && event.media?.showAlbumBackground == true)
+    ) return null
+    return if (expandedBackground && event.media?.showAlbumBackground == true) {
+        nowPlaying?.albumBackgroundArt ?: nowPlaying?.albumArt
+    } else {
+        nowPlaying?.albumArt
+    }
         ?: notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.art
 }
 
 /**
  * The colour of the ring around the album cover, or null when the user hasn't asked for one. An
  * enabled ring with no colour picked falls back to the tile's own accent, matching what the
- * settings screen offers as its default swatch.
+ * settings screen offers as its default swatch. An app/adaptive colour follows the event's own
+ * colour, like the island background does.
  */
 @Composable
-private fun albumArtStrokeFor(event: IslandEvent): Color? =
-    event.media?.takeIf { it.albumArtStroke }
-        ?.let { it.albumArtStrokeColor?.resolve() ?: event.accent }
+internal fun albumArtStrokeFor(event: IslandEvent): Color? =
+    event.media?.takeIf { it.albumArtStroke }?.let { media ->
+        val eventColor = event.primaryColor()
+        media.albumArtStrokeColor?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+            ?: event.accent
+    }
 
+/** The fraction of its container a badge takes, and the fraction the glyph inside it takes. */
+private const val BADGE_SIZE_FRACTION = 0.72f
+/** The share of the pill's height left before its badge, shared by the collapsed and split pills. */
+private const val COLLAPSED_BADGE_INSET_FRACTION = 0.16f
+private const val BADGE_ICON_FRACTION = 0.46f
+/** The status dot's diameter as a fraction of the pill's height. */
+private const val STATUS_DOT_SIZE_FRACTION = 0.18f
+/**
+ * The dot's box is this many dots wide, so the radiating ring (which grows to 2.4 dots) is never
+ * clipped.
+ */
+private const val STATUS_DOT_BOX_SCALE = 2.5f
+/** The room left between the status dot's box and the camera hole, with the dot left of the camera. */
+private const val STATUS_DOT_CAMERA_GAP_DP = 4f
+/** The room left between the status dot itself (not its box) and the camera hole, with the dot right of it. */
+private const val STATUS_DOT_RIGHT_CAMERA_GAP_DP = 3f
+/** [STATUS_DOT_RIGHT_CAMERA_GAP_DP] on the expanded card, whose larger header reads tighter around the hole. */
+private const val STATUS_DOT_RIGHT_EXPANDED_CAMERA_GAP_DP = 4f
+
+/** The width of the status dot's box on a pill [heightDp] tall. */
+private fun statusDotBoxDp(heightDp: Int): Float = heightDp * STATUS_DOT_SIZE_FRACTION * STATUS_DOT_BOX_SCALE
+
+/**
+ * The room between the status dot's box and the camera hole. On the right the dot hugs the camera:
+ * the gap is measured from the dot itself, so the box's ring margin may overlap the hole, and it is
+ * a little wider on the [expanded] card.
+ */
+private fun statusDotCameraGapDp(heightDp: Int, onRight: Boolean, expanded: Boolean = false): Float = if (onRight) {
+    val gap = if (expanded) STATUS_DOT_RIGHT_EXPANDED_CAMERA_GAP_DP else STATUS_DOT_RIGHT_CAMERA_GAP_DP
+    gap - (statusDotBoxDp(heightDp) - heightDp * STATUS_DOT_SIZE_FRACTION) / 2f
+} else {
+    STATUS_DOT_CAMERA_GAP_DP
+}
+
+/**
+ * The earliest the status dot's box can start from the pill's leading edge (its trailing edge when
+ * the caller feeds mirrored, negated coordinates for a dot [onRight]): past the edge inset, past the
+ * badge and its gap unless [onRight] (the badge only lives on the leading edge), then past
+ * [leadingInsetDp] of whatever else the caller draws on that side.
+ */
+internal fun statusDotMinStartDp(heightDp: Int, leadingInsetDp: Int, onRight: Boolean = false): Float {
+    val badgeDp = if (onRight) 0f else heightDp * (BADGE_SIZE_FRACTION + COLLAPSED_BADGE_INSET_FRACTION)
+    return heightDp * COLLAPSED_BADGE_INSET_FRACTION + badgeDp + leadingInsetDp
+}
+
+/**
+ * How far the collapsed pill has to grow on its leading edge so the status dot fits between the
+ * badge and the camera hole with [statusDotCameraGapDp] to spare. Zero when it already fits, or
+ * when the device reports no cutout.
+ *
+ * Shared by [DynamicIsland]'s drawing and the overlay's window sizing, so the window and the
+ * touchable region always cover the grown pill.
+ *
+ * "Edge" means the leading edge, or the trailing edge when fed mirrored (negated) coordinates.
+ *
+ * @param pillLeftEdgeDp the pill's leading edge before growing, from the screen's horizontal centre.
+ * @param cameraLeftEdgeDp the camera's near edge, from the same centre.
+ * @param leadingInsetDp room already taken beside the badge, see [statusDotMinStartDp].
+ * @param onRight whether the dot sits right of the camera and the caller fed mirrored coordinates.
+ */
+internal fun statusDotLeadingGrowthDp(
+    pillLeftEdgeDp: Float,
+    cameraLeftEdgeDp: Float?,
+    heightDp: Int,
+    leadingInsetDp: Int,
+    onRight: Boolean = false,
+): Int {
+    if (cameraLeftEdgeDp == null) return 0
+    val dotEnd = pillLeftEdgeDp + statusDotMinStartDp(heightDp, leadingInsetDp, onRight) + statusDotBoxDp(heightDp)
+    val limit = cameraLeftEdgeDp - statusDotCameraGapDp(heightDp, onRight)
+    return kotlin.math.ceil(dotEnd - limit).coerceAtLeast(0f).toInt()
+}
+
+/**
+ * Where the status dot's box starts from the pill's leading edge (trailing edge when fed mirrored,
+ * negated coordinates) once the pill has grown by
+ * [growthDp]: flush against the camera's gap, and never closer to the badge than
+ * [statusDotMinStartDp]. Without a known camera it stays just past the badge.
+ */
+internal fun statusDotStartDp(
+    pillLeftEdgeDp: Float,
+    cameraLeftEdgeDp: Float?,
+    heightDp: Int,
+    leadingInsetDp: Int,
+    growthDp: Int,
+    onRight: Boolean = false,
+    expanded: Boolean = false,
+): Float {
+    val minStart = statusDotMinStartDp(heightDp, leadingInsetDp, onRight)
+    if (cameraLeftEdgeDp == null) return minStart
+    val fromCamera = cameraLeftEdgeDp - statusDotCameraGapDp(heightDp, onRight, expanded) - statusDotBoxDp(heightDp) -
+        (pillLeftEdgeDp - growthDp)
+    return maxOf(minStart, fromCamera)
+}
+
+/**
+ * The badge diameter for a container [containerDp] tall. Shared by every collapsed surface that
+ * draws one — the pill, the resting pill's glyph and the satellite bubble — so a badge is the same
+ * fraction of its container whichever one it sits in.
+ */
+internal fun badgeSizeFor(containerDp: Int): Dp = (containerDp * BADGE_SIZE_FRACTION).dp
+
+/** The glyph diameter to pair with [badgeSizeFor] for the same container. */
+internal fun badgeIconSizeFor(containerDp: Int): Dp = (containerDp * BADGE_ICON_FRACTION).dp
+
+/**
+ * The badge an event draws for itself: the music tile's cover, the phone tile's caller photo, or the
+ * event's icon. One place, so every surface showing an event — the collapsed pill, the satellite
+ * bubble, the expanded music layout — resolves its art and falls back identically.
+ *
+ * @param showCallPhoto false on a surface a call can never reach, which then skips subscribing to
+ *   [OnCallBus] altogether. The satellite bubble passes false: a call owns the whole cutout, so it
+ *   is never parked beside one (see the overlay controller's satelliteAllowed).
+ */
 @Composable
-private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera: Boolean = false) {
-    // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
+internal fun EventBadge(
+    event: IslandEvent,
+    badgeSize: Dp,
+    iconSize: Dp,
+    modifier: Modifier = Modifier,
+    showCallPhoto: Boolean = true,
+) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
-    val onCall by OnCallBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
-    val callPhoto = event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
-    val badgeSize = (heightDp * 0.72f).dp
+    val callPhoto = if (showCallPhoto) {
+        val onCall = OnCallBus.state.collectAsStateWithLifecycle().value
+        event.call?.takeIf { it.showPhoto }?.let { onCall?.photo }
+    } else {
+        null
+    }
+
+    when {
+        albumArt != null -> AlbumArt(
+            bitmap = albumArt,
+            size = badgeSize,
+            modifier = modifier,
+            rotate = event.media?.rotateAlbumArt == true,
+            circle = event.media?.circleCover == true,
+            playing = nowPlaying?.isPlaying == true,
+            strokeColor = albumArtStrokeFor(event),
+        )
+
+        callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = modifier)
+
+        else -> IconBadge(event = event, badgeSize = badgeSize, iconSize = iconSize, modifier = modifier)
+    }
+}
+
+/**
+ * The collapsed pill's contents: the badge, the label, and whatever the live tiles want to put
+ * beside them. Sized to [heightDp] so it fits the user's own geometry.
+ *
+ * @param trailingInsetDp extra room to leave on the trailing edge, so whatever the caller draws
+ *   there — today the permission dots — isn't overlapped by the timer's remaining time or the
+ *   progress ring.
+ * @param iconPop scale for the badge's arrival pop, driven by the caller. Hoisted rather than owned
+ *   here because the collapsed content re-enters composition every time the island collapses back
+ *   from expanded, which would otherwise re-fire the pop on a collapse. Null (the settings preview)
+ *   leaves the badge at rest.
+ */
+@Composable
+private fun CollapsedContent(
+    event: IslandEvent,
+    heightDp: Int,
+    isStickToCamera: Boolean = false,
+    trailingInsetDp: Int = 0,
+    iconPop: Animatable<Float, AnimationVector1D>? = null,
+    hotspot: HotspotState = HotspotState(),
+) {
+    // The music tile's single transport button, opposite its cover. Never on the stuck-to-camera
+    // pill (barely wider than the badge) nor beside the tiny player, which has no room for it.
+    val rightButton = event.media
+        ?.takeIf { it.rightButton && !it.miniPlayer && !isStickToCamera }
+        ?.rightButtonAction
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Scaled after the padding so the pop grows the badge about its own centre instead of
+        // dragging it in from the pill's edge, and read inside the layer block so each frame redraws
+        // without recomposing the pill.
         val placement = Modifier
             .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
             .padding(
                 start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
                 bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
             )
-        when {
-            albumArt != null -> AlbumArt(
-                bitmap = albumArt,
-                size = badgeSize,
-                modifier = placement,
-                rotate = event.media?.rotateAlbumArt == true,
-                playing = nowPlaying?.isPlaying == true,
-                strokeColor = albumArtStrokeFor(event),
+            .then(
+                if (iconPop != null) {
+                    Modifier.graphicsLayer {
+                        scaleX = iconPop.value
+                        scaleY = iconPop.value
+                    }
+                } else {
+                    Modifier
+                }
             )
-
-            callPhoto != null -> ContactPhoto(bitmap = callPhoto, size = badgeSize, modifier = placement)
-
-            else -> IconBadge(
-                event = event,
-                badgeSize = badgeSize,
-                iconSize = (heightDp * 0.46f).dp,
-                modifier = placement,
-            )
-        }
+        // The music tile shows album art, the phone tile the caller's photo, on the normal cutout.
+        EventBadge(
+            event = event,
+            badgeSize = badgeSizeFor(heightDp),
+            iconSize = badgeIconSizeFor(heightDp),
+            modifier = placement,
+        )
         // The timer tile shows the remaining time on the trailing edge, opposite its icon.
         if (event.timer != null && !isStickToCamera) {
-            timerRemainingText()?.let { remaining ->
+            timerDisplayText()?.let { remaining ->
                 Text(
                     text = remaining,
                     color = LocalContentColor.current,
@@ -879,112 +2332,426 @@ private fun CollapsedContent(event: IslandEvent, heightDp: Int, isStickToCamera:
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = (heightDp * 0.24f).dp),
+                        .padding(
+                            end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp,
+                        ),
                 )
             }
         }
         event.progressData?.takeIf { !isStickToCamera }?.let { progress ->
-            val indicatorModifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = (heightDp * 0.24f).dp)
-                .size((heightDp * 0.5f).dp)
-            val strokeWidth = (heightDp * 0.06f).dp
-            if (progress.isIndeterminate) {
-                CircularProgressIndicator(
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
+            CollapsedProgressIndicator(
+                progress = progress,
+                heightDp = heightDp,
+                trailingInsetDp = trailingInsetDp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+        rightButton?.let { action ->
+            MediaNormalButton(
+                action = action,
+                heightDp = heightDp,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = (heightDp * 0.16f).dp + trailingInsetDp.dp),
+            )
+        }
+        // Trailing text (e.g. battery percentage for charging/battery low)
+        if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
+            event.trailingText?.let { trailingText ->
+                Text(
+                    text = trailingText,
+                    color = event.colorOverride?.resolve() ?: event.trailingTextColor ?: LocalContentColor.current,
+                    fontSize = (heightDp * 0.34f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
                 )
-            } else {
-                val fraction = if (progress.max <= 0) 0f
-                    else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
-                val animatedFraction by animateFloatAsState(
-                    targetValue = fraction,
-                    label = "collapsedProgress",
-                )
-                CircularProgressIndicator(
-                    progress = { animatedFraction },
-                    modifier = indicatorModifier,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer,
-                    strokeWidth = strokeWidth,
-                )
+            }
+        }
+        
+        // Connected-device count (hotspot)
+        if (event.timer == null && event.progressData == null && rightButton == null && !isStickToCamera) {
+            val badge = event.hotspot?.badge
+            val count = hotspot.count
+            if (badge != null && count != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp),
+                ) {
+                    badge.DrawCount(count, heightDp, showZero = true)
+                }
             }
         }
     }
 }
 
 /**
- * The resting (event-less) pill's optional glyph, centred on the collapsed cutout. A user-chosen
- * [containerColor] draws a filled disc with contrasting ink behind the glyph; without one, the glyph
- * sits directly on the pill in its content colour. The glyph is a picked image or a Material icon.
+ * One transport button on the trailing edge of the music tile's normal cutout, opposite the cover.
+ * Which action it carries — previous, play/pause, next — is the user's pick; the play/pause icon
+ * follows live playback from [NowPlayingBus], which is also where the tap is sent. Sized off
+ * [heightDp], the user's own normal-cutout height, exactly as the badge opposite it is.
  */
 @Composable
-private fun EmptyPillContent(
-    icon: IconSource,
-    containerColor: CutoutColor?,
+private fun MediaNormalButton(
+    action: MusicRightButtonAction,
     heightDp: Int,
-    isStickToCamera: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val badgeSize = (heightDp * 0.72f).dp
-    val iconSize = (heightDp * 0.46f).dp
+    val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
+    val isPlaying = nowPlaying?.isPlaying == true
+    val transport = nowPlaying?.transport
+    val interaction = remember { MutableInteractionSource() }
 
-    val disc = containerColor?.resolve()
-    val glyphColor = when {
-        disc != null -> if (disc.luminance() > 0.5f) PillTextColorDark else PillTextColor
-        else -> LocalContentColor.current
+    val icon = when (action) {
+        MusicRightButtonAction.PREVIOUS -> Icons.Rounded.SkipPrevious
+        MusicRightButtonAction.PLAY_PAUSE -> if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+        MusicRightButtonAction.NEXT -> Icons.Rounded.SkipNext
     }
+    val label = stringResource(
+        when (action) {
+            MusicRightButtonAction.PREVIOUS -> R.string.music_prev_label
+            MusicRightButtonAction.PLAY_PAUSE ->
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            MusicRightButtonAction.NEXT -> R.string.music_next_label
+        }
+    )
 
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
-        value = when (icon) {
-            is IconSource.Image -> withContext(Dispatchers.IO) {
-                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
-            }
-            is IconSource.Material -> null
+    Box(
+        modifier = modifier
+            .size(badgeSizeFor(heightDp))
+            .pressScale(interaction)
+            .clip(CircleShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                enabled = transport != null,
+                onClick = {
+                    when (action) {
+                        MusicRightButtonAction.PREVIOUS -> transport?.previous()
+                        MusicRightButtonAction.PLAY_PAUSE -> transport?.playPause()
+                        MusicRightButtonAction.NEXT -> transport?.next()
+                    }
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = LocalContentColor.current,
+            modifier = Modifier.size(badgeIconSizeFor(heightDp)),
+        )
+    }
+}
+
+/**
+ * The tiny cutout's contents, drawn for the music tile's "Mini player" and the phone tile's "Mini
+ * call": one glyph alone, on the leading edge — the pill swallows the camera hole with its trailing
+ * half, so the leading extension is the only part of it free to hold anything. Deliberately nothing
+ * else (no album cover, no contact photo): the pill is too small to carry one and still read as the
+ * camera grown a little wider.
+ * Sized off [heightDp] — the user's own normal-cutout height — so it scales with their geometry.
+ *
+ * @param iconPop scale for the glyph's arrival pop, hoisted by the caller exactly as
+ *   [CollapsedContent] hoists the badge's.
+ */
+@Composable
+private fun TinyTileContent(
+    event: IslandEvent,
+    heightDp: Int,
+    iconPop: Animatable<Float, AnimationVector1D>? = null,
+) {
+    // A call event's own icon is the avatar standing in for a missing contact photo, which reads as
+    // "a contact" rather than "a call" once it's alone on the pill; the tiny call shows a handset.
+    val glyph = if (event.call != null) TINY_CALL_GLYPH else event.icon
+    val pop = if (iconPop != null) {
+        Modifier.graphicsLayer {
+            scaleX = iconPop.value
+            scaleY = iconPop.value
+        }
+    } else {
+        Modifier
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        val placement = Modifier
+            .align(Alignment.CenterStart)
+            .padding(start = (heightDp * TINY_INSET_FRACTION).dp)
+            .then(pop)
+        when (glyph) {
+            is IslandIcon.Vector -> Icon(
+                imageVector = glyph.image,
+                contentDescription = null,
+                tint = LocalContentColor.current,
+                modifier = placement.size(badgeIconSizeFor(heightDp)),
+            )
+
+            else -> IconBadge(
+                event = event,
+                badgeSize = badgeSizeFor(heightDp),
+                iconSize = badgeIconSizeFor(heightDp),
+                modifier = placement,
+            )
         }
     }
-    val materialIcon = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) }
+}
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Sit on the leading edge like the normal cutout's icon (clear of the camera), or centred at
-        // the bottom when the pill is stuck beside the camera — mirroring CollapsedContent.
-        val placement = Modifier
-            .align(if (isStickToCamera) Alignment.BottomCenter else Alignment.CenterStart)
-            .padding(
-                start = if (isStickToCamera) 0.dp else (heightDp * 0.16f).dp,
-                bottom = if (isStickToCamera) (heightDp * 0.14f).dp else 0.dp,
+/** The share of the tiny cutout's height left as padding at each end. */
+private const val TINY_INSET_FRACTION = 0.18f
+
+/** The glyph the tiny cutout carries for a call, standing in for the event's contact avatar. */
+private val TINY_CALL_GLYPH = IslandIcon.Vector(Icons.Rounded.PhoneInTalk)
+
+/**
+ * A circular progress indicator on the trailing edge of the collapsed island. Sweeps from 0% to
+ * 100% while in progress, and upon completion seamlessly fills in, bounces in a checkmark, and
+ * emits an expanding radiating pulse wave.
+ */
+@Composable
+private fun CollapsedProgressIndicator(
+    progress: ProgressData,
+    heightDp: Int,
+    trailingInsetDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val indicatorSize = (heightDp * 0.5f).dp
+    val strokeWidth = (heightDp * 0.06f).dp
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+
+    val indicatorModifier = modifier
+        .padding(end = (heightDp * COLLAPSED_TRAILING_INSET_FRACTION).dp + trailingInsetDp.dp)
+
+    if (progress.isIndeterminate) {
+        CircularProgressIndicator(
+            modifier = indicatorModifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = primaryContainer,
+            strokeWidth = strokeWidth,
+        )
+        return
+    }
+
+    val fraction = if (progress.max <= 0) 0f
+        else (progress.current.toFloat() / progress.max).coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "collapsedProgress",
+    )
+
+    val isComplete = progress.isComplete || (fraction >= 1f && progress.max > 0)
+
+    val fillScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "progressCompleteFill",
+    )
+
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (isComplete) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "progressCompleteCheckmark",
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "completedProgressPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseScale",
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isComplete) 0.65f else 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseAlpha",
+    )
+
+    Box(
+        modifier = indicatorModifier.size(indicatorSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse wave upon download completion
+        if (isComplete && pulseAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        alpha = pulseAlpha
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
             )
-        Box(
-            modifier = placement
-                .size(badgeSize)
-                .clip(CircleShape)
-                .then(if (disc != null) Modifier.background(disc) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            val loaded = bitmap
-            when {
-                loaded != null -> androidx.compose.foundation.Image(
-                    bitmap = loaded,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
-                )
+        }
 
-                materialIcon != null -> Icon(
-                    imageVector = materialIcon,
-                    contentDescription = null,
-                    tint = glyphColor,
-                    modifier = Modifier.size(iconSize),
-                )
+        // Circular progress ring
+        CircularProgressIndicator(
+            progress = { animatedFraction },
+            modifier = Modifier.size(indicatorSize),
+            color = primaryColor,
+            trackColor = if (isComplete) primaryColor.copy(alpha = 0.2f) else primaryContainer,
+            strokeWidth = strokeWidth,
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        )
+
+        // Seamless inner fill disc
+        if (fillScale > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(indicatorSize)
+                    .graphicsLayer {
+                        scaleX = fillScale
+                        scaleY = fillScale
+                    }
+                    .clip(CircleShape)
+                    .background(primaryColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Check mark icon
+                if (checkmarkScale > 0f) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = onPrimaryColor,
+                        modifier = Modifier
+                            .size(indicatorSize * 0.65f)
+                            .graphicsLayer {
+                                scaleX = checkmarkScale
+                                scaleY = checkmarkScale
+                            },
+                    )
+                }
             }
         }
     }
 }
 
-// The height of each shortcut button in the expanded center (its diameter too, in disc mode).
-private val CenterDiscDp = 64.dp
+/**
+ * [RadiatingStatusDot] that pops in and out as [color] becomes non-null or null, like the permission
+ * dots do. It keeps the last colour it was given, so the dot fades out in the colour it had instead
+ * of vanishing the moment the colour is gone.
+ */
+@Composable
+private fun AnimatedStatusDot(
+    color: Color?,
+    sizeDp: Dp,
+    modifier: Modifier = Modifier,
+) {
+    var lastColor by remember { mutableStateOf(Color.Transparent) }
+    if (color != null && color != lastColor) lastColor = color
+    AnimatedVisibility(
+        visible = color != null,
+        modifier = modifier,
+        enter = fadeIn() + scaleIn(initialScale = 0.4f),
+        exit = fadeOut() + scaleOut(targetScale = 0.4f),
+    ) {
+        RadiatingStatusDot(color = lastColor, sizeDp = sizeDp)
+    }
+}
+
+/**
+ * A pulsing status dot, beside the camera on the pill and in the header band of the expanded card,
+ * that radiates animated expanding rings
+ * in the semantic status colour (e.g. green for Connected, red for Disconnected, yellow for Battery Low, blue for Lock).
+ */
+@Composable
+private fun RadiatingStatusDot(
+    color: Color,
+    sizeDp: Dp = 8.dp,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "radiatingStatus")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveScale",
+    )
+    val waveAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waveAlpha",
+    )
+
+    Box(
+        modifier = modifier.size(sizeDp * STATUS_DOT_BOX_SCALE),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Radiating pulse ring
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .graphicsLayer {
+                    scaleX = waveScale
+                    scaleY = waveScale
+                    alpha = waveAlpha
+                }
+                .clip(CircleShape)
+                .background(color),
+        )
+        // Solid center core dot
+        Box(
+            modifier = Modifier
+                .size(sizeDp)
+                .clip(CircleShape)
+                .background(color),
+        )
+    }
+}
+
+/**
+ * A chosen [IconSource] ready to draw: at most one of [bitmap] (a picked image, null while it is
+ * still loading) and [vector] (a Material glyph) is set.
+ */
+private data class ResolvedIcon(val bitmap: ImageBitmap?, val vector: ImageVector?)
+
+/** Resolves [icon] for drawing, loading a picked image off the main thread as the source changes. */
+@Composable
+private fun rememberResolvedIcon(icon: IconSource?): ResolvedIcon {
+    val context = LocalContext.current
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = icon) {
+        value = when (icon) {
+            is IconSource.Image -> withContext(Dispatchers.IO) {
+                Uri.parse(icon.uri).loadImageBitmapOrNull(context)
+            }
+            is IconSource.Material, null -> null
+        }
+    }
+    return ResolvedIcon(
+        bitmap = bitmap,
+        vector = (icon as? IconSource.Material)?.let { MaterialIconCatalog.iconFor(it.iconName) },
+    )
+}
+
+
+/** The height of each shortcut button in the expanded center (its diameter too, in disc mode). */
+private val CENTER_DISC_DP = 64.dp
 
 /**
  * The expanded "center" the resting pill opens with [com.ekoehler.expressivecutout.data.EmptyClickAction.OPEN_CENTER]:
@@ -1092,9 +2859,9 @@ private fun CenterShortcutButton(
     val containerColor = if (active) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.14f)
     val glyphColor = if (active) MaterialTheme.colorScheme.onPrimary else LocalContentColor.current
     val shapeModifier = if (fillContainer) {
-        Modifier.fillMaxWidth().height(CenterDiscDp)
+        Modifier.fillMaxWidth().height(CENTER_DISC_DP)
     } else {
-        Modifier.size(CenterDiscDp)
+        Modifier.size(CENTER_DISC_DP)
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1118,20 +2885,20 @@ private fun CenterShortcutButton(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp),
+                        modifier = Modifier.size(CENTER_DISC_DP),
                     )
 
                     appIcon != null -> androidx.compose.foundation.Image(
                         bitmap = appIcon.bitmap,
                         contentDescription = null,
-                        modifier = Modifier.size(CenterDiscDp * 0.6f).clip(CircleShape),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.6f).clip(CircleShape),
                     )
 
                     else -> Icon(
                         imageVector = CenterShortcutCatalog.iconFor(shortcut),
                         contentDescription = null,
                         tint = glyphColor,
-                        modifier = Modifier.size(CenterDiscDp * 0.46f),
+                        modifier = Modifier.size(CENTER_DISC_DP * 0.46f),
                     )
                 }
             }
@@ -1197,18 +2964,20 @@ private fun rememberAppIcon(packageName: String, themed: Boolean): LoadedAppIcon
 }
 
 /**
- * The remaining time on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
- * timer is present. Reads [RunningTimerBus]: a running timer ticks down against
+ * The time shown on the timer tile, formatted m:ss (or h:mm:ss past an hour), or null when no
+ * timer is present. Reads [RunningTimerBus]: a running timer ticks against
  * [SystemClock.elapsedRealtime] (re-derived a few times a second so the collapsed pill and expanded
- * card stay in sync), while a paused timer shows its frozen remainder without ticking. Seconds are
- * rounded up so a fresh 5:00 timer reads "5:00", and it lands on "0:00" exactly at zero.
+ * card stay in sync) — down towards its end for a countdown, up from its start for a count-up
+ * stopwatch — while a paused timer shows its frozen value without ticking. A countdown rounds
+ * seconds up so a fresh 5:00 timer reads "5:00" and lands on "0:00" exactly at zero; a count-up
+ * rounds seconds down so a fresh stopwatch reads "0:00" and only advances once a full second passed.
  */
 @Composable
-private fun timerRemainingText(): String? {
+private fun timerDisplayText(): String? {
     val timer by RunningTimerBus.state.collectAsStateWithLifecycle()
     val t = timer ?: return null
     val end = t.endElapsedRealtimeMs
-    val remainingMs = if (end != null) {
+    val ms = if (end != null) {
         var nowElapsed by remember(end) { mutableStateOf(SystemClock.elapsedRealtime()) }
         LaunchedEffect(end) {
             while (true) {
@@ -1216,11 +2985,72 @@ private fun timerRemainingText(): String? {
                 delay(250L)
             }
         }
-        (end - nowElapsed).coerceAtLeast(0L)
+        (if (t.countsUp) nowElapsed - end else end - nowElapsed).coerceAtLeast(0L)
     } else {
         (t.pausedRemainingMs ?: return null).coerceAtLeast(0L)
     }
-    return formatCallDuration((remainingMs + 999L) / 1_000L)
+    return formatCallDuration(if (t.countsUp) ms / 1_000L else (ms + 999L) / 1_000L)
+}
+
+/** Formats an elapsed timestamp into a relative time string (e.g. "Now", "5s ago", "2m ago", "2h ago", "1d ago"). */
+fun formatRelativeTime(postTimeMs: Long, nowMs: Long = System.currentTimeMillis()): String =
+    NotificationHeaderResolver.formatRelativeTime(postTimeMs, nowMs)
+
+/** Combines source app name and relative timestamp according to visibility settings. */
+fun formatNotificationHeader(
+    appName: String?,
+    relativeTime: String?,
+    showAppName: Boolean,
+    showTimestamp: Boolean,
+): String? = NotificationHeaderResolver.formatHeader(
+    appName = appName,
+    relativeTime = relativeTime,
+    showAppName = showAppName,
+    showTimestamp = showTimestamp,
+)
+
+@Composable
+fun rememberRelativeTime(postTimeMs: Long?): String? {
+    if (postTimeMs == null) return null
+    val relativeTime by produceState(initialValue = formatRelativeTime(postTimeMs), key1 = postTimeMs) {
+        while (true) {
+            delay(1_000L)
+            value = formatRelativeTime(postTimeMs)
+        }
+    }
+    return relativeTime
+}
+
+/**
+ * A small rounded "Pinned" label with the filled pin glyph, vertically centred in the band beside
+ * the camera so a pinned notification is recognisable at a glance. Tapping it calls [onClick] to
+ * unpin.
+ */
+@Composable
+private fun PinnedTag(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.CenterEnd) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(LocalContentColor.current.copy(alpha = 0.15f))
+                .clickable(onClickLabel = stringResource(R.string.cutout_unpin), onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.cutout_pinned_tag),
+                color = LocalContentColor.current.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_pin_filled),
+                contentDescription = null,
+                tint = LocalContentColor.current.copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -1228,75 +3058,192 @@ private fun ExpandedContent(
     event: IslandEvent,
     showActions: Boolean,
     appearance: AppearanceSettings,
+    targetWidthDp: Int = 0,
+    expandProgress: Float = 1f,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+    hotspot: HotspotState = HotspotState(),
+    canTurnOffHotspot: Boolean = false,
+    onTurnOffHotspot: () -> Unit = {},
     replyingTo: IslandAction?,
     replySent: Boolean,
     progressData: ProgressData? = null,
+    motion: IslandMotion = IslandMotion(
+        AnimationStyle.EASE_IN_OUT,
+        AnimationSpeed.DEFAULT,
+        AnimationBounce.NORMAL,
+        BASE_TRANSITION_MS,
+    ),
     onAction: (IslandAction) -> Unit,
     onStartReply: (IslandAction) -> Unit,
     onCancelReply: () -> Unit,
     onSendReply: (String) -> Unit,
     onDismiss: () -> Unit = {},
+    onPinToggle: () -> Unit = {},
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
     if (event.media != null) {
-        MediaExpandedContent(event = event, buttonHeightDp = appearance.actionButtonHeightDp)
-        return
-    }
-    // The timer tile: icon + ticking remaining time, and its Reset / Add 1 min chips.
-    if (event.timer != null) {
-        TimerExpandedContent(event = event, appearance = appearance, onAction = onAction)
-        return
-    }
-    // The assistant tile: icon + text response with vertical scrolling.
-    if (event.assistant != null) {
-        AssistantExpandedContent(
+        MediaExpandedContent(
             event = event,
-            showActions = showActions,
             appearance = appearance,
-            onDismiss = onDismiss,
-            onHeightMeasured = onHeightMeasured,
+            buttonHeightDp = appearance.actionButtonHeightDp,
+            topMarginDp = topMarginDp,
         )
         return
     }
-    // Content sits in the lower part of the card, leaving the top clear of the camera hole.
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    // The timer tile: icon + ticking time, and its Reset / Add 1 min chips.
+    if (event.timer != null) {
+        TimerExpandedContent(
+            event = event,
+            appearance = appearance,
+            topMarginDp = topMarginDp,
+            onAction = onAction,
+        )
+        return
+    }
+    val density = LocalDensity.current
+    val hotspotCard = event.hotspot
+    val ssidTitle = hotspotCard != null && hotspot.ssid != null
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
+    val contentAlpha = if (expandProgress >= 1f) 1f else ((expandProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
+    val contentWidthModifier = if (targetWidthDp > 36) {
+        Modifier.width((targetWidthDp - 36).dp)
+    } else {
+        Modifier.fillMaxWidth()
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp)
+            .graphicsLayer { alpha = contentAlpha },
+    ) {
+        val swapEnter = fadeIn(motion.swapFade()) +
+            scaleIn(motion.swapScale(), initialScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+        val swapExit = fadeOut(motion.swapFade()) +
+            scaleOut(motion.swapScale(), targetScale = motion.swapMinScale, transformOrigin = PIN_SWAP_ORIGIN)
+
+        // Pinned tag (tap to unpin)
+        AnimatedVisibility(
+            visible = event.pinned,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = -PINNED_TAG_END_INSET_DP.dp),
+            enter = swapEnter,
+            exit = swapExit,
+        ) {
+            PinnedTag(
+                onClick = onPinToggle,
+                modifier = Modifier.height(topMarginDp.dp),
+            )
+        }
+
+        // Pin button
+        AnimatedVisibility(
+            visible = !event.pinned,
+            modifier = Modifier.align(Alignment.TopEnd),
+            enter = swapEnter,
+            exit = swapExit,
+        ) {
+            IconButton(
+                onClick = onPinToggle,
+                modifier = Modifier.size(topMarginDp.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_pin),
+                    contentDescription = stringResource(R.string.cutout_pin),
+                    tint = LocalContentColor.current.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .align(Alignment.TopStart)
+                .then(contentWidthModifier)
+                .wrapContentHeight(unbounded = true, align = Alignment.Top)
+                .padding(top = topMarginDp.dp, bottom = EXPANDED_NOTIFICATION_BOTTOM_PADDING_DP.dp)
+                .onGloballyPositioned { coordinates ->
+                    val hDp = with(density) { coordinates.size.height.toDp().value.roundToInt() }
+                    if (hDp > 0) {
+                        onHeightMeasured?.invoke(hDp)
+                    }
+                },
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
-                        text = event.label,
+                        text = if (ssidTitle) hotspot.ssid.orEmpty() else event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    event.detail?.let { detail ->
+                    event.detail?.takeIf { !ssidTitle }?.let { detail ->
                         Text(
                             text = detail,
                             color = LocalContentColor.current.copy(alpha = 0.70f),
                             fontSize = 12.sp,
-                            maxLines = 2,
+                            maxLines = if (appearance.showFullNotificationText) 20 else 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (event.secondaryLines.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            event.secondaryLines.forEach { line ->
+                                Text(
+                                    text = line,
+                                    color = LocalContentColor.current.copy(alpha = 0.70f),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
 
                     var lastProgressData by remember { mutableStateOf(progressData) }
                     if (progressData != null) lastProgressData = progressData
-                    AnimatedVisibility(visible = progressData != null) {
+                    AnimatedVisibility(visible = progressData != null && !progressData.isComplete) {
+                        // Material's default indicator is a 4dp hairline at a fixed 240dp width,
+                        // which reads as a stray line on the island. Span the text column and set
+                        // the thickness explicitly — the bar derives its stroke from this height.
+                        // requiredHeight, not height: the latter coerces into whatever the column
+                        // has left over, which is what let a tight card flatten the bar.
+                        val barModifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = PROGRESS_BAR_TOP_GAP_DP.dp)
+                            .requiredHeight(PROGRESS_BAR_HEIGHT_DP.dp)
                         lastProgressData?.let { p ->
                             if (p.isIndeterminate) {
                                 LinearProgressIndicator(
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
@@ -1310,11 +3257,56 @@ private fun ExpandedContent(
                                 )
                                 LinearProgressIndicator(
                                     progress = { animatedFraction },
+                                    modifier = barModifier,
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            if (hotspotCard != null) {
+                // Connected devices
+                if (hotspot.clients.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    hotspot.clients.forEachIndexed { index, mac ->
+                        Text(
+                            text = mac,
+                            color = LocalContentColor.current,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    groupedShape(isFirst = index == 0, isLast = index == hotspot.clients.lastIndex),
+                                )
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                    }
+                }
+
+                // Turn off button
+                if (canTurnOffHotspot) {
+                    val turnOffFill = hotspotCard.turnOffColor?.resolve() ?: event.effectiveTint()
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .height(appearance.actionButtonHeightDp.dp)
+                                .clip(actionChipShape(appearance.actionButtonStyle))
+                                .background(turnOffFill)
+                                .clickable(onClick = onTurnOffHotspot)
+                                .padding(horizontal = 18.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.hotspot_turn_off),
+                                color = inkOn(turnOffFill),
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
@@ -1359,6 +3351,17 @@ private fun ExpandedContent(
     }
 }
 
+/** The corner shape every expanded action button shares: rounded square for Material You, a pill otherwise. */
+private fun actionChipShape(style: ActionButtonStyle): Shape = when (style) {
+    ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+    else -> CircleShape
+}
+
+/** The tint the event's icon and accents resolve to: per-event override, then theme role, then the event's own accent. */
+@Composable
+private fun IslandEvent.effectiveTint(): Color =
+    colorOverride?.resolve() ?: if (useThemeColor) MaterialTheme.colorScheme.forRole(themeColorRole) else accent
+
 /**
  * A single action chip. [style] selects between the Material 3 Expressive and Material You looks;
  * [fill] is the base colour those looks derive their container/outline from.
@@ -1373,11 +3376,9 @@ private fun ActionChip(
     modifier: Modifier = Modifier,
     interaction: MutableInteractionSource = remember { MutableInteractionSource() },
     animatePress: Boolean = true,
+    horizontalPaddingDp: Int = 18,
 ) {
-    val shape = when (style) {
-        ActionButtonStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
-        else -> CircleShape
-    }
+    val shape = actionChipShape(style)
     val container = when (style) {
         ActionButtonStyle.EXPRESSIVE_TONAL -> fill.copy(alpha = 0.22f)
         ActionButtonStyle.EXPRESSIVE_FILLED -> fill
@@ -1386,7 +3387,7 @@ private fun ActionChip(
     }
     val content = when (style) {
         // A solid fill needs ink that contrasts with it; the rest sit on a translucent tint.
-        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor
+        ActionButtonStyle.EXPRESSIVE_FILLED -> if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
         ActionButtonStyle.OUTLINED -> fill
         else -> LocalContentColor.current
     }
@@ -1413,7 +3414,7 @@ private fun ActionChip(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 22.dp),
+                modifier = Modifier.padding(horizontal = horizontalPaddingDp.dp),
             )
         }
     }
@@ -1426,12 +3427,14 @@ private fun ActionChip(
  */
 private val LocalActionButtonAnimation = staticCompositionLocalOf { ActionButtonAnimation.SCALE }
 
-// How far the EXPAND press animation widens a button, on each side.
-private val PressExpandDp = 7.dp
+/** How far the EXPAND press animation widens a button, on each side. */
+private val PRESS_EXPAND_DP = 7.dp
 
-// In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
-// the EXPAND animation: it grows by this share while the others give up the same total between them,
-// so the row always fills exactly its own width.
+/**
+ * In a full-width (flex) row, how much extra weight a pressed chip borrows from its siblings under
+ * the EXPAND animation: it grows by this share while the others give up the same total between
+ * them, so the row always fills exactly its own width.
+ */
 private const val FULL_EXPAND_DELTA = 0.15f
 
 /**
@@ -1459,6 +3462,7 @@ private fun ActionChipRow(
     // every chip on each composition so the number of composable calls stays constant.
     val pressedFlags = interactions.map { it.collectIsPressedAsState().value }
     val pressedIndex = if (redistribute) pressedFlags.indexOfFirst { it } else -1
+    val chipPadding = if (actions.size >= 3) 12 else 18
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp, alignment.toHorizontal()),
@@ -1480,7 +3484,7 @@ private fun ActionChipRow(
                     Modifier.weight(weight)
                 }
                 full -> Modifier.weight(1f)
-                else -> Modifier
+                else -> Modifier.weight(1f, fill = false)
             }
             ActionChip(
                 action = action,
@@ -1493,6 +3497,7 @@ private fun ActionChipRow(
                 // When redistributing, the give-and-take of widths IS the press animation, so the
                 // chip must not also expand itself in place.
                 animatePress = !redistribute,
+                horizontalPaddingDp = chipPadding,
             )
         }
     }
@@ -1503,9 +3508,38 @@ private fun ActionChipRow(
  * feels the same. Two flavours, selected via [LocalActionButtonAnimation]:
  * [ActionButtonAnimation.SCALE] is the expressive "squish" — a springy scale-down that settles back
  * with a little bounce on release; [ActionButtonAnimation.EXPAND] instead briefly widens the button
- * by [PressExpandDp] on each side. Both animate on the same spring and via [graphicsLayer], so the
+ * by [PRESS_EXPAND_DP] on each side. Both animate on the same spring and via [graphicsLayer], so the
  * surrounding layout never reflows.
  */
+/**
+ * The animated row weights for a group of call buttons sharing one row, one per [interactions]
+ * entry: holding a button down springs it wider while its neighbours shrink by the same total,
+ * the expressive button-group squeeze. See [callGroupWeight].
+ */
+@Composable
+private fun rememberCallGroupWeights(interactions: List<MutableInteractionSource>): List<Float> {
+    val pressed = interactions.map { it.collectIsPressedAsState().value }
+    val pressedIndex = pressed.indexOf(true)
+    return pressed.indices.map { index ->
+        animateFloatAsState(
+            targetValue = callGroupWeight(pressedIndex, index, interactions.size),
+            animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow),
+            label = "callGroupWeight",
+        ).value
+    }
+}
+
+/**
+ * The row weight the button at [index] should take while the button at [pressedIndex] (-1 for none)
+ * is held down: the pressed one swells by [CALL_GROUP_PRESS_GROW] and the other [count] - 1 buttons
+ * split that same width between them, so the group keeps its own bounds while it squeezes.
+ */
+private fun callGroupWeight(pressedIndex: Int, index: Int, count: Int): Float = when {
+    pressedIndex < 0 -> 1f
+    pressedIndex == index -> 1f + CALL_GROUP_PRESS_GROW
+    else -> 1f - CALL_GROUP_PRESS_GROW / (count - 1)
+}
+
 @Composable
 private fun Modifier.pressScale(
     interaction: MutableInteractionSource,
@@ -1526,9 +3560,9 @@ private fun Modifier.pressScale(
                 scaleY = scale
             }
             ActionButtonAnimation.EXPAND -> {
-                // Grow the width by PressExpandDp on each side, expressed as a scale relative to the
+                // Grow the width by PRESS_EXPAND_DP on each side, expressed as a scale relative to the
                 // button's own measured width so layout stays put.
-                val extraPx = PressExpandDp.toPx() * 2f * progress
+                val extraPx = PRESS_EXPAND_DP.toPx() * 2f * progress
                 if (size.width > 0f) scaleX = (size.width + extraPx) / size.width
             }
         }
@@ -1568,7 +3602,7 @@ private fun ReplySentRow(tint: Color, heightDp: Int, alignment: SentAlignment) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = if (tint.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                tint = if (tint.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -1719,8 +3753,8 @@ private fun SegmentedReplyRow(
             container = if (sendEnabled) sendColor else LocalContentColor.current.copy(alpha = 0.12f),
             content = when {
                 !sendEnabled -> LocalContentColor.current.copy(alpha = 0.4f)
-                sendColor.luminance() > 0.5f -> PillTextColorDark
-                else -> PillTextColor
+                sendColor.luminance() > 0.5f -> PILL_TEXT_COLOR_DARK
+                else -> PILL_TEXT_COLOR
             },
             shape = endCap,
             heightDp = heightDp,
@@ -1842,7 +3876,7 @@ private fun ReplySendButton(
         interactionSource = interaction,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = sendColor,
-            contentColor = if (sendColor.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+            contentColor = if (sendColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
             disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
             disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
         ),
@@ -1864,34 +3898,84 @@ private fun ReplySendButton(
  * transport handle — is read from [NowPlayingBus] so the controls stay in sync as playback changes.
  */
 @Composable
-private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
+private fun MediaExpandedContent(
+    event: IslandEvent,
+    appearance: AppearanceSettings,
+    buttonHeightDp: Int,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
+) {
     val nowPlaying by NowPlayingBus.state.collectAsStateWithLifecycle()
     val albumArt = albumArtFor(event, nowPlaying)
+    val notificationArt by MediaArtBus.state.collectAsStateWithLifecycle()
+    val like = notificationArt?.takeIf { it.packageName == nowPlaying?.packageName }?.like
+    val albumBackground = albumArtFor(event, nowPlaying, expandedBackground = true)
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
+    val backdropState = remember { HazeState() }
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        if (albumBackground != null && event.media?.showAlbumBackground == true) {
+            val blurRadius = event.media.albumBackgroundBlurRadius
+            Image(
+                bitmap = albumBackground,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                // The source wraps the blur, so frosted buttons sample the blurred cover, not the sharp one.
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(backdropState)
+                    // Rectangle edges clamp instead of fading the cover's rim to transparent.
+                    .then(if (blurRadius != null) Modifier.blur(blurRadius.dp, BlurredEdgeTreatment.Rectangle) else Modifier),
+                // Dimmed by darkening rather than fading: the cover must stay opaque, or a blurred
+                // button lets the sharp cover underneath show through its frosted copy.
+                colorFilter = ColorFilter.tint(
+                    Color.Black.copy(alpha = event.media.albumBackgroundDim),
+                    BlendMode.SrcAtop,
+                ),
+            )
+        }
+
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 18.dp, end = 18.dp)
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the transport controls keep their height and the track text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                if (albumArt != null) {
-                    AlbumArt(
-                        bitmap = albumArt,
-                        size = 44.dp,
-                        rotate = event.media?.rotateAlbumArt == true,
-                        playing = nowPlaying?.isPlaying == true,
-                        strokeColor = albumArtStrokeFor(event),
-                    )
-                } else {
-                    IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
-                }
+                EventBadge(
+                    event = event,
+                    badgeSize = 44.dp,
+                    iconSize = 26.dp,
+                    showCallPhoto = false,
+                )
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            // Same colour the fallback cover container uses, so the header and the
+                            // note badge read as one pick; the tile accent when nothing is chosen.
+                            color = event.iconContainerColor?.resolve() ?: event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = event.label,
                         color = LocalContentColor.current,
@@ -1910,21 +3994,37 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
                         )
                     }
                 }
+                like?.let { LikeButton(it) }
             }
 
             event.media?.takeIf { it.showProgress }?.let {
-                MediaProgressBar(progress = nowPlaying?.progress)
+                // The column's own row spacing alone leaves the bar crowded between the artwork row
+                // above and the transport controls below, so it gets a gap of its own on each side.
+                Box(modifier = Modifier.padding(vertical = MEDIA_PROGRESS_GAP_DP.dp)) {
+                    MediaProgressBar(progress = nowPlaying?.progress)
+                }
             }
 
             event.media?.takeIf { it.showControls }?.let { media ->
                 MediaControls(
                     isPlaying = nowPlaying?.isPlaying == true,
                     accent = event.accent,
+                    eventColor = event.primaryColor(),
                     enabled = nowPlaying != null,
                     heightDp = buttonHeightDp,
                     skipStyle = media.skipStyle,
+                    previousExpand = media.previousExpand,
+                    previousText = media.previousText,
+                    previousTextWidth = media.previousTextWidth,
+                    nextExpand = media.nextExpand,
+                    nextText = media.nextText,
+                    nextTextWidth = media.nextTextWidth,
                     playPauseStyle = media.playPauseStyle,
-                    onPrevious = { nowPlaying?.transport?.previous() },
+                    playPauseExpand = media.playPauseExpand,
+                    playPauseText = media.playPauseText,
+                    playPauseTextWidth = media.playPauseTextWidth,
+                    backdropState = backdropState,
+                    onPrevious ={ nowPlaying?.transport?.previous() },
                     onPlayPause = { nowPlaying?.transport?.playPause() },
                     onNext = { nowPlaying?.transport?.next() },
                 )
@@ -1932,6 +4032,30 @@ private fun MediaExpandedContent(event: IslandEvent, buttonHeightDp: Int) {
         }
     }
 }
+
+/**
+ * The discreet heart at the right of the track title: an outline while the track is not liked, a
+ * filled heart in [LIKED_HEART_COLOR] once it is. Borderless and background-less; tapping fires the
+ * player's own like action, and the player's re-posted notification flips the state.
+ */
+@Composable
+private fun LikeButton(like: MediaLike) {
+    IconButton(
+        onClick = { runCatching { like.intent.send() } },
+        modifier = Modifier.size(LIKE_BUTTON_SIZE_DP.dp),
+    ) {
+        Icon(
+            imageVector = if (like.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            contentDescription = like.label,
+            tint = if (like.liked) LIKED_HEART_COLOR else LocalContentColor.current.copy(alpha = 0.6f),
+            modifier = Modifier.size(LIKE_ICON_SIZE_DP.dp),
+        )
+    }
+}
+
+private val LIKED_HEART_COLOR = Color(0xFFE57373)
+private const val LIKE_BUTTON_SIZE_DP = 36
+private const val LIKE_ICON_SIZE_DP = 22
 
 /**
  * The music tile's playback bar. [MediaProgress] is an anchor rather than a live position — the
@@ -1960,34 +4084,56 @@ private fun MediaProgressBar(progress: MediaProgress?) {
         mutableFloatStateOf(progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f)
     }
     LaunchedEffect(progress) {
+        // Re-read every frame so the cursor glides; the session pushes nothing between real changes.
         while (progress.speed > 0f) {
-            delay(PROGRESS_TICK_MS)
+            withFrameMillis { }
             fraction = progress.fractionAt(SystemClock.elapsedRealtime()) ?: 0f
         }
     }
 
-    LinearProgressIndicator(
-        progress = { fraction },
+    WavyProgressBar(
+        progress = fraction,
         modifier = Modifier.fillMaxWidth(),
-        color = color,
+        waveColor = color,
         trackColor = trackColor,
-        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+        isWavy = progress.speed != 0f,
+        animated = false,
     )
+//    LinearProgressIndicator(
+//        progress = { fraction },
+//        modifier = Modifier.fillMaxWidth(),
+//        color = color,
+//        trackColor = trackColor,
+//        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+//    )
 }
 
 /**
  * Previous / play‑pause / next. Each button's fill colour, opacity and corner rounding come from the
  * music tile's settings: the skip buttons share [skipStyle] (plain over the pill by default), the
- * centre button uses [playPauseStyle] (the tile accent by default).
+ * centre button uses [playPauseStyle] (the tile accent by default). [eventColor] is what an
+ * app/adaptive button colour resolves to, the same colour the island background takes. A style
+ * with [MusicButtonStyle.blur] frosts the content registered with [backdropState] behind its fill.
  */
 @Composable
 private fun MediaControls(
     isPlaying: Boolean,
     accent: Color,
+    eventColor: Color,
     enabled: Boolean,
     heightDp: Int,
     skipStyle: MusicButtonStyle,
+    previousExpand: Boolean,
+    previousText: Boolean,
+    previousTextWidth: Float,
+    nextExpand: Boolean,
+    nextText: Boolean,
+    nextTextWidth: Float,
     playPauseStyle: MusicButtonStyle,
+    playPauseExpand: Boolean,
+    playPauseText: Boolean,
+    playPauseTextWidth: Float,
+    backdropState: HazeState,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -1997,56 +4143,95 @@ private fun MediaControls(
         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Previous button
         MediaButton(
             icon = Icons.Rounded.SkipPrevious,
-            contentDescription = "Previous track",
+            contentDescription = stringResource(R.string.music_prev_label),
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onPrevious,
+            label = stringResource(R.string.music_prev_label)
+                .takeIf { previousExpand && previousText },
+            labelWidth = previousTextWidth,
+            expand = previousExpand,
+            modifier = if (previousExpand) Modifier.weight(1f) else Modifier,
         )
+
+        // Play/pause button
         MediaButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-            contentDescription = if (isPlaying) "Pause" else "Play",
+            contentDescription = stringResource(
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            ),
             enabled = enabled,
             heightDp = heightDp,
-            // The play/pause button is a 16:9 rectangle rather than a square.
+            // The play/pause button is a 16:9 rectangle rather than a square, unless it's been
+            // asked to expand — then it takes whatever width the skip buttons leave over.
             widthDp = heightDp * 16 / 9,
             iconSize = 24.dp,
-            fill = playPauseStyle.resolveFill(fallback = accent),
+            fill = playPauseStyle.resolveFill(fallback = accent, eventColor = eventColor),
             cornerPercent = playPauseStyle.cornerPercent,
+            blurState = playPauseStyle.blurState(backdropState),
+            blurRadius = playPauseStyle.blurRadius.dp,
             onClick = onPlayPause,
+            label = stringResource(
+                if (isPlaying) R.string.music_playpause_label_pause else R.string.music_playpause_label_play
+            ).takeIf { playPauseExpand && playPauseText },
+            labelWidth = playPauseTextWidth,
+            expand = playPauseExpand,
+            modifier = if (playPauseExpand) Modifier.weight(1f) else Modifier,
         )
+
+        // Next button
         MediaButton(
             icon = Icons.Rounded.SkipNext,
-            contentDescription = "Next track",
+            contentDescription = stringResource(R.string.music_next_label),
             enabled = enabled,
             heightDp = heightDp,
             iconSize = 26.dp,
-            fill = skipStyle.resolveFill(fallback = null),
+            fill = skipStyle.resolveFill(fallback = null, eventColor = eventColor),
             cornerPercent = skipStyle.cornerPercent,
+            blurState = skipStyle.blurState(backdropState),
+            blurRadius = skipStyle.blurRadius.dp,
             onClick = onNext,
+            label = stringResource(R.string.music_next_label)
+                .takeIf { nextExpand && nextText },
+            labelWidth = nextTextWidth,
+            expand = nextExpand,
+            modifier = if (nextExpand) Modifier.weight(1f) else Modifier,
         )
     }
 }
 
 /** The concrete fill for a transport button, or null (a plain, unfilled button) when neither the
  *  style nor the [fallback] supplies a colour and the style isn't [MusicButtonStyle.filled].
- *  A filled style with no colour falls back to [MusicButtonFilledDefault]. Opacity folds into alpha. */
+ *  A filled style with no colour falls back to [MUSIC_BUTTON_FILLED_DEFAULT]. Opacity folds into alpha.
+ *  An app/adaptive colour resolves to [eventColor]. */
 @Composable
-private fun MusicButtonStyle.resolveFill(fallback: Color?): Color? {
-    val base = color?.resolve() ?: fallback ?: if (filled) MusicButtonFilledDefault else return null
+private fun MusicButtonStyle.resolveFill(fallback: Color?, eventColor: Color): Color? {
+    val base = color?.resolve(appColor = eventColor, adaptiveColor = eventColor)
+        ?: fallback ?: if (filled) MUSIC_BUTTON_FILLED_DEFAULT else return null
     return base.copy(alpha = opacity)
 }
+
+/** [state] when this style asks for a frosted backdrop its translucent fill would let through, else null. */
+private fun MusicButtonStyle.blurState(state: HazeState): HazeState? =
+    state.takeIf { blur && opacity < 1f }
 
 /**
  * A transport button with the shared press "squish". A null [fill] renders a plain (unfilled) button
  * tinted with the content colour; a non-null [fill] renders a filled button whose corners are rounded
  * by [cornerPercent] relative to its height (50 = a pill / stadium, 0 = a square) with an
  * auto-contrasting icon. [widthDp] defaults to [heightDp] (a square); a larger value makes a
- * rectangle — e.g. the 16:9 play/pause button.
+ * rectangle — e.g. the 16:9 play/pause button — and [modifier] carrying a width (a row weight)
+ * overrides it. A non-null [label] is drawn in place of the icon, at Roboto Flex's [labelWidth]
+ * `wdth` axis. A non-null [blurState] frosts that backdrop behind a filled button's shape, [blurRadius]
+ * strong.
  */
 @Composable
 private fun MediaButton(
@@ -2059,68 +4244,208 @@ private fun MediaButton(
     cornerPercent: Int,
     onClick: () -> Unit,
     widthDp: Int = heightDp,
+    label: String? = null,
+    labelWidth: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
+    expand: Boolean = false,
+    blurState: HazeState? = null,
+    blurRadius: Dp = Dp.Unspecified,
+    modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val modifier = Modifier
-        .size(width = widthDp.dp, height = heightDp.dp)
+    // Corner radius keyed to height (not width) so a wide button still reads as a clean
+    // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
+    val shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp)
+    val sized = modifier
+        .then(if (expand) Modifier.height(heightDp.dp) else Modifier.size(width = widthDp.dp, height = heightDp.dp))
         .pressScale(interaction)
+        .then(
+            if (blurState != null && fill != null) {
+                Modifier
+                    .clip(shape)
+                    .hazeEffect(blurState) {
+                        // Haze insists on a colour; the album backdrop is opaque, so this never shows.
+                        backgroundColor = Color.Transparent
+                        this.blurRadius = blurRadius
+                        // Haze's default frosted grain reads as dirt on buttons this small.
+                        noiseFactor = 0f
+                    }
+                    // The button's 48dp minimum touch target would otherwise size the blur past a smaller fill.
+                    .fillMaxSize()
+            } else {
+                Modifier
+            }
+        )
     if (fill == null) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            modifier = modifier,
+            modifier = sized,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = LocalContentColor.current,
-                modifier = Modifier.size(iconSize),
-            )
+            MediaButtonContent(icon, contentDescription, label, labelWidth, iconSize)
         }
     } else {
         FilledIconButton(
             onClick = onClick,
             enabled = enabled,
             interactionSource = interaction,
-            // Corner radius keyed to height (not width) so a wide button still reads as a clean
-            // pill at 50% rather than an ellipse: 50 → height/2 (stadium), 0 → square.
-            shape = RoundedCornerShape((heightDp * cornerPercent / 100f).dp),
+            shape = shape,
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = fill,
-                contentColor = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                 disabledContainerColor = LocalContentColor.current.copy(alpha = 0.12f),
                 disabledContentColor = LocalContentColor.current.copy(alpha = 0.4f),
             ),
-            modifier = modifier,
+            modifier = sized,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize),
-            )
+            MediaButtonContent(icon, contentDescription, label, labelWidth, iconSize)
         }
     }
 }
 
-// Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
-// callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+/**
+ * The face of a transport button: its [label], drawn uppercase in Roboto Flex narrowed or widened
+ * to [labelWidth], when one is set — otherwise its icon.
+ */
+@Composable
+private fun MediaButtonContent(
+    icon: ImageVector,
+    contentDescription: String,
+    label: String?,
+    labelWidth: Float,
+    iconSize: Dp,
+) {
+    if (label != null) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            fontFamily = rememberRobotoFlexFamily(labelWidth),
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+    } else {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+/**
+ * Layout metrics for the call cutout, shared by CallNormalContent (which draws it) and
+ * callCutoutWidthPercent (which measures the name to size the pill) so the two stay in agreement.
+ */
 private const val CALL_ROW_PADDING_DP = 8
 private const val CALL_ROW_SPACING_DP = 12
-// The photo/icon container and the hang-up button are deliberately the same size so the cutout
-// reads as symmetrical, with the caller between two equal circles.
+/**
+ * The photo/icon container and the hang-up button are deliberately the same size so the cutout
+ * reads as symmetrical, with the caller between two equal circles.
+ */
 private const val CALL_HANGUP_BUTTON_DP = 44
 private const val CALL_AVATAR_DP = CALL_HANGUP_BUTTON_DP
 private const val CALL_NAME_SIZE_SP = 15
-// A little breathing room so the name never sits flush against the button before the pill grows.
+/**
+ * A little breathing room so the name never sits flush against the button before the pill grows.
+ */
 private const val CALL_NAME_SLACK_DP = 8
 
-// Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
-// grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the camera
-// hole with a flexible gap before the buttons pinned to the bottom edge.
+/**
+ * Metrics for the split connected-call cutout: the user's own normal pill, carrying the caller's
+ * photo (or the tile's icon) on its leading edge and the ticking duration on its trailing one, with
+ * the hang-up button detached into a capsule beside it. Shared with [IslandOverlayController], which
+ * reserves the same room in the touchable region.
+ */
+internal const val CALL_SPLIT_GAP_DP = 8
+/** The detached capsule is a stadium twice as wide as the pill is tall. */
+private const val CALL_SPLIT_HANGUP_ASPECT = 2f
+/**
+ * How far the capsule is dropped from the top of the screen, and shortened by, beside a notch. The
+ * notch itself is flush with the screen edge; a free-standing button sitting hard against that edge
+ * reads as part of the bezel, so it is tucked in and left hanging from the notch's own bottom line.
+ * One value for both, which is what keeps that bottom line shared however far it is tucked.
+ */
+private const val CALL_SPLIT_NOTCH_INSET_DP = 8
+
+/**
+ * The gap between a notch and its detached capsule, tighter than [CALL_SPLIT_GAP_DP]: the notch's
+ * ear already curves away from the capsule, so the two read as further apart than they measure.
+ * Shared with [IslandOverlayController], which reserves the same room in the touchable region.
+ */
+internal const val CALL_SPLIT_NOTCH_GAP_DP = 0
+
+/** The room between the pill and its detached capsule, which a notch keeps tighter. */
+internal fun callSplitGapDp(isNotch: Boolean): Int =
+    if (isNotch) CALL_SPLIT_NOTCH_GAP_DP else CALL_SPLIT_GAP_DP
+/** The duration's text size as a share of the pill's height, matching the timer tile's own. */
+private const val CALL_SPLIT_DURATION_FRACTION = 0.34f
+/** Room between the badge and the clock. */
+private const val CALL_SPLIT_TEXT_GAP_FRACTION = 0.34f
+/** Room the clock keeps clear of the camera hole, so it never reads as crowding it. */
+private const val CALL_SPLIT_CONTENT_CAMERA_GAP_DP = 10
+/**
+ * The durations the pill is sized for: the longest minutes-and-seconds form [formatCallDuration]
+ * reaches, so the pill never has to grow as a call rolls past a minute, and the hours form for a
+ * call that has already passed one — which would otherwise leave the clock's widest digits sitting
+ * in dead space on every short call.
+ */
+private const val CALL_SPLIT_DURATION_SAMPLE = "00:00"
+private const val CALL_SPLIT_DURATION_SAMPLE_LONG = "0:00:00"
+
+/** When [formatCallDuration] switches to the hours form, and the pill to the longer sample. */
+private const val CALL_SPLIT_LONG_CLOCK_MS = 3_600_000L
+
+/** Whether the call has been running long enough for its clock to carry hours. */
+internal fun callClockCarriesHours(startTimeMs: Long?): Boolean =
+    startTimeMs != null && System.currentTimeMillis() - startTimeMs >= CALL_SPLIT_LONG_CLOCK_MS
+
+/** The detached hang-up capsule's width beside a pill [heightDp] tall. */
+internal fun callSplitHangUpWidthDp(heightDp: Int): Int = (heightDp * CALL_SPLIT_HANGUP_ASPECT).roundToInt()
+
+/** What the capsule and its gap claim beside the split pill. */
+internal fun callSplitExtraDp(heightDp: Int): Int = callSplitHangUpWidthDp(heightDp) + CALL_SPLIT_GAP_DP
+
+/**
+ * Whether the call cutout is drawn split — the normal pill plus the detached hang-up capsule. Only a
+ * connected call at its normal size qualifies: a ringing one needs its caller and two buttons, the
+ * tiny "Mini call" pill has room for neither, and the expanded card carries its own hang-up row.
+ * There is nothing to detach either when the dialer gives us no action or the user hid the buttons.
+ */
+internal fun usesSplitCallCutout(
+    event: IslandEvent?,
+    callOngoing: Boolean,
+    expanded: Boolean,
+    tiny: Boolean,
+): Boolean {
+    val call = event?.call ?: return false
+    return callOngoing && !expanded && !tiny && call.showActions && event.actions.isNotEmpty()
+}
+
+/**
+ * The room the split pill's content claims on its leading side — the badge, the gap and the widest
+ * clock it will show, plus the room it keeps clear of the hole — which [asSplitCallCutout] parks
+ * left of the camera. Mirrors the insets
+ * [CallSplitRowContent] lays that content out with, so the two stay in agreement.
+ */
+internal fun callSplitContentWidthDp(heightDp: Int, density: Float, longClock: Boolean): Float {
+    val fixedDp = heightDp * (COLLAPSED_BADGE_INSET_FRACTION + BADGE_SIZE_FRACTION +
+        CALL_SPLIT_TEXT_GAP_FRACTION) + CALL_SPLIT_CONTENT_CAMERA_GAP_DP
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = heightDp * CALL_SPLIT_DURATION_FRACTION * density
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val sample = if (longClock) CALL_SPLIT_DURATION_SAMPLE_LONG else CALL_SPLIT_DURATION_SAMPLE
+    return fixedDp + paint.measureText(sample) / density
+}
+
+/**
+ * Metrics for the two-row incoming-call layout (caller row over Take / Hang up buttons). The layout
+ * grows past the expanded cutout by [callIncomingExtraDp] so the caller row can sit below the
+ * camera hole with a flexible gap before the buttons pinned to the bottom edge.
+ */
 private const val CALL_INCOMING_SIDE_PAD_DP = 14
 private const val CALL_INCOMING_BOTTOM_PAD_DP = 14
-// Top clearance for the camera hole, matching the empty top the expanded card leaves for it.
+/** Top clearance for the camera hole, matching the empty top the expanded card leaves for it. */
 private const val CALL_INCOMING_TOP_PAD_DP = 34
 private const val CALL_INCOMING_BUTTON_GAP_DP = 10
 private const val CALL_INCOMING_BUTTON_DP = 44
@@ -2132,6 +4457,35 @@ private const val CALL_INCOMING_AVATAR_DP = 40
  * touchable region stay as tall as what [IncomingCallExpandedContent] renders.
  */
 internal fun callIncomingExtraDp(): Int = CALL_INCOMING_BUTTON_DP + CALL_INCOMING_BUTTON_GAP_DP
+
+/**
+ * Metrics for the expanded connected-call layout ([CallExpandedContent]): the caller row over a row
+ * of Mute / Speaker / Open buttons, over one full-width hang-up button.
+ */
+private const val CALL_EXPANDED_SIDE_PAD_DP = 14
+private const val CALL_EXPANDED_BOTTOM_PAD_DP = 14
+private const val CALL_EXPANDED_ROW_GAP_DP = 10
+private const val CALL_EXPANDED_BUTTON_GAP_DP = 8
+private const val CALL_EXPANDED_TOGGLE_DP = 56
+private const val CALL_EXPANDED_TOGGLE_CORNER_DP = 18
+private const val CALL_EXPANDED_HANGUP_DP = 48
+
+/** How many buttons sit in the expanded card's toggle row (Mute / Speaker / Open). */
+private const val CALL_TOGGLE_COUNT = 3
+
+/** The extra row weight a pressed button in a call button group takes from its neighbours. */
+private const val CALL_GROUP_PRESS_GROW = 0.11f
+private const val CALL_EXPANDED_AVATAR_DP = 40
+
+/**
+ * The height the expanded call layout claims below the expanded cutout (whose own height covers the
+ * caller row): its button row, plus the hang-up row when the dialer gives us an action to fire
+ * ([showHangUp]). Shared with the overlay's window sizing so the touchable region stays as tall as
+ * what [CallExpandedContent] renders.
+ */
+internal fun callExpandedExtraDp(showHangUp: Boolean): Int =
+    CALL_EXPANDED_ROW_GAP_DP + CALL_EXPANDED_TOGGLE_DP +
+        if (showHangUp) CALL_EXPANDED_ROW_GAP_DP + CALL_EXPANDED_HANGUP_DP else 0
 
 /**
  * The width (as a screen-width percentage) the call cutout should span for [callerName]:
@@ -2178,6 +4532,8 @@ internal fun callCutoutWidthPercent(
 @Composable
 private fun CallNormalContent(
     event: IslandEvent,
+    heightDp: Int,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val call = event.call ?: return
@@ -2186,9 +4542,89 @@ private fun CallNormalContent(
     // The two-row layout only earns its extra height when there are buttons to fill the second row.
     val hasActions = call.showActions && event.actions.isNotEmpty()
     if (incoming && call.incomingExpandedLayout && hasActions) {
-        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, onAction = onAction)
+        IncomingCallExpandedContent(event = event, call = call, onCall = onCall, appearance = appearance, onAction = onAction)
+    } else if (!incoming && hasActions) {
+        // Connected: the pill keeps the badge and the clock, and the hang-up button rides beside
+        // it in [CallHangUpCapsule] — see [usesSplitCallCutout].
+        CallSplitRowContent(event = event, call = call, onCall = onCall, heightDp = heightDp)
     } else {
         CallSingleRowContent(event = event, call = call, onCall = onCall, incoming = incoming, onAction = onAction)
+    }
+}
+
+/**
+ * The connected call's split pill, laid out like the collapsed pill it borrows its geometry from:
+ * the caller's photo — or the tile's icon when there is none, or the user hid photos — on the
+ * leading edge with the ticking duration beside it. Both stay left of the camera hole — the pill is
+ * placed around it by [asSplitCallCutout] and left empty over it. No caller name and no hang-up
+ * button: that rides beside the pill in [CallHangUpCapsule].
+ */
+@Composable
+private fun CallSplitRowContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    heightDp: Int,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .padding(start = (heightDp * COLLAPSED_BADGE_INSET_FRACTION).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy((heightDp * CALL_SPLIT_TEXT_GAP_FRACTION).dp),
+    ) {
+        EventBadge(
+            event = event,
+            badgeSize = badgeSizeFor(heightDp),
+            iconSize = badgeIconSizeFor(heightDp),
+        )
+        if (call.showDuration) {
+            CallStatus(
+                onCall = onCall,
+                fontSize = (heightDp * CALL_SPLIT_DURATION_FRACTION).sp,
+                fontWeight = FontWeight.SemiBold,
+                alpha = 1f,
+            )
+        }
+    }
+}
+
+/**
+ * The connected call's hang-up button, detached from the pill into a capsule of its own beside it.
+ * Filled with the tile's hang-up colour and shaped as a stadium of the call cutout's own height, so
+ * the two read as one system split in half rather than as a pill with a stray button next to it.
+ *
+ * @param widthDp the capsule's width, which beside a notch no longer follows from [heightDp]: the
+ *   capsule is shortened there but stays as wide as the pill is tall.
+ */
+@Composable
+private fun CallHangUpCapsule(
+    call: CallTileOptions,
+    hangUp: IslandAction,
+    heightDp: Int,
+    widthDp: Int,
+    modifier: Modifier = Modifier,
+    onAction: (IslandAction) -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val fill = call.hangUpColor.resolve()
+    Surface(
+        onClick = { onAction(hangUp) },
+        interactionSource = interaction,
+        shape = CircleShape,
+        color = fill,
+        contentColor = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
+        modifier = modifier
+            .size(width = widthDp.dp, height = heightDp.dp)
+            .pressScale(interaction),
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Rounded.CallEnd,
+                contentDescription = stringResource(R.string.phone_hang_up),
+                modifier = Modifier.size(24.dp),
+            )
+        }
     }
 }
 
@@ -2249,20 +4685,22 @@ private fun CallSingleRowContent(
         if (call.showActions) {
             if (incoming) {
                 if (answer != null) {
+                    val fill = call.incomingAnswerColor.resolve()
                     CallCircleButton(
                         icon = Icons.Rounded.Call,
                         description = "Answer",
-                        container = MaterialTheme.colorScheme.primary,
-                        content = MaterialTheme.colorScheme.onPrimary,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         onClick = { onAction(answer) },
                     )
                 }
                 if (hangUp != null) {
+                    val fill = call.incomingHangUpColor.resolve()
                     CallCircleButton(
                         icon = Icons.Rounded.CallEnd,
                         description = "Decline",
-                        container = MaterialTheme.colorScheme.error,
-                        content = MaterialTheme.colorScheme.onError,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         onClick = { onAction(hangUp) },
                     )
                 }
@@ -2272,7 +4710,7 @@ private fun CallSingleRowContent(
                     icon = Icons.Rounded.CallEnd,
                     description = "Hang up",
                     container = fill,
-                    content = if (fill.luminance() > 0.5f) PillTextColorDark else PillTextColor,
+                    content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                     onClick = { onAction(hangUp) },
                 )
             }
@@ -2292,11 +4730,19 @@ private fun IncomingCallExpandedContent(
     event: IslandEvent,
     call: CallTileOptions,
     onCall: OnCall?,
+    appearance: AppearanceSettings = AppearanceSettings(),
     onAction: (IslandAction) -> Unit,
 ) {
     val photo = onCall?.photo?.takeIf { call.showPhoto }
     val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
     val answer = event.actions.firstOrNull { it.answer }
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
     Column(
         modifier = Modifier
@@ -2320,15 +4766,26 @@ private fun IncomingCallExpandedContent(
             } else {
                 IconBadge(event = event, badgeSize = CALL_INCOMING_AVATAR_DP.dp, iconSize = 24.dp)
             }
-            Text(
-                text = event.label,
-                modifier = Modifier.weight(1f),
-                color = LocalContentColor.current,
-                fontSize = CALL_NAME_SIZE_SP.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (headerText != null) {
+                    Text(
+                        text = headerText,
+                        color = event.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = CALL_NAME_SIZE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // A flexible gap pushes the button row down to the bottom edge.
         Spacer(modifier = Modifier.weight(1f))
@@ -2339,21 +4796,25 @@ private fun IncomingCallExpandedContent(
                 horizontalArrangement = Arrangement.spacedBy(CALL_INCOMING_BUTTON_GAP_DP.dp),
             ) {
                 if (answer != null) {
+                    val fill = call.incomingAnswerColor.resolve()
                     CallWideButton(
                         icon = Icons.Rounded.Call,
                         label = stringResource(R.string.phone_answer),
-                        container = MaterialTheme.colorScheme.primary,
-                        content = MaterialTheme.colorScheme.onPrimary,
+                        showLabel = call.showButtonLabels,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         modifier = Modifier.weight(1f),
                         onClick = { onAction(answer) },
                     )
                 }
                 if (hangUp != null) {
+                    val fill = call.incomingHangUpColor.resolve()
                     CallWideButton(
                         icon = Icons.Rounded.CallEnd,
                         label = stringResource(R.string.phone_hang_up),
-                        container = MaterialTheme.colorScheme.error,
-                        content = MaterialTheme.colorScheme.onError,
+                        showLabel = call.showButtonLabels,
+                        container = fill,
+                        content = if (fill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
                         modifier = Modifier.weight(1f),
                         onClick = { onAction(hangUp) },
                     )
@@ -2363,15 +4824,226 @@ private fun IncomingCallExpandedContent(
     }
 }
 
-/** A full-width, filled call button (Take / Hang up) with a leading icon and label, used by the
- *  incoming-call layout's bottom row. */
+/**
+ * The connected call's expanded layout, reached by tapping the normal call cutout. Top: the caller's
+ * photo beside their name and the ticking duration. Middle: Mute, Speaker and Open, the first two
+ * toggling the live call's audio through [CallAudioBus] and lighting up while on, the third handing
+ * the call over to the dialer's own in-call screen via [onOpen]. Bottom: one full-width hang-up
+ * button firing the dialer's own end-call action. Sized by [callExpandedExtraDp].
+ */
+@Composable
+private fun CallExpandedContent(
+    event: IslandEvent,
+    call: CallTileOptions,
+    onCall: OnCall?,
+    topMarginDp: Int,
+    onAction: (IslandAction) -> Unit,
+    onOpen: () -> Unit,
+) {
+    val context = LocalContext.current
+    val photo = onCall?.photo?.takeIf { call.showPhoto }
+    val hangUp = event.actions.firstOrNull { it.destructive } ?: event.actions.firstOrNull()
+    val muted by CallAudioBus.muted.collectAsStateWithLifecycle()
+    val speakerOn by CallAudioBus.speakerOn.collectAsStateWithLifecycle()
+    val activeFill = call.otherButtonColor.resolve()
+    val toggleInteractions = remember { List(CALL_TOGGLE_COUNT) { MutableInteractionSource() } }
+
+    // The dialer's in-call screen moves both behind our back, so re-read them as the card opens.
+    LaunchedEffect(Unit) { CallAudioBus.refresh(context) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                start = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                end = CALL_EXPANDED_SIDE_PAD_DP.dp,
+                top = topMarginDp.dp,
+                bottom = CALL_EXPANDED_BOTTOM_PAD_DP.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CALL_EXPANDED_ROW_GAP_DP.dp),
+    ) {
+        // Contact + time
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(CALL_ROW_SPACING_DP.dp),
+        ) {
+            // Profile pic
+            if (photo != null) {
+                ContactPhoto(bitmap = photo, size = CALL_EXPANDED_AVATAR_DP.dp)
+            } else {
+                IconBadge(event = event, badgeSize = CALL_EXPANDED_AVATAR_DP.dp, iconSize = 24.dp)
+            }
+
+            // Number + duration
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.label,
+                    color = LocalContentColor.current,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                AnimatedVisibility(visible = call.showDuration) {
+                    CallStatus(onCall = onCall)
+                }
+            }
+        }
+
+        val toggleWeights = rememberCallGroupWeights(toggleInteractions)
+
+        CallToggleTheme {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+
+                // Mute button
+                CallToggleButton(
+                    icon = if (muted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                    label = stringResource(R.string.phone_mute),
+                    active = muted,
+                    activeFill = activeFill,
+                    interaction = toggleInteractions[0],
+                    modifier = Modifier.weight(toggleWeights[0]),
+                    shape = RoundedCornerShape(
+                        topStart = 24.dp,
+                        topEnd = 4.dp,
+                        bottomStart = 24.dp,
+                        bottomEnd = 4.dp
+                    ),
+                    onClick = { CallAudioBus.toggleMute(context) },
+                )
+
+                // Speaker button
+                CallToggleButton(
+                    icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                    label = stringResource(R.string.phone_speaker),
+                    active = speakerOn,
+                    activeFill = activeFill,
+                    interaction = toggleInteractions[1],
+                    modifier = Modifier.weight(toggleWeights[1]),
+                    onClick = { CallAudioBus.toggleSpeaker(context) },
+                )
+
+                // Open in phone app button
+                CallToggleButton(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    label = stringResource(R.string.phone_open),
+                    active = false,
+                    activeFill = activeFill,
+                    interaction = toggleInteractions[2],
+                    modifier = Modifier.weight(toggleWeights[2]),
+                    shape = RoundedCornerShape(
+                        topStart = 4.dp,
+                        topEnd = 24.dp,
+                        bottomStart = 4.dp,
+                        bottomEnd = 24.dp
+                    ),
+                    onClick = onOpen,
+                )
+            }
+        }
+        if (call.showActions && hangUp != null) {
+            val hangUpFill = call.expandedHangUpColor.resolve()
+            CallWideButton(
+                icon = Icons.Rounded.CallEnd,
+                label = stringResource(R.string.phone_hang_up),
+                showLabel = false,
+                container = hangUpFill,
+                content = if (hangUpFill.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR,
+                modifier = Modifier.fillMaxWidth(),
+                heightDp = CALL_EXPANDED_HANGUP_DP,
+                onClick = { onAction(hangUp) },
+            )
+        }
+    }
+}
+
+/**
+ * Pins Material's *dark* scheme (dynamic on Android 12+) for the expanded card's Mute / Speaker /
+ * Open row alone. Those three sit on a neutral `surfaceVariant` container, and the cutout is a dark
+ * card whatever the system theme is, so the light scheme's pale container would glare against it.
+ * Every other call button carries a user-picked fill and keeps the ambient theme.
+ */
+@Composable
+private fun CallToggleTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val scheme = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicDarkColorScheme(context)
+        } else {
+            darkColorScheme()
+        }
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
+}
+
+/**
+ * One of the expanded call layout's three square buttons — an icon over its label — filled with the
+ * tile's "other buttons" colour while [active] and a neutral container otherwise, so Mute and
+ * Speaker read as on/off at a glance while Open (which toggles nothing) always stays neutral.
+ * Presses aren't scaled here: the row reads [interaction] to widen this button and squeeze its
+ * neighbours instead — see [rememberCallGroupWeights].
+ */
+@Composable
+private fun CallToggleButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    activeFill: Color,
+    interaction: MutableInteractionSource,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = RoundedCornerShape(4.dp)
+) {
+    val container = if (active) activeFill else MaterialTheme.colorScheme.surfaceVariant
+    val content = if (active) {
+        if (container.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = shape,
+        color = container,
+        contentColor = content,
+        modifier = modifier.height(CALL_EXPANDED_TOGGLE_DP.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+
+/** A full-width, filled call button (Take / Hang up) with a leading icon and its [label], drawn in
+ *  Roboto Flex at its widest `wdth` like the music transport labels. A false [showLabel] centres the
+ *  icon alone, the [label] staying on as the button's content description. Used by the incoming-call
+ *  layout's bottom row and the expanded call layout's hang-up row. */
 @Composable
 private fun CallWideButton(
     icon: ImageVector,
     label: String,
+    showLabel: Boolean,
     container: Color,
     content: Color,
     modifier: Modifier = Modifier,
+    heightDp: Int = CALL_INCOMING_BUTTON_DP,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -2382,7 +5054,7 @@ private fun CallWideButton(
         color = container,
         contentColor = content,
         modifier = modifier
-            .height(CALL_INCOMING_BUTTON_DP.dp)
+            .height(heightDp.dp)
             .pressScale(interaction),
     ) {
         Row(
@@ -2394,16 +5066,19 @@ private fun CallWideButton(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = label,
                 modifier = Modifier.size(20.dp),
             )
-            Text(
-                text = label,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (showLabel) {
+                Text(
+                    text = label,
+                    fontSize = 15.sp,
+                    fontFamily = rememberRobotoFlexFamily(ROBOTO_FLEX_MAX_WIDTH),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -2440,7 +5115,14 @@ private fun CallCircleButton(
 
 /** The phone tile's secondary line: a duration that ticks up once connected, else "incoming call". */
 @Composable
-private fun CallStatus(onCall: OnCall?) {
+private fun CallStatus(
+    onCall: OnCall?,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 12.sp,
+    fontWeight: FontWeight? = null,
+    alpha: Float = 0.70f,
+    textAlign: TextAlign? = null,
+) {
     val start = onCall?.startTimeMs
     val text = if (start != null) {
         var now by remember(start) { mutableStateOf(System.currentTimeMillis()) }
@@ -2458,43 +5140,70 @@ private fun CallStatus(onCall: OnCall?) {
     }
     Text(
         text = text,
-        color = LocalContentColor.current.copy(alpha = 0.70f),
-        fontSize = 12.sp,
+        color = LocalContentColor.current.copy(alpha = alpha),
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
     )
 }
 
 /**
- * The timer tile's expanded layout: a timer icon + the ticking remaining time, and (when enabled)
- * the Reset / Add 1 min chips. The countdown is read live from [RunningTimerBus]; the chips fire the
+ * The timer tile's expanded layout: a timer icon + the ticking time, and (when enabled)
+ * the Reset / Add 1 min chips. The time is read live from [RunningTimerBus]; the chips fire the
  * clock app's own notification actions, coloured by [TimerTileOptions] (Reset apart from Add 1 min).
  */
 @Composable
 private fun TimerExpandedContent(
     event: IslandEvent,
     appearance: AppearanceSettings,
+    topMarginDp: Int = IslandDimensions.DEFAULT_TOP_MARGIN_DP,
     onAction: (IslandAction) -> Unit,
 ) {
     val timer = event.timer ?: return
+    val relativeTime = rememberRelativeTime(event.postTimeMs)
+    val headerText = formatNotificationHeader(
+        appName = event.appName,
+        relativeTime = relativeTime,
+        showAppName = appearance.showSourceAppName,
+        showTimestamp = appearance.showTimestamp,
+    )
 
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp)
+    ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = topMarginDp.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(ACTIONS_ROW_SPACING_DP.dp),
         ) {
+            // Weighted so the Reset / Add 1 min chips keep their height and the text gives way.
             Row(
+                modifier = Modifier.weight(1f, fill = false),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (headerText != null) {
+                        Text(
+                            text = headerText,
+                            color = event.accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     // The remaining time is the headline; the timer's name (or "Timer") sits beneath.
                     Text(
-                        text = timerRemainingText() ?: event.label,
+                        text = timerDisplayText() ?: event.label,
                         color = LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -2533,99 +5242,6 @@ private fun TimerExpandedContent(
     }
 }
 
-/**
- * The assistant tile's expanded layout: an assistant icon + the voice response text, wrapped in a
- * scrollable column constrained by max cutout height percentage.
- */
-@Composable
-private fun AssistantExpandedContent(
-    event: IslandEvent,
-    showActions: Boolean,
-    appearance: AppearanceSettings,
-    onDismiss: () -> Unit,
-    onHeightMeasured: ((Int) -> Unit)? = null,
-) {
-    val assistant = event.assistant ?: return
-    val contentColor = LocalContentColor.current
-    val density = LocalDensity.current.density
-    val configuration = LocalConfiguration.current
-    val maxCutoutHeightDp = (configuration.screenHeightDp * assistant.maxCutoutHeightPercent / 100).dp
-    val maxHeaderWidthDp = (configuration.screenWidthDp * 0.47f).dp
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = maxCutoutHeightDp)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Measure the scroll *content*, not the viewport. The scroll container above is clamped
-                // to the island's live (animating) height, so measuring it would feed that height back
-                // into its own fit-to-content target — the loop that made the cutout bob as the answer
-                // streamed in. The content column is laid out with unbounded height, so its reported
-                // height is the answer's true natural height, independent of the surrounding animation.
-                .onGloballyPositioned { coordinates ->
-                    val hDp = (coordinates.size.height / density).toInt()
-                    if (hDp > 0) {
-                        onHeightMeasured?.invoke(hDp + 28)
-                    }
-                },
-        ) {
-            // Title header ("Assistant") constrained to max 47% screen width so it never goes behind camera hole
-            Row(
-                modifier = Modifier.widthIn(max = maxHeaderWidthDp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconBadge(event = event, badgeSize = 36.dp, iconSize = 22.dp)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = event.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            // Answer content text displayed below title header
-            if (assistant.displayAnswerInCutout) {
-                Spacer(Modifier.height(8.dp))
-                val textToDisplay = assistant.answerText.takeIf { !it.isNullOrBlank() } ?: "Assistant active..."
-                Text(
-                    text = textToDisplay,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = 0.88f),
-                )
-            }
-
-            // Close action button at the end, obeying action button settings
-            if (showActions) {
-                Spacer(Modifier.height(14.dp))
-                val chipFill = appearance.actionButtonColor?.resolve() ?: event.accent
-                val full = appearance.actionButtonAlignment == ActionButtonAlignment.FULL
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, appearance.actionButtonAlignment.toHorizontal()),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ActionChip(
-                        action = IslandAction(label = "Close"),
-                        style = appearance.actionButtonStyle,
-                        fill = chipFill,
-                        heightDp = appearance.actionButtonHeightDp,
-                        onClick = onDismiss,
-                        modifier = if (full) Modifier.weight(1f) else Modifier,
-                    )
-                }
-            }
-        }
-    }
-}
-
 /** Formats elapsed call seconds as m:ss, or h:mm:ss once the call passes an hour. */
 private fun formatCallDuration(totalSeconds: Long): String {
     val hours = totalSeconds / 3600
@@ -2640,7 +5256,7 @@ private fun formatCallDuration(totalSeconds: Long): String {
 
 /** The caller's contact photo, cropped to a circle. Mirrors [AlbumArt] without the spin. */
 @Composable
-private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
+internal fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Modifier) {
     androidx.compose.foundation.Image(
         bitmap = bitmap,
         contentDescription = null,
@@ -2652,20 +5268,29 @@ private fun ContactPhoto(bitmap: ImageBitmap, size: Dp, modifier: Modifier = Mod
 }
 
 /**
- * Album art, cropped to fill. Normally a rounded square; when [rotate] is on it becomes a disc that
- * spins ([ALBUM_SPIN_MS] per turn) while [playing], freezing at its current angle when paused. A
- * non-null [strokeColor] rings the cover, set apart from it by a small gap.
+ * Album art, cropped to fill. Normally a rounded square; [circle] crops it to a full disc instead,
+ * and [rotate] implies that while also spinning it ([ALBUM_SPIN_MS] per turn) while [playing],
+ * freezing at its current angle when paused. A non-null [strokeColor] rings the cover, set apart
+ * from it by a small gap.
+ *
+ * [size] is the cover's ceiling rather than a promise. The expanded layout gives this a height budget
+ * that shrinks as the track text and transport controls take their share, and because a `size()` is
+ * still coerced into the parent's maximum, a tight budget used to squash the (width-unconstrained)
+ * cover into an ellipse. Capping both axes and pinning the ratio instead keeps a spinning cover
+ * perfectly round, scaling down as one piece when there isn't room for the full [size].
  */
 @Composable
-private fun AlbumArt(
+internal fun AlbumArt(
     bitmap: ImageBitmap,
     size: Dp,
     modifier: Modifier = Modifier,
     rotate: Boolean = false,
+    circle: Boolean = false,
     playing: Boolean = false,
     /** Colour of the ring drawn around the cover, or null to leave it bare. */
     strokeColor: Color? = null,
 ) {
+    val round = circle || rotate
     val angle = remember { Animatable(0f) }
     // Spin only while enabled and playing; on pause the effect cancels and the angle holds. Restart
     // repeats identical 0→360 turns from the held value, so a pause/resume is seamless.
@@ -2687,14 +5312,19 @@ private fun AlbumArt(
     val gap = if (strokeColor != null) size * ALBUM_STROKE_GAP_FRACTION else 0.dp
     val coverSize = size - (strokeWidth + gap) * 2
 
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .sizeIn(maxWidth = size, maxHeight = size)
+            .aspectRatio(1f),
+        contentAlignment = Alignment.Center,
+    ) {
         if (strokeColor != null) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     // A spinning square would visibly swing its corners, so a rotatable cover — and
-                    // the ring tracking it — is drawn as a circle.
-                    .border(strokeWidth, strokeColor, albumArtShape(rotate, size)),
+                    // the ring tracking it — is drawn as a circle, as is one the user asked to round.
+                    .border(strokeWidth, strokeColor, albumArtShape(round, size)),
             )
         }
         androidx.compose.foundation.Image(
@@ -2702,19 +5332,20 @@ private fun AlbumArt(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(coverSize)
+                .fillMaxSize()
+                .padding(strokeWidth + gap)
                 .rotate(if (rotate) angle.value else 0f)
-                .clip(albumArtShape(rotate, coverSize)),
+                .clip(albumArtShape(round, coverSize)),
         )
     }
 }
 
-/** Circle for a spinning cover, else a rounded square whose radius scales with [size]. */
-private fun albumArtShape(rotate: Boolean, size: Dp) =
-    if (rotate) CircleShape else RoundedCornerShape(size * 0.24f)
+/** Circle for a round (spinning or circle-cropped) cover, else a rounded square whose radius scales with [size]. */
+private fun albumArtShape(round: Boolean, size: Dp) =
+    if (round) CircleShape else RoundedCornerShape(size * 0.24f)
 
 @Composable
-private fun IconBadge(
+internal fun IconBadge(
     event: IslandEvent,
     badgeSize: Dp,
     iconSize: Dp,
@@ -2733,8 +5364,8 @@ private fun IconBadge(
             badgeColor = container.resolve()
             glyphColor = when (container) {
                 is CutoutColor.Dynamic -> onDynamicRole(container.role)
-                is CutoutColor.Solid ->
-                    if (badgeColor.luminance() > 0.5f) PillTextColorDark else PillTextColor
+                is CutoutColor.Solid, is CutoutColor.AppIcon ->
+                    if (badgeColor.luminance() > 0.5f) PILL_TEXT_COLOR_DARK else PILL_TEXT_COLOR
             }
         }
 
@@ -2770,18 +5401,14 @@ private fun IconBadge(
                 modifier = Modifier.size(iconSize),
             )
 
-            // Full-colour art fills the badge disc; a monochrome glyph (a notification's small
-            // icon) is drawn at glyph size in the badge's ink instead, like a vector icon.
+            // Art fills the badge disc, whether it keeps its own colours or a monochrome glyph
+            // (a notification's small icon) is recoloured to the badge's ink.
             is IslandIcon.Raster -> androidx.compose.foundation.Image(
                 bitmap = icon.bitmap,
                 contentDescription = null,
                 contentScale = if (icon.tint) ContentScale.Fit else ContentScale.Crop,
                 colorFilter = if (icon.tint) ColorFilter.tint(glyphColor) else null,
-                modifier = if (icon.tint) {
-                    Modifier.size(iconSize)
-                } else {
-                    Modifier.size(badgeSize * 0.78f).clip(CircleShape)
-                },
+                modifier = Modifier.size(badgeSize * 0.78f).clip(CircleShape),
             )
 
             is IslandIcon.Lottie -> {
@@ -2807,15 +5434,18 @@ private fun IconBadge(
                 } else {
                     null
                 }
-                LottieAnimation(
-                    composition = composition,
-                    iterations = icon.iterations,
-                    clipSpec = clip,
-                    dynamicProperties = dynamicProperties,
-                    // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
-                    // being clamped to them; the overflow is clipped to the badge circle by the parent.
-                    modifier = Modifier.requiredSize(iconSize * icon.scale),
-                )
+                key(icon.clipStartFrame, icon.clipEndFrame, icon.iterations, icon.speed) {
+                    LottieAnimation(
+                        composition = composition,
+                        iterations = icon.iterations,
+                        clipSpec = clip,
+                        speed = icon.speed,
+                        dynamicProperties = dynamicProperties,
+                        // requiredSize (not size) so a scale > 1 can render past the badge bounds instead of
+                        // being clamped to them; the overflow is clipped to the badge circle by the parent.
+                        modifier = Modifier.requiredSize(iconSize * icon.scale),
+                    )
+                }
             }
         }
     }

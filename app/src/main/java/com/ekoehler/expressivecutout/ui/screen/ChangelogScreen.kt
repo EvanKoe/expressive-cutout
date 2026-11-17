@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 import org.json.JSONArray
 
 /** The asset holding the release history, edited by hand when a release is cut. */
@@ -93,6 +94,8 @@ fun ChangelogScreen(contentPadding: PaddingValues) {
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageTitle(text = stringResource(R.string.changelog_title))
+
         Text(
             text = stringResource(R.string.changelog_subtitle),
             style = MaterialTheme.typography.bodyMedium,
@@ -106,6 +109,10 @@ fun ChangelogScreen(contentPadding: PaddingValues) {
     }
 }
 
+/**
+ * One release in the changelog. The entry matching the running build is called out so the user can
+ * see where they are.
+ */
 @Composable
 private fun ReleaseCard(release: Release, isCurrent: Boolean) {
     Card(

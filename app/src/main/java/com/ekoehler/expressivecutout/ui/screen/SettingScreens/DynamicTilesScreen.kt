@@ -35,11 +35,13 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.overlay.onDynamicRole
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.AppViewModel
+import com.ekoehler.expressivecutout.ui.components.PageTitle
 
 /**
  * Lists the dynamic tiles the cutout can display — live, ongoing content such as the track
@@ -53,28 +55,31 @@ internal fun DynamicTilesScreen(
     onOpenTile: (DynamicTile) -> Unit,
 ) {
     val tileEnabled by viewModel.tileEnabled.collectAsStateWithLifecycle()
-    // The icon-container colour each tile lets the user pick, mirrored onto its list badge below.
     val phone by viewModel.phoneTile.collectAsStateWithLifecycle()
     val timer by viewModel.timerTile.collectAsStateWithLifecycle()
-    val assistant by viewModel.assistantTile.collectAsStateWithLifecycle()
+    val music by viewModel.musicTile.collectAsStateWithLifecycle()
 
     val tiles = DynamicTile.entries
     val lastIndex = tiles.lastIndex
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .padding(contentPadding)
+    ) {
+        PageTitle(text = stringResource(R.string.dynamic_tiles_title))
+        Spacer(modifier = Modifier.height(8.dp))
+
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.clip(RoundedCornerShape(24.dp)),
-            contentPadding = contentPadding,
         ) {
             itemsIndexed(tiles, key = { _, tile -> tile.name }) { index, tile ->
-                // Music shows the album art / app icon, never a coloured badge, so it has no override.
                 val containerColor = when (tile) {
                     DynamicTile.PHONE -> phone.iconContainerColor
                     DynamicTile.TIMER -> timer.iconContainerColor
-                    DynamicTile.ASSISTANT -> assistant.iconContainerColor
-                    DynamicTile.MUSIC -> null
+                    DynamicTile.MUSIC -> music.coverFallbackColor
                 }
+
                 DynamicTileCard(
                     tile = tile,
                     shape = groupShape(index = index, lastIndex = lastIndex),
@@ -114,7 +119,7 @@ private fun DynamicTileCard(
         badgeColor = containerColor.resolve()
         glyphColor = when (containerColor) {
             is CutoutColor.Dynamic -> onDynamicRole(containerColor.role)
-            is CutoutColor.Solid -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
+            is CutoutColor.Solid, is CutoutColor.AppIcon -> if (badgeColor.luminance() > 0.5f) Color(0xFF0A0A0A) else Color.White
         }
     } else {
         badgeColor = accent.copy(alpha = 0.18f)

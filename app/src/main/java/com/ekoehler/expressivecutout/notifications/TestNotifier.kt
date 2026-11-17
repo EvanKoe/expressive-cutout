@@ -2,6 +2,7 @@ package com.ekoehler.expressivecutout.notifications
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -17,6 +18,9 @@ import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CutoutSignal
 import com.ekoehler.expressivecutout.core.IslandEventBus
+import com.ekoehler.expressivecutout.core.SystemEventPayload
+import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.overlay.NotificationHeaderResolver
 import com.ekoehler.expressivecutout.service.ProgressData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +40,15 @@ object TestNotifier {
     private const val CHANNEL_ID = "test"
     const val NOTIFICATION_ID = 4711
     const val PROGRESS_NOTIFICATION_ID = 4712
+    const val PLAIN_NOTIFICATION_ID = 4713
+    const val SECOND_NOTIFICATION_ID = 4714
+    const val MULTILINE_NOTIFICATION_ID = 4715
+
+    /**
+     * Beat between the two notifications [sendPair] posts. Short enough that the first is still on
+     * the island when the second lands, which is the whole point of the pair.
+     */
+    private const val PAIR_GAP_MS = 2_000L
 
     /** The notification auto-dismisses after this long so the test never lingers. */
     private const val TIMEOUT_MS = 15_000L
@@ -47,6 +60,7 @@ object TestNotifier {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
+    private var pairJob: Job? = null
 
     /** True once a notification can actually be posted (Android 13+ gates this at runtime). */
     fun canPost(context: Context): Boolean =
@@ -54,6 +68,10 @@ object TestNotifier {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Posts the sample notification used to preview the island without waiting for a real one,
+     * complete with reply and mark-read actions.
+     */
     // Guarded by canPost() below; the lint check can't see through the runtime helper.
     @SuppressLint("MissingPermission")
     fun send(context: Context) {
@@ -90,6 +108,10 @@ object TestNotifier {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         }
 
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
         // Show it on the island immediately, regardless of the listener's self-filter, wiring the
         // same buttons so the user can try inline reply straight from the island.
         IslandEventBus.emit(
@@ -97,6 +119,8 @@ object TestNotifier {
                 packageName = context.packageName,
                 title = context.getString(R.string.test_notification_title),
                 text = context.getString(R.string.test_notification_text),
+                appName = appName,
+                postTimeMs = postTimeMs,
                 actions = listOf(
                     CutoutSignal.Notification.Action(
                         title = context.getString(R.string.test_notification_action_reply),
@@ -124,6 +148,193 @@ object TestNotifier {
     }
 
     /**
+     * Posts a multi-line system notification with action buttons and mirrors it onto the island,
+     * allowing users to verify how multi-line text and action buttons expand together cleanly.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendMultiline(context: Context) {
+        ensureChannel(context)
+
+        val replyIntent = broadcast(context, requestCode = 3, TestReplyReceiver.ACTION_REPLY)
+        val markReadIntent = broadcast(context, requestCode = 4, TestReplyReceiver.ACTION_MARK_READ)
+        val archiveIntent = broadcast(context, requestCode = 5, TestReplyReceiver.ACTION_ARCHIVE)
+        val replyHint = context.getString(R.string.test_notification_reply_hint)
+
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_stat_island,
+            context.getString(R.string.test_notification_action_reply),
+            replyIntent,
+        ).addRemoteInput(
+            RemoteInput.Builder(TestReplyReceiver.KEY_REPLY).setLabel(replyHint).build(),
+        ).build()
+
+        val title = context.getString(R.string.test_multiline_notification_title)
+        val text = context.getString(R.string.test_multiline_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .addAction(replyAction)
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_mark_read),
+                markReadIntent,
+            )
+            .addAction(
+                R.drawable.ic_stat_island,
+                context.getString(R.string.test_notification_action_archive),
+                archiveIntent,
+            )
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(MULTILINE_NOTIFICATION_ID, notification)
+        }
+
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
+                actions = listOf(
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_reply),
+                        intent = replyIntent,
+                        reply = CutoutSignal.Notification.ReplyInput(
+                            resultKey = TestReplyReceiver.KEY_REPLY,
+                            remoteInputs = listOf(
+                                PlatformRemoteInput.Builder(TestReplyReceiver.KEY_REPLY)
+                                    .setLabel(replyHint)
+                                    .build(),
+                            ),
+                            hint = replyHint,
+                        ),
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_mark_read),
+                        intent = markReadIntent,
+                    ),
+                    CutoutSignal.Notification.Action(
+                        title = context.getString(R.string.test_notification_action_archive),
+                        intent = archiveIntent,
+                    ),
+                ),
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts a test notification carrying no actions at all, and mirrors it onto the island. The
+     * counterpart to [send]: the expanded cutout then renders only the header row, which is the
+     * layout where the title has the least room and can ride up under the camera hole. Its text is
+     * deliberately long enough to wrap onto a second line, the case that pushes the header highest.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendPlain(context: Context) {
+        ensureChannel(context)
+
+        val title = context.getString(R.string.test_plain_notification_title)
+        val text = context.getString(R.string.test_plain_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(PLAIN_NOTIFICATION_ID, notification)
+        }
+
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island),
+            ),
+        )
+    }
+
+    /**
+     * Posts one test notification and, [PAIR_GAP_MS] later, a second and distinct one — the sequence
+     * the split island needs to be seen: the first should hand the pill over and drop back into the
+     * satellite bubble rather than disappearing. Re-tapping restarts the pair.
+     */
+    fun sendPair(context: Context) {
+        val appContext = context.applicationContext
+        pairJob?.cancel()
+        pairJob = scope.launch {
+            send(appContext)
+            delay(PAIR_GAP_MS)
+            sendSecond(appContext)
+        }
+    }
+
+    /**
+     * The follow-up half of [sendPair]: its own id, title and text, so the island sees a genuinely
+     * different event rather than an update of the first one.
+     */
+    @SuppressLint("MissingPermission")
+    private fun sendSecond(context: Context) {
+        ensureChannel(context)
+
+        val title = context.getString(R.string.test_second_notification_title)
+        val text = context.getString(R.string.test_second_notification_text)
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_island_split)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .build()
+
+        if (canPost(context)) {
+            NotificationManagerCompat.from(context).notify(SECOND_NOTIFICATION_ID, notification)
+        }
+
+        val appName = NotificationHeaderResolver.resolveAppName(context, context.packageName)
+            ?: context.getString(R.string.app_name)
+        val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
+        IslandEventBus.emit(
+            CutoutSignal.Notification(
+                packageName = context.packageName,
+                title = title,
+                text = text,
+                appName = appName,
+                postTimeMs = postTimeMs,
+                smallIcon = Icon.createWithResource(context, R.drawable.ic_stat_island_split),
+            ),
+        )
+    }
+
+    /**
      * Posts a real progress notification and mirrors it onto the island, sweeping the bar from 0 to
      * [PROGRESS_MAX] over [PROGRESS_SWEEP_MS] so the progress pipeline (extras -> [ProgressData] ->
      * the cutout) can be watched filling up without waiting on a real download. Each step re-posts
@@ -142,32 +353,54 @@ object TestNotifier {
         progressJob = scope.launch {
             var current = 0
             while (true) {
+                val isDone = current >= PROGRESS_MAX
+                val displayTitle = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_title)
+                } else {
+                    title
+                }
+                val displayText = if (isDone) {
+                    appContext.getString(R.string.test_progress_complete_text)
+                } else {
+                    text
+                }
+
+                val contentIntent = if (isDone) downloadsIntent(appContext) else null
+
                 val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_island)
-                    .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentTitle(displayTitle)
+                    .setContentText(displayText)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setOnlyAlertOnce(true)
                     .setProgress(PROGRESS_MAX, current, false)
                     .setTimeoutAfter(TIMEOUT_MS)
+                    .apply {
+                        if (contentIntent != null) setContentIntent(contentIntent)
+                    }
                     .build()
 
                 if (canPost(appContext)) {
                     NotificationManagerCompat.from(appContext).notify(PROGRESS_NOTIFICATION_ID, notification)
                 }
 
+                val appName = NotificationHeaderResolver.resolveAppName(appContext, appContext.packageName)
+                    ?: appContext.getString(R.string.app_name)
+                val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
+
                 IslandEventBus.emit(
                     CutoutSignal.Notification(
                         packageName = appContext.packageName,
-                        title = title,
-                        text = text,
+                        title = displayTitle,
+                        text = displayText,
                         key = PROGRESS_KEY,
+                        contentIntent = contentIntent,
                         smallIcon = Icon.createWithResource(appContext, R.drawable.ic_stat_island),
                         progressData = ProgressData(
                             max = PROGRESS_MAX,
                             current = current,
                             isIndeterminate = false,
-                            title = title,
+                            title = displayTitle,
                         ),
                     ),
                 )
@@ -177,6 +410,35 @@ object TestNotifier {
                 current = (current + PROGRESS_STEP).coerceAtMost(PROGRESS_MAX)
             }
         }
+    }
+
+    /** A [PendingIntent] that opens the device's downloads view when the download finishes. */
+    private fun downloadsIntent(context: Context): PendingIntent {
+        val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getActivity(context, 10, intent, flags)
+    }
+
+    /**
+     * Emits a system event so the status dot and cutout reaction can be tested immediately.
+     */
+    fun sendSystemEvent(
+        type: SystemEventType,
+        batteryLevel: Int? = null,
+    ) {
+        IslandEventBus.emit(CutoutSignal.System(type, batteryLevel))
+    }
+
+    /**
+     * Emits a rich system event payload for test previews.
+     */
+    fun sendSystemEvent(payload: SystemEventPayload) {
+        IslandEventBus.emit(CutoutSignal.System(payload))
     }
 
     /** A mutable broadcast [PendingIntent] to [TestReplyReceiver]; mutability lets reply text fill in. */
@@ -190,6 +452,10 @@ object TestNotifier {
         return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 
+    /**
+     * Creates the notification channel on first use, tolerating an existing one so a reinstall
+     * doesn't duplicate it.
+     */
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)

@@ -12,10 +12,13 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.Region
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.telecom.TelecomManager
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.View
 import android.view.ViewTreeObserver
@@ -24,31 +27,29 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
-import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.core.CenterShortcutExecutor
+import com.ekoehler.expressivecutout.core.CutoutMetrics
 import com.ekoehler.expressivecutout.core.CutoutSignal
+import com.ekoehler.expressivecutout.core.CutoutKind
+import com.ekoehler.expressivecutout.core.CutoutWidthBus
 import com.ekoehler.expressivecutout.core.DynamicTile
 import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.IslandPreviewBus
+import com.ekoehler.expressivecutout.core.PermissionDotPreviewBus
 import com.ekoehler.expressivecutout.core.ForegroundAppBus
 import com.ekoehler.expressivecutout.core.NowPlayingBus
 import com.ekoehler.expressivecutout.core.OnCallBus
 import com.ekoehler.expressivecutout.core.RunningTimerBus
 import com.ekoehler.expressivecutout.core.SystemEventType
+import com.ekoehler.expressivecutout.core.stateFamily
 import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
@@ -58,25 +59,44 @@ import com.ekoehler.expressivecutout.data.CenterShortcut
 import com.ekoehler.expressivecutout.data.EmptyClickAction
 import com.ekoehler.expressivecutout.data.GlobalAction
 import com.ekoehler.expressivecutout.data.HorizontalCutoutMode
+import com.ekoehler.expressivecutout.data.SatellitePosition
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
+import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
+import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
+import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
+import com.ekoehler.expressivecutout.events.BatteryBus
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
+import com.ekoehler.expressivecutout.data.bottomEarDp
+import com.ekoehler.expressivecutout.data.notchOverhangDp
 import com.ekoehler.expressivecutout.data.LayoutPreferences
 import com.ekoehler.expressivecutout.data.asCallCutout
-import com.ekoehler.expressivecutout.data.AssistantTilePreferences
-import com.ekoehler.expressivecutout.data.AssistantTileSettings
+import com.ekoehler.expressivecutout.data.asSplitCallCutout
+import com.ekoehler.expressivecutout.data.asTinyCutout
 import com.ekoehler.expressivecutout.data.MusicTilePreferences
 import com.ekoehler.expressivecutout.data.MusicTileSettings
+import com.ekoehler.expressivecutout.data.PermissionDotColors
+import com.ekoehler.expressivecutout.data.PermissionDotPosition
+import com.ekoehler.expressivecutout.data.PermissionDotPreferences
 import com.ekoehler.expressivecutout.data.PhoneTilePreferences
 import com.ekoehler.expressivecutout.data.PhoneTileSettings
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
+import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.system.HotspotClients
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
+import android.widget.Toast
+import kotlinx.coroutines.withContext
+import com.ekoehler.expressivecutout.system.PermissionUsageMonitor
 import com.ekoehler.expressivecutout.ui.theme.ExpressiveCutoutTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,9 +106,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.lang.reflect.Proxy
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Owns the single overlay window and drives it from the [IslandEventBus]. Created and
@@ -123,24 +146,66 @@ class IslandOverlayController(private val context: Context) {
     private val musicTilePreferences = MusicTilePreferences(context)
     private val phoneTilePreferences = PhoneTilePreferences(context)
     private val timerTilePreferences = TimerTilePreferences(context)
-    private val assistantTilePreferences = AssistantTilePreferences(context)
+    private val emptyPillInfoPreferences = EmptyPillInfoPreferences(context)
     private val appPreferences = AppPreferences(context)
+    private val permissionDotPreferences = PermissionDotPreferences(context)
     private val density = context.resources.displayMetrics.density
 
-    // Full display width, used by the island to size itself as a percentage of the screen. Read from
-    // the *current* window metrics so it follows the device between portrait and landscape — recomputed
-    // on rotation by [onOrientationChanged]. (maximumWindowMetrics would stay pinned to the natural
-    // orientation, leaving the landscape pill and its touchable-region carve-out mis-sized.) The px value
-    // is read live by the touchable region; the dp value is a flow so the pill re-sizes on rotation
-    // without recreating the ComposeView.
+    /**
+     * Full display width, used by the island to size itself as a percentage of the screen. Read
+     * from the *current* window metrics so it follows the device between portrait and landscape —
+     * recomputed on rotation by [onOrientationChanged]. (maximumWindowMetrics would stay pinned to
+     * the natural orientation, leaving the landscape pill and its touchable-region carve-out
+     * mis-sized.) The px value is read live by the touchable region; the dp value is a flow so the
+     * pill re-sizes on rotation without recreating the ComposeView.
+     */
     private var displayWidthPx: Int = computeDisplayWidthPx()
     private val displayWidthDp = MutableStateFlow((displayWidthPx / density).toInt())
 
-    // The orientation the live window geometry was built for, so [onOrientationChanged] only reacts to
-    // an actual portrait <-> landscape flip. Also the single source of truth for the current
-    // orientation, ready for orientation-specific layout settings later.
+    /**
+     * The screen width in dp *without* the truncation of [displayWidthDp]. A full-width island sized
+     * from the truncated value falls up to a pixel short of the screen edge.
+     */
+    private val displayWidthExactDp = MutableStateFlow(displayWidthPx / density)
+
+    /**
+     * The camera cutout's right edge in dp, measured from the screen's horizontal centre, or null
+     * on a device that reports no cutout. The music tile's tiny "Mini player" pill hangs off it;
+     * everything else is centred and ignores this. Re-measured on rotation, since the hole moves to
+     * a side edge in landscape.
+     */
+    private val cameraRightEdgeDp = MutableStateFlow(measureCameraRightEdgeDp())
+
+    /**
+     * The camera cutout's left edge in dp, measured from the screen's horizontal centre (negative to
+     * its left), or null on a device that reports no cutout. The status dot is parked beside it.
+     * Re-measured on rotation like [cameraRightEdgeDp].
+     */
+    private val cameraLeftEdgeDp = MutableStateFlow(measureCameraLeftEdgeDp())
+
+    /**
+     * The orientation the live window geometry was built for, so [onOrientationChanged] only reacts
+     * to an actual portrait <-> landscape flip. Also the single source of truth for the current
+     * orientation, ready for orientation-specific layout settings later.
+     */
     private var currentOrientation: Int = context.resources.configuration.orientation
     private val orientationState = MutableStateFlow(currentOrientation)
+
+    /**
+     * The live display rotation (Surface.ROTATION_*). Tracked separately from [currentOrientation]
+     * because a 90° <-> 270° flip keeps the orientation LANDSCAPE yet moves the camera to the
+     * opposite edge, so stick-to-camera must react to it too. The flow drives the pill's rotated
+     * rendering so it re-orients on that flip without recreating the ComposeView.
+     */
+    private var currentRotation: Int = currentDisplayRotation()
+    private val rotationState = MutableStateFlow(currentRotation)
+
+    /**
+     * Set while a rotation cross-fade is applying the new geometry with the island hidden, so the
+     * pill snaps to its new shape/placement instead of sliding there — the movement stays invisible
+     * and only the fade is seen.
+     */
+    private val rotationSnapState = MutableStateFlow(false)
 
     private val displayHeightPx: Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -152,68 +217,146 @@ class IslandOverlayController(private val context: Context) {
     private val displayHeightDp: Int = (displayHeightPx / density).toInt()
 
     private val currentEvent = MutableStateFlow<IslandEvent?>(null)
+
+    /**
+     * The event parked in the satellite bubble beside the pill, or null when the island is whole.
+     * Holds whatever [currentEvent] displaced, so a pinned live tile stays visible instead of
+     * vanishing until [livePillToReturnTo] brings it back. Capacity is exactly one.
+     */
+    private val satelliteEvent = MutableStateFlow<IslandEvent?>(null)
+    private var satelliteDismissJob: Job? = null
+    private var satelliteSystemEventType: SystemEventType? = null
+
+    /**
+     * When the pill's / bubble's auto-dismiss is due, or null while that slot is pinned (a live
+     * tile). Carried across a demotion so a notification pushed into the bubble expires on its
+     * original schedule rather than getting a fresh lease.
+     */
+    private var currentDeadlineMs: Long? = null
+    private var satelliteDeadlineMs: Long? = null
+
+    /**
+     * Set while the pill is showing an event tapped out of the bubble. The two slots are swapped
+     * for the duration so the expanded cutout acts on a real [currentEvent], and swapped back when
+     * it collapses — the bubble is hidden while expanded, so the user never sees them move.
+     */
+    private var restoreSlotsOnCollapse = false
     private val layoutState = MutableStateFlow(IslandLayout.DEFAULT)
     private val forcedExpanded = MutableStateFlow<Boolean?>(null)
     private val behaviourState = MutableStateFlow(BehaviourSettings())
     private val appearanceState = MutableStateFlow(AppearanceSettings())
+
+    /**
+     * Whether the permission dots are switched on, and which end of the pill they sit on. *What* to
+     * draw comes from [PermissionUsageMonitor] instead; the enabled flag is mirrored separately so
+     * the island can keep the (empty) dot row mounted and let each dot animate itself.
+     */
+    private val permissionDotEnabledState = MutableStateFlow(false)
+    private val permissionDotPositionState = MutableStateFlow(PermissionDotPosition.RIGHT)
+    private val permissionDotColorsState = MutableStateFlow(PermissionDotColors())
+    private val permissionDotVerticalState = MutableStateFlow(false)
     private var customIcons: Map<SystemEventType, IconSource> = emptyMap()
     private var eventEnabled: Map<SystemEventType, Boolean> = emptyMap()
     private var eventDurations: Map<SystemEventType, Int> = emptyMap()
+    private var eventPersistent: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIcons: Map<SystemEventType, Boolean> = emptyMap()
     private var eventAnimatedIconLoops: Map<SystemEventType, Boolean> = emptyMap()
     private var eventColors: Map<SystemEventType, CutoutColor> = emptyMap()
-    // The system event currently on the pill, so its auto-dismiss uses that event's own duration
-    // override (null while a notification or live tile is showing → the global normal duration).
+
+    /** Hotspot card options (count style, Turn-off colour) handed to every resolved event. */
+    private var hotspotCard: HotspotCard? = null
+    /**
+     * The system event currently on the pill, so its auto-dismiss uses that event's own duration
+     * override (null while a notification or live tile is showing → the global normal duration).
+     */
     private var currentSystemEventType: SystemEventType? = null
+
+    /**
+     * The notification key the pill last mirrored, so the listener can be told the moment that pill
+     * goes away and a notification it was holding back is due in the panel. See
+     * [observeMirroredKey].
+     */
+    private var mirroredKey: String? = null
     private var eventDynamicColor: Boolean = false
     private var eventDynamicColorRole: DynamicRole = DynamicRole.PRIMARY
     private var eventDynamicColorOpacity: Float = 1f
     private var tileEnabled: Map<DynamicTile, Boolean> = emptyMap()
-    // Packages the user muted on the Apps screen: nothing they post reaches the cutout.
+    /** Packages the user muted on the Apps screen: nothing they post reaches the cutout. */
     private var disabledApps: Set<String> = emptySet()
-    // Packages allowed on the cutout but never allowed to expand it on their own.
+    /** Packages allowed on the cutout but never allowed to expand it on their own. */
     private var normalOnlyApps: Set<String> = emptySet()
     private var musicSettings: MusicTileSettings = MusicTileSettings()
     private var phoneSettings: PhoneTileSettings = PhoneTileSettings()
     private var timerSettings: TimerTileSettings = TimerTileSettings()
-    private var assistantSettings: AssistantTileSettings = AssistantTileSettings()
+
+    /** The resting pill's clock / unread / battery settings; read by the composition and the touch region alike. */
+    private val emptyInfoState = MutableStateFlow(EmptyPillInfoSettings())
     private var previewPinned = false
     private var previewExpanded = false
     private var expanded = false
-    // True while a media session is actively playing; keeps the music cutout pinned up (no
-    // auto-dismiss) for as long as playback lasts.
+    /**
+     * True while a media session is actively playing; keeps the music cutout pinned up (no
+     * auto-dismiss) for as long as playback lasts.
+     */
     private var musicPlaying = false
-    // The last resolved music event, so the pill can return after a notification/system event that
-    // briefly took over the cutout while playback carried on.
+    /**
+     * The last resolved music event, so the pill can return after a notification/system event that
+     * briefly took over the cutout while playback carried on.
+     */
     private var lastMusicEvent: IslandEvent? = null
-    // The package of the app currently in the foreground, from the accessibility service. Drives the
-    // "Visible in player app" option: when off, the music cutout hides while this matches the player.
+    /**
+     * The package of the app currently in the foreground, from the accessibility service. Drives
+     * the "Visible in player app" option: when off, the music cutout hides while this matches the
+     * player.
+     */
     private var foregroundPackage: String? = null
-    // True while the music cutout is being held hidden because the playing app is in the foreground
-    // and "Visible in player app" is off, so it can be brought back when the user leaves that app.
+    /**
+     * True while the music cutout is being held hidden because the playing app is in the foreground
+     * and "Visible in player app" is off, so it can be brought back when the user leaves that app.
+     */
     private var playerAppHidden = false
-    // True while the phone cutout is being held hidden because the phone app is full screen in the
-    // foreground, so it can be brought back when the user leaves the phone app.
+    /**
+     * True while the phone cutout is being held hidden because the phone app is full screen in the
+     * foreground, so it can be brought back when the user leaves the phone app.
+     */
     private var phoneAppHidden = false
-    // True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
-    // whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
+    /**
+     * True while a phone call is present; keeps the call cutout pinned up (no auto-dismiss) for the
+     * whole call, and — like [lastMusicEvent] — lets the pill return after an interruption.
+     */
     private var callActive = false
     private var lastCallEvent: IslandEvent? = null
-    // True while a countdown timer is running; keeps the timer cutout pinned up (no auto-dismiss) for
-    // the whole countdown, and — like [lastCallEvent] — lets the pill return after an interruption.
+    /**
+     * True while a countdown timer is running; keeps the timer cutout pinned up (no auto-dismiss)
+     * for the whole countdown, and — like [lastCallEvent] — lets the pill return after an
+     * interruption.
+     */
     private var timerActive = false
     private var lastTimerEvent: IslandEvent? = null
-    private var assistantActive = false
-    private var lastAssistantEvent: IslandEvent? = null
+    // True while the device is locked (screen off or keyguard active); keeps the locked cutout pinned
+    // up (no auto-dismiss) until the screen is unlocked.
+    private var isDeviceLocked = false
+    private var lastLockEvent: IslandEvent? = null
 
-    // A neutral sample shown while the settings screen pins the island open.
+    /**
+     * The one system event kept up for as long as its state lasts (its "Persistent event" switch is
+     * on), and its type. Like [lastLockEvent] it is what the pill returns to after an interruption;
+     * both are cleared when a same-family signal ends it or the user dismisses it.
+     */
+    private var persistentEvent: IslandEvent? = null
+    private var persistentType: SystemEventType? = null
+
+    /** A neutral sample shown while the settings screen pins the island open. */
     private val previewEvent by lazy {
         IslandEvent(
             id = -1L,
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
             label = context.getString(R.string.preview_label),
             detail = context.getString(R.string.preview_detail),
+            appName = context.getString(R.string.app_name),
+            postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
+            appColor = Color(0xFF60A5FA),
         )
     }
 
@@ -221,21 +364,34 @@ class IslandOverlayController(private val context: Context) {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var dismissJob: Job? = null
     private var windowResizeJob: Job? = null
+    private var cutoutWidthJob: Job? = null
+    private val collapseTrigger = MutableStateFlow(0L)
 
-    // The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be removed.
+    /**
+     * The installed OnComputeInternalInsetsListener (a reflection Proxy), kept so it can be
+     * removed.
+     */
     private var insetsListener: Any? = null
 
-    // True while the window has been torn down because "hide on lockscreen" or "hide in landscape" is active.
-    // Guards signal handling and drives whether the window currently exists.
+    /**
+     * True while the window has been torn down because "hide on lockscreen" or "hide in landscape"
+     * is active. Guards signal handling and drives whether the window currently exists.
+     */
     private var overlayHidden = false
     private var savedEventBeforeHide: IslandEvent? = null
 
-    // Re-evaluate lock visibility whenever the screen or lock state changes. All are protected
-    // system broadcasts.
+    /**
+     * Re-evaluate lock visibility whenever the screen or lock state changes. All are protected
+     * system broadcasts.
+     */
     private val lockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = applyLockVisibility()
     }
 
+    /**
+     * Brings the island up: the fake lifecycle, the overlay window, the lock receiver, and one
+     * collector per preference group. Mirrored by [stop].
+     */
     fun start() {
         lifecycleOwner.onCreate()
         addOverlay()
@@ -246,17 +402,21 @@ class IslandOverlayController(private val context: Context) {
         observeAppearance()
         observeEventPreferences()
         observeEventDurations()
+        observeEventPersistent()
         observeEventAnimatedIcons()
         observeEventColors()
+        observeHotspotCard()
+        HotspotClients.start(scope)
         observeEventDynamicColor()
         observeEventDynamicColorRole()
         observeEventDynamicColorOpacity()
         observeTilePreferences()
         observeAppPreferences()
+        observePermissionDotSettings()
         observeMusicSettings()
         observePhoneSettings()
         observeTimerSettings()
-        observeAssistantSettings()
+        observeEmptyPillInfo()
         observeNowPlaying()
         observeForegroundApp()
         observeOnCall()
@@ -264,17 +424,35 @@ class IslandOverlayController(private val context: Context) {
         observePreviewPin()
         observeSignals()
         observeVisibility()
+        observeMirroredKey()
     }
 
+    /**
+     * Takes the island down and undoes everything [start] set up, releasing anything the rest of
+     * the system would otherwise keep holding on the island's behalf.
+     */
     fun stop() {
+        satelliteDismissJob?.cancel()
+        // The island is going away with a pill still up, so nothing is left to mirror the
+        // notification it was standing in for — hand it back to the panel before the collector that
+        // would normally notice dies with the scope.
+        mirroredKey?.let { CutoutNotificationListenerService.release(it) }
         dismissJob?.cancel()
         windowResizeJob?.cancel()
+        // Nothing is left to widen the cutout, so hand the status bar back rather than leaving it
+        // blank for as long as the service stays off.
+        cutoutWidthJob?.cancel()
+        CutoutWidthBus.update(kind = null, grownForDots = false, grownForStatusDot = false)
         runCatching { context.unregisterReceiver(lockReceiver) }
         removeOverlay()
         lifecycleOwner.onDestroy()
+        HotspotClients.stop()
         scope.cancel()
     }
 
+    /**
+     * Watches for the screen locking and unlocking, which the "hide on lockscreen" setting acts on.
+     */
     private fun registerLockReceiver() {
         ContextCompat.registerReceiver(
             context,
@@ -294,8 +472,10 @@ class IslandOverlayController(private val context: Context) {
      * locked or in landscape, and gesture areas stay completely unblocked.
      */
     private fun applyLockVisibility() {
-        val shouldHideLock = behaviourState.value.hideOnLockscreen &&
-            keyguardManager?.isKeyguardLocked == true
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
+        val isDeviceLockedActual = keyguardManager?.isDeviceLocked == true
+        isDeviceLocked = isDeviceLockedActual
+        val shouldHideLock = behaviourState.value.hideOnLockscreen && isKeyguardLocked
         val isLandscapeHidden = behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.HIDDEN ||
             behaviourState.value.hideInLandscape
         val shouldHideLandscape = isLandscapeHidden &&
@@ -320,9 +500,49 @@ class IslandOverlayController(private val context: Context) {
                 syncWindowSize()
                 restoreActiveState()
             }
+
+            !shouldHide && !overlayHidden && isDeviceLockedActual && currentEvent.value == null -> {
+                showLockedEvent()
+            }
+
+            !shouldHide && !overlayHidden && !isDeviceLockedActual && currentEvent.value?.id == lastLockEvent?.id && lastLockEvent != null -> {
+                lastLockEvent = null
+                IslandEventBus.emit(CutoutSignal.System(SystemEventType.DEVICE_UNLOCKED))
+            }
         }
     }
 
+    private fun showLockedEvent() {
+        if (!behaviourState.value.cutoutEnabled || eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return
+        val lockedSignal = CutoutSignal.System(SystemEventType.DEVICE_LOCKED)
+        val resolved = resolver.resolve(
+            signal = lockedSignal,
+            customIcons = customIcons,
+            musicSettings = musicSettings,
+            phoneSettings = phoneSettings,
+            timerSettings = timerSettings,
+            dynamicEventColor = eventDynamicColor,
+            dynamicEventColorRole = eventDynamicColorRole,
+            dynamicEventColorOpacity = eventDynamicColorOpacity,
+            animatedIconEnabled = eventAnimatedIcons,
+            animatedIconLoop = eventAnimatedIconLoops,
+            eventColorOverrides = eventColors,
+            hotspot = hotspotCard,
+            appearance = appearanceState.value,
+        ).copy(initiallyExpanded = false, normalOnly = false)
+        isDeviceLocked = true
+        lastLockEvent = resolved
+        currentEvent.value = resolved
+        dismissJob?.cancel()
+        syncWindowSize()
+    }
+
+    /**
+     * Puts back whatever should be on screen after the island was hidden, in priority order: a
+     * pinned preview, then a call, then music, then a timer, then whatever pill was interrupted.
+     * Only the last of those is given a fresh dismiss timer, since the live tiles stay until their
+     * state ends.
+     */
     private fun restoreActiveState() {
         when {
             previewPinned -> {
@@ -330,6 +550,7 @@ class IslandOverlayController(private val context: Context) {
                 forcedExpanded.value = previewExpanded
                 expanded = previewExpanded
                 currentEvent.value = previewEvent
+                setTouchable(false)
             }
             callActive && lastCallEvent != null -> {
                 dismissJob?.cancel()
@@ -344,10 +565,26 @@ class IslandOverlayController(private val context: Context) {
                 dismissJob?.cancel()
                 currentEvent.value = lastTimerEvent
             }
+            isDeviceLocked && lastLockEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentEvent.value = lastLockEvent
+            }
+            persistentEvent != null -> {
+                dismissJob?.cancel()
+                expanded = false
+                currentSystemEventType = persistentType
+                currentEvent.value = persistentEvent
+            }
+            isDeviceLocked -> {
+                showLockedEvent()
+            }
             savedEventBeforeHide != null -> {
                 dismissJob?.cancel()
+                expanded = savedEventBeforeHide?.initiallyExpanded ?: false
                 currentEvent.value = savedEventBeforeHide
                 savedEventBeforeHide = null
+                syncWindowSize()
                 scheduleDismiss()
             }
         }
@@ -385,36 +622,123 @@ class IslandOverlayController(private val context: Context) {
      * settings later — [currentOrientation] is the single place the live orientation is tracked.
      */
     fun onOrientationChanged(orientation: Int) {
-        if (orientation == currentOrientation) return
-        currentOrientation = orientation
-        orientationState.value = orientation
-        displayWidthPx = computeDisplayWidthPx()
-        displayWidthDp.value = (displayWidthPx / density).toInt()
-        applyLockVisibility()
-        if (overlayHidden) return
-        syncWindowSize()
+        val rotation = currentDisplayRotation()
+        if (orientation == currentOrientation && rotation == currentRotation) return
+        // The split is portrait-only, so a bubble must not survive the rotation: landscape gives it no
+        // reserved width and no touchable region, which would leave it drawn but dead.
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) clearSatellite()
+        val view = composeView
+        // With nothing on screen there is nothing to cross-fade — apply the new geometry at once.
+        if (view == null || overlayHidden) {
+            applyRotation(orientation, rotation)
+            return
+        }
+        // Stuck to the camera the island is pinned to one spot per orientation and is meant to simply
+        // be there, so the cross-fade below is the whole of what reads as it travelling: the fade-out
+        // leaves it sitting at its portrait placement on an already-landscape screen. Swap outright
+        // instead, holding the snap over the frame that adopts the new geometry so nothing springs.
+        if (behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA) {
+            rotationSnapState.value = true
+            applyRotation(orientation, rotation)
+            view.post { rotationSnapState.value = false }
+            return
+        }
+        // Cross-fade across the rotation: fade the island out at its old placement, snap to the new
+        // geometry while it is invisible (so it never slides from the top band to the side edge),
+        // then fade it back in.
+        view.animate().cancel()
+        view.animate()
+            .alpha(0f)
+            .setDuration(ROTATION_FADE_MS)
+            .withEndAction {
+                rotationSnapState.value = true
+                applyRotation(orientation, rotation)
+                val revealed = composeView
+                if (revealed == null || overlayHidden) {
+                    rotationSnapState.value = false
+                    return@withEndAction
+                }
+                revealed.animate()
+                    .alpha(1f)
+                    .setDuration(ROTATION_FADE_MS)
+                    .withEndAction { rotationSnapState.value = false }
+                    .start()
+            }
+            .start()
     }
 
+    /** Adopt a new orientation/rotation: resize to the live width and re-place the window. */
+    private fun applyRotation(orientation: Int, rotation: Int) {
+        currentOrientation = orientation
+        currentRotation = rotation
+        orientationState.value = orientation
+        rotationState.value = rotation
+        displayWidthPx = computeDisplayWidthPx()
+        displayWidthDp.value = (displayWidthPx / density).toInt()
+        displayWidthExactDp.value = displayWidthPx / density
+        cameraRightEdgeDp.value = measureCameraRightEdgeDp()
+        cameraLeftEdgeDp.value = measureCameraLeftEdgeDp()
+        applyLockVisibility()
+        if (overlayHidden) return
+        // Resize straight to the final geometry in one step (not the usual grow-then-shrink), while the
+        // island is still invisible mid cross-fade. The delayed shrink would otherwise fire after the
+        // fade-in and visibly slide the pill back to its place.
+        windowResizeJob?.cancel()
+        resizeWindow(
+            windowWidthPx(layoutState.value),
+            windowHeightPx(layoutState.value, expanded),
+        )
+    }
+
+    /**
+     * Creates the Compose-hosting overlay window and attaches it to the window manager. This is the
+     * one place the island touches the framework's view system.
+     */
     private fun addOverlay() {
         val view = ComposeView(context).apply {
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+            setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_OUTSIDE || event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                    onOutsideTouch()
+                }
+                false
+            }
             setContent {
+                val collapse by collapseTrigger.collectAsStateWithLifecycle()
                 val event by currentEvent.collectAsStateWithLifecycle()
+                val satellite by satelliteEvent.collectAsStateWithLifecycle()
                 val layout by layoutState.collectAsStateWithLifecycle()
                 val forced by forcedExpanded.collectAsStateWithLifecycle()
                 val behaviour by behaviourState.collectAsStateWithLifecycle()
                 val appearance by appearanceState.collectAsStateWithLifecycle()
                 val widthDp by displayWidthDp.collectAsStateWithLifecycle()
+                val exactWidthDp by displayWidthExactDp.collectAsStateWithLifecycle()
+                val cameraRightDp by cameraRightEdgeDp.collectAsStateWithLifecycle()
+                val emptyInfo by emptyInfoState.collectAsStateWithLifecycle()
+                val unreadCounts by CutoutNotificationListenerService.unreadCounts.collectAsStateWithLifecycle()
+                val hotspot by HotspotClients.state.collectAsStateWithLifecycle()
+                val shizukuStatus by ShizukuState.status.collectAsStateWithLifecycle()
+                val battery by BatteryBus.status.collectAsStateWithLifecycle()
+                val cameraLeftDp by cameraLeftEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
+                val rotation by rotationState.collectAsStateWithLifecycle()
+                val snapGeometry by rotationSnapState.collectAsStateWithLifecycle()
+                val permissionUsage by PermissionUsageMonitor.usage.collectAsStateWithLifecycle()
+                val permissionDotsEnabled by permissionDotEnabledState.collectAsStateWithLifecycle()
+                val permissionDotPosition by permissionDotPositionState.collectAsStateWithLifecycle()
+                val permissionDotColors by permissionDotColorsState.collectAsStateWithLifecycle()
+                val permissionDotVertical by permissionDotVerticalState.collectAsStateWithLifecycle()
+                // The dot settings screen shows every enabled dot here, switch on or not.
+                val permissionDotPreview by PermissionDotPreviewBus.active.collectAsStateWithLifecycle()
                 val isNoExpandLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     (behaviour.horizontalCutoutMode == HorizontalCutoutMode.NORMAL_ONLY ||
                      behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA)
                 val effectiveForced = if (isNoExpandLandscape) false else forced
                 val isStickToCamera = orientation == Configuration.ORIENTATION_LANDSCAPE &&
                     behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
-                val rot270 = isRotation270()
+                val rot270 = rotation == Surface.ROTATION_270
 
                 ExpressiveCutoutTheme {
                     DynamicIsland(
@@ -422,9 +746,14 @@ class IslandOverlayController(private val context: Context) {
                         collapsed = layout.collapsed,
                         expanded = layout.expanded,
                         displayWidthDp = widthDp,
+                        displayWidthExactDp = exactWidthDp,
+                        cameraRightEdgeDp = cameraRightDp,
+                        cameraLeftEdgeDp = cameraLeftDp,
                         forcedExpanded = effectiveForced,
+                        collapseTrigger = collapse,
                         isStickToCamera = isStickToCamera,
                         isRotation270 = rot270,
+                        snapGeometry = snapGeometry,
                         offsetYDp = layout.collapsed.offsetYDp,
                         animationStyle = behaviour.animationStyle,
                         animationSpeed = behaviour.animationSpeed,
@@ -434,13 +763,24 @@ class IslandOverlayController(private val context: Context) {
                         autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
                         appearance = appearance,
                         showActions = behaviour.showActionButtons,
-                        shrinkOnSwipeUp = behaviour.shrinkOnSwipeUp,
-                        swipeToDismiss = behaviour.swipeToDismiss,
-                        swipeDismissDirection = behaviour.swipeDismissDirection,
-                        swipeDismissTarget = behaviour.swipeDismissTarget,
-                        showsWhenEmpty = behaviour.showsWhenEmpty && behaviour.cutoutEnabled,
-                        emptyIcon = behaviour.showsWhenEmptyIcon.takeIf { behaviour.showsWhenEmptyShowIcon },
-                        emptyIconColor = behaviour.showsWhenEmptyIconColor,
+                        normalTap = behaviour.normalTap,
+                        normalSwipeUp = behaviour.normalSwipeUp,
+                        expandedTap = behaviour.expandedTap,
+                        expandedSwipeUp = behaviour.expandedSwipeUp,
+                        expandedSwipeDown = behaviour.expandedSwipeDown,
+                        normalSwipeLeft = behaviour.normalSwipeLeft,
+                        normalSwipeRight = behaviour.normalSwipeRight,
+                        expandedSwipeLeft = behaviour.expandedSwipeLeft,
+                        expandedSwipeRight = behaviour.expandedSwipeRight,
+                        showsWhenEmpty = behaviour.emptyPillActive,
+                        showEmptyCutout = behaviour.showEmptyCutout,
+                        hiddenEmptyWidthPercent = behaviour.hiddenEmptyWidthPercent,
+                        emptyInfo = emptyInfo,
+                        unreadCounts = unreadCounts,
+                        hotspot = hotspot,
+                        canTurnOffHotspot = shizukuStatus == ShizukuStatus.READY,
+                        onTurnOffHotspot = ::onTurnOffHotspot,
+                        battery = battery,
                         emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
                         centerShortcuts = behaviour.centerShortcuts,
                         centerShowLabels = behaviour.centerShowLabels,
@@ -448,14 +788,27 @@ class IslandOverlayController(private val context: Context) {
                         centerThemedIcons = behaviour.centerThemedIcons,
                         actionButtonAnimation = behaviour.actionButtonAnimation,
                         vibrateOnTap = behaviour.vibrateOnTap,
+                        hapticsOnPop = behaviour.hapticsOnPop,
+                        statusDotEnabled = behaviour.showStatusDot,
+                        statusDotSide = behaviour.statusDotSide,
+                        permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
+                        permissionUsage = permissionUsage,
+                        permissionDotPosition = permissionDotPosition,
+                        permissionDotColors = permissionDotColors,
+                        permissionDotsVertical = permissionDotVertical,
+                        satellite = satellite,
+                        satellitePosition = behaviour.satellitePosition,
+                        onSatelliteClick = ::onSatellitePromote,
                         onEmptyClick = ::onEmptyClick,
                         onCenterShortcut = ::onCenterShortcut,
                         onExpandedChange = ::onExpandedChanged,
                         onActivate = ::onActivate,
+                        onOpenCall = ::onOpenCall,
                         onAction = ::onAction,
                         onReply = ::onReply,
                         onReplyActiveChange = ::onReplyActive,
                         onDismiss = ::onDismiss,
+                        onPinToggle = ::onPinToggle,
                     )
                 }
             }
@@ -465,18 +818,28 @@ class IslandOverlayController(private val context: Context) {
         composeView = view
         layoutParams = params
         installTouchableRegion(view)
+        syncTouchable()
     }
 
+    /**
+     * Detaches the overlay window immediately, rather than posting the removal, so a teardown can't
+     * leave a view behind on a service that is already going away.
+     */
     private fun removeOverlay() {
         composeView?.let { windowManager.removeViewImmediate(it) }
         composeView = null
         insetsListener = null
     }
 
+    /** Mirrors the user's per-event icon overrides into [customIcons]. */
     private fun observeIconPreferences() = scope.launch {
         iconPreferences.customIcons.collect { customIcons = it }
     }
 
+    /**
+     * Mirrors the behaviour settings, applying lock visibility as they arrive so a toggle takes
+     * effect at once rather than at the next lock.
+     */
     private fun observeBehaviour() = scope.launch {
         behaviourPreferences.settings.collect {
             behaviourState.value = it
@@ -485,6 +848,10 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Mirrors the appearance settings, re-syncing the window because the action-button height feeds
+     * the expanded window's size.
+     */
     private fun observeAppearance() = scope.launch {
         appearancePreferences.settings.collect {
             appearanceState.value = it
@@ -493,62 +860,263 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /** Mirrors the per-event enabled switches into [eventEnabled]. */
     private fun observeEventPreferences() = scope.launch {
         eventPreferences.enabled.collect { eventEnabled = it }
     }
 
+    /** Mirrors the per-event duration overrides into [eventDurations]. */
     private fun observeEventDurations() = scope.launch {
         eventPreferences.durations.collect { eventDurations = it }
     }
 
+    /**
+     * Mirrors the per-event "Persistent event" switches into [eventPersistent], and lets go of the
+     * recorded persistent event at once if its own switch was just turned off.
+     */
+    private fun observeEventPersistent() = scope.launch {
+        eventPreferences.persistent.collect {
+            eventPersistent = it
+            releasePersistentIfSwitchedOff()
+        }
+    }
+
+    /**
+     * Whether [type] is kept up while its state lasts. [SystemEventType.DEVICE_LOCKED] is excluded:
+     * it is always pinned through [isDeviceLocked] instead.
+     */
+    private fun isPersistentType(type: SystemEventType): Boolean =
+        type != SystemEventType.DEVICE_LOCKED && eventPersistent[type] == true
+
+    /**
+     * Hands the recorded persistent event back to a normal dismiss timer, wherever it sits, once its
+     * switch is off — so the change takes effect while the event is still shown.
+     */
+    private fun releasePersistentIfSwitchedOff() {
+        val type = persistentType ?: return
+        val event = persistentEvent ?: return
+        if (isPersistentType(type)) return
+        persistentEvent = null
+        persistentType = null
+        if (currentEvent.value?.id == event.id) scheduleDismiss()
+        satelliteEvent.value?.takeIf { it.id == event.id }
+            ?.let { parkInSatellite(it, systemEventDeadline(type), type) }
+    }
+
+    /**
+     * Ends the persistent event of [type]'s state family, if one is up. Called before the enabled
+     * filter so a switched-off counterpart event still ends it. When the incoming event will take
+     * over the very slot it sits in ([incomingTakesOver]) the swap is left to
+     * [replaceSystemEventIfNeeded]; otherwise it is taken off the island here.
+     */
+    private fun endPersistentEvent(type: SystemEventType, incomingTakesOver: Boolean) {
+        val ended = persistentEvent ?: return
+        if (persistentType?.stateFamily != type.stateFamily) return
+        persistentEvent = null
+        persistentType = null
+        if (savedEventBeforeHide?.id == ended.id) savedEventBeforeHide = null
+        val inPill = currentEvent.value?.id == ended.id
+        val inBubble = !inPill && satelliteEvent.value?.id == ended.id
+        val slotType = if (inPill) currentSystemEventType else satelliteSystemEventType
+        if (incomingTakesOver && slotType?.stateFamily == type.stateFamily) return
+        if (inPill) dismissIsland() else if (inBubble) clearSatellite()
+    }
+
+    /**
+     * Mirrors the animated-icon switches and their loop flags, which are stored apart but always
+     * read together.
+     */
     private fun observeEventAnimatedIcons() {
         scope.launch { eventPreferences.animatedIcons.collect { eventAnimatedIcons = it } }
         scope.launch { eventPreferences.animatedIconLoops.collect { eventAnimatedIconLoops = it } }
     }
 
+    /** Stops the hotspot through Shizuku, off the main thread because it is a blocking binder call. */
+    private fun onTurnOffHotspot() {
+        scope.launch(Dispatchers.IO) {
+            if (!HotspotClients.stopHotspot()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, R.string.hotspot_turn_off_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /** Mirrors the hotspot count and Turn-off colour options into [hotspotCard] and tells [HotspotClients] whether to poll. */
+    private fun observeHotspotCard() = scope.launch {
+        combine(
+            eventPreferences.hotspotCountEnabled,
+            eventPreferences.hotspotCountStyle,
+            eventPreferences.hotspotTurnOffColor,
+        ) { enabled, style, color ->
+            HotspotClients.setEnabled(enabled)
+            HotspotCard(style.takeIf { enabled }, color)
+        }.collect { hotspotCard = it }
+    }
+
+    /** Mirrors the per-event colour overrides into [eventColors]. */
     private fun observeEventColors() = scope.launch {
         eventPreferences.colors.collect { eventColors = it }
     }
 
+    /** Mirrors whether events take their colour from Material You into [eventDynamicColor]. */
     private fun observeEventDynamicColor() = scope.launch {
         eventPreferences.dynamicColor.collect { eventDynamicColor = it }
     }
 
+    /** Mirrors which Material You role events use into [eventDynamicColorRole]. */
     private fun observeEventDynamicColorRole() = scope.launch {
         eventPreferences.dynamicColorRole.collect { eventDynamicColorRole = it }
     }
 
+    /** Mirrors the Material You colour opacity into [eventDynamicColorOpacity]. */
     private fun observeEventDynamicColorOpacity() = scope.launch {
         eventPreferences.dynamicColorOpacity.collect { eventDynamicColorOpacity = it }
     }
 
+    /** Mirrors which dynamic tiles are enabled into [tileEnabled]. */
     private fun observeTilePreferences() = scope.launch {
         dynamicTilePreferences.enabled.collect { tileEnabled = it }
     }
 
+    /**
+     * Mirrors both per-app sets: the apps the island is off for, and the ones limited to the
+     * collapsed cutout.
+     */
     private fun observeAppPreferences() {
         scope.launch { appPreferences.disabledPackages.collect { disabledApps = it } }
         scope.launch { appPreferences.normalOnlyPackages.collect { normalOnlyApps = it } }
     }
 
+    /** Mirrors the permission-dot switch, its placement and each dot's colour into their states. */
+    private fun observePermissionDotSettings() {
+        scope.launch { permissionDotPreferences.enabled.collect { permissionDotEnabledState.value = it } }
+        scope.launch { permissionDotPreferences.position.collect { permissionDotPositionState.value = it } }
+        scope.launch { permissionDotPreferences.colors.collect { permissionDotColorsState.value = it } }
+        scope.launch { permissionDotPreferences.vertical.collect { permissionDotVerticalState.value = it } }
+        // A dot lighting up or going out changes how wide the pill is drawn, so the window has to
+        // follow — the geometry flows above do the same by way of their own observers.
+        scope.launch {
+            PermissionUsageMonitor.usage
+                .map { it.count }
+                .distinctUntilChanged()
+                .collect { syncWindowSize() }
+        }
+    }
+
+    /**
+     * Mirrors the music tile settings, re-applying player-app visibility so that toggle takes
+     * effect mid-playback.
+     */
     private fun observeMusicSettings() = scope.launch {
         musicTilePreferences.settings.collect {
             musicSettings = it
+            refreshMusicEvent()
             // Toggling "Visible in player app" should take effect immediately, even mid-playback.
             applyPlayerAppVisibility()
         }
     }
 
+    /**
+     * Re-resolves the live music event so display settings changed in the settings screen are
+     * visible without waiting for the next track or restarting the overlay service.
+     */
+    private fun refreshMusicEvent() {
+        val nowPlaying = NowPlayingBus.state.value ?: return
+        val previous = lastMusicEvent ?: return
+        val signal = CutoutSignal.Music(
+            packageName = nowPlaying.packageName,
+            title = nowPlaying.title,
+            artist = nowPlaying.artist,
+            contentIntent = previous.contentIntent,
+        )
+        val refreshed = resolver.resolve(
+            signal = signal,
+            customIcons = customIcons,
+            musicSettings = musicSettings,
+            phoneSettings = phoneSettings,
+            timerSettings = timerSettings,
+            dynamicEventColor = eventDynamicColor,
+            dynamicEventColorRole = eventDynamicColorRole,
+            dynamicEventColorOpacity = eventDynamicColorOpacity,
+            animatedIconEnabled = eventAnimatedIcons,
+            animatedIconLoop = eventAnimatedIconLoops,
+            eventColorOverrides = eventColors,
+            hotspot = hotspotCard,
+            appearance = appearanceState.value,
+        ).copy(
+            initiallyExpanded = previous.initiallyExpanded,
+            normalOnly = previous.normalOnly,
+        )
+        lastMusicEvent = refreshed
+        if (currentEvent.value?.media != null) {
+            currentEvent.value = refreshed
+            syncWindowSize()
+        }
+    }
+
+    /** Mirrors the phone tile settings into [phoneSettings]. */
     private fun observePhoneSettings() = scope.launch {
         phoneTilePreferences.settings.collect { phoneSettings = it }
     }
 
+    /** Mirrors the timer tile settings into [timerSettings]. */
     private fun observeTimerSettings() = scope.launch {
         timerTilePreferences.settings.collect { timerSettings = it }
     }
 
-    private fun observeAssistantSettings() = scope.launch {
-        assistantTilePreferences.settings.collect { assistantSettings = it }
+    /**
+     * Mirrors the resting pill's info settings into [emptyInfoState], and keeps the window and touch
+     * region in step with the unread count and battery presence, which both change the pill's width.
+     */
+    private fun observeEmptyPillInfo() {
+        scope.launch {
+            emptyPillInfoPreferences.settings.collect {
+                emptyInfoState.value = it
+                syncWindowSize()
+            }
+        }
+        scope.launch {
+            combine(
+                CutoutNotificationListenerService.unreadCounts,
+                BatteryBus.status.map { it != null },
+            ) { counts, hasBattery -> counts to hasBattery }
+                .distinctUntilChanged()
+                .collect { syncWindowSize() }
+        }
+    }
+
+    /**
+     * The resting pill's cutout: the collapsed one widened to hold the clock, unread count and battery
+     * on either side of the camera, or the invisible tap area when the cutout is hidden. Mirrors
+     * [DynamicIsland] so the touchable region matches the drawing.
+     */
+    private fun emptyPillCutout(collapsed: IslandDimensions): IslandDimensions {
+        val behaviour = behaviourState.value
+        if (!behaviour.showEmptyCutout) return collapsed.asHiddenEmptyCutout(behaviour.hiddenEmptyWidthPercent)
+        val info = emptyInfoState.value
+        val sweData = SweData(CutoutNotificationListenerService.unreadCounts.value, BatteryBus.status.value)
+        val dotsEnabled = permissionDotEnabledState.value || PermissionDotPreviewBus.active.value
+        val dotRoomDp = if (dotsEnabled) {
+            emptyPillDotRoomDp(PermissionUsageMonitor.usage.value, collapsed.heightDp, permissionDotVerticalState.value)
+        } else {
+            0f
+        }
+        val onLeft = permissionDotPositionState.value == PermissionDotPosition.LEFT
+        val dotsLeftDp = if (onLeft) dotRoomDp else 0f
+        val dotsRightDp = if (onLeft) 0f else dotRoomDp
+        val (left, right) = emptyPillSideWidthsDp(
+            info,
+            collapsed.heightDp,
+            density,
+            sweData,
+            dotsLeftDp,
+            dotsRightDp,
+        )
+        return collapsed.asEmptyInfoCutout(
+            displayWidthDp.value, left, right, cameraRightEdgeDp.value,
+            centerIfFits = !emptyPillHasItems(info, sweData),
+        )
     }
 
     /**
@@ -559,6 +1127,7 @@ class IslandOverlayController(private val context: Context) {
     private fun observeNowPlaying() = scope.launch {
         NowPlayingBus.state.collect { now ->
             musicPlaying = now?.isPlaying == true
+            pruneSatellite()
             // Once the session ends there's nothing to return to.
             if (now == null) lastMusicEvent = null
             // Playback starting/stopping (or switching apps) can change whether the player is the
@@ -683,14 +1252,18 @@ class IslandOverlayController(private val context: Context) {
     private fun observeOnCall() = scope.launch {
         OnCallBus.state.collect { call ->
             callActive = call != null
+            pruneSatellite()
             if (call == null) {
                 lastCallEvent = null
                 phoneAppHidden = false
             }
             applyPhoneAppVisibility()
+            Log.i(TAG, "CALL bus=${if (call == null) "cleared" else "live"} pillIsCall=${currentEvent.value?.call != null}")
             // Only steer the call pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.call == null) return@collect
-            if (callActive) dismissJob?.cancel() else scheduleDismiss()
+            // A call that has ended takes its pill with it. Handing it to the auto-dismiss timer
+            // instead would leave a dead call on the cutout for the whole normal duration.
+            if (callActive) dismissJob?.cancel() else dismissIsland()
         }
     }
 
@@ -698,14 +1271,15 @@ class IslandOverlayController(private val context: Context) {
     private fun isPinnedCall(): Boolean = callActive && currentEvent.value?.call != null
 
     /**
-     * Follow the live countdown so the timer cutout stays up for exactly as long as the timer runs.
-     * The timer is "active" while the clock app's count-down notification exists ([RunningTimerBus]
-     * non-null); when it is reset or finishes we hand the pill back to the normal auto-dismiss timer.
+     * Follow the live timer (counts down or up) so the timer cutout stays up for exactly as long as the timer runs.
+     * The timer is "active" while the clock app's timer notification exists ([RunningTimerBus]
+     * non-null); when it is reset or finishes we dismiss it at once.
      * Mirrors [observeOnCall].
      */
     private fun observeRunningTimer() = scope.launch {
         RunningTimerBus.state.collect { timer ->
             timerActive = timer != null
+            pruneSatellite()
             if (timer == null) lastTimerEvent = null
             // Only steer the timer pill; leave notifications/system events to their own timers.
             if (previewPinned || currentEvent.value?.timer == null) return@collect
@@ -721,22 +1295,36 @@ class IslandOverlayController(private val context: Context) {
                 )
                 lastTimerEvent = currentEvent.value
             }
-            if (timerActive) dismissJob?.cancel() else scheduleDismiss()
+            // A timer that has ended takes its pill with it. Handing it to the auto-dismiss timer
+            // instead would leave a dead timer tile on the cutout for the whole normal duration.
+            if (timerActive) dismissJob?.cancel() else dismissIsland()
         }
     }
 
-    /** The timer cutout should stay pinned up (no auto-dismiss) while a countdown is running. */
+    /** The timer cutout should stay pinned up (no auto-dismiss) while a timer is running. */
     private fun isPinnedTimer(): Boolean = timerActive && currentEvent.value?.timer != null
 
-    /** The assistant cutout should stay pinned up (no auto-dismiss) while assistant is active. */
-    private fun isPinnedAssistant(): Boolean = assistantActive && currentEvent.value?.assistant != null
+    /** The lock cutout should stay pinned up (no auto-dismiss) while the device is locked. */
+    private fun isPinnedLock(): Boolean = isDeviceLocked && currentEvent.value?.id == lastLockEvent?.id
 
-    /** Any live tile (music, a call, a running timer, or assistant) is currently pinned up. */
-    private fun isPinnedLiveTile(): Boolean = isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedAssistant()
+    /** The persistent system event is the one on the pill, so it gets no dismiss timer. */
+    private fun isPinnedPersistent(): Boolean =
+        persistentEvent != null && currentEvent.value?.id == persistentEvent?.id
 
+    /**
+     * Any live tile (music, a call, a running timer, lock status, or a persistent system event) is
+     * currently pinned up.
+     */
+    private fun isPinnedLiveTile(): Boolean =
+        isPinnedMusic() || isPinnedCall() || isPinnedTimer() || isPinnedLock() || isPinnedPersistent()
+
+    /**
+     * Mirrors the island geometry, re-sizing the window as it changes so a slider drag in settings
+     * is visible live.
+     */
     private fun observeLayout() = scope.launch {
         layoutPreferences.layout.collect { layout ->
-            layoutState.value = layout
+            layoutState.value = layout.rendered()
             syncWindowSize()
         }
     }
@@ -746,10 +1334,32 @@ class IslandOverlayController(private val context: Context) {
      * cutout is showing, so tapping it still gives the "boop" scale feedback. The touchable region
      * ([pillTouchRect]) keeps that to the pill's own rectangle, so the shade pull beside it is
      * unaffected; the pill's own footprint does stop passing touches through.
+     * While a preview is pinned (in settings), touches are disabled so settings controls remain interactive.
      */
     private fun observeVisibility() = scope.launch {
-        combine(currentEvent, behaviourState, ::Pair).collect { (event, behaviour) ->
-            setTouchable(event != null || (behaviour.showsWhenEmpty && behaviour.cutoutEnabled))
+        combine(currentEvent, behaviourState, satelliteEvent, ::Triple).collect {
+            publishCutoutWidth()
+            syncTouchable()
+        }
+    }
+
+    /**
+     * Hand a mirrored notification back to the panel as soon as its pill leaves the island, however
+     * it leaves: the auto-dismiss timer ran out, an expanded pill shrank away, another event took the
+     * island over, the overlay was torn down for the lockscreen. Watching the shown event rather than
+     * hooking each of those paths is what keeps the two in step — nothing can make the pill vanish
+     * without passing through here.
+     *
+     * The user-driven endings (a swipe, a tap, an action) reach the listener first and by their own
+     * route, having already told it to throw the notification away instead; this then finds nothing
+     * left to release.
+     */
+    private fun observeMirroredKey() = scope.launch {
+        currentEvent.collect { event ->
+            val key = event?.notificationKey
+            val previous = mirroredKey
+            if (previous != null && previous != key) CutoutNotificationListenerService.release(previous)
+            mirroredKey = key
         }
     }
 
@@ -775,8 +1385,70 @@ class IslandOverlayController(private val context: Context) {
             windowWidthPx(layoutState.value),
             windowHeightPx(layoutState.value, expanded),
         )
+        publishCutoutWidth()
     }
 
+    /**
+     * Reports to [CutoutWidthBus] which [CutoutKind] the island is drawing right now, so the
+     * "Automatically hide status bar icons" settings can follow the pill.
+     *
+     * Also reports whether the pill is grown on its trailing edge to seat the permission dots, which
+     * the system icons sit behind, and whether it is grown on its leading edge to seat the status
+     * dot, which the notification icons sit behind: the pill only widens by a few dp there, so each
+     * is published on its own rather than as the whole cutout being wider.
+     *
+     * Timed like [requestWindowSize] and for the same reason: growing leads so the icons are gone
+     * before the pill covers them, while narrowing waits out the collapse animation so they don't
+     * reappear under a pill that is still shrinking. A kind ranking above the published one (or any
+     * kind after the island was down) lands at once; a lower one or null waits for the delay. The
+     * flags use the OR of old and new, so one that just came on lands at once and one that just went
+     * off waits.
+     */
+    private fun publishCutoutWidth() {
+        val kind = currentCutoutKind()
+        val statusDotGrown = statusDotGrowthDp(expanded = false) > 0
+        val statusDotOnRight = behaviourState.value.statusDotSide == StatusDotSide.RIGHT
+        // A dot on the right grows the pill over the system-icon end, which the dots flag already covers
+        val grownForDots = permissionDotWidthBonusDp(expanded = false) > 0 || (statusDotGrown && statusDotOnRight)
+        val grownForStatusDot = statusDotGrown && !statusDotOnRight
+        val published = CutoutWidthBus.kind.value
+        val grows = kind != null && (published == null || kind.ordinal > published.ordinal)
+        cutoutWidthJob?.cancel()
+        CutoutWidthBus.update(
+            kind = if (grows) kind else published,
+            grownForDots = grownForDots || CutoutWidthBus.grownForDots.value,
+            grownForStatusDot = grownForStatusDot || CutoutWidthBus.grownForStatusDot.value,
+        )
+        if (kind == CutoutWidthBus.kind.value && grownForDots == CutoutWidthBus.grownForDots.value &&
+            grownForStatusDot == CutoutWidthBus.grownForStatusDot.value
+        ) return
+        cutoutWidthJob = scope.launch {
+            delay(WINDOW_SHRINK_DELAY_MS)
+            CutoutWidthBus.update(kind, grownForDots, grownForStatusDot)
+        }
+    }
+
+    /**
+     * The [CutoutKind] being drawn, or null while the island is down. The satellite bubble counts
+     * as [CutoutKind.WIDE] because the pair spans more of the bar than the pill alone.
+     */
+    private fun currentCutoutKind(): CutoutKind? {
+        val shown = currentEvent.value != null || satelliteEvent.value != null ||
+            behaviourState.value.emptyPillActive
+        return when {
+            !shown -> null
+            expanded -> CutoutKind.EXPANDED
+            isTinyTile() -> CutoutKind.MINI
+            currentEvent.value?.call != null || satelliteSplitDp() > 0 -> CutoutKind.WIDE
+            else -> CutoutKind.NORMAL
+        }
+    }
+
+    /**
+     * Resizes the window to fit, growing at once but shrinking only after [WINDOW_SHRINK_DELAY_MS].
+     * The window has to be big enough before the island animates into it, so the grow leads and the
+     * shrink waits for the animation to finish.
+     */
     private fun requestWindowSize(targetWidthPx: Int, targetHeightPx: Int) {
         val params = layoutParams ?: return
         windowResizeJob?.cancel()
@@ -795,18 +1467,41 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Applies a window size, gravity and offset in one pass, skipping the call entirely when
+     * nothing changed so an unchanged layout costs no framework work.
+     */
     private fun resizeWindow(targetWidthPx: Int, targetHeightPx: Int) {
         val view = composeView ?: return
         val params = layoutParams ?: return
         val targetGravity = computeWindowGravity()
-        if (params.width != targetWidthPx || params.height != targetHeightPx || params.gravity != targetGravity) {
+        val targetY = computeWindowOffsetY()
+        if (params.width != targetWidthPx || params.height != targetHeightPx ||
+            params.gravity != targetGravity || params.y != targetY
+        ) {
             params.width = targetWidthPx
             params.height = targetHeightPx
             params.gravity = targetGravity
+            params.y = targetY
             runCatching { windowManager.updateViewLayout(view, params) }
         }
     }
 
+    /**
+     * Re-applies the touch flag from the current state. A newly added window needs it because it
+     * starts non-touchable.
+     */
+    private fun syncTouchable() {
+        setTouchable(
+            !previewPinned && (currentEvent.value != null || satelliteEvent.value != null ||
+                behaviourState.value.emptyPillActive),
+        )
+    }
+
+    /**
+     * Lets touches through or catches them, so the island only steals input while there is
+     * something on screen to press.
+     */
     private fun setTouchable(touchable: Boolean) {
         val view = composeView ?: return
         val params = layoutParams ?: return
@@ -844,7 +1539,11 @@ class IslandOverlayController(private val context: Context) {
                         val info = args?.getOrNull(0)
                         if (info != null) {
                             setTouchableInsets.invoke(info, touchableInsetsRegion)
-                            (touchableRegionField.get(info) as Region).set(pillTouchRect(view.width, view.height))
+                            val region = touchableRegionField.get(info) as Region
+                            region.setEmpty()
+                            for (rect in touchRects(view.width, view.height)) {
+                                region.op(rect, Region.Op.UNION)
+                            }
                         }
                         null
                     }
@@ -860,6 +1559,82 @@ class IslandOverlayController(private val context: Context) {
     }
 
     /**
+     * Every rectangle that should accept touches: the pill, plus the satellite bubble when one is up.
+     * A union rather than one bounding box, so the gap between them keeps falling through to the app
+     * underneath instead of swallowing a shade pull.
+     */
+    private fun touchRects(viewWidth: Int, viewHeight: Int): List<Rect> {
+        val pill = pillTouchRect(viewWidth, viewHeight)
+        val satellite = satelliteTouchRect(viewWidth, viewHeight)
+        val callCapsule = callCapsuleTouchRect(viewWidth, viewHeight)
+        return listOfNotNull(pill, satellite, callCapsule)
+    }
+
+    /**
+     * The detached hang-up capsule's rectangle, or null unless a connected call is drawn split.
+     * Mirrors the offsets [DynamicIsland] places it at — the pill's centre, out past half the pill's
+     * width plus the gap — so what is tappable is exactly what is drawn.
+     */
+    private fun callCapsuleTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
+        if (!isSplitCall()) return null
+        val dims = effectiveDims(layoutState.value, expanded = false)
+        val gapPx = (callSplitGapDp(dims.isNotch) * density).toInt()
+        val capsuleWidthPx = (callSplitHangUpWidthDp(dims.heightDp) * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + notchOverhangPx(dims)
+        val margin = (TOUCH_MARGIN_DP * density).toInt()
+        val pillCenterX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
+        val capsuleCenterX = pillCenterX + pillWidthPx / 2 + gapPx + capsuleWidthPx / 2
+        val topPx = (dims.offsetYDp * density).toInt()
+        val bottomPx = topPx + (dims.heightDp * density).toInt()
+        return Rect(
+            (capsuleCenterX - capsuleWidthPx / 2 - margin).coerceAtLeast(0),
+            (topPx - margin).coerceAtLeast(0),
+            (capsuleCenterX + capsuleWidthPx / 2 + margin).coerceAtMost(viewWidth),
+            (bottomPx + margin).coerceAtMost(if (viewHeight > 0) viewHeight else bottomPx + margin),
+        )
+    }
+
+    /**
+     * The satellite bubble's rectangle in the window's own coordinates, or null when no bubble is up.
+     * Mirrors the offsets [DynamicIsland] places it at - the pill's centre, out past half the pill's
+     * width plus the gap - so what is tappable is exactly what is drawn.
+     */
+    private fun satelliteTouchRect(viewWidth: Int, viewHeight: Int): Rect? {
+        if (satelliteEvent.value == null) return null
+        if (expanded) return null
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) return null
+        val collapsed = layoutState.value.collapsed
+        val dims = effectiveDims(layoutState.value, expanded = false)
+        val diameterPx = (collapsed.heightDp * density).toInt()
+        val gapPx = (SATELLITE_GAP_DP * density).toInt()
+        val dotBonusPx = (permissionDotWidthBonusDp(false) * density).toInt()
+        val growthPx = (statusDotGrowthDp(false) * density).toInt()
+        val splitPx = (satelliteSplitDp() * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + growthPx - splitPx +
+            notchOverhangPx(dims)
+        val margin = (TOUCH_MARGIN_DP * density).toInt()
+        val growthShiftPx = if (behaviourState.value.statusDotSide == StatusDotSide.RIGHT) growthPx / 2 else -growthPx / 2
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            growthShiftPx + satelliteShiftPx(splitPx)
+        val step = pillWidthPx / 2 + gapPx + diameterPx / 2
+        val satelliteCenterX = if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) {
+            centerX - step
+        } else {
+            centerX + step
+        }
+        val topPx = (collapsed.offsetYDp * density).toInt()
+        val bottomPx = topPx + diameterPx
+        return Rect(
+            (satelliteCenterX - diameterPx / 2 - margin).coerceAtLeast(0),
+            (topPx - margin).coerceAtLeast(0),
+            (satelliteCenterX + diameterPx / 2 + margin).coerceAtMost(viewWidth),
+            (bottomPx + margin).coerceAtMost(if (viewHeight > 0) viewHeight else bottomPx + margin),
+        )
+    }
+
+    /**
      * The pill's rectangle in the (full-width) window's own coordinates: centred, shifted by the
      * state's offset, tall enough to include the expanded action chips, and grown by a small margin
      * so the rounded edges, drop shadow and tap "boop" scale all stay comfortably tappable.
@@ -872,11 +1647,20 @@ class IslandOverlayController(private val context: Context) {
         }
         val dims = effectiveDims(layoutState.value, expanded)
         val bonusDp = currentHeightBonusDp(expanded)
-        val pillWidthPx = displayWidthPx * dims.widthPercent / 100
+        val dotBonusPx = (permissionDotWidthBonusDp(expanded) * density).toInt()
+        val growthPx = (statusDotGrowthDp(expanded) * density).toInt()
+        val splitPx = (satelliteSplitDp() * density).toInt()
+        val pillWidthPx = displayWidthPx * dims.widthPercent / 100 + dotBonusPx + growthPx - splitPx +
+            notchOverhangPx(dims)
         val margin = (TOUCH_MARGIN_DP * density).toInt()
-        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt()
+        // The pill grows to the right for the dots and to whichever side the status dot is on, so its
+        // centre moves with it; a bubble beside it pushes the centre the other way by half of the
+        // width it gave up.
+        val growthShiftPx = if (behaviourState.value.statusDotSide == StatusDotSide.RIGHT) growthPx / 2 else -growthPx / 2
+        val centerX = viewWidth / 2 + (dims.offsetXDp * density).toInt() + dotBonusPx / 2 +
+            growthShiftPx + satelliteShiftPx(splitPx)
         val topPx = (dims.offsetYDp * density).toInt()
-        val bottomPx = ((dims.offsetYDp + dims.heightDp + bonusDp) * density).toInt()
+        val bottomPx = ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonusDp) * density).toInt()
         return Rect(
             (centerX - pillWidthPx / 2 - margin).coerceAtLeast(0),
             (topPx - margin).coerceAtLeast(0),
@@ -890,29 +1674,36 @@ class IslandOverlayController(private val context: Context) {
         val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         if (isStickToCamera) {
-            val islandLengthDp = displayWidthDp.value * (layout.collapsed.widthPercent / 100f)
+            // Stuck to the camera the island runs down the screen, so its ears grow this axis.
+            val islandLengthDp = displayWidthDp.value * (layout.collapsed.widthPercent / 100f) +
+                layout.collapsed.notchOverhangDp * 2
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val collapsed = layout.collapsed
         val expanded = layout.expanded
         val lowestDp = maxOf(
             collapsed.offsetYDp + collapsed.heightDp,
-            expanded.offsetYDp + expanded.heightDp,
+            expanded.offsetYDp + expanded.heightDp + expanded.bottomEarDp + PULL_STRETCH_MAX_DP,
         )
         return ((lowestDp + WINDOW_MARGIN_DP) * density).toInt()
     }
 
-    /** Height needed to contain just one state's pill (plus room for action chips when expanded). */
+    /**
+     * Height needed to contain just one state's pill, plus room for action chips and for the swipe
+     * down stretch when expanded.
+     */
     private fun windowHeightPx(layout: IslandLayout, expanded: Boolean): Int {
         val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
             behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
         val dims = effectiveDims(layout, expanded)
         if (isStickToCamera) {
-            val islandLengthDp = displayWidthDp.value * (dims.widthPercent / 100f)
+            val islandLengthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
+                dims.notchOverhangDp * 2
             return ((islandLengthDp + TOUCH_MARGIN_DP * 2) * density).toInt()
         }
         val bonus = currentHeightBonusDp(expanded)
-        return ((dims.offsetYDp + dims.heightDp + bonus + WINDOW_MARGIN_DP) * density).toInt()
+        val pullHeadroom = if (expanded) PULL_STRETCH_MAX_DP else 0
+        return ((dims.offsetYDp + dims.heightDp + dims.bottomEarDp + bonus + pullHeadroom + WINDOW_MARGIN_DP) * density).toInt()
     }
 
     /** Wide enough for whichever state is widest — used for the initial, safe window size. */
@@ -933,8 +1724,366 @@ class IslandOverlayController(private val context: Context) {
             val totalDp = dims.offsetYDp + dims.heightDp + TOUCH_MARGIN_DP * 2
             return (totalDp * density).toInt()
         }
-        val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f)
-        return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt()
+        // The window is centred on the screen, so a pill pushed off-centre (the tiny "Mini player"
+        // parked beside the camera) needs twice its offset of extra width or it is clipped.
+        val islandWidthDp = displayWidthDp.value * (dims.widthPercent / 100f) +
+            permissionDotWidthBonusDp(expanded) + statusDotGrowthDp(expanded) * 2 + abs(dims.offsetXDp) * 2 +
+            dims.notchOverhangDp * 2
+        // Never wider than the screen: a window that overhangs it gets re-placed by the system on every
+        // resize, which slid the whole island sideways for a moment after a width change.
+        return ((islandWidthDp + WINDOW_MARGIN_DP * 2) * density).toInt().coerceAtMost(displayWidthPx)
+    }
+
+    /**
+     * The ears a notch hangs off each side, in pixels — the amount every touch rectangle has to grow
+     * by so what is tappable still matches what [DynamicIsland] draws.
+     */
+    private fun notchOverhangPx(dims: IslandDimensions): Int =
+        (dims.notchOverhangDp * 2 * density).toInt()
+
+    /**
+     * How much wider the collapsed pill is drawn to fit the permission dots on its trailing edge, so
+     * the window and the touchable region cover the grown pill rather than clipping it. Mirrors the
+     * conditions [DynamicIsland] draws the dots under.
+     */
+    private fun permissionDotWidthBonusDp(expanded: Boolean): Int {
+        if (expanded) return 0
+        if (!permissionDotEnabledState.value && !PermissionDotPreviewBus.active.value) return 0
+        if (permissionDotPositionState.value != PermissionDotPosition.RIGHT) return 0
+        val event = currentEvent.value
+        if (event?.call != null) return 0
+        // Only grown for a tile that writes on the trailing edge; elsewhere the dots fit as they are.
+        if (event == null) return 0
+        val statusDotOnRight = event.statusDotColor != null && behaviourState.value.showStatusDot &&
+            behaviourState.value.statusDotSide == StatusDotSide.RIGHT && !isTinyTile(event)
+        if (!event.hasCollapsedTrailingContent() && !statusDotOnRight) return 0
+        return permissionDotTrailingInsetDp(
+            PermissionUsageMonitor.usage.value,
+            layoutState.value.collapsed.heightDp,
+            permissionDotVerticalState.value,
+        )
+    }
+
+    /**
+     * How much wider the collapsed pill is drawn on its leading edge to keep the status dot clear of
+     * the camera hole, so the window and the touchable region cover the grown pill. Mirrors the
+     * conditions and geometry [DynamicIsland] grows it under.
+     */
+    private fun statusDotGrowthDp(expanded: Boolean): Int {
+        if (expanded) return 0
+        val event = currentEvent.value ?: return 0
+        if (event.statusDotColor == null || !behaviourState.value.showStatusDot) return 0
+        if (event.call != null || isTinyTile(event)) return 0
+        val isStickToCamera = orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+        if (isStickToCamera) return 0
+        val collapsed = layoutState.value.collapsed
+        val splitDp = satelliteSplitDp()
+        val shiftDp = when {
+            splitDp == 0 -> 0f
+            behaviourState.value.satellitePosition == SatellitePosition.LEFT -> splitDp / 2f
+            else -> -splitDp / 2f
+        }
+        val pillWidthDp = displayWidthExactDp.value * collapsed.widthPercent / 100f - splitDp
+        val pillLeftDp = collapsed.offsetXDp + shiftDp - pillWidthDp / 2f
+        val onRight = behaviourState.value.statusDotSide == StatusDotSide.RIGHT
+        val sideDotsDp = when {
+            onRight && permissionDotsOnRight() -> permissionDotTrailingInsetDp(
+                PermissionUsageMonitor.usage.value,
+                collapsed.heightDp,
+                permissionDotVerticalState.value,
+            )
+            !onRight && permissionDotsOnLeft() -> permissionDotLeadingInsetDp(
+                PermissionUsageMonitor.usage.value,
+                collapsed.heightDp,
+                permissionDotVerticalState.value,
+            )
+            else -> 0
+        }
+        // The growth maths only knows the leading edge, so the right side is fed mirrored coordinates,
+        // from the drawn edge the permission dots have already pushed out
+        return if (onRight) {
+            statusDotLeadingGrowthDp(
+                -(pillLeftDp + pillWidthDp + sideDotsDp),
+                cameraRightEdgeDp.value?.let { -it },
+                collapsed.heightDp,
+                sideDotsDp,
+                onRight = true,
+            )
+        } else {
+            statusDotLeadingGrowthDp(pillLeftDp, cameraLeftEdgeDp.value, collapsed.heightDp, sideDotsDp)
+        }
+    }
+
+    /** Whether the permission dots are showing, as [DynamicIsland] draws them, on the pill's right. */
+    private fun permissionDotsOnRight(): Boolean =
+        (permissionDotEnabledState.value || PermissionDotPreviewBus.active.value) &&
+            permissionDotPositionState.value == PermissionDotPosition.RIGHT
+
+    /** Whether the permission dots are showing, as [DynamicIsland] draws them, on the pill's left. */
+    private fun permissionDotsOnLeft(): Boolean =
+        (permissionDotEnabledState.value || PermissionDotPreviewBus.active.value) &&
+            permissionDotPositionState.value == PermissionDotPosition.LEFT
+
+    /**
+     * How much width the collapsed pill gives up to the bubble beside it — the bubble's diameter (the
+     * pill's own height, so it reads as a circle of the same scale) plus the gap. The pair keeps the
+     * normal cutout's total width rather than growing past it, so the overlay window never has to
+     * change size for a split: nothing to re-centre, and the pill can't slide off the camera.
+     *
+     * Mirrors what [DynamicIsland] draws, so the touchable region tracks the shrunken pill.
+     */
+    private fun satelliteSplitDp(): Int {
+        if (satelliteEvent.value == null) return 0
+        if (expanded) return 0
+        if (currentEvent.value?.call != null) return 0
+        // The tiny cutout has no width to give away.
+        if (isTinyTile()) return 0
+        if (isLandscapeSplitSuppressed()) return 0
+        return layoutState.value.collapsed.heightDp + SATELLITE_GAP_DP
+    }
+
+    /** Which way the pill's centre steps to make room: away from the side the bubble takes. */
+    private fun satelliteShiftPx(splitPx: Int): Int =
+        if (behaviourState.value.satellitePosition == SatellitePosition.LEFT) splitPx / 2 else -splitPx / 2
+
+    /** The split is portrait-only for now: landscape has its own camera-anchored geometry. */
+    private fun isLandscapeSplitSuppressed(): Boolean =
+        orientationState.value == Configuration.ORIENTATION_LANDSCAPE
+
+    /**
+     * Whether the pill is wide enough to give a bubble's worth of width away and still be a pill.
+     * Derived from the real geometry rather than a hard-coded width percentage, so a user on a narrow
+     * cutout loses the bubble exactly when the split would start to look degenerate. Two floors: what
+     * it gives up (or the remainder stops reaching across the camera hole) and twice its own height
+     * (or the "pill" collapses towards a circle of its own).
+     */
+    private fun satelliteFitsWidth(): Boolean {
+        val collapsed = layoutState.value.collapsed
+        val splitDp = collapsed.heightDp + SATELLITE_GAP_DP
+        val pillDp = displayWidthDp.value * (collapsed.widthPercent / 100f) - splitDp
+        return pillDp >= splitDp && pillDp >= collapsed.heightDp * 2
+    }
+
+    /**
+     * Whether [displaced] may be parked in the bubble as [incoming] takes the pill. Every
+     * suppression lives here so the rule set is in one place: a call owns the whole cutout and must
+     * never be demoted, and the same notification must never occupy both slots.
+     */
+    private fun satelliteAllowed(displaced: IslandEvent, incoming: IslandEvent): Boolean {
+        if (!behaviourState.value.splitIslandEnabled) return false
+        // A notch is one shape cut out of the screen edge; a second bubble floating beside it reads
+        // as a stray dot rather than as part of it, so the setting is locked off in the UI too.
+        if (layoutState.value.collapsed.isNotch) return false
+        if (isLandscapeSplitSuppressed()) return false
+        if (displaced.call != null || incoming.call != null) return false
+        if (isTinyTile(displaced) || isTinyTile(incoming)) return false
+        if (isTwoRowCall()) return false
+        val key = displaced.notificationKey
+        if (key != null && key == incoming.notificationKey) return false
+        if (displaced.id == incoming.id) return false
+        if (!satelliteFitsWidth()) return false
+        return true
+    }
+
+    /**
+     * Whether both events are the same live tile. A tile is a singleton — one media session, one
+     * timer, one call — so a signal for one that is already up restates it rather than
+     * arriving as a second event to park beside itself. Compared on which tile field is set rather
+     * than on ids or notification keys: every resolve mints a fresh id, and the music and timer tiles
+     * deliberately carry no notification key, so neither of those catches a repeat.
+     */
+    private fun isSameTile(a: IslandEvent, b: IslandEvent): Boolean =
+        (a.media != null && b.media != null) ||
+            (a.timer != null && b.timer != null) ||
+            (a.call != null && b.call != null)
+
+    /**
+     * Parks [displaced] in the bubble as [incoming] takes the pill, leaves the bubble untouched when
+     * the two are the same tile, and clears it when the hand-off isn't allowed for any other reason.
+     * A pinned live tile arrives with a null [deadlineMs] and so persists for as long as its bus says
+     * it is live; a transient keeps the deadline it already had.
+     */
+    private fun demoteToSatellite(displaced: IslandEvent?, incoming: IslandEvent, deadlineMs: Long?) {
+        // The same live tile restating itself (metadata arriving late, a track change, a timer
+        // re-post) just replaces the pill: one tile must never hold both slots at once. The bubble is
+        // left as it is rather than cleared — whatever is parked there is an unrelated event, and this
+        // hand-off doesn't concern it.
+        if (displaced != null && isSameTile(displaced, incoming)) return
+        // A live tile owns the bubble for as long as it is live, so a pinned notification being
+        // displaced does not evict it: the old one is dropped instead.
+        if (displaced != null && displaced.pinned && isLiveTileEvent(satelliteEvent.value)) return
+        if (displaced == null || !satelliteAllowed(displaced, incoming)) {
+            clearSatellite()
+            return
+        }
+        parkInSatellite(displaced, deadlineMs, currentSystemEventType)
+        syncWindowSize()
+    }
+
+    /**
+     * Puts [event] in the bubble with [deadlineMs] as its own expiry, arming the job that empties the
+     * bubble when it comes due. A null deadline is a pinned live tile: no timer, it leaves when its
+     * bus says so.
+     */
+    private fun parkInSatellite(
+        event: IslandEvent,
+        deadlineMs: Long?,
+        systemEventType: SystemEventType? = null,
+    ) {
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = event
+        satelliteSystemEventType = systemEventType
+        satelliteDeadlineMs = deadlineMs
+        if (deadlineMs != null) {
+            satelliteDismissJob = scope.launch {
+                val remaining = deadlineMs - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                if (satelliteEvent.value?.id == event.id) clearSatellite()
+            }
+        }
+    }
+
+    /** Arms the pill's auto-dismiss for an already-known [deadlineMs], or pins it when that is null. */
+    private fun armPillDismiss(deadlineMs: Long?) {
+        dismissJob?.cancel()
+        currentDeadlineMs = deadlineMs
+        if (deadlineMs == null) return
+        dismissJob = scope.launch {
+            val remaining = deadlineMs - System.currentTimeMillis()
+            if (remaining > 0) delay(remaining)
+            dismissIsland()
+        }
+    }
+
+    /** Empties the bubble and stops whatever was going to empty it. */
+    private fun clearSatellite() {
+        satelliteDismissJob?.cancel()
+        satelliteDismissJob = null
+        satelliteDeadlineMs = null
+        satelliteSystemEventType = null
+        if (satelliteEvent.value != null) {
+            satelliteEvent.value = null
+            syncWindowSize()
+        }
+    }
+
+    /**
+     * Drops a parked live tile from the bubble once its own bus stops reporting it live - the bubble
+     * has no timer of its own in that case, so without this the tile would sit there for good.
+     */
+    private fun pruneSatellite() {
+        val bubble = satelliteEvent.value ?: return
+        val stale = when {
+            bubble.media != null -> !musicPlaying
+            bubble.call != null -> !callActive
+            bubble.timer != null -> !timerActive
+            else -> false
+        }
+        if (stale) clearSatellite()
+    }
+
+    /**
+     * Moves whatever is in the bubble into the pill, always collapsed, and reports whether it did.
+     *
+     * The pill being replaced may have been expanded — the user swiping an open notification away is
+     * the common case — and the promoted event must not inherit that. It is a normal cutout: a
+     * notification or a dynamic tile, either way collapsed. Left to the new event's id alone the
+     * composable can carry the open state over, so the collapse is asked for explicitly.
+     *
+     * A transient carries its own remaining time across rather than getting a fresh lease, and one
+     * whose time already ran out while it sat in the bubble is dropped instead of being promoted for
+     * a frame. A live tile has no deadline and stays pinned.
+     */
+    private fun promoteSatelliteCollapsed(): Boolean {
+        restoreSlotsOnCollapse = false
+        val bubble = satelliteEvent.value ?: return false
+        val deadline = satelliteDeadlineMs
+        val bubbleSystemEventType = satelliteSystemEventType
+        val expired = deadline != null && deadline <= System.currentTimeMillis()
+        clearSatellite()
+        if (expired) return false
+        forcedExpanded.value = null
+        expanded = false
+        currentSystemEventType = bubbleSystemEventType
+        currentEvent.value = bubble.copy(initiallyExpanded = false)
+        currentDeadlineMs = deadline
+        collapseTrigger.value = System.currentTimeMillis()
+        if (deadline != null) {
+            dismissJob = scope.launch {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                dismissIsland()
+            }
+        }
+        syncWindowSize()
+        return true
+    }
+
+    /**
+     * Opens the bubble's event on tap, since the tap is a request to read the thing rather than to
+     * reorder the island.
+     *
+     * The two slots are swapped for the duration rather than the tapped event merely being drawn
+     * expanded, so every action, reply and dismiss inside the expanded cutout acts on a real
+     * [currentEvent] and there is no second notion of "which event is open". The bubble is hidden
+     * while expanded, so the swap is never seen, and [restoreSlots] puts both back on collapse —
+     * from the user's side neither one ever moved, and neither is lost.
+     */
+    private fun onSatellitePromote() {
+        val bubble = satelliteEvent.value ?: return
+        // An app the user set to "Normal only" has no expanded state to open, so a tap opens the app
+        // instead, exactly as it would on the pill, and the island is left alone.
+        if (bubble.normalOnly) {
+            bubble.contentIntent?.let { sendPendingIntent(it) }
+            return
+        }
+        val bubbleDeadline = satelliteDeadlineMs
+        val bubbleSystemEventType = satelliteSystemEventType
+        val pill = currentEvent.value
+        val pillDeadline = currentDeadlineMs
+        val pillSystemEventType = currentSystemEventType
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteSystemEventType = null
+        satelliteDeadlineMs = null
+        forcedExpanded.value = null
+        currentSystemEventType = null
+        expanded = true
+        currentEvent.value = bubble.copy(initiallyExpanded = true)
+        armPillDismiss(bubbleDeadline)
+        if (pill != null && satelliteAllowed(pill, bubble)) {
+            parkInSatellite(pill.copy(initiallyExpanded = false), pillDeadline, pillSystemEventType)
+            restoreSlotsOnCollapse = true
+        }
+        currentSystemEventType = bubbleSystemEventType
+        syncWindowSize()
+    }
+
+    /**
+     * Undoes the swap [onSatellitePromote] made: the event that was expanded goes back to the bubble,
+     * the one it displaced back to the pill, each keeping the deadline it still had.
+     */
+    private fun restoreSlots() {
+        val opened = currentEvent.value
+        val parked = satelliteEvent.value
+        if (opened == null || parked == null) return
+        val openedDeadline = currentDeadlineMs
+        val parkedDeadline = satelliteDeadlineMs
+        val openedSystemEventType = currentSystemEventType
+        val parkedSystemEventType = satelliteSystemEventType
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = null
+        satelliteSystemEventType = null
+        satelliteDeadlineMs = null
+        forcedExpanded.value = null
+        expanded = false
+        currentSystemEventType = parkedSystemEventType
+        currentEvent.value = parked.copy(initiallyExpanded = false)
+        armPillDismiss(parkedDeadline)
+        parkInSatellite(opened.copy(initiallyExpanded = false), openedDeadline, openedSystemEventType)
+        collapseTrigger.value = System.currentTimeMillis()
+        syncWindowSize()
     }
 
     /**
@@ -946,13 +2095,32 @@ class IslandOverlayController(private val context: Context) {
     private fun effectiveDims(layout: IslandLayout, expanded: Boolean): IslandDimensions {
         val event = currentEvent.value
         return when {
+            // The expanded music tile ignores the configured expanded height and sizes itself from
+            // its own content, so the window has to follow it rather than the layout.
+            expanded && event?.media != null ->
+                layout.expanded.copy(heightDp = mediaExpandedBaseHeightDp(layout.expanded.topMarginDp))
             expanded -> layout.expanded
+            // "Mini player" / "Mini call" shrink the normal cutout to the tiny pill, so the window
+            // and the touchable region have to shrink with it.
+            isTinyTile() -> layout.collapsed.asTinyCutout(displayWidthDp.value, cameraRightEdgeDp.value)
             event?.call != null -> {
                 val incoming = OnCallBus.state.value?.ongoing == false
                 if (isTwoRowCall()) {
                     // The two-row incoming layout starts from the expanded cutout (grown by the button
                     // row via currentHeightBonusDp).
                     layout.expanded
+                } else if (isSplitCall()) {
+                    // The split connected call keeps the normal pill's height and corners, sized and
+                    // placed around the camera hole; its hang-up button lives in a capsule beside it.
+                    layout.collapsed.asSplitCallCutout(
+                        displayWidthDp = displayWidthDp.value,
+                        contentWidthDp = callSplitContentWidthDp(
+                            heightDp = layout.collapsed.heightDp,
+                            density = density,
+                            longClock = callClockCarriesHours(OnCallBus.state.value?.startTimeMs),
+                        ),
+                        cameraRightEdgeDp = cameraRightEdgeDp.value,
+                    )
                 } else {
                     // Match the pill's name-driven width so the trailing call button(s) stay tappable:
                     // one for a connected call's hang-up, two for a one-line incoming's decline + answer.
@@ -966,9 +2134,28 @@ class IslandOverlayController(private val context: Context) {
                     )
                 }
             }
+            currentEvent.value == null && !expanded && behaviourState.value.emptyPillActive &&
+                !isStickToCameraLandscape() ->
+                emptyPillCutout(layout.collapsed)
             else -> layout.collapsed
         }
     }
+
+    /** Whether the display is landscape with the horizontal mode set to stick the island beside the camera. */
+    private fun isStickToCameraLandscape(): Boolean =
+        orientationState.value == Configuration.ORIENTATION_LANDSCAPE &&
+            behaviourState.value.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
+
+    /**
+     * Whether the shown call is drawn split — a narrow pill plus the detached hang-up capsule.
+     * Mirrors [usesSplitCallCutout] so the touchable region matches what the island renders.
+     */
+    private fun isSplitCall(): Boolean = usesSplitCallCutout(
+        event = currentEvent.value,
+        callOngoing = OnCallBus.state.value?.ongoing == true,
+        expanded = expanded,
+        tiny = isTinyTile(),
+    )
 
     /**
      * The extra height the currently-drawn state claims below its base dimensions: the expanded island's
@@ -977,20 +2164,34 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun currentHeightBonusDp(expanded: Boolean): Int {
         val event = currentEvent.value
-        if (expanded && event?.assistant != null && event.assistant.displayAnswerInCutout) {
-            val maxCutoutDp = (displayHeightDp * event.assistant.maxCutoutHeightPercent / 100)
-            return maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
-        }
+        val topMarginExtra = maxOf(0, layoutState.value.expanded.topMarginDp - IslandDimensions.DEFAULT_TOP_MARGIN_DP)
         return when {
+            // The expanded connected call stacks its own two button rows under the caller row.
+            expanded && event?.call != null ->
+                callExpandedExtraDp(event.call.showActions && event.actions.isNotEmpty())
             // The empty pill's expanded "center" (no event) claims room for its shortcut row.
             expanded && event == null &&
                 behaviourState.value.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER ->
                 CENTER_SHORTCUTS_EXTRA_DP
-            expanded -> expandedActionsBonusDp()
+            expanded -> {
+                val maxCutoutDp = (displayHeightDp * 70 / 100)
+                if (appearanceState.value.showFullNotificationText) {
+                    maxOf(expandedActionsBonusDp(), maxCutoutDp - layoutState.value.expanded.heightDp)
+                } else {
+                    expandedActionsBonusDp()
+                }
+            }
             isTwoRowCall() -> callIncomingExtraDp()
             else -> 0
         }
     }
+
+    /**
+     * Whether an event draws the tiny cutout right now — the music "Mini player" or a connected
+     * call's "Mini call". Defaults to the shown event; mirrors what [DynamicIsland] renders.
+     */
+    private fun isTinyTile(event: IslandEvent? = currentEvent.value): Boolean =
+        event?.usesTinyCutout(callOngoing = OnCallBus.state.value?.ongoing == true) == true
 
     /** Whether the shown event is an incoming call rendered in the taller two-row layout. */
     private fun isTwoRowCall(): Boolean {
@@ -1000,19 +2201,24 @@ class IslandOverlayController(private val context: Context) {
         return incoming && call.incomingExpandedLayout && call.showActions && event.actions.isNotEmpty()
     }
 
-    /** The extra height the expanded island claims for its bottom control row, mirroring the composable. */
+    /**
+     * The extra height the expanded island claims for its bottom rows, mirroring the composable: the
+     * control row, plus the music progress bar when that's shown as a third row of its own.
+     */
     private fun expandedActionsBonusDp(): Int {
         val event = currentEvent.value
         val hasActions = behaviourState.value.showActionButtons && event?.actions?.isNotEmpty() == true
         val hasMediaControls = event?.media?.showControls == true
         val hasCallActions = event?.call?.showActions == true && event.actions.isNotEmpty()
         val hasTimerActions = event?.timer?.showActions == true && event.actions.isNotEmpty()
-        val hasAssistantActions = behaviourState.value.showActionButtons && event?.assistant != null
-        return if (hasActions || hasMediaControls || hasCallActions || hasTimerActions || hasAssistantActions) {
-            expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
-        } else {
-            0
-        }
+        val controlsExtra =
+            if (hasActions || hasMediaControls || hasCallActions || hasTimerActions) {
+                expandedActionsExtraDp(appearanceState.value.actionButtonHeightDp)
+            } else {
+                0
+            }
+        val progressExtra = if (event?.media?.showProgress == true) expandedMediaProgressExtraDp() else 0
+        return controlsExtra + progressExtra
     }
 
     /** While pinned (settings open), keep a persistent preview matching the tab being edited. */
@@ -1035,12 +2241,82 @@ class IslandOverlayController(private val context: Context) {
                     expanded = false
                     currentEvent.value = null
                 }
+                syncTouchable()
                 syncWindowSize()
             }
     }
 
+    /**
+     * Replaces an existing same-family system event in its current slot without demoting it.
+     */
+    private fun replaceSystemEventIfNeeded(
+        type: SystemEventType,
+        event: IslandEvent,
+    ): Boolean {
+        val transition = replaceSystemEventInSlots(
+            slots = SystemEventSlots(
+                primary = currentEvent.value,
+                primaryType = currentSystemEventType,
+                satellite = satelliteEvent.value,
+                satelliteType = satelliteSystemEventType,
+            ),
+            incomingType = type,
+            incoming = event,
+        )
+        if (!transition.handled) return false
+
+        currentEvent.value = transition.slots.primary
+        currentSystemEventType = transition.slots.primaryType
+        satelliteDismissJob?.cancel()
+        satelliteEvent.value = transition.slots.satellite
+        satelliteSystemEventType = transition.slots.satelliteType
+        satelliteDeadlineMs = if (transition.slots.satelliteType == type) {
+            systemEventDeadline(type)
+        } else {
+            satelliteDeadlineMs
+        }
+        if (satelliteEvent.value != null && satelliteDeadlineMs != null) {
+            val deadline = satelliteDeadlineMs ?: return true
+            satelliteDismissJob = scope.launch {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining > 0) delay(remaining)
+                if (satelliteEvent.value?.id == transition.slots.satellite?.id) clearSatellite()
+            }
+        }
+        scheduleDismiss()
+        syncWindowSize()
+        return true
+    }
+
+    /**
+     * Calculates the expiry time for a transient system event, or null for a persistent one, which
+     * has no timer and leaves when its state ends.
+     */
+    private fun systemEventDeadline(type: SystemEventType): Long? {
+        if (isPersistentType(type)) return null
+        return System.currentTimeMillis() +
+            (eventDurations[type] ?: behaviourState.value.normalDurationSeconds) * 1_000L
+    }
+
+    /**
+     * The single consumer of [IslandEventBus]: turns each signal into a pill or a live tile,
+     * honouring the per-event and per-tile switches the user set.
+     */
     private fun observeSignals() = scope.launch {
         IslandEventBus.signals.collect { signal ->
+            // An end signal only ever ends a persistent event; it has nothing of its own to show
+            if (signal is CutoutSignal.SystemEnded) {
+                endPersistentEvent(signal.type, incomingTakesOver = false)
+                return@collect
+            }
+            // Must precede the enabled filter below: a switched-off counterpart still ends the state
+            if (signal is CutoutSignal.System) {
+                endPersistentEvent(
+                    signal.type,
+                    incomingTakesOver = eventEnabled[signal.type] != false &&
+                        behaviourState.value.cutoutEnabled && !overlayHidden,
+                )
+            }
             // Skip system events the user disabled for the pill.
             if (signal is CutoutSignal.System && eventEnabled[signal.type] == false) return@collect
             // Skip now-playing media when the music tile is turned off.
@@ -1049,17 +2325,10 @@ class IslandOverlayController(private val context: Context) {
             if (signal is CutoutSignal.Call && tileEnabled[DynamicTile.PHONE] == false) return@collect
             // Skip the running timer when the timer tile is turned off.
             if (signal is CutoutSignal.Timer && tileEnabled[DynamicTile.TIMER] == false) return@collect
-            // Skip assistant responses when the assistant tile is turned off.
-            if (signal is CutoutSignal.Assistant && tileEnabled[DynamicTile.ASSISTANT] == false) return@collect
             // Skip anything posted by an app the user muted on the Apps screen.
             if (signal.sourcePackage() in disabledApps) return@collect
-
-            if (signal is CutoutSignal.Assistant && !signal.active) {
-                assistantActive = false
-                lastAssistantEvent = null
-                if (currentEvent.value?.assistant != null) {
-                    dismissIsland()
-                }
+            // Skip silent notifications when configured to ignore them.
+            if (signal is CutoutSignal.Notification && behaviourState.value.ignoreSilentNotifications && signal.isSilent) {
                 return@collect
             }
 
@@ -1070,11 +2339,11 @@ class IslandOverlayController(private val context: Context) {
             val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> behaviourState.value.notificationsAutoExpand
                 is CutoutSignal.Music -> musicSettings.expandOnPlay
-                is CutoutSignal.Assistant -> assistantSettings.displayAnswerInCutout
                 // The phone tile has no expanded state — it is shown as one bigger normal cutout.
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
+                is CutoutSignal.SystemEnded -> false
             }
             // "Normal only": this app's pill has no expanded state at all. Suppressing auto-expand
             // here keeps the window from ever being sized for it; the flag carried on the event is
@@ -1083,19 +2352,28 @@ class IslandOverlayController(private val context: Context) {
             val autoExpand = if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
 
             val resolvedEvent = resolver.resolve(
-                signal,
-                customIcons,
-                musicSettings,
-                phoneSettings,
-                timerSettings,
-                assistantSettings,
-                eventDynamicColor,
-                eventDynamicColorRole,
-                eventDynamicColorOpacity,
-                eventAnimatedIcons,
-                eventAnimatedIconLoops,
-                eventColors,
-            ).copy(initiallyExpanded = autoExpand, normalOnly = normalOnly)
+                signal = signal,
+                customIcons = customIcons,
+                musicSettings = musicSettings,
+                phoneSettings = phoneSettings,
+                timerSettings = timerSettings,
+                dynamicEventColor = eventDynamicColor,
+                dynamicEventColorRole = eventDynamicColorRole,
+                dynamicEventColorOpacity = eventDynamicColorOpacity,
+                animatedIconEnabled = eventAnimatedIcons,
+                animatedIconLoop = eventAnimatedIconLoops,
+                eventColorOverrides = eventColors,
+                hotspot = hotspotCard,
+                appearance = appearanceState.value,
+            ).copy(
+                initiallyExpanded = autoExpand,
+                normalOnly = normalOnly,
+                pinned = when (signal) {
+                    is CutoutSignal.Notification -> behaviourState.value.pinNotificationsMode.pinsNotifications
+                    is CutoutSignal.System -> behaviourState.value.pinNotificationsMode.pinsSystemEvents
+                    else -> false
+                },
+            )
 
             if (overlayHidden) {
                 if (behaviourState.value.cutoutEnabled) {
@@ -1113,6 +2391,19 @@ class IslandOverlayController(private val context: Context) {
                             timerActive = true
                             lastTimerEvent = resolvedEvent
                         }
+                        is CutoutSignal.System -> {
+                            if (signal.type == SystemEventType.DEVICE_LOCKED) {
+                                isDeviceLocked = true
+                                lastLockEvent = resolvedEvent
+                            } else if (signal.type == SystemEventType.DEVICE_UNLOCKED) {
+                                isDeviceLocked = false
+                                lastLockEvent = null
+                            }
+                            if (isPersistentType(signal.type)) {
+                                persistentEvent = resolvedEvent
+                                persistentType = signal.type
+                            }
+                        }
                         else -> {}
                     }
                 }
@@ -1121,24 +2412,50 @@ class IslandOverlayController(private val context: Context) {
 
             if (!behaviourState.value.cutoutEnabled) return@collect
 
+            val previousPersistentId = persistentEvent?.id
+            if (signal is CutoutSignal.System && isPersistentType(signal.type)) {
+                persistentEvent = resolvedEvent
+                persistentType = signal.type
+            }
+
+            if (signal is CutoutSignal.System &&
+                replaceSystemEventIfNeeded(signal.type, resolvedEvent)
+            ) {
+                return@collect
+            }
+
             val existing = currentEvent.value
             if (signal is CutoutSignal.Notification && signal.key != null &&
                 existing != null && existing.notificationKey == signal.key
             ) {
-                currentEvent.value = resolvedEvent.copy(id = existing.id)
+                currentEvent.value = resolvedEvent.copy(id = existing.id, pinned = existing.pinned || resolvedEvent.pinned)
                 syncWindowSize()
                 scheduleDismiss()
                 return@collect
             }
 
+            // Park whatever the pill is losing in the bubble, carrying its own deadline over, so a
+            // pinned live tile stays visible rather than disappearing until livePillToReturnTo
+            // brings it back. Cleared straight after: scheduleDismiss re-arms it below for a
+            // transient, and the pinned branches leave it null.
+            restoreSlotsOnCollapse = false
+            demoteToSatellite(existing, resolvedEvent, currentDeadlineMs)
+            currentDeadlineMs = null
+            // Only the latest persistent event is kept, so an older one parked in the bubble would
+            // never be ended by its own signal
+            if (previousPersistentId != null && previousPersistentId != persistentEvent?.id &&
+                satelliteEvent.value?.id == previousPersistentId
+            ) {
+                clearSatellite()
+            }
             // Remember the system event (if any) so its auto-dismiss honours its per-event duration.
             currentSystemEventType = (signal as? CutoutSignal.System)?.type
             forcedExpanded.value = if (isNoExpandLandscape) false else null
             expanded = autoExpand
             currentEvent.value = resolvedEvent
             syncWindowSize()
-            // A music/call/assistant signal is only emitted while that tile is live, so pin it up rather than
-            // starting the auto-dismiss timer — it stays for as long as playback / the call / assistant lasts.
+            // A music/call/timer signal is only emitted while that tile is live, so pin it up rather than
+            // starting the auto-dismiss timer — it stays for as long as playback / the call / the timer lasts.
             when (signal) {
                 is CutoutSignal.Music -> {
                     musicPlaying = true
@@ -1158,10 +2475,18 @@ class IslandOverlayController(private val context: Context) {
                     dismissJob?.cancel()
                 }
 
-                is CutoutSignal.Assistant -> {
-                    assistantActive = true
-                    lastAssistantEvent = currentEvent.value
-                    dismissJob?.cancel()
+                is CutoutSignal.System -> {
+                    if (signal.type == SystemEventType.DEVICE_LOCKED) {
+                        isDeviceLocked = true
+                        lastLockEvent = resolvedEvent
+                        dismissJob?.cancel()
+                    } else if (signal.type == SystemEventType.DEVICE_UNLOCKED) {
+                        isDeviceLocked = false
+                        lastLockEvent = null
+                        scheduleDismiss()
+                    } else {
+                        scheduleDismiss()
+                    }
                 }
 
                 else -> scheduleDismiss()
@@ -1171,8 +2496,11 @@ class IslandOverlayController(private val context: Context) {
             // returns via musicPillToReturnTo() once the user leaves that app.
             if (signal is CutoutSignal.Music && shouldHideForPlayerApp()) {
                 playerAppHidden = true
+                dismissJob?.cancel()
+                forcedExpanded.value = null
+                expanded = false
                 currentEvent.value = null
-                removeOverlay()
+                syncWindowSize()
             }
             if (signal is CutoutSignal.Call && shouldHideForPhoneApp()) {
                 phoneAppHidden = true
@@ -1201,6 +2529,19 @@ class IslandOverlayController(private val context: Context) {
         }
         val wasExpanded = expanded
         expanded = targetExpanded
+        // An event tapped out of the bubble borrowed the pill for as long as it was open; give it back.
+        if (!targetExpanded && restoreSlotsOnCollapse) {
+            restoreSlotsOnCollapse = false
+            if (behaviourState.value.expandedDisappearOnShrink) {
+                // The user asked for an expanded cutout to vanish on shrink rather than settle back,
+                // so hand the island to what it displaced instead of returning it to the bubble.
+                dismissJob?.cancel()
+                promoteSatelliteCollapsed()
+            } else {
+                restoreSlots()
+            }
+            return
+        }
         syncWindowSize()
         when {
             targetExpanded -> dismissJob?.cancel()
@@ -1208,7 +2549,7 @@ class IslandOverlayController(private val context: Context) {
             // While music plays or a call is live, keep the collapsed pill up instead of dismissing.
             isPinnedLiveTile() -> dismissJob?.cancel()
             // Shrinking back from expanded and configured to vanish rather than stay.
-            wasExpanded && behaviourState.value.expandedDisappearOnShrink -> {
+            wasExpanded && behaviourState.value.expandedDisappearOnShrink && currentEvent.value?.pinned != true -> {
                 dismissJob?.cancel()
                 currentEvent.value = null
             }
@@ -1257,15 +2598,64 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Tap on the pill: open what it points at. Reading the event before [dismissIsland] clears it,
+     * since settling the notification needs its key.
+     */
     private fun onActivate() {
-        val intent = currentEvent.value?.contentIntent
-        if (isPinnedLiveTile()) {
+        val event = currentEvent.value
+        val intent = event?.contentIntent
+        val action = event?.actionIntentAction
+        if (isPinnedLiveTile() && !isPinnedPersistent()) {
             dismissJob?.cancel()
             intent?.let(::sendPendingIntent)
             return
         }
+        event?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
-        intent?.let(::sendPendingIntent)
+        if (intent != null) {
+            sendPendingIntent(intent)
+        } else if (action != null) {
+            runCatching {
+                val launchIntent = Intent(action).apply {
+                    event.actionIntentUri?.let { data = Uri.parse(it) }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(launchIntent)
+            }.onFailure { Log.w(TAG, "Failed to launch settings action", it) }
+        }
+    }
+
+    /**
+     * The expanded call card's "Open" button: hand the live call back to the dialer's own in-call
+     * screen, leaving the pill up (the call is still running). Telecom is asked first because it
+     * raises the in-call screen itself — the call notification's content intent would be an activity
+     * start from our overlay, which Android 14+ can silently drop, and the in-app test call carries
+     * no content intent at all. That intent is the fallback, then simply launching the app that owns
+     * the call.
+     */
+    private fun onOpenCall() {
+        dismissJob?.cancel()
+        val packageName = OnCallBus.state.value?.packageName
+        if (packageName != null && packageName != context.packageName) {
+            val telecom = context.getSystemService<TelecomManager>()
+            if (telecom != null) {
+                runCatching { telecom.showInCallScreen(false) }
+                    .onSuccess { return }
+                    .onFailure { Log.w(TAG, "Failed to show the in-call screen", it) }
+            }
+        }
+        val intent = currentEvent.value?.contentIntent
+        if (intent != null) {
+            sendPendingIntent(intent)
+            return
+        }
+        val launch = packageName
+            ?.let { context.packageManager.getLaunchIntentForPackage(it) }
+            ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            ?: return
+        runCatching { context.startActivity(launch) }
+            .onFailure { Log.w(TAG, "Failed to open the calling app", it) }
     }
 
     /**
@@ -1275,6 +2665,16 @@ class IslandOverlayController(private val context: Context) {
     private fun onDismiss() {
         currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.dismiss(it) }
         dismissIsland()
+    }
+
+    /**
+     * Pin or unpin the shown notification. Goes through [scheduleDismiss] either way: it cancels the
+     * running timer first, so a pin leaves none and an unpin restarts the normal one.
+     */
+    private fun onPinToggle() {
+        val event = currentEvent.value ?: return
+        currentEvent.value = event.copy(pinned = !event.pinned)
+        scheduleDismiss()
     }
 
     /** Fire one of the notification's action buttons, then dismiss the island. */
@@ -1288,6 +2688,7 @@ class IslandOverlayController(private val context: Context) {
             action.intent?.let(::sendPendingIntent)
             return
         }
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         action.intent?.let(::sendPendingIntent)
     }
@@ -1299,6 +2700,7 @@ class IslandOverlayController(private val context: Context) {
     private fun onReply(action: IslandAction, text: String) {
         val reply = action.reply ?: return
         val intent = action.intent ?: return
+        currentEvent.value?.notificationKey?.let { CutoutNotificationListenerService.settle(it) }
         dismissIsland()
         val fillIn = Intent()
         val results = Bundle().apply { putCharSequence(reply.resultKey, text) }
@@ -1316,6 +2718,19 @@ class IslandOverlayController(private val context: Context) {
         setFocusable(active)
     }
 
+    /**
+     * When the user clicks or taps outside of the expanded island, minimize it in a shrink animation.
+     */
+    private fun onOutsideTouch() {
+        if (shouldCollapseOnOutsideTouch(expanded, previewPinned)) {
+            collapseTrigger.value = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * Takes or releases window focus. Only held while a reply field is open, since a focusable
+     * overlay would otherwise swallow the keyboard from the app underneath.
+     */
     private fun setFocusable(focusable: Boolean) {
         val view = composeView ?: return
         val params = layoutParams ?: return
@@ -1335,8 +2750,17 @@ class IslandOverlayController(private val context: Context) {
      */
     private fun dismissIsland() {
         dismissJob?.cancel()
+        // A persistent pill that leaves the island was dismissed (or ended): it must not come back
+        if (isPinnedPersistent()) {
+            persistentEvent = null
+            persistentType = null
+        }
+        restoreSlotsOnCollapse = false
         forcedExpanded.value = null
         expanded = false
+        // Whatever is parked in the bubble is already visible, so slide it into the pill rather than
+        // clearing the island and waiting out the usual return delay, which would read as a stutter.
+        if (promoteSatelliteCollapsed()) return
         val returnToLive = livePillToReturnTo() != null
         currentEvent.value = null
         syncWindowSize()
@@ -1355,15 +2779,22 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * The collapsed live-tile pill to fall back to when an interrupting event is hidden, or null to
-     * clear the island. A live call takes precedence over music. Each returns its pill only when the
-     * hidden event wasn't a live pill itself, that tile is still live, and the tile is enabled.
+     * clear the island. A live call takes precedence over music, which takes precedence over lock state.
+     * Each returns its pill only when the hidden event wasn't a live pill itself, that tile is still live,
+     * and the tile is enabled.
      */
     private fun livePillToReturnTo(): IslandEvent? =
-        callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo()
+        callPillToReturnTo() ?: musicPillToReturnTo() ?: timerPillToReturnTo() ?: lockPillToReturnTo()
+            ?: persistentPillToReturnTo()
 
-    /** True while the shown event is itself a live tile (so we never "return" on top of one). */
-    private fun showingLiveTile(): Boolean = currentEvent.value?.let {
-        it.media != null || it.call != null || it.timer != null
+    /** True while a live pill occupies either slot (so we never "return" on top of one). */
+    private fun showingLiveTile(): Boolean =
+        isLiveTileEvent(currentEvent.value) || isLiveTileEvent(satelliteEvent.value)
+
+    /** Whether [event] is one of the live tiles, in whichever slot it happens to sit. */
+    private fun isLiveTileEvent(event: IslandEvent?): Boolean = event?.let {
+        it.media != null || it.call != null || it.timer != null || (isDeviceLocked && it.id == lastLockEvent?.id) ||
+            it.id == persistentEvent?.id
     } == true
 
     /**
@@ -1375,10 +2806,14 @@ class IslandOverlayController(private val context: Context) {
         is CutoutSignal.Music -> packageName
         is CutoutSignal.Call -> packageName
         is CutoutSignal.Timer -> packageName
-        is CutoutSignal.Assistant -> packageName
         is CutoutSignal.System -> null
+        is CutoutSignal.SystemEnded -> null
     }
 
+    /**
+     * The music pill to fall back to once a transient pill is done, or null when music shouldn't be
+     * showing.
+     */
     private fun musicPillToReturnTo(): IslandEvent? {
         if (showingLiveTile()) return null
         if (!musicPlaying) return null
@@ -1388,6 +2823,10 @@ class IslandOverlayController(private val context: Context) {
         return lastMusicEvent?.copy(initiallyExpanded = false)
     }
 
+    /**
+     * The call pill to fall back to once a transient pill is done, or null when no call should be
+     * showing.
+     */
     private fun callPillToReturnTo(): IslandEvent? {
         if (showingLiveTile()) return null
         if (!callActive) return null
@@ -1398,11 +2837,35 @@ class IslandOverlayController(private val context: Context) {
         return lastCallEvent?.copy(initiallyExpanded = false)
     }
 
+    /**
+     * The timer pill to fall back to once a transient pill is done, or null when no timer should be
+     * showing.
+     */
     private fun timerPillToReturnTo(): IslandEvent? {
         if (showingLiveTile()) return null
         if (!timerActive) return null
         if (tileEnabled[DynamicTile.TIMER] == false) return null
         return lastTimerEvent?.copy(initiallyExpanded = false)
+    }
+
+    private fun lockPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        if (!isDeviceLocked) return null
+        if (eventEnabled[SystemEventType.DEVICE_LOCKED] == false) return null
+        if (!behaviourState.value.cutoutEnabled) return null
+        return lastLockEvent?.copy(initiallyExpanded = false)
+    }
+
+    /**
+     * The persistent system event's pill to fall back to once an interrupting pill is done, or null
+     * when none is up, it is already on screen, or its event has since been switched off.
+     */
+    private fun persistentPillToReturnTo(): IslandEvent? {
+        if (showingLiveTile()) return null
+        val type = persistentType ?: return null
+        if (eventEnabled[type] == false) return null
+        if (!behaviourState.value.cutoutEnabled) return null
+        return persistentEvent?.copy(initiallyExpanded = false)
     }
 
     /**
@@ -1425,23 +2888,34 @@ class IslandOverlayController(private val context: Context) {
         }.onFailure { Log.w(TAG, "Failed to send pending intent", it) }
     }
 
+    /**
+     * Arms the timer that dismisses the current pill, preferring a per-event duration override over
+     * the global one. A live tile is never given a timer: it stays until its state ends.
+     */
     private fun scheduleDismiss() {
         dismissJob?.cancel()
+        currentDeadlineMs = null
         // Never time out a live cutout while it's active — it stays until playback / the call stops.
-        if (isPinnedLiveTile()) return
+        if (isPinnedLiveTile() || currentEvent.value?.pinned == true) return
         // A system event with its own duration override wins; everything else uses the global normal.
         val seconds = currentSystemEventType?.let { eventDurations[it] }
             ?: behaviourState.value.normalDurationSeconds
+        currentDeadlineMs = System.currentTimeMillis() + seconds * 1_000L
         dismissJob = scope.launch {
             delay(seconds * 1_000L)
+            // Return to the pinned preview if settings is still open.
+            if (previewPinned) {
+                expanded = previewExpanded
+                forcedExpanded.value = previewExpanded
+                currentEvent.value = previewEvent
+                syncWindowSize()
+                return@launch
+            }
+            // Whatever is parked in the bubble is already on screen, so promote that copy rather
+            // than letting livePillToReturnTo resolve a second one.
+            if (promoteSatelliteCollapsed()) return@launch
             val livePill = livePillToReturnTo()
             when {
-                // Return to the pinned preview if settings is still open.
-                previewPinned -> {
-                    expanded = previewExpanded
-                    forcedExpanded.value = previewExpanded
-                    currentEvent.value = previewEvent
-                }
                 // A live tile outlived an interrupting event — fall back to its pill, collapsed.
                 livePill != null -> {
                     expanded = false
@@ -1458,6 +2932,10 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Where the island sits in its window. Centred at the top everywhere except landscape with
+     * stick-to-camera on, where it follows the physical camera instead.
+     */
     private fun computeWindowGravity(): Int {
         if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) {
             return Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -1468,22 +2946,85 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    private fun isRotation270(): Boolean {
+    /** The display's current rotation, read through the window manager rather than the context. */
+    private fun currentDisplayRotation(): Int {
+        // Read from the WindowManager's display, not context.display: the accessibility service's
+        // context is not a visual/display context, so context.display throws on API R+.
         @Suppress("DEPRECATION")
-        val display = windowManager.defaultDisplay
-        return display?.rotation == Surface.ROTATION_270
+        return windowManager.defaultDisplay?.rotation ?: Surface.ROTATION_0
+    }
+
+    /** The current display size in px in the live orientation (width, height). */
+    private fun currentScreenSizePx(): Pair<Int, Int> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            val metrics = context.resources.displayMetrics
+            metrics.widthPixels to metrics.heightPixels
+        }
+
+    /**
+     * Which edge the (rotated) landscape pill hugs. Derived from the camera cutout's real position
+     * (left/right half of the landscape screen) so it tracks the actual hole, falling back to the
+     * display rotation when the cutout can't be measured.
+     */
+    /**
+     * The camera cutout's right edge relative to the screen's horizontal centre, in dp. Null when
+     * the device reports no cutout, which leaves [asTinyCutout] to assume a centred hole.
+     */
+    private fun measureCameraRightEdgeDp(): Float? {
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return null
+        val (widthPx, _) = currentScreenSizePx()
+        return (bounds.right - widthPx / 2f) / density
+    }
+
+    /** The camera cutout's left edge relative to the screen's horizontal centre, in dp. Null without a cutout. */
+    private fun measureCameraLeftEdgeDp(): Float? {
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return null
+        val (widthPx, _) = currentScreenSizePx()
+        return (bounds.left - widthPx / 2f) / density
     }
 
     private fun getLandscapeCameraGravity(): Int {
-        @Suppress("DEPRECATION")
-        val display = windowManager.defaultDisplay
-        return when (display?.rotation) {
-            Surface.ROTATION_90 -> Gravity.LEFT or Gravity.CENTER_VERTICAL
+        // Measured off the display, never off [composeView]: in this very mode the window is a narrow
+        // band already hugging one edge, so its own insets would report the hole relative to wherever
+        // the island was last put rather than to the screen.
+        val center = CutoutMetrics.displayCutoutBoundsPx(context)
+        if (center != null) {
+            val (widthPx, _) = currentScreenSizePx()
+            return if (center.centerX() < widthPx / 2f) {
+                Gravity.LEFT or Gravity.CENTER_VERTICAL
+            } else {
+                Gravity.RIGHT or Gravity.CENTER_VERTICAL
+            }
+        }
+        return when (currentRotation) {
             Surface.ROTATION_270 -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
             else -> Gravity.LEFT or Gravity.CENTER_VERTICAL
         }
     }
 
+    /**
+     * The window's vertical offset from its gravity anchor. For landscape stick-to-camera the window
+     * hugs a side edge and is centred vertically, so shift it by the cutout's distance from the
+     * screen's vertical centre — that plants the pill's midline directly over the physical camera.
+     * Zero in every other case (portrait, or non-stick modes, position via gravity alone).
+     *
+     * Read from the display rather than from [composeView]'s insets: the window this offset places is
+     * only as tall as the pill, so an insets-relative centre is measured against the window's own top
+     * and comes out near zero, which then drags the window up by half the screen.
+     */
+    private fun computeWindowOffsetY(): Int {
+        if (currentOrientation != Configuration.ORIENTATION_LANDSCAPE) return 0
+        if (behaviourState.value.horizontalCutoutMode != HorizontalCutoutMode.STICK_TO_CAMERA) return 0
+        val bounds = CutoutMetrics.displayCutoutBoundsPx(context) ?: return 0
+        val (_, heightPx) = currentScreenSizePx()
+        return (bounds.centerY() - heightPx / 2f).roundToInt()
+    }
+
+    /** How far the island has to be rotated to sit level with the physical camera in landscape. */
     private fun getLandscapeCameraRotation(): Float {
         val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             context.display
@@ -1498,13 +3039,19 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
+    /**
+     * Builds the overlay window's parameters. Uses `TYPE_ACCESSIBILITY_OVERLAY` rather than
+     * `SYSTEM_ALERT_WINDOW`, which is what lets the island draw with no draw-over-apps permission
+     * at all.
+     */
     private fun buildLayoutParams(): WindowManager.LayoutParams {
         @Suppress("DEPRECATION")
         val overlayType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
         // A fixed band centred at the top, sized to hug the pill (see syncWindowSize) rather than span the
         // whole screen — so the areas either side stay free for the notification-shade pull, in landscape
         // too. Starts non-touchable (nothing showing) and becomes touchable only while the island is
-        // visible (so tap-to-expand works).
+        // visible (so tap-to-expand works). WATCH_OUTSIDE_TOUCH delivers ACTION_OUTSIDE when the user taps
+        // outside the expanded island to trigger the shrink animation.
         return WindowManager.LayoutParams(
             windowWidthPx(IslandLayout.DEFAULT),
             windowHeightPx(IslandLayout.DEFAULT),
@@ -1512,10 +3059,12 @@ class IslandOverlayController(private val context: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = computeWindowGravity()
+            y = computeWindowOffsetY()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -1523,24 +3072,38 @@ class IslandOverlayController(private val context: Context) {
         }
     }
 
-    private companion object {
+    internal companion object {
+        fun shouldCollapseOnOutsideTouch(isExpanded: Boolean, previewPinned: Boolean): Boolean =
+            isExpanded && !previewPinned
         const val TAG = "IslandOverlay"
         const val WINDOW_MARGIN_DP = 24
 
-        // Slack around the pill's touchable rectangle so its rounded edges, shadow and tap "boop"
-        // scale stay tappable — kept small so the shade-pull area beside the pill stays free.
+        /** Half-length of the rotation cross-fade: island fades out, snaps, then fades back in. */
+        const val ROTATION_FADE_MS = 150L
+
+        /**
+         * Slack around the pill's touchable rectangle so its rounded edges, shadow and tap "boop"
+         * scale stay tappable — kept small so the shade-pull area beside the pill stays free.
+         */
         const val TOUCH_MARGIN_DP = 12
 
-        // Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
-        // animation, then shrink — so the collapse never clips and the freed area becomes tappable.
+
+        /**
+         * Hold the (larger) expanded window size until the pill has finished its ~220ms collapse
+         * animation, then shrink — so the collapse never clips and the freed area becomes tappable.
+         */
         const val WINDOW_SHRINK_DELAY_MS = 300L
 
-        // Beat between a dismissed interruption fading out and the music pill easing back in, so the
-        // hand-off doesn't feel like an instant, janky swap.
+        /**
+         * Beat between a dismissed interruption fading out and the music pill easing back in, so
+         * the hand-off doesn't feel like an instant, janky swap.
+         */
         const val MUSIC_RETURN_DELAY_MS = 350L
 
-        // Let the center's collapse begin before a screen-capturing / screen-covering shortcut fires,
-        // so the overlay isn't caught in the screenshot or left behind the power dialog.
+        /**
+         * Let the center's collapse begin before a screen-capturing / screen-covering shortcut
+         * fires, so the overlay isn't caught in the screenshot or left behind the power dialog.
+         */
         const val CENTER_ACTION_SETTLE_MS = 260L
     }
 }
