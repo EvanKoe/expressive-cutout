@@ -13,6 +13,7 @@
 *.apk
 *.aab
 *.keystore
+keystore.properties
 *.jks
 keystore.properties
 key.properties
@@ -25,3 +26,5 @@ google-services.json
 *plan-*.md
 .claude/
 .opencode/
+ExpressiveCutout-v*.apk
+fastlane/.env
