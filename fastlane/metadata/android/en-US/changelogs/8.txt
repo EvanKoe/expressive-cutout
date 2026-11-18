@@ -1,0 +1,5 @@
+- Fixed the status dot position
+- Fixed the lock crash
+- See connected devices on hotspot system event
+- Fixed the clock timer for third party apps
+- Added blur in the navbar (testing - for API >= 37.2)

@@ -5,11 +5,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The live countdown-timer state, kept up to date by the notification listener (which reads the
- * clock app's ongoing count-down notification) and read by the overlay so the timer tile can show a
- * remaining time that keeps ticking down. Deliberately separate from the transient [CutoutSignal]
- * flow — mirroring [NowPlayingBus] and [OnCallBus] — because a signal makes the island *appear*
- * while this holds the *current* countdown that keeps changing while it is shown.
+ * The live timer state, kept up to date by the notification listener (which reads the clock app's
+ * ongoing timer or stopwatch notification) and read by the overlay so the timer tile can show a time
+ * that keeps ticking, down for a countdown or up for a count-up. Deliberately separate from the
+ * transient [CutoutSignal] flow — mirroring [NowPlayingBus] and [OnCallBus] — because a signal makes
+ * the island *appear* while this holds the *current* timer that keeps changing while it is shown.
  */
 object RunningTimerBus {
 
@@ -22,13 +22,15 @@ object RunningTimerBus {
 }
 
 /**
- * A snapshot of the countdown timer currently surfaced on the cutout.
+ * A snapshot of the timer (countdown or count-up) currently surfaced on the cutout.
  *
- * A running timer carries [endElapsedRealtimeMs] — the point on the [android.os.SystemClock.elapsedRealtime]
- * clock at which it reaches zero — so the tile renders a live-ticking remainder as
- * `endElapsedRealtimeMs - elapsedRealtime()` (the elapsed-realtime base is used, not wall time, so the
- * countdown stays correct across clock changes and device sleep). A paused timer carries a frozen
- * [pausedRemainingMs] instead, and [endElapsedRealtimeMs] is null. [label] is the clock app's label
+ * A running timer carries [endElapsedRealtimeMs] — the zero point on the [android.os.SystemClock.elapsedRealtime]
+ * clock. A countdown reaches zero there, so the tile renders the live remainder as
+ * `endElapsedRealtimeMs - elapsedRealtime()`; a count-up ([countsUp]) started there, so it renders
+ * the elapsed time as `elapsedRealtime() - endElapsedRealtimeMs`. The elapsed-realtime base is used,
+ * not wall time, so the shown time stays correct across clock changes and device sleep. A paused
+ * timer carries a frozen [pausedRemainingMs] instead — the remaining time for a countdown, the
+ * elapsed time for a count-up — and [endElapsedRealtimeMs] is null. [label] is the clock app's label
  * for the timer (e.g. "Timer" or "Timer paused"), or null.
  */
 data class RunningTimer(
@@ -41,4 +43,6 @@ data class RunningTimer(
      * updating this bus — on every such change, so the overlay can keep the shown chips in step.
      */
     val actions: List<CutoutSignal.Notification.Action> = emptyList(),
+    /** True for a count-up timer (stopwatch) that shows elapsed time, false for a countdown. */
+    val countsUp: Boolean = false,
 )

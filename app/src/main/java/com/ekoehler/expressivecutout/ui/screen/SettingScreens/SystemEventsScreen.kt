@@ -78,6 +78,7 @@ import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.overlay.animatedIcon
 import com.ekoehler.expressivecutout.overlay.animationLoopsByDefault
 import com.ekoehler.expressivecutout.overlay.forRole
@@ -150,6 +151,20 @@ internal fun SystemEventsScreen(
                         checked = behaviour.showStatusDot,
                         onCheckedChange = { viewModel.setShowStatusDot(it) },
                     )
+
+                    // Status dot side
+                    AnimatedVisibility(visible = behaviour.showStatusDot) {
+                        SettingsSegmentedCard(
+                            shape = RoundedCornerShape(4.dp),
+                            label = stringResource(R.string.permission_dot_position_title),
+                            options = listOf(
+                                stringResource(R.string.permission_dot_position_left),
+                                stringResource(R.string.permission_dot_position_right),
+                            ),
+                            selectedIndex = behaviour.statusDotSide.ordinal,
+                            onSelect = { viewModel.setStatusDotSide(StatusDotSide.entries[it]) },
+                        )
+                    }
                 }
             }
 

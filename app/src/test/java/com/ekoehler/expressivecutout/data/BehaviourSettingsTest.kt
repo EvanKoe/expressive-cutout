@@ -32,10 +32,10 @@ class BehaviourSettingsTest {
             val rawAutoExpand = when (signal) {
                 is CutoutSignal.Notification -> notificationsAutoExpand
                 is CutoutSignal.Music -> false
-                is CutoutSignal.Assistant -> false
                 is CutoutSignal.Call -> false
                 is CutoutSignal.Timer -> false
                 is CutoutSignal.System -> false
+                is CutoutSignal.SystemEnded -> false
             }
             return if (isNoExpandLandscape || normalOnly) false else rawAutoExpand
         }

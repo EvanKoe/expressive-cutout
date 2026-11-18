@@ -1,22 +1,54 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+	if (keystorePropertiesFile.exists()) {
+		keystorePropertiesFile.inputStream().use { load(it) }
+	}
+}
+
 android {
     namespace = "com.ekoehler.expressivecutout"
-    compileSdk = 35
+    // The minor level (37.2) is needed for RenderNode.setBackdropRenderEffect
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.ekoehler.expressivecutout"
         minSdk = 29
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.0-beta"
+        versionCode = 8
+        versionName = "0.4.1-beta"
     }
 
+	signingConfigs {
+		create("release") {
+			val path = System.getenv("KEYSTORE_FILE") ?: keystoreProperties.getProperty("storeFile")
+
+			if (!path.isNullOrBlank()) {
+				storeFile = file(path)
+				storePassword = System.getenv("KEYSTORE_PASSWORD") ?: keystoreProperties.getProperty("storePassword")
+				keyAlias = System.getenv("KEY_ALIAS") ?: keystoreProperties.getProperty("keyAlias")
+				keyPassword = System.getenv("KEY_PASSWORD") ?: keystoreProperties.getProperty("keyPassword")
+			}
+		}
+	}
+
     buildTypes {
+		getByName("release") {
+			val releaseSigning = signingConfigs.getByName("release")
+			if (releaseSigning.storeFile != null) {
+				signingConfig = releaseSigning
+			}
+		}
+
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -37,6 +69,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

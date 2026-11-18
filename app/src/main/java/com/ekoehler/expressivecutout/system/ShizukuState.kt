@@ -98,22 +98,42 @@ object ShizukuState {
      * Runs [command] through `sh` as the shell user Shizuku lends us, blocking until it exits, and
      * reports whether it exited cleanly. Call off the main thread. Any failure to reach Shizuku
      * counts as a failed command.
+     */
+    fun runAsShell(command: String): Boolean = runCatching {
+        startShell(command).waitFor() == 0
+    }.getOrElse { error ->
+        Log.w(TAG, "Shell command failed: $command", error)
+        false
+    }
+
+    /**
+     * Runs [command] like [runAsShell] but returns what it printed to stdout, or null when Shizuku
+     * could not be reached. Call off the main thread. Only the command is logged, never the output.
+     */
+    fun runAsShellForOutput(command: String): String? = runCatching {
+        val process = startShell(command)
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        process.waitFor()
+        output
+    }.getOrElse { error ->
+        Log.w(TAG, "Shell command failed: $command", error)
+        null
+    }
+
+    /**
+     * Starts [command] under `sh` in the Shizuku shell process.
      *
      * ponytail: `Shizuku.newProcess` is private in API 13 and reached by reflection; move to a
      * Shizuku UserService if a release removes it.
      */
-    fun runAsShell(command: String): Boolean = runCatching {
+    private fun startShell(command: String): Process {
         val newProcess = Shizuku::class.java.getDeclaredMethod(
             "newProcess",
             Array<String>::class.java,
             Array<String>::class.java,
             String::class.java,
         ).apply { isAccessible = true }
-        val process = newProcess.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
-        process.waitFor() == 0
-    }.getOrElse { error ->
-        Log.w(TAG, "Shell command failed: $command", error)
-        false
+        return newProcess.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
     }
 
     /**

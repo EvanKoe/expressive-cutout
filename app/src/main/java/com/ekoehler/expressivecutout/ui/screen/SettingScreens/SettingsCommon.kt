@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -205,8 +206,11 @@ internal fun SettingsSliderCard(
  * setting that exists but can't be changed yet — the row dims and the switch stops responding,
  * which keeps the feature discoverable instead of hiding it. [content] draws inside the same card,
  * under the switch row, for a setting whose own options belong with it rather than in a card of
- * their own. It keeps the card's horizontal padding but none below it, so content that animates
- * itself away leaves no gap behind; content that stays adds its own bottom padding.
+ * their own. [switchBadge] optionally draws a small icon just left of the switch, dimmed with the row,
+ * to flag what the setting depends on (such as Shizuku). [disabledReason], when set, adds a line
+ * under the description saying why the setting can't be used right now. [content] keeps the card's
+ * horizontal padding but none below it, so content that animates itself away leaves no gap behind;
+ * content that stays adds its own bottom padding.
  */
 @Composable
 internal fun SettingsToggleCard(
@@ -219,6 +223,8 @@ internal fun SettingsToggleCard(
     containerColor: Color = MaterialTheme.colorScheme.surface,
     /** Ink for the title; the description takes it at 80% opacity. Null keeps the neutral pair. */
     contentColor: Color? = null,
+    switchBadge: Painter? = null,
+    disabledReason: String? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
@@ -246,8 +252,26 @@ internal fun SettingsToggleCard(
                     color = (contentColor?.copy(alpha = 0.8f) ?: MaterialTheme.colorScheme.onSurfaceVariant)
                         .copy(alpha = contentAlpha),
                 )
+                if (disabledReason != null) {
+                    // Kept at full opacity: it explains the dimmed row, so it must stay readable
+                    Text(
+                        text = disabledReason,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
+            if (switchBadge != null) {
+                Icon(
+                    painter = switchBadge,
+                    contentDescription = stringResource(R.string.requires_shizuku),
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
         }
         if (content != null) {

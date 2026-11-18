@@ -86,7 +86,7 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     private var currentCallKey: String? = null
 
     /**
-     * Key of the count-down notification currently driving the timer tile, mirroring
+     * Key of the timer notification currently driving the timer tile, mirroring
      * [currentCallKey].
      */
     private var currentTimerKey: String? = null
@@ -854,19 +854,27 @@ class CutoutNotificationListenerService : NotificationListenerService() {
     }
 
     /**
-     * Drive the timer tile from a count-down notification: keep [RunningTimerBus] fresh on every
-     * update (so the remaining time re-syncs when the user adds a minute) and pop the island only the
-     * first time a given timer appears — later re-posts refresh the countdown without re-popping.
+     * Drive the timer tile from a timer notification (count-down or count-up): keep [RunningTimerBus] fresh on every
+     * update (so the shown time re-syncs when the user adds a minute) and pop the island only the
+     * first time a given timer appears — later re-posts refresh the time without re-popping.
+     * A paused timer that is not the one on the tile is ignored, so a clock re-posting all its timers
+     * cannot steal the tile from the running one.
      * Mirrors [handleCall].
      */
     private fun handleTimer(sbn: StatusBarNotification) {
         val timer = TimerNotificationParser.parse(sbn)
+        
+        if (!TimerNotificationParser.mayTakeTile(isPaused = timer.pausedRemainingMs != null, key = sbn.key, currentKey = currentTimerKey)) {
+            return
+        }
+        
         RunningTimerBus.update(
             RunningTimer(
                 endElapsedRealtimeMs = timer.endElapsedRealtimeMs,
                 pausedRemainingMs = timer.pausedRemainingMs,
                 label = timer.label,
                 actions = timer.actions,
+                countsUp = timer.countsUp,
             ),
         )
         if (sbn.key != currentTimerKey) {

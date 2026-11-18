@@ -692,4 +692,11 @@
     <string name="statusbar_preview_time">2:34</string>
     <string name="test_progress_complete_title">İndirme tamamlandı</string>
     <string name="test_progress_complete_text">document_preview.pdf</string>
+    <string name="hotspot_count_title">Bağlı cihazları göster</string>
+    <string name="hotspot_count_desc">Hotspot’unuza bağlı cihaz sayısını gösterir ve olay genişletildiğinde listeler</string>
+    <string name="requires_shizuku_access">Shizuku erişimi gerekir</string>
+    <string name="requires_shizuku">Shizuku gerekir</string>
+    <string name="hotspot_turn_off_color">Kapat düğmesi rengi</string>
+    <string name="hotspot_turn_off">Kapat</string>
+    <string name="hotspot_turn_off_failed">Hotspot kapatılamadı</string>
 </resources>

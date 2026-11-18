@@ -169,10 +169,10 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
         icon = Icons.Rounded.Terminal,
         title = "Shizuku access",
         manifestName = "moe.shizuku.manager.permission.API_V23",
-        summary = "Optional, and only used by two features that Android reserves for the shell " +
+        summary = "Optional, and only used by three features that Android reserves for the shell " +
             "user. Shizuku is a separate app you install and start yourself; it holds those shell " +
             "privileges and lends them to apps you approve, one at a time, in its own interface. " +
-            "Without it those two features are simply unavailable — everything else works as " +
+            "Without it those features are simply unavailable — everything else works as " +
             "normal. The app talks to Shizuku only while you have one of them switched on.",
         uses = listOf(
             "Hide the system status bar's notification icons, alerts and clock, so the island is " +
@@ -182,6 +182,8 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
                 "can draw the privacy dots. This needs GET_APP_OPS_STATS, which an ordinary app " +
                 "cannot hold. The dot says only that something is in use, never which app, and " +
                 "the check runs only while the feature is switched on",
+            "Read the list of devices connected to your hotspot (MAC address and device name), " +
+                "only while the hotspot is on and the option is enabled",
         ),
         optional = true,
     ),
@@ -203,7 +205,8 @@ private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
         summary = "Read-only, granted automatically, and never prompted for. Since Android 12L " +
             "the system only tells apps holding this permission when the hotspot turns on or " +
             "off; without it the hotspot event would never fire. It cannot turn Wi-Fi or the " +
-            "hotspot on, cannot see who is connected to it, and grants no internet access.",
+            "hotspot on, cannot see who is connected to it, and grants no internet access. It " +
+            "covers only the on/off event, not the list of connected devices.",
         uses = listOf(
             "Show the hotspot enabled and disabled event on the island",
         ),

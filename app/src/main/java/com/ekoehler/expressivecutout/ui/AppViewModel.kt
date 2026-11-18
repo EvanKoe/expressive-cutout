@@ -43,6 +43,9 @@ import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.JsonSettings
 import com.ekoehler.expressivecutout.swe.SweWidget
+import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
+import com.ekoehler.expressivecutout.system.ShizukuState
+import com.ekoehler.expressivecutout.system.ShizukuStatus
 import com.ekoehler.expressivecutout.data.ExpandedDesign
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.IslandLayout
@@ -67,6 +70,7 @@ import com.ekoehler.expressivecutout.data.StatusBarPreferences
 import com.ekoehler.expressivecutout.data.TimerTilePreferences
 import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.data.SatellitePosition
+import com.ekoehler.expressivecutout.data.StatusDotSide
 import com.ekoehler.expressivecutout.data.ThemePreferences
 import com.ekoehler.expressivecutout.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
@@ -165,6 +169,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap(),
         )
+
+    val hotspotCountEnabled: StateFlow<Boolean> =
+        eventPreferences.hotspotCountEnabled.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    val hotspotCountStyle: StateFlow<UnreadWidget> =
+        eventPreferences.hotspotCountStyle.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UnreadWidget(id = "hotspot", countSilent = true),
+        )
+
+    val hotspotTurnOffColor: StateFlow<CutoutColor?> =
+        eventPreferences.hotspotTurnOffColor.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    val shizukuStatus: StateFlow<ShizukuStatus> = ShizukuState.status
 
     /** Per-event colour overrides; absent events follow their default accent (or the dynamic role). */
     val eventColors: StateFlow<Map<SystemEventType, CutoutColor>> =
@@ -382,6 +409,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetEventDuration(type: SystemEventType) = viewModelScope.launch {
         eventPreferences.clearDuration(type)
+    }
+
+    fun setHotspotCountEnabled(enabled: Boolean) = viewModelScope.launch {
+        eventPreferences.setHotspotCountEnabled(enabled)
+    }
+
+    fun setHotspotTurnOffColor(color: CutoutColor?) = viewModelScope.launch {
+        eventPreferences.setHotspotTurnOffColor(color)
+    }
+
+    fun setHotspotCountStyle(style: UnreadWidget) = viewModelScope.launch {
+        eventPreferences.setHotspotCountStyle(style)
     }
 
     fun setEventColor(type: SystemEventType, color: CutoutColor) = viewModelScope.launch {
@@ -778,6 +817,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggles the radiating status dot drawn on the trailing edge of system-event pills. */
     fun setShowStatusDot(enabled: Boolean) = viewModelScope.launch {
         behaviourPreferences.setShowStatusDot(enabled)
+    }
+
+    /** Moves the system-event status dot to the given [side] of the camera hole. */
+    fun setStatusDotSide(side: StatusDotSide) = viewModelScope.launch {
+        behaviourPreferences.setStatusDotSide(side)
     }
 
     /** Appends [widget] to the end of [side]'s list on the resting pill. */

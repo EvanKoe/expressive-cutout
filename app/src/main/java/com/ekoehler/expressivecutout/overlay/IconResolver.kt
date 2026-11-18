@@ -93,6 +93,7 @@ class IconResolver(private val context: Context) {
         animatedIconLoop: Map<SystemEventType, Boolean> = emptyMap(),
         eventColorOverrides: Map<SystemEventType, CutoutColor> = emptyMap(),
         appearance: AppearanceSettings = AppearanceSettings(),
+        hotspot: HotspotCard? = null,
     ): IslandEvent {
         val packageName = when (signal) {
             is CutoutSignal.Notification -> signal.packageName
@@ -123,6 +124,7 @@ class IconResolver(private val context: Context) {
                 animatedIconEnabled,
                 animatedIconLoop,
                 eventColorOverrides,
+                hotspot,
             )
             is CutoutSignal.Music -> resolveMusic(signal, signal.packageName, appColor, musicSettings)
             is CutoutSignal.Call -> resolveCall(signal, signal.packageName, appColor, phoneSettings)
@@ -428,6 +430,7 @@ class IconResolver(private val context: Context) {
         animatedIconEnabled: Map<SystemEventType, Boolean>,
         animatedIconLoop: Map<SystemEventType, Boolean>,
         eventColorOverrides: Map<SystemEventType, CutoutColor>,
+        hotspot: HotspotCard?,
     ): IslandEvent {
         val type = payload.type
         // A user override always wins; otherwise events with an animation (charging / unlock) use it
@@ -459,7 +462,8 @@ class IconResolver(private val context: Context) {
         } else {
             null
         }
-        val statusColor = if (trailingText != null) null else statusDotColorFor(type)
+        val hotspotCard = hotspot.takeIf { type == SystemEventType.HOTSPOT_ENABLED }
+        val statusColor = if (trailingText != null || hotspotCard?.badge != null) null else statusDotColorFor(type)
 
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
@@ -477,6 +481,7 @@ class IconResolver(private val context: Context) {
             statusDotColor = statusColor,
             trailingText = trailingText,
             trailingTextColor = trailingTextColor,
+            hotspot = hotspotCard,
         )
     }
 
