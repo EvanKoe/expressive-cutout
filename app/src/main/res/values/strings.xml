@@ -293,10 +293,6 @@
     <string name="appearance_dismiss_corners_follow">Follow the cutout’s own corners</string>
     <string name="appearance_prefer_dynamic_icon_color_title">Monochrome notification icons</string>
     <string name="appearance_prefer_dynamic_icon_color_desc">Show a single-color icon that follows the color below. When off, the app\'s full-color icon or contact photo is shown</string>
-    <string name="appearance_notification_color_title">Notification badge color</string>
-    <string name="appearance_notification_color_material">Material color</string>
-    <string name="appearance_notification_color_app">App color</string>
-    <string name="appearance_notification_color_other">Other</string>
     <string name="appearance_show_full_notification_text_title">Show full notification text</string>
     <string name="appearance_show_full_notification_text_desc">Expand the island height dynamically to display all lines of notification text.</string>
     <string name="appearance_stroke_width">Stroke width</string>

@@ -22,7 +22,6 @@ import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
-import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
@@ -1172,14 +1171,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPreferDynamicIconColor(enabled: Boolean) = viewModelScope.launch {
         appearancePreferences.setPreferDynamicIconColor(enabled)
-    }
-
-    fun setNotificationColorMode(mode: NotificationColorMode) = viewModelScope.launch {
-        appearancePreferences.setNotificationColorMode(mode)
-    }
-
-    fun setNotificationCustomColor(color: CutoutColor?) = viewModelScope.launch {
-        appearancePreferences.setNotificationCustomColor(color)
     }
 
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {

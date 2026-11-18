@@ -18,7 +18,6 @@ import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.CutoutColor
-import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.MusicTileSettings
@@ -144,11 +143,6 @@ class IconResolver(private val context: Context) {
     ): IslandEvent {
         val icon = signal.notificationIcon(appearance.preferDynamicIconColor)
             ?: IslandIcon.Vector(Icons.Rounded.Notifications)
-        val chosenColor = when (appearance.notificationColorMode) {
-            NotificationColorMode.MATERIAL -> null
-            NotificationColorMode.APP -> appColor
-            NotificationColorMode.OTHER -> appearance.notificationCustomColor?.resolveColor()
-        }
 
         val title = signal.title?.takeIf { it.isNotBlank() }
         val text = signal.text?.takeIf { it.isNotBlank() }
@@ -166,13 +160,10 @@ class IconResolver(private val context: Context) {
             appName = appName,
             postTimeMs = postTimeMs,
             // The accent drives the badge glyph and the source-app / timestamp header alike
-            accent = chosenColor ?: NOTIFICATION_ACCENT,
+            accent = NOTIFICATION_ACCENT,
             // A notification badge is a monochrome glyph far more often than a system event's is
-            // art, so it follows "Dynamic color for all events" too when that is on, unless the
-            // user chose an app or custom notification colour.
-            useThemeColor = dynamicEventColor && chosenColor == null,
-            // A filled disc; IconBadge picks black or white ink from its luminance
-            iconContainerColor = chosenColor?.let { CutoutColor.Solid(it.toArgb().toLong() and 0xFFFFFFFFL) },
+            // art, so it follows "Dynamic color for all events" too when that is on
+            useThemeColor = dynamicEventColor,
             themeColorRole = dynamicEventColorRole,
             themeColorOpacity = dynamicEventColorOpacity,
             contentIntent = signal.contentIntent,
