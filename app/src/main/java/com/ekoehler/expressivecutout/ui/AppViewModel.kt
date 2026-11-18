@@ -1198,6 +1198,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setTextColor(color)
     }
 
+    fun setBadgeContainerColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setBadgeContainerColor(color)
+    }
+
+    fun setBadgeContentColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setBadgeContentColor(color)
+    }
+
+    fun setAppNameColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setAppNameColor(color)
+    }
+
+    fun setTimestampColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTimestampColor(color)
+    }
+
+    fun setTitleColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTitleColor(color)
+    }
+
     fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {
         appearancePreferences.setBackgroundNormal(fill)
     }

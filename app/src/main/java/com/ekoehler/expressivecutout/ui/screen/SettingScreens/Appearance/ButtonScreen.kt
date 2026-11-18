@@ -5,7 +5,6 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -53,7 +52,6 @@ import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.overlay.IslandAction
 import com.ekoehler.expressivecutout.overlay.IslandEvent
 import com.ekoehler.expressivecutout.overlay.IslandIcon
-import com.ekoehler.expressivecutout.overlay.IslandPreview
 import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.OptionSelectionCard
@@ -128,12 +126,6 @@ private val SentAlignment.descriptionRes: Int
         SentAlignment.RIGHT -> R.string.action_buttons_sent_right_desc
     }
 
-/** Accent used by the preview event, matching the accent shown on the sibling settings screens. */
-private val PREVIEW_ACCENT = Color(0xFF60A5FA)
-
-/** Top inset used by this screen's preview: the island's own horizontal padding, not a camera band. */
-private const val PREVIEW_TOP_MARGIN_DP = 18
-
 /**
  * "Action buttons" screen (reached from the Appearance screen). Configures the chips and inline
  * reply field shown in the expanded cutout: whether they appear at all, the chip style/colour/height,
@@ -193,31 +185,12 @@ internal fun ButtonScreen(
     ) {
         PageTitle(text = stringResource(R.string.action_buttons_title))
 
-        // Expanded cutout preview. The pill keeps the configured width share, but of the card's own
-        // width rather than the screen's, and is centred so it never runs past the content padding.
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val previewWidth = maxWidth * (expanded.widthPercent / 100f)
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                IslandPreview(
-                    event = previewEvent,
-                    width = previewWidth,
-                    heightDp = expanded.heightDp,
-                    cornerTopLeftDp = expanded.cornerTopLeftDp,
-                    cornerTopRightDp = expanded.cornerTopRightDp,
-                    cornerBottomLeftDp = expanded.cornerBottomLeftDp,
-                    cornerBottomRightDp = expanded.cornerBottomRightDp,
-                    topMarginDp = PREVIEW_TOP_MARGIN_DP,
-                    expanded = true,
-                    appearance = previewAppearance,
-                    showActions = behaviour.showActionButtons,
-                    collapsedHeightDp = 12,
-                    onHeightMeasured = {},
-                )
-            }
-        }
+        ExpandedCutoutPreview(
+            event = previewEvent,
+            layout = expanded,
+            appearance = previewAppearance,
+            showActions = behaviour.showActionButtons,
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 

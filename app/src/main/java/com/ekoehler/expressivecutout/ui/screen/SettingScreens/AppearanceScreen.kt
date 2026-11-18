@@ -32,20 +32,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SmartButton
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -97,6 +95,7 @@ import com.ekoehler.expressivecutout.ui.AppViewModel
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
 import com.ekoehler.expressivecutout.ui.components.DEFAULT_PRESET_COLORS
 import com.ekoehler.expressivecutout.ui.components.MaterialCard
+import com.ekoehler.expressivecutout.ui.components.NavigationCard
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlin.math.roundToInt
@@ -114,6 +113,7 @@ internal fun AppearanceScreen(
     viewModel: AppViewModel,
     contentPadding: PaddingValues,
     onOpenBackground: () -> Unit,
+    onOpenContentColors: () -> Unit,
     onOpenActionButtons: () -> Unit,
     onOpenDismissWindow: () -> Unit,
 ) {
@@ -244,16 +244,6 @@ internal fun AppearanceScreen(
             )
         }
 
-        // Text color selector
-        ColorPickerCard(
-            label = stringResource(R.string.appearance_text_color),
-            selected = appearance.textColor,
-            onSelect = viewModel::setTextColor,
-            defaultLabel = stringResource(R.string.appearance_text_color_auto),
-            shape = groupedShape(),
-            allowAppIcon = true,
-        )
-
         // Show timestamp toggle
         SettingsToggleCard(
             shape = groupedShape(isLast = true),
@@ -266,171 +256,54 @@ internal fun AppearanceScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Dismiss window screen navigation
-        DismissWindowCard(
+        NavigationCard(
+            icon = Icons.Rounded.Delete,
+            title = stringResource(R.string.appearance_window_dismiss_title),
+            subtitle = stringResource(R.string.appearance_window_dismiss_desc),
             shape = groupedShape(isFirst = true, isLast = true),
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onOpenDismissWindow()
-            }
+            },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
         // Background color screen navigation
-        BackgroundCard(
+        NavigationCard(
+            icon = Icons.Rounded.FormatColorFill,
+            title = stringResource(R.string.appearance_background_color),
+            subtitle = stringResource(R.string.settings_background_subtitle),
             shape = groupedShape(isFirst = true),
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onOpenBackground()
-            }
+            },
+        )
+
+        // Content color screen navigation
+        NavigationCard(
+            icon = Icons.Rounded.Palette,
+            title = stringResource(R.string.content_colors_title),
+            subtitle = stringResource(R.string.content_colors_subtitle),
+            shape = groupedShape(),
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenContentColors()
+            },
         )
 
         // Action buttons screen navigation
-        ActionButtonsCard(
+        NavigationCard(
+            icon = Icons.Rounded.SmartButton,
+            title = stringResource(R.string.action_buttons_title),
+            subtitle = stringResource(R.string.settings_action_buttons_subtitle),
             shape = groupedShape(isLast = true),
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onOpenActionButtons()
-            }
+            },
         )
-    }
-}
-
-/** A clickable card that navigates to the dedicated dismiss-window screen. */
-@Composable
-private fun DismissWindowCard(
-    onClick: () -> Unit,
-    shape: RoundedCornerShape = groupedShape()
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Delete,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.appearance_window_dismiss_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.appearance_window_dismiss_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-/** A clickable card that navigates to the dedicated background-fill screen. */
-@Composable
-private fun BackgroundCard(
-    onClick: () -> Unit,
-    shape: RoundedCornerShape = groupedShape()
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.FormatColorFill,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.appearance_background_color),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.settings_background_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-/** A clickable card that navigates to the dedicated action-buttons screen. */
-@Composable
-private fun ActionButtonsCard(
-    onClick: () -> Unit,
-    shape: RoundedCornerShape = groupedShape()
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.SmartButton,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.action_buttons_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.settings_action_buttons_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
@@ -441,6 +314,10 @@ fun DynamicRole.dynamicDescription(): String = stringResource(
         DynamicRole.PRIMARY -> R.string.cd_color_dynamic_primary
         DynamicRole.SECONDARY -> R.string.cd_color_dynamic_secondary
         DynamicRole.TERTIARY -> R.string.cd_color_dynamic_tertiary
+        DynamicRole.ON_PRIMARY -> R.string.cd_color_dynamic_on_primary
+        DynamicRole.ON_SECONDARY -> R.string.cd_color_dynamic_on_secondary
+        DynamicRole.ON_TERTIARY -> R.string.cd_color_dynamic_on_tertiary
+        DynamicRole.ON_SURFACE -> R.string.cd_color_dynamic_on_surface
         DynamicRole.SURFACE_CONTAINER_LOWEST -> R.string.cd_color_dynamic_surface_lowest
         DynamicRole.SURFACE_CONTAINER_LOW -> R.string.cd_color_dynamic_surface_low
         DynamicRole.SURFACE_CONTAINER -> R.string.cd_color_dynamic_surface

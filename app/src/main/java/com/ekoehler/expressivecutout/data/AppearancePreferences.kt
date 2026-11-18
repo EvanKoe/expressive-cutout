@@ -37,6 +37,11 @@ data class AppearanceSettings(
     val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
     val textColor: CutoutColor? = DEFAULT_TEXT_COLOR,
+    val badgeContainerColor: CutoutColor? = null,
+    val badgeContentColor: CutoutColor? = null,
+    val appNameColor: CutoutColor? = null,
+    val timestampColor: CutoutColor? = null,
+    val titleColor: CutoutColor? = null,
     val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
     val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
     val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
@@ -128,6 +133,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
             textColor = CutoutColor.deserialize(prefs[TEXT_COLOR]),
+            badgeContainerColor = CutoutColor.deserialize(prefs[BADGE_CONTAINER_COLOR]),
+            badgeContentColor = CutoutColor.deserialize(prefs[BADGE_CONTENT_COLOR]),
+            appNameColor = CutoutColor.deserialize(prefs[APP_NAME_COLOR]),
+            timestampColor = CutoutColor.deserialize(prefs[TIMESTAMP_COLOR]),
+            titleColor = CutoutColor.deserialize(prefs[TITLE_COLOR]),
             showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
             showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
             showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT] ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
@@ -179,6 +189,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
             put("textColor", s.textColor?.serialize() ?: JSONObject.NULL)
+            put("badgeContainerColor", s.badgeContainerColor?.serialize() ?: JSONObject.NULL)
+            put("badgeContentColor", s.badgeContentColor?.serialize() ?: JSONObject.NULL)
+            put("appNameColor", s.appNameColor?.serialize() ?: JSONObject.NULL)
+            put("timestampColor", s.timestampColor?.serialize() ?: JSONObject.NULL)
+            put("titleColor", s.titleColor?.serialize() ?: JSONObject.NULL)
             put("showSourceAppName", s.showSourceAppName)
             put("showTimestamp", s.showTimestamp)
             put("showFullNotificationText", s.showFullNotificationText)
@@ -225,6 +240,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
             it.applyNullableColor(obj, "textColor", TEXT_COLOR)
+            it.applyNullableColor(obj, "badgeContainerColor", BADGE_CONTAINER_COLOR)
+            it.applyNullableColor(obj, "badgeContentColor", BADGE_CONTENT_COLOR)
+            it.applyNullableColor(obj, "appNameColor", APP_NAME_COLOR)
+            it.applyNullableColor(obj, "timestampColor", TIMESTAMP_COLOR)
+            it.applyNullableColor(obj, "titleColor", TITLE_COLOR)
             if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
             if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
             if (obj.has("showFullNotificationText")) it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
@@ -332,6 +352,28 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
     /** A null [color] clears the override, restoring automatic contrast-based text color. */
     suspend fun setTextColor(color: CutoutColor?) = context.appearanceDataStore.edit {
         if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
+    }
+
+    /** A null [color] clears the override, restoring the automatic badge container colour. */
+    suspend fun setBadgeContainerColor(color: CutoutColor?) = writeNullableColor(BADGE_CONTAINER_COLOR, color)
+
+    /** A null [color] clears the override, restoring the automatic badge content colour. */
+    suspend fun setBadgeContentColor(color: CutoutColor?) = writeNullableColor(BADGE_CONTENT_COLOR, color)
+
+    /** A null [color] clears the override, so the app name follows the general text colour. */
+    suspend fun setAppNameColor(color: CutoutColor?) = writeNullableColor(APP_NAME_COLOR, color)
+
+    /** A null [color] clears the override, so the timestamp follows the general text colour. */
+    suspend fun setTimestampColor(color: CutoutColor?) = writeNullableColor(TIMESTAMP_COLOR, color)
+
+    /** A null [color] clears the override, so the title follows the general text colour. */
+    suspend fun setTitleColor(color: CutoutColor?) = writeNullableColor(TITLE_COLOR, color)
+
+    /** Stores [color] under [key], or removes the key when [color] is null. */
+    private suspend fun writeNullableColor(key: Preferences.Key<String>, color: CutoutColor?) {
+        context.appearanceDataStore.edit {
+            if (color == null) it.remove(key) else it[key] = color.serialize()
+        }
     }
 
     suspend fun setShowSourceAppName(enabled: Boolean) = context.appearanceDataStore.edit {
@@ -468,6 +510,11 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
         val TEXT_COLOR = stringPreferencesKey("text_color")
+        val BADGE_CONTAINER_COLOR = stringPreferencesKey("badge_container_color")
+        val BADGE_CONTENT_COLOR = stringPreferencesKey("badge_content_color")
+        val APP_NAME_COLOR = stringPreferencesKey("app_name_color")
+        val TIMESTAMP_COLOR = stringPreferencesKey("timestamp_color")
+        val TITLE_COLOR = stringPreferencesKey("title_color")
         val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
         val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
         val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")

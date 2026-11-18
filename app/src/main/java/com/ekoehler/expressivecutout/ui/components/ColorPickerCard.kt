@@ -64,7 +64,15 @@ val DEFAULT_PRESET_COLORS: List<Long> = listOf(
 )
 
 /** The Material You dynamic roles [ColorPickerCard] offers by default, in display order. */
-private val DEFAULT_DYNAMIC_ROLES = listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY)
+private val DEFAULT_DYNAMIC_ROLES = listOf(
+    DynamicRole.PRIMARY,
+    DynamicRole.SECONDARY,
+    DynamicRole.TERTIARY,
+    DynamicRole.ON_PRIMARY,
+    DynamicRole.ON_SECONDARY,
+    DynamicRole.ON_TERTIARY,
+    DynamicRole.ON_SURFACE,
+)
 
 /**
  * This is a card component with a list of predefined and dynamic colors
@@ -210,6 +218,7 @@ fun ColorPickerCard(
                 selected is CutoutColor.Dynamic && selected.role == DynamicRole.PRIMARY -> stringResource(R.string.tooltip_dynamic_primary)
                 selected is CutoutColor.Dynamic && selected.role == DynamicRole.SECONDARY -> stringResource(R.string.tooltip_dynamic_secondary)
                 selected is CutoutColor.Dynamic && selected.role == DynamicRole.TERTIARY -> stringResource(R.string.tooltip_dynamic_tertiary)
+                selected is CutoutColor.Dynamic && selected.role.isOnColor -> stringResource(R.string.tooltip_dynamic_on)
                 selected is CutoutColor.Dynamic && selected.role.forcesDarkScheme -> stringResource(R.string.tooltip_dynamic_surface_dark)
                 selected is CutoutColor.Dynamic -> stringResource(R.string.tooltip_dynamic_surface)
                 selected is CutoutColor.Solid && (selected.argb and 0xFFFFFFL == 0x000000L) -> stringResource(R.string.tooltip_oled_black)

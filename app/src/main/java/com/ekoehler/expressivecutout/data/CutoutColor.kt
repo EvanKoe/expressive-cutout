@@ -9,12 +9,17 @@ import kotlin.math.roundToInt
  * in two forms — one following the phone's light/dark setting, and a `_DARK` one that resolves
  * against the dark scheme whatever the phone is set to, since the island is usually dark on a light
  * home screen. Each picker chooses which roles it offers, so the tiers only show where a neutral
- * fill belongs.
+ * fill belongs. The `ON_*` roles are the matching ink colours (`onPrimary`, `onSecondary`,
+ * `onTertiary`, `onSurface`), offered so text and icons can be painted in the scheme's own ink.
  */
-enum class DynamicRole(val forcesDarkScheme: Boolean = false) {
+enum class DynamicRole(val forcesDarkScheme: Boolean = false, val isOnColor: Boolean = false) {
     PRIMARY,
     SECONDARY,
     TERTIARY,
+    ON_PRIMARY(isOnColor = true),
+    ON_SECONDARY(isOnColor = true),
+    ON_TERTIARY(isOnColor = true),
+    ON_SURFACE(isOnColor = true),
     SURFACE_CONTAINER_LOWEST,
     SURFACE_CONTAINER_LOW,
     SURFACE_CONTAINER,

@@ -47,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -73,12 +72,6 @@ import com.ekoehler.expressivecutout.ui.components.groupedShape
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Accent the preview notification carries, matching the other appearance previews. */
-private val PREVIEW_ACCENT = Color(0xFF60A5FA)
-
-/** The preview island sits closer to the top than the real one, which clears a camera. */
-private const val PREVIEW_TOP_MARGIN_DP = 18
-
 /** How far the preview island is slid aside, as a share of its own width. */
 private const val PREVIEW_SLIDE_FRACTION = 0.34f
 
@@ -98,7 +91,7 @@ private const val REVEAL_MS = 280
 private const val REVEAL_FADE_MS = 180
 
 /**
- * The dynamic roles the dismiss backdrop offers: the three accents, then the neutral surface tiers
+ * The dynamic roles the dismiss backdrop offers: the three accents, their ink colours, then the neutral surface tiers
  * from lowest to highest — first the ones that follow the phone's theme, then the always-dark ones,
  * which is what a panel sitting behind a dark island usually wants on a light home screen.
  */
@@ -106,6 +99,10 @@ private val BACKDROP_DYNAMIC_ROLES = listOf(
     DynamicRole.PRIMARY,
     DynamicRole.SECONDARY,
     DynamicRole.TERTIARY,
+    DynamicRole.ON_PRIMARY,
+    DynamicRole.ON_SECONDARY,
+    DynamicRole.ON_TERTIARY,
+    DynamicRole.ON_SURFACE,
     DynamicRole.SURFACE_CONTAINER_LOWEST,
     DynamicRole.SURFACE_CONTAINER_LOW,
     DynamicRole.SURFACE_CONTAINER,
