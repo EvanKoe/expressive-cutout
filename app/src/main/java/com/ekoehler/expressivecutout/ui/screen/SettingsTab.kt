@@ -89,6 +89,7 @@ fun SettingsTab(
     onOpenAnimation: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenBackground: () -> Unit,
+    onOpenContentColors: () -> Unit,
     onOpenActionButtons: () -> Unit,
     onOpenDismissWindow: () -> Unit,
     onOpenShizuku: () -> Unit,
@@ -173,10 +174,12 @@ fun SettingsTab(
                     viewModel,
                     contentPadding,
                     onOpenBackground,
+                    onOpenContentColors,
                     onOpenActionButtons,
                     onOpenDismissWindow,
                 )
             SettingsRoute.Background -> BackgroundScreen(viewModel, contentPadding)
+            SettingsRoute.ContentColors -> ContentColorScreen(viewModel, contentPadding)
             SettingsRoute.ActionButtons -> ButtonScreen(viewModel, contentPadding)
             SettingsRoute.DismissWindow -> DismissWindowScreen(viewModel, contentPadding)
             SettingsRoute.Shizuku -> ShizukuScreen(viewModel, contentPadding, onOpenPermissionDot)
@@ -190,15 +193,16 @@ fun SettingsTab(
 
 /** The screens reachable from the Settings tab. Hoisted to MainScreen so the bottom bar can
  *  switch to a back pill on the detail screens. */
-enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, Gestures, ShowsWhenEmpty, Animation, Appearance, Background, ActionButtons, DismissWindow, Shizuku, PermissionDot, SystemEvents, EventDetail }
+enum class SettingsRoute { List, SizePosition, DynamicTiles, DynamicTileDetail, Apps, Behaviour, Gestures, ShowsWhenEmpty, Animation, Appearance, Background, ContentColors, ActionButtons, DismissWindow, Shizuku, PermissionDot, SystemEvents, EventDetail }
 
 /**
  * The screen that back navigation returns to. Most detail screens go straight back to the list,
- * but Background and ActionButtons are reached from Appearance, so they step back there first.
+ * but Background, ContentColors and ActionButtons are reached from Appearance, so they step back there first.
  */
 val SettingsRoute.parent: SettingsRoute
     get() = when (this) {
-        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DismissWindow ->
+        SettingsRoute.Background, SettingsRoute.ContentColors, SettingsRoute.ActionButtons,
+        SettingsRoute.DismissWindow ->
             SettingsRoute.Appearance
         SettingsRoute.DynamicTileDetail -> SettingsRoute.DynamicTiles
         SettingsRoute.ShowsWhenEmpty -> SettingsRoute.Behaviour
@@ -211,7 +215,8 @@ val SettingsRoute.parent: SettingsRoute
 val SettingsRoute.depth: Int
     get() = when (this) {
         SettingsRoute.List -> 0
-        SettingsRoute.Background, SettingsRoute.ActionButtons, SettingsRoute.DismissWindow,
+        SettingsRoute.Background, SettingsRoute.ContentColors, SettingsRoute.ActionButtons,
+        SettingsRoute.DismissWindow,
         SettingsRoute.DynamicTileDetail, SettingsRoute.ShowsWhenEmpty, SettingsRoute.PermissionDot,
         SettingsRoute.EventDetail -> 2
         else -> 1

@@ -136,7 +136,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -1904,6 +1908,7 @@ fun IslandPreview(
                 onStartReply = {},
                 onCancelReply = {},
                 onSendReply = {},
+                showPinButton = false,
                 onHeightMeasured = { measured ->
                     measuredInnerHeightDp = measured
                     onHeightMeasured?.invoke(islandHeightFor(measured))
@@ -3053,6 +3058,33 @@ private fun PinnedTag(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The notification header line with the app name and the relative time painted in their own
+ * colours. Visibility and the " • " separator follow [NotificationHeaderResolver.formatHeader];
+ * null when neither part is shown.
+ */
+private fun notificationHeaderText(
+    appName: String?,
+    relativeTime: String?,
+    showAppName: Boolean,
+    showTimestamp: Boolean,
+    appNameColor: Color,
+    timestampColor: Color,
+): AnnotatedString? {
+    val showApp = showAppName && !appName.isNullOrBlank()
+    val showTime = showTimestamp && !relativeTime.isNullOrBlank()
+    if (!showApp && !showTime) return null
+    return buildAnnotatedString {
+        if (showApp) withStyle(SpanStyle(color = appNameColor)) { append(appName) }
+        if (showTime) {
+            withStyle(SpanStyle(color = timestampColor)) {
+                if (showApp) append(" • ")
+                append(relativeTime)
+            }
+        }
+    }
+}
+
 @Composable
 private fun ExpandedContent(
     event: IslandEvent,
@@ -3079,6 +3111,7 @@ private fun ExpandedContent(
     onSendReply: (String) -> Unit,
     onDismiss: () -> Unit = {},
     onPinToggle: () -> Unit = {},
+    showPinButton: Boolean = true,
     onHeightMeasured: ((Int) -> Unit)? = null,
 ) {
     // The music tile has its own expanded layout (album art + playback controls).
@@ -3105,11 +3138,14 @@ private fun ExpandedContent(
     val hotspotCard = event.hotspot
     val ssidTitle = hotspotCard != null && hotspot.ssid != null
     val relativeTime = rememberRelativeTime(event.postTimeMs)
-    val headerText = formatNotificationHeader(
+    val eventColor = event.primaryColor()
+    val headerText = notificationHeaderText(
         appName = event.appName,
         relativeTime = relativeTime,
         showAppName = appearance.showSourceAppName,
         showTimestamp = appearance.showTimestamp,
+        appNameColor = appearance.appNameColor?.resolve(eventColor, eventColor) ?: event.accent,
+        timestampColor = appearance.timestampColor?.resolve(eventColor, eventColor) ?: event.accent,
     )
     val contentAlpha = if (expandProgress >= 1f) 1f else ((expandProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
     val contentWidthModifier = if (targetWidthDp > 36) {
@@ -3145,7 +3181,7 @@ private fun ExpandedContent(
 
         // Pin button
         AnimatedVisibility(
-            visible = !event.pinned,
+            visible = showPinButton && !event.pinned,
             modifier = Modifier.align(Alignment.TopEnd),
             enter = swapEnter,
             exit = swapExit,
@@ -3182,12 +3218,17 @@ private fun ExpandedContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                IconBadge(event = event, badgeSize = 44.dp, iconSize = 26.dp)
+                IconBadge(
+                    event = event,
+                    badgeSize = 44.dp,
+                    iconSize = 26.dp,
+                    defaultContainer = appearance.badgeContainerColor?.resolve(eventColor, eventColor),
+                    defaultGlyph = appearance.badgeContentColor?.resolve(eventColor, eventColor),
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     if (headerText != null) {
                         Text(
                             text = headerText,
-                            color = event.accent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -3196,7 +3237,7 @@ private fun ExpandedContent(
                     }
                     Text(
                         text = if (ssidTitle) hotspot.ssid.orEmpty() else event.label,
-                        color = LocalContentColor.current,
+                        color = appearance.titleColor?.resolve(eventColor, eventColor) ?: LocalContentColor.current,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -5344,17 +5385,22 @@ internal fun AlbumArt(
 private fun albumArtShape(round: Boolean, size: Dp) =
     if (round) CircleShape else RoundedCornerShape(size * 0.24f)
 
+/**
+ * The round app-icon badge. Colour precedence: a tile's chosen container colour wins (a filled disc
+ * with contrasting ink), then a per-event colour override (a faint tinted disc + full-colour glyph),
+ * then "Dynamic color for all events" (a role-coloured disc with its matching "on" ink). Only when
+ * none applies do [defaultContainer] and [defaultGlyph] take effect, falling back to a faint
+ * accent-tinted disc behind a full-accent glyph.
+ */
 @Composable
 internal fun IconBadge(
     event: IslandEvent,
     badgeSize: Dp,
     iconSize: Dp,
     modifier: Modifier = Modifier,
+    defaultContainer: Color? = null,
+    defaultGlyph: Color? = null,
 ) {
-    // A tile's chosen container colour wins: a filled disc with contrasting ink. A per-event colour
-    // override then recolours the default look (a faint tinted disc + full-colour glyph). Otherwise
-    // "Dynamic color for all events" gives a role-coloured badge with its matching "on" ink, and the
-    // plain default is a faint accent-tinted disc behind a full-accent glyph.
     val container = event.iconContainerColor
     val override = event.colorOverride
     val badgeColor: Color
@@ -5382,8 +5428,8 @@ internal fun IconBadge(
         }
 
         else -> {
-            badgeColor = event.accent.copy(alpha = 0.20f)
-            glyphColor = event.accent
+            badgeColor = defaultContainer ?: event.accent.copy(alpha = 0.20f)
+            glyphColor = defaultGlyph ?: event.accent
         }
     }
     Box(

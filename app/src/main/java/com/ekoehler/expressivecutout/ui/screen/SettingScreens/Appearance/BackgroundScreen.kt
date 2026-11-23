@@ -311,6 +311,30 @@ private fun ColorSpecPicker(
                         spec,
                         ::pickDynamic,
                     )
+                    DynamicSwatch(
+                        DynamicRole.ON_PRIMARY,
+                        R.string.cd_color_dynamic_on_primary,
+                        spec,
+                        ::pickDynamic,
+                    )
+                    DynamicSwatch(
+                        DynamicRole.ON_SECONDARY,
+                        R.string.cd_color_dynamic_on_secondary,
+                        spec,
+                        ::pickDynamic,
+                    )
+                    DynamicSwatch(
+                        DynamicRole.ON_TERTIARY,
+                        R.string.cd_color_dynamic_on_tertiary,
+                        spec,
+                        ::pickDynamic,
+                    )
+                    DynamicSwatch(
+                        DynamicRole.ON_SURFACE,
+                        R.string.cd_color_dynamic_on_surface,
+                        spec,
+                        ::pickDynamic,
+                    )
 
                     CustomColorSwatch(
                         selectedColor = customRgb?.let { Color(0xFF000000L or it) },
@@ -339,6 +363,7 @@ private fun ColorSpecPicker(
                     spec is ColorSpec.Dynamic && spec.role == DynamicRole.PRIMARY -> stringResource(R.string.tooltip_dynamic_primary)
                     spec is ColorSpec.Dynamic && spec.role == DynamicRole.SECONDARY -> stringResource(R.string.tooltip_dynamic_secondary)
                     spec is ColorSpec.Dynamic && spec.role == DynamicRole.TERTIARY -> stringResource(R.string.tooltip_dynamic_tertiary)
+                    spec is ColorSpec.Dynamic && spec.role.isOnColor -> stringResource(R.string.tooltip_dynamic_on)
                     spec is ColorSpec.Fixed && (spec.argb and 0xFFFFFFL == 0x000000L) -> stringResource(R.string.tooltip_oled_black)
                     spec is ColorSpec.Fixed && customRgb != null -> stringResource(R.string.tooltip_custom_color)
                     spec is ColorSpec.Fixed -> stringResource(R.string.tooltip_preset_color)
