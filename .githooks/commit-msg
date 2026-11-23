@@ -1,0 +1,14 @@
+#!/bin/sh
+# Rejects commits whose message does not start with "feat:", "fix:" or "chore:".
+first_line=$(head -n1 "$1")
+
+# Git's own generated messages (git merge, git pull, git revert, autosquash) must still go through
+case "$first_line" in
+  Merge*|Revert*|fixup!*|squash!*) exit 0 ;;
+esac
+
+if ! printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|chore): .+'; then
+  echo "Commit aborted: message must start with \"feat:\", \"fix:\" or \"chore:\"." >&2
+  echo "  got: $first_line" >&2
+  exit 1
+fi

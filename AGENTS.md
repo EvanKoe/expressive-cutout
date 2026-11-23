@@ -129,7 +129,9 @@ If a feature seems to need one of these relaxed, stop and say so instead of doin
 - Branch from `dev` and open the PR against `dev`. `main` is protected and used for releases
   only.
 - Don't commit or push unless the human asks. When asked: one feature per commit, subject
-  prefixed `[FEAT]` or `[FIX]`.
+  prefixed `feat:`, `fix:` or `chore:` (lowercase, then a space), e.g.
+  `fix: backBar animation getting cropped`. The `.githooks/commit-msg` hook rejects anything
+  else; enable it once per clone with `git config core.hooksPath .githooks`.
 - PR body is a short bullet list that goes straight to the point:
 
 ```
