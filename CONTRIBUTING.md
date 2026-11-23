@@ -27,27 +27,30 @@ Feel free to add pictures if you want
 
 ## Commit messages
 
-This project follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+Every commit message starts with one of three types, a colon and a space:
 
 ```
-type(scope): short description in the imperative
+type: short description in the imperative
 ```
 
-- **type** is one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` or `revert`.
-- **scope** is optional but encouraged, and is the package the change lives in: `overlay`, `data`, `ui`, `service`, `system`, `notifications`, `events`, `core`, `permissions`. Use the one that carries the change, not every package you touched.
+- **type** is `feat` (a new feature), `fix` (a bug fix) or `chore` (everything else: docs, build, CI, refactors, assets).
 - **description** starts lowercase, uses the imperative ("add", not "added" or "adds") and has no full stop.
 
 ```
-feat(overlay): park a displaced event in a satellite bubble
-fix(events): detect unlock transition from the real device lock state
-docs: document the commit message format
+feat: park a displaced event in a satellite bubble
+fix: detect unlock transition from the real device lock state
+chore: document the commit message format
+```
+
+A `commit-msg` hook in `.githooks/` rejects any other format. Enable it once after cloning:
+
+```
+git config core.hooksPath .githooks
 ```
 
 One feature or one fix per commit. If you can't describe the change in a single line, that is usually a sign it should be more than one commit.
 
 A body is welcome under a blank line when the *why* isn't obvious from the diff — a platform quirk you worked around, a value that looks arbitrary but isn't, an approach you rejected. Wrap it at ~72 characters. The same rule as the code comments applies: don't restate what the diff already says.
-
-Breaking changes take a `!` before the colon (`feat(data)!: ...`) and explain the break in the body.
 
 > Older commits use a `[FEAT]` / `[FIX]` prefix. That was the convention before this section existed — don't copy it, and don't rewrite history to match.
 
