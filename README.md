@@ -5,6 +5,8 @@
 
 # Expressive Cutout
 
+**English** | [简体中文](README.zh-CN.md)
+
 **An offline dynamic island that follows Google's Material Expressive design.**
 
 Expressive Cutout turns the camera cutout on your Android phone into a small, living
