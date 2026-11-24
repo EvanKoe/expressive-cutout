@@ -45,8 +45,8 @@ private const val ChangelogAsset = "changelog.json"
 
 /**
  * One entry in the release history. The bullet text lives in [ChangelogAsset] rather than in
- * strings.xml so a release can be described in one place when it is cut; only the section headers
- * are localised.
+ * strings.xml so each release is described in one place. A corresponding Simplified Chinese
+ * asset preserves the same versions and section structure.
  */
 internal data class Release(
     val version: String,
@@ -61,7 +61,9 @@ internal data class Release(
  * typo while filling the file in only costs the changelog its content.
  */
 internal fun loadReleases(context: Context): List<Release> = runCatching {
-    val text = context.assets.open(ChangelogAsset).bufferedReader().use { it.readText() }
+    val asset = if (context.resources.configuration.locales[0].language == "zh")
+        "changelog-zh-Hans.json" else ChangelogAsset
+    val text = context.assets.open(asset).bufferedReader().use { it.readText() }
     val entries = JSONArray(text)
     List(entries.length()) { index ->
         val entry = entries.getJSONObject(index)

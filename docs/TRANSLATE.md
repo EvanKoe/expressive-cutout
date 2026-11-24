@@ -51,3 +51,39 @@ Those strings `%1$d%%` and `%1$s` look like a cat walked on your keyboard, but t
 - `%1$` to take the first argument (can be `%2$`, `%3$`...)
 - `s` for **s**tring. It represents the type of variable (`d` for decimal integer...)
 In this example, the first argument is `Hello`. So it will display `Reply sent: Hello`.
+
+## Script-specific locales and complete coverage
+
+Android uses `b+` qualifiers for script-specific BCP-47 resource folders. For example,
+Simplified Chinese is `values-b+zh+Hans`, paired with `zh-Hans` in `locales_config.xml`.
+Its picker name is explicitly “简体中文”, rather than the ambiguous language-only “中文”.
+
+In addition to `strings.xml`, translate `additional_strings.xml` and `permission_docs.xml`.
+These hold formerly hardcoded event subtitles, permission explanations, accessibility labels,
+and searchable icon names. Keep persisted icon IDs and manifest permission names unchanged.
+French and Turkish retain the previous English fallback for these extracted strings until
+community translations are available. The Simplified Chinese release history is maintained in
+`app/src/main/assets/changelog-zh-Hans.json`, with the same versions and list structure as
+`changelog.json`.
+
+Run the dependency-free checks from the repository root:
+
+```sh
+python3 tools/check_zh_translation.py
+python3 tools/check_utf8_and_apk.py
+```
+
+To verify that packaging preserved every Chinese string, including Android escapes and embedded
+newlines, compare a built APK's compiled resource table against the sources:
+
+```sh
+python3 tools/check_utf8_and_apk.py --apk /path/to/app.apk \
+  --aapt2 "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+```
+
+The checks enforce UTF-8 without a BOM or replacement characters, consistent XML encoding,
+complete resource coverage, matching format placeholders, stable icon keys, and release-history
+structure. They do not replace native-language review or UI testing on different devices.
+
+For a compile-only validation, the same comparison accepts AAPT2's linked `.ap_` file via
+`--resources /path/to/linked-resources-binary-format-debug.ap_`; it skips APK-only asset checks.

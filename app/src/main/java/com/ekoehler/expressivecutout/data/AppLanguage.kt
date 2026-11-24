@@ -9,7 +9,7 @@ import java.util.Locale
 data class AppLanguage(val tag: String, val locale: Locale) {
     /** The language's own name for itself — "English", "Türkçe" — as shown in the picker. */
     val displayName: String
-        get() = locale.getDisplayLanguage(locale)
+        get() = if (tag == "zh-Hans") "简体中文" else locale.getDisplayLanguage(locale)
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
 }
 
@@ -40,8 +40,13 @@ object AppLanguages {
      * Anything we don't ship strings for falls back to [DEFAULT_TAG].
      */
     fun normalise(context: Context, tag: String): String {
+        return normaliseTag(tag, supported(context).map { it.tag })
+    }
+
+    /** Pure matching rule, also covered by JVM tests for Chinese script and regional tags. */
+    internal fun normaliseTag(tag: String, supportedTags: List<String>): String {
         val language = Locale.forLanguageTag(tag).language.ifEmpty { return DEFAULT_TAG }
-        return supported(context).firstOrNull { it.locale.language == language }?.tag ?: DEFAULT_TAG
+        return supportedTags.firstOrNull { Locale.forLanguageTag(it).language == language } ?: DEFAULT_TAG
     }
 
     /** Reads the `<locale>` entries out of the locale config, in file order. */

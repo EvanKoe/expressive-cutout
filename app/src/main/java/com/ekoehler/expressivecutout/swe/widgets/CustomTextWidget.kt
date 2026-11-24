@@ -71,7 +71,7 @@ import kotlin.with
  */
 data class CustomTextWidget(
     override val id: String = SweWidgets.newId(),
-    val body: String = DEFAULT_BODY,
+    val body: String = defaultBody,
     val textColor: CutoutColor = DEFAULT_TEXT_COLOR,
     val fontWeight: Int = DEFAULT_WEIGHT,
     val fontWidth: Float = DEFAULT_WIDTH,
@@ -249,7 +249,8 @@ data class CustomTextWidget(
         private const val TAG = "customText"
 
         /** The text a new widget shows, and the fallback when stored JSON has no `"body"`. */
-        private const val DEFAULT_BODY: String = "Hello world!"
+        private val defaultBody: String
+            get() = if (java.util.Locale.getDefault().language == "zh") "你好，世界！" else "Hello world!"
         private val DEFAULT_TEXT_COLOR: CutoutColor = CutoutColor.Solid(0xFFFFFFFF)
         private const val DEFAULT_WEIGHT: Int = 400
         private const val DEFAULT_WIDTH: Float = 100f
@@ -265,7 +266,7 @@ data class CustomTextWidget(
 
         override fun fromJson(id: String, obj: JSONObject): SweWidget = CustomTextWidget(
             id = id,
-            body = obj.optString("body", DEFAULT_BODY),
+            body = obj.optString("body", defaultBody),
             textColor = obj.color("textColor") ?: DEFAULT_TEXT_COLOR,
             fontWeight = obj.optInt("fontWeight", DEFAULT_WEIGHT),
             fontWidth = obj.optDouble("fontWidth", DEFAULT_WIDTH.toDouble()).toFloat(),

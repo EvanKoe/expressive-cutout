@@ -34,8 +34,8 @@ object TestCaller {
     /** A caller cycled onto the fake call; [number] is null for an unknown caller shown by number. */
     private data class Caller(val label: String, val number: String?)
 
-    private val callers = listOf(
-        Caller("Mom", "+1 (555) 867-5309"),
+    private fun callers(context: Context) = listOf(
+        Caller(context.getString(R.string.test_caller_mom), "+1 (555) 867-5309"),
         Caller("Alexandra Wellington-Montgomery", "+1 (555) 013-2288"),
         Caller("+1 (555) 013-2288", null),
     )
@@ -50,6 +50,7 @@ object TestCaller {
             end()
             return
         }
+        val callers = callers(context)
         val caller = callers[next % callers.size]
         next++
         when (kind) {

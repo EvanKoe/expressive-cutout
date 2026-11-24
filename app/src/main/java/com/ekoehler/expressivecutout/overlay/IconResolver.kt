@@ -545,14 +545,14 @@ class IconResolver(private val context: Context) {
             return 100
         }
         /** Lower-cased substrings that mark a call's end or decline action. */
-        val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject")
+        val HANG_UP_KEYWORDS = listOf("hang up", "hangup", "hang-up", "end call", "decline", "reject", "挂断", "拒接", "拒绝", "结束通话")
 
         /**
          * Lower-cased substrings marking an incoming call's answer/accept action, so the tile can
          * render it as the take-call button (mirrors HANG_UP_KEYWORDS; English covers the common
          * case).
          */
-        val ANSWER_KEYWORDS = listOf("answer", "accept", "pick up", "pickup", "take call")
+        val ANSWER_KEYWORDS = listOf("answer", "accept", "pick up", "pickup", "take call", "接听", "接受")
 
         /**
          * Lower-cased substrings marking a timer's reset/terminate action, so it can be tinted
