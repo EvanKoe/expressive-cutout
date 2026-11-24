@@ -50,4 +50,14 @@ object AppLocale {
         context.getSystemService(LocaleManager::class.java)?.applicationLocales =
             LocaleList.forLanguageTags(tag)
     }
+
+    /** Explicitly localizes long-lived service/overlay contexts without changing platform state. */
+    internal fun localizedContext(base: Context, tag: String = LanguagePreferences(base).tag()): Context {
+        val configuration = Configuration(base.resources.configuration).apply {
+            val locale = Locale.forLanguageTag(tag)
+            setLocale(locale)
+            setLayoutDirection(locale)
+        }
+        return base.createConfigurationContext(configuration)
+    }
 }

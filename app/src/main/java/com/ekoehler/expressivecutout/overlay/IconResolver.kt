@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.overlay
 
+import com.ekoehler.expressivecutout.system.AppLocale
 import android.content.Context
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.net.Uri
@@ -155,7 +156,7 @@ class IconResolver(private val context: Context) {
             // Expanded shows the notification's title and text; the icon conveys the app. A
             // notification with no title promotes its text to the primary line rather than
             // leaving the island to name the app it came from.
-            label = title ?: text ?: context.getString(R.string.island_notification),
+            label = title ?: text ?: AppLocale.localizedContext(context).getString(R.string.island_notification),
             detail = if (title != null) text else null,
             appName = appName,
             postTimeMs = postTimeMs,
@@ -236,14 +237,14 @@ class IconResolver(private val context: Context) {
         val title = signal.title?.takeIf { it.isNotBlank() }
         val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
             ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
-            ?: context.getString(DynamicTile.MUSIC.labelRes)
+            ?: AppLocale.localizedContext(context).getString(DynamicTile.MUSIC.labelRes)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.MUSIC.defaultIcon),
             // Track title on the primary line, artist on the secondary line — both from the media
             // session itself, so an unnamed track falls back to "Music" rather than a package id.
-            label = title ?: context.getString(DynamicTile.MUSIC.labelRes),
+            label = title ?: AppLocale.localizedContext(context).getString(DynamicTile.MUSIC.labelRes),
             detail = signal.artist?.takeIf { it.isNotBlank() },
             appName = appName,
             postTimeMs = postTimeMs,
@@ -296,7 +297,7 @@ class IconResolver(private val context: Context) {
         // person avatar reads as "a contact" (the Google-dialer default look) better than a handset.
         val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
             ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
-            ?: context.getString(DynamicTile.PHONE.labelRes)
+            ?: AppLocale.localizedContext(context).getString(DynamicTile.PHONE.labelRes)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
@@ -362,13 +363,13 @@ class IconResolver(private val context: Context) {
     ): IslandEvent {
         val appName = signal.packageName.let { NotificationHeaderResolver.resolveAppName(context, it) }
             ?: NotificationHeaderResolver.resolveAppName(context, context.packageName)
-            ?: context.getString(DynamicTile.TIMER.labelRes)
+            ?: AppLocale.localizedContext(context).getString(DynamicTile.TIMER.labelRes)
         val postTimeMs = NotificationHeaderResolver.resolvePostTimeMs(0L)
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = IslandIcon.Vector(DynamicTile.TIMER.defaultIcon),
             label = signal.label?.takeIf { it.isNotBlank() }
-                ?: context.getString(DynamicTile.TIMER.labelRes),
+                ?: AppLocale.localizedContext(context).getString(DynamicTile.TIMER.labelRes),
             appName = appName,
             postTimeMs = postTimeMs,
             accent = Color(DynamicTile.TIMER.accent),
@@ -459,7 +460,7 @@ class IconResolver(private val context: Context) {
         return IslandEvent(
             id = idGenerator.incrementAndGet(),
             icon = icon,
-            label = payload.title ?: context.getString(type.labelRes),
+            label = payload.title ?: AppLocale.localizedContext(context).getString(type.labelRes),
             detail = payload.subtitle,
             secondaryLines = payload.secondaryLines,
             actionIntentAction = payload.actionIntentAction,
