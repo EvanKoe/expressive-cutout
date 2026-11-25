@@ -37,12 +37,15 @@ data class AppearanceSettings(
     val strokeOpacity: Float = DEFAULT_STROKE_OPACITY,
     val strokeColor: CutoutColor = DEFAULT_STROKE_COLOR,
     val textColor: CutoutColor? = DEFAULT_TEXT_COLOR,
+    val badgeContainerColor: CutoutColor? = null,
+    val badgeContentColor: CutoutColor? = null,
+    val appNameColor: CutoutColor? = null,
+    val timestampColor: CutoutColor? = null,
+    val titleColor: CutoutColor? = null,
     val showSourceAppName: Boolean = DEFAULT_SHOW_SOURCE_APP_NAME,
     val showTimestamp: Boolean = DEFAULT_SHOW_TIMESTAMP,
     val showFullNotificationText: Boolean = DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
     val preferDynamicIconColor: Boolean = DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
-    val notificationColorMode: NotificationColorMode = DEFAULT_NOTIFICATION_COLOR_MODE,
-    val notificationCustomColor: CutoutColor? = null,
     val backgroundNormal: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val backgroundExpanded: CutoutFill = DEFAULT_BACKGROUND_FILL,
     val sendButtonColor: CutoutColor? = DEFAULT_SEND_BUTTON_COLOR,
@@ -75,7 +78,6 @@ data class AppearanceSettings(
         const val DEFAULT_SHOW_TIMESTAMP = true
         const val DEFAULT_SHOW_FULL_NOTIFICATION_TEXT = true
         const val DEFAULT_PREFER_DYNAMIC_ICON_COLOR = false
-        val DEFAULT_NOTIFICATION_COLOR_MODE = NotificationColorMode.MATERIAL
 
         /** Match the pill's historical look: near-black fill, white stroke. */
         val DEFAULT_BACKGROUND_FILL: CutoutFill = CutoutFill.Solid(ColorSpec.Fixed(0xFF0A0A0A))
@@ -128,13 +130,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             strokeOpacity = (prefs[STROKE_OPACITY] ?: AppearanceSettings.DEFAULT_STROKE_OPACITY).coerceIn(0f, 1f),
             strokeColor = CutoutColor.deserialize(prefs[STROKE_COLOR]) ?: AppearanceSettings.DEFAULT_STROKE_COLOR,
             textColor = CutoutColor.deserialize(prefs[TEXT_COLOR]),
+            badgeContainerColor = CutoutColor.deserialize(prefs[BADGE_CONTAINER_COLOR]),
+            badgeContentColor = CutoutColor.deserialize(prefs[BADGE_CONTENT_COLOR]),
+            appNameColor = CutoutColor.deserialize(prefs[APP_NAME_COLOR]),
+            timestampColor = CutoutColor.deserialize(prefs[TIMESTAMP_COLOR]),
+            titleColor = CutoutColor.deserialize(prefs[TITLE_COLOR]),
             showSourceAppName = prefs[SHOW_SOURCE_APP_NAME] ?: AppearanceSettings.DEFAULT_SHOW_SOURCE_APP_NAME,
             showTimestamp = prefs[SHOW_TIMESTAMP] ?: AppearanceSettings.DEFAULT_SHOW_TIMESTAMP,
             showFullNotificationText = prefs[SHOW_FULL_NOTIFICATION_TEXT] ?: AppearanceSettings.DEFAULT_SHOW_FULL_NOTIFICATION_TEXT,
             preferDynamicIconColor = prefs[PREFER_DYNAMIC_ICON_COLOR] ?: AppearanceSettings.DEFAULT_PREFER_DYNAMIC_ICON_COLOR,
-            notificationColorMode = NotificationColorMode.deserialize(prefs[NOTIFICATION_COLOR_MODE])
-                ?: AppearanceSettings.DEFAULT_NOTIFICATION_COLOR_MODE,
-            notificationCustomColor = CutoutColor.deserialize(prefs[NOTIFICATION_CUSTOM_COLOR]),
             // Fall back to the legacy single background colour so existing installs migrate into
             // both states, then to the built-in default.
             backgroundNormal = CutoutFill.deserialize(prefs[BACKGROUND_NORMAL] ?: prefs[BACKGROUND_COLOR])
@@ -179,12 +183,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
             put("strokeOpacity", s.strokeOpacity.toDouble())
             put("strokeColor", s.strokeColor.serialize())
             put("textColor", s.textColor?.serialize() ?: JSONObject.NULL)
+            put("badgeContainerColor", s.badgeContainerColor?.serialize() ?: JSONObject.NULL)
+            put("badgeContentColor", s.badgeContentColor?.serialize() ?: JSONObject.NULL)
+            put("appNameColor", s.appNameColor?.serialize() ?: JSONObject.NULL)
+            put("timestampColor", s.timestampColor?.serialize() ?: JSONObject.NULL)
+            put("titleColor", s.titleColor?.serialize() ?: JSONObject.NULL)
             put("showSourceAppName", s.showSourceAppName)
             put("showTimestamp", s.showTimestamp)
             put("showFullNotificationText", s.showFullNotificationText)
             put("preferDynamicIconColor", s.preferDynamicIconColor)
-            put("notificationColorMode", s.notificationColorMode.name)
-            put("notificationCustomColor", s.notificationCustomColor?.serialize() ?: JSONObject.NULL)
             put("backgroundNormal", s.backgroundNormal.serialize())
             put("backgroundExpanded", s.backgroundExpanded.serialize())
             put("sendButtonColor", s.sendButtonColor?.serialize() ?: JSONObject.NULL)
@@ -225,15 +232,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
                 CutoutColor.deserialize(obj.optString("strokeColor"))?.let { c -> it[STROKE_COLOR] = c.serialize() }
             }
             it.applyNullableColor(obj, "textColor", TEXT_COLOR)
+            it.applyNullableColor(obj, "badgeContainerColor", BADGE_CONTAINER_COLOR)
+            it.applyNullableColor(obj, "badgeContentColor", BADGE_CONTENT_COLOR)
+            it.applyNullableColor(obj, "appNameColor", APP_NAME_COLOR)
+            it.applyNullableColor(obj, "timestampColor", TIMESTAMP_COLOR)
+            it.applyNullableColor(obj, "titleColor", TITLE_COLOR)
             if (obj.has("showSourceAppName")) it[SHOW_SOURCE_APP_NAME] = obj.getBoolean("showSourceAppName")
             if (obj.has("showTimestamp")) it[SHOW_TIMESTAMP] = obj.getBoolean("showTimestamp")
             if (obj.has("showFullNotificationText")) it[SHOW_FULL_NOTIFICATION_TEXT] = obj.getBoolean("showFullNotificationText")
             if (obj.has("preferDynamicIconColor")) it[PREFER_DYNAMIC_ICON_COLOR] = obj.getBoolean("preferDynamicIconColor")
-            if (obj.has("notificationColorMode")) {
-                NotificationColorMode.deserialize(obj.optString("notificationColorMode"))
-                    ?.let { m -> it[NOTIFICATION_COLOR_MODE] = m.name }
-            }
-            it.applyNullableColor(obj, "notificationCustomColor", NOTIFICATION_CUSTOM_COLOR)
             if (obj.has("backgroundNormal") && !obj.isNull("backgroundNormal")) {
                 CutoutFill.deserialize(obj.optString("backgroundNormal"))?.let { f -> it[BACKGROUND_NORMAL] = f.serialize() }
             }
@@ -334,6 +341,28 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         if (color == null) it.remove(TEXT_COLOR) else it[TEXT_COLOR] = color.serialize()
     }
 
+    /** A null [color] clears the override, restoring the automatic badge container colour. */
+    suspend fun setBadgeContainerColor(color: CutoutColor?) = writeNullableColor(BADGE_CONTAINER_COLOR, color)
+
+    /** A null [color] clears the override, restoring the automatic badge content colour. */
+    suspend fun setBadgeContentColor(color: CutoutColor?) = writeNullableColor(BADGE_CONTENT_COLOR, color)
+
+    /** A null [color] clears the override, so the app name follows the general text colour. */
+    suspend fun setAppNameColor(color: CutoutColor?) = writeNullableColor(APP_NAME_COLOR, color)
+
+    /** A null [color] clears the override, so the timestamp follows the general text colour. */
+    suspend fun setTimestampColor(color: CutoutColor?) = writeNullableColor(TIMESTAMP_COLOR, color)
+
+    /** A null [color] clears the override, so the title follows the general text colour. */
+    suspend fun setTitleColor(color: CutoutColor?) = writeNullableColor(TITLE_COLOR, color)
+
+    /** Stores [color] under [key], or removes the key when [color] is null. */
+    private suspend fun writeNullableColor(key: Preferences.Key<String>, color: CutoutColor?) {
+        context.appearanceDataStore.edit {
+            if (color == null) it.remove(key) else it[key] = color.serialize()
+        }
+    }
+
     suspend fun setShowSourceAppName(enabled: Boolean) = context.appearanceDataStore.edit {
         it[SHOW_SOURCE_APP_NAME] = enabled
     }
@@ -348,14 +377,6 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
 
     suspend fun setPreferDynamicIconColor(enabled: Boolean) = context.appearanceDataStore.edit {
         it[PREFER_DYNAMIC_ICON_COLOR] = enabled
-    }
-
-    suspend fun setNotificationColorMode(mode: NotificationColorMode) = context.appearanceDataStore.edit {
-        it[NOTIFICATION_COLOR_MODE] = mode.name
-    }
-
-    suspend fun setNotificationCustomColor(color: CutoutColor?) = context.appearanceDataStore.edit {
-        if (color == null) it.remove(NOTIFICATION_CUSTOM_COLOR) else it[NOTIFICATION_CUSTOM_COLOR] = color.serialize()
     }
 
     suspend fun setBackgroundNormal(fill: CutoutFill) = context.appearanceDataStore.edit {
@@ -468,12 +489,15 @@ class AppearancePreferences(private val context: Context) : JsonSerializable {
         val STROKE_OPACITY = floatPreferencesKey("stroke_opacity")
         val STROKE_COLOR = stringPreferencesKey("stroke_color")
         val TEXT_COLOR = stringPreferencesKey("text_color")
+        val BADGE_CONTAINER_COLOR = stringPreferencesKey("badge_container_color")
+        val BADGE_CONTENT_COLOR = stringPreferencesKey("badge_content_color")
+        val APP_NAME_COLOR = stringPreferencesKey("app_name_color")
+        val TIMESTAMP_COLOR = stringPreferencesKey("timestamp_color")
+        val TITLE_COLOR = stringPreferencesKey("title_color")
         val SHOW_SOURCE_APP_NAME = booleanPreferencesKey("show_source_app_name")
         val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
         val SHOW_FULL_NOTIFICATION_TEXT = booleanPreferencesKey("show_full_notification_text")
         val PREFER_DYNAMIC_ICON_COLOR = booleanPreferencesKey("prefer_dynamic_icon_color")
-        val NOTIFICATION_COLOR_MODE = stringPreferencesKey("notification_color_mode")
-        val NOTIFICATION_CUSTOM_COLOR = stringPreferencesKey("notification_custom_color")
         /**
          * Legacy single-colour key, still read to migrate existing installs into the two new keys.
          */

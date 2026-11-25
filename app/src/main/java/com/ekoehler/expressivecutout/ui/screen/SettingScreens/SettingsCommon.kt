@@ -613,3 +613,46 @@ internal fun EmptyIconThumbnail(
         }
     }
 }
+
+/** Accent used by the preview events, matching the accent shown across the appearance screens. */
+internal val PREVIEW_ACCENT = Color(0xFF60A5FA)
+
+/** Top inset used by the previews: the island's own horizontal padding, not a camera band. */
+internal const val PREVIEW_TOP_MARGIN_DP = 18
+
+/**
+ * The expanded island at its configured width share, but of the card's own width rather than the
+ * screen's, centred so it never runs past the content padding.
+ */
+@Composable
+internal fun ExpandedCutoutPreview(
+    event: IslandEvent,
+    layout: IslandDimensions,
+    appearance: AppearanceSettings,
+    showActions: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val previewWidth = maxWidth * (layout.widthPercent / 100f)
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            IslandPreview(
+                event = event,
+                width = previewWidth,
+                heightDp = layout.heightDp,
+                cornerTopLeftDp = layout.cornerTopLeftDp,
+                cornerTopRightDp = layout.cornerTopRightDp,
+                cornerBottomLeftDp = layout.cornerBottomLeftDp,
+                cornerBottomRightDp = layout.cornerBottomRightDp,
+                topMarginDp = PREVIEW_TOP_MARGIN_DP,
+                expanded = true,
+                appearance = appearance,
+                showActions = showActions,
+                collapsedHeightDp = 12,
+                onHeightMeasured = {},
+            )
+        }
+    }
+}

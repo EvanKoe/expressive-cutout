@@ -206,6 +206,10 @@ internal fun ColorScheme.forRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> primary
     DynamicRole.SECONDARY -> secondary
     DynamicRole.TERTIARY -> tertiary
+    DynamicRole.ON_PRIMARY -> onPrimary
+    DynamicRole.ON_SECONDARY -> onSecondary
+    DynamicRole.ON_TERTIARY -> onTertiary
+    DynamicRole.ON_SURFACE -> onSurface
     // A _DARK tier reads the same slot; it is the scheme it was looked up in that differs.
     DynamicRole.SURFACE_CONTAINER_LOWEST,
     DynamicRole.SURFACE_CONTAINER_LOWEST_DARK -> surfaceContainerLowest
@@ -224,6 +228,11 @@ internal fun ColorScheme.onForRole(role: DynamicRole): Color = when (role) {
     DynamicRole.PRIMARY -> onPrimary
     DynamicRole.SECONDARY -> onSecondary
     DynamicRole.TERTIARY -> onTertiary
+    // An ink role as a fill takes the colour it is normally drawn on.
+    DynamicRole.ON_PRIMARY -> primary
+    DynamicRole.ON_SECONDARY -> secondary
+    DynamicRole.ON_TERTIARY -> tertiary
+    DynamicRole.ON_SURFACE -> surface
     // Every surface-container tier shares one ink, as Material intends.
     DynamicRole.SURFACE_CONTAINER_LOWEST,
     DynamicRole.SURFACE_CONTAINER_LOW,

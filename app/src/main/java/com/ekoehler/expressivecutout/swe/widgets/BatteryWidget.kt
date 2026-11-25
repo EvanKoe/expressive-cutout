@@ -407,10 +407,10 @@ data class BatteryWidget(
             trackColor = obj.color("trackColor"),
         )
 
-        /** The accents plus the dark-scheme surface tiers, offered for the empty container. */
+        /** The accents, the ink colours and the dark-scheme surface tiers, offered for the empty container. */
         private val TRACK_ROLES =
             listOf(DynamicRole.PRIMARY, DynamicRole.SECONDARY, DynamicRole.TERTIARY) +
-                DynamicRole.entries.filter { it.forcesDarkScheme }
+                DynamicRole.entries.filter { it.isOnColor || it.forcesDarkScheme }
 
         private const val TAG = "battery"
         private const val TYPE = "type"

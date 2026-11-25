@@ -232,6 +232,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             onOpenAnimation = { settingsRoute = SettingsRoute.Animation },
                             onOpenAppearance = { settingsRoute = SettingsRoute.Appearance },
                             onOpenBackground = { settingsRoute = SettingsRoute.Background },
+                            onOpenContentColors = { settingsRoute = SettingsRoute.ContentColors },
                             onOpenActionButtons = { settingsRoute = SettingsRoute.ActionButtons },
                             onOpenDismissWindow = { settingsRoute = SettingsRoute.DismissWindow },
                             onOpenShizuku = { settingsRoute = SettingsRoute.Shizuku },
@@ -337,6 +338,7 @@ fun MainScreen(viewModel: AppViewModel = viewModel()) {
                             SettingsRoute.Animation -> stringResource(R.string.animation_title)
                             SettingsRoute.Appearance -> stringResource(R.string.appearance_section_title)
                             SettingsRoute.Background -> stringResource(R.string.appearance_background_color)
+                            SettingsRoute.ContentColors -> stringResource(R.string.content_colors_title)
                             SettingsRoute.ActionButtons -> stringResource(R.string.action_buttons_title)
                             SettingsRoute.DismissWindow -> stringResource(R.string.appearance_window_dismiss_title)
                             SettingsRoute.Shizuku -> stringResource(R.string.shizuku_options_title)

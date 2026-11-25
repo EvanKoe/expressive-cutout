@@ -22,7 +22,6 @@ import com.ekoehler.expressivecutout.data.AppPreferences
 import com.ekoehler.expressivecutout.data.AppearancePreferences
 import com.ekoehler.expressivecutout.data.AppearanceSettings
 import com.ekoehler.expressivecutout.data.ReplyInputStyle
-import com.ekoehler.expressivecutout.data.NotificationColorMode
 import com.ekoehler.expressivecutout.data.SentAlignment
 import com.ekoehler.expressivecutout.data.BehaviourPreferences
 import com.ekoehler.expressivecutout.data.BehaviourSettings
@@ -1174,14 +1173,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appearancePreferences.setPreferDynamicIconColor(enabled)
     }
 
-    fun setNotificationColorMode(mode: NotificationColorMode) = viewModelScope.launch {
-        appearancePreferences.setNotificationColorMode(mode)
-    }
-
-    fun setNotificationCustomColor(color: CutoutColor?) = viewModelScope.launch {
-        appearancePreferences.setNotificationCustomColor(color)
-    }
-
     fun setStrokeWidth(widthDp: Int) = viewModelScope.launch {
         appearancePreferences.setStrokeWidth(widthDp)
     }
@@ -1196,6 +1187,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTextColor(color: CutoutColor?) = viewModelScope.launch {
         appearancePreferences.setTextColor(color)
+    }
+
+    fun setBadgeContainerColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setBadgeContainerColor(color)
+    }
+
+    fun setBadgeContentColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setBadgeContentColor(color)
+    }
+
+    fun setAppNameColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setAppNameColor(color)
+    }
+
+    fun setTimestampColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTimestampColor(color)
+    }
+
+    fun setTitleColor(color: CutoutColor?) = viewModelScope.launch {
+        appearancePreferences.setTitleColor(color)
     }
 
     fun setBackgroundNormal(fill: CutoutFill) = viewModelScope.launch {

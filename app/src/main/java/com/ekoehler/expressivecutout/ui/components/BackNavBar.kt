@@ -91,18 +91,22 @@ fun BackNavBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val backContainerColor: Color = if (supportsBackdropBlur()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+            val backContentColor: Color = if (supportsBackdropBlur()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            val titleContentColor: Color = if (supportsBackdropBlur()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary
+
             // Back arrow
             Box(
                 modifier = Modifier
                     .size(width = arrowWidth, height = ARROW_SIZE)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(backContainerColor),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(R.string.back),
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = backContentColor,
                 )
             }
 
@@ -110,7 +114,7 @@ fun BackNavBar(
             Text(
                 text = title,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = titleContentColor,
                 maxLines = 1,
                 // Only the title animates its width: on the whole Row it re-animated the pressed arrow and clipped it
                 modifier = Modifier
