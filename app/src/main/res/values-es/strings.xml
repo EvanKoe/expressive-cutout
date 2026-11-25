@@ -229,4 +229,5 @@
     <string name="phone_show_actions_desc">Muestra los botones de la llamada, como Colgar.</string>
     <string name="phone_button_labels_title">Etiquetas de botones</string>
     <string name="phone_button_labels_desc">Escribe Contestar y Colgar junto a los íconos en los botones de ancho completo de llamada entrante. Si está desactivado, muestra solo los íconos.</string>
-</resources>
+    <string name="phone_expanded_incoming_title">Diseño ampliado para las llamadas entrantes</string>
+    <string name="phone_expanded_incoming_desc">Mostrar una llamada en
