@@ -606,6 +606,11 @@
     <string name="empty_info_battery_pct_sign" formatted="false">Afficher le symbole %</string>
     <string name="empty_info_battery_pct_sign_desc" formatted="false">Ajoute un % après le niveau de batterie</string>
     <string name="empty_info_battery_pct_color">Couleur du pourcentage</string>
+    <string name="empty_info_battery_look">Style</string>
+    <string name="empty_info_battery_look_pill">Pilule</string>
+    <string name="empty_info_battery_look_circle">Cercle</string>
+    <string name="empty_info_battery_pct_show">Afficher le pourcentage</string>
+    <string name="empty_info_battery_pct_show_desc">Affiche le niveau de batterie dans le cercle</string>
     <string name="shows_when_empty_click_none">Aucune action</string>
     <string name="shows_when_empty_click_open_app">Ouvrir une application</string>
     <string name="shows_when_empty_click_open_center">Raccourcis</string>

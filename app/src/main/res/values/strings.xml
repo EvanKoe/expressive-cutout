@@ -626,6 +626,11 @@
     <string name="empty_info_battery_pct_sign" formatted="false">Show % sign</string>
     <string name="empty_info_battery_pct_sign_desc" formatted="false">Add a % after the battery level</string>
     <string name="empty_info_battery_pct_color">Percentage color</string>
+    <string name="empty_info_battery_look">Style</string>
+    <string name="empty_info_battery_look_pill">Pill</string>
+    <string name="empty_info_battery_look_circle">Circle</string>
+    <string name="empty_info_battery_pct_show">Show percentage</string>
+    <string name="empty_info_battery_pct_show_desc">Show the battery level inside the circle</string>
     <string name="shows_when_empty_click_none">None</string>
     <string name="shows_when_empty_click_open_app">Open app</string>
     <string name="shows_when_empty_click_open_center">Shortcuts</string>

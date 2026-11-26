@@ -27,6 +27,9 @@ enum class UnreadShape { STAR, PILL, NONE }
 /** Where the battery percentage is drawn relative to the battery glyph. */
 enum class BatteryPercentage { NEXT_TO, INSIDE, NONE }
 
+/** How the battery widget is drawn: as the classic pill glyph or as a progress ring. */
+enum class BatteryLook { PILL, CIRCLE }
+
 /**
  * The widgets on the resting pill, [left] and [right] of the camera hole, each listed in the order
  * they appear on screen from left to right.

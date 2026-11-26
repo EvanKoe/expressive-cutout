@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,14 +31,18 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.BatteryLook
 import com.ekoehler.expressivecutout.data.BatteryPercentage
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.DynamicRole
@@ -67,9 +72,13 @@ import com.ekoehler.expressivecutout.swe.robotoFlexScaleX
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-/** A battery glyph with its percentage inside, beside it (on [percentageSide]) or hidden. */
+/**
+ * The battery level, drawn per [look] as a battery glyph (percentage inside, beside it on
+ * [percentageSide] or hidden) or as a progress ring with the percentage centred or hidden.
+ */
 data class BatteryWidget(
     override val id: String = SweWidgets.newId(),
+    val look: BatteryLook = BatteryLook.PILL,
     val color: CutoutColor? = null,
     val percentage: BatteryPercentage = BatteryPercentage.INSIDE,
     val percentageSide: InfoSide = InfoSide.RIGHT,
@@ -80,12 +89,15 @@ data class BatteryWidget(
     val percentSizePercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
     val heightPercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
     val trackColor: CutoutColor? = null,
+    val circleSizePercent: Int = ClockWidget.DEFAULT_SIZE_PERCENT,
+    val circleStrokePercent: Int = DEFAULT_CIRCLE_STROKE_PERCENT,
 ) : SweWidget {
     override val type: SweWidgetType get() = Companion
 
     override fun toJson(): JSONObject = JSONObject().apply {
         put(TYPE, TAG)
         put(ID, id)
+        put("look", look.name)
         putColor("color", color)
         put("percentage", percentage.name)
         put("percentageSide", percentageSide.name)
@@ -96,12 +108,15 @@ data class BatteryWidget(
         put("percentSizePercent", percentSizePercent)
         put("heightPercent", heightPercent)
         putColor("trackColor", trackColor)
+        put("circleSizePercent", circleSizePercent)
+        put("circleStrokePercent", circleStrokePercent)
     }
 
     override fun isVisible(data: SweData): Boolean = data.battery != null
 
     /** The width the battery takes, including its percentage text when it sits beside the body. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float {
+        if (look == BatteryLook.CIRCLE) return circleDiameterDp(heightDp)
         val inside = percentage == BatteryPercentage.INSIDE
         val body = heightDp * if (inside) INSIDE_BODY_WIDTH_FRACTION else BODY_WIDTH_FRACTION
         val base = body + heightDp * TIP_WIDTH_FRACTION
@@ -111,6 +126,10 @@ data class BatteryWidget(
         val text = measureDp(worst, heightDp * TEXT_FRACTION * percentScale, density, typeface, robotoFlexScaleX(percentWidth))
         return base + heightDp * TEXT_GAP_FRACTION + text
     }
+
+    /** The ring's diameter in dp: its default share of the pill height, scaled by the size setting. */
+    private fun circleDiameterDp(heightDp: Int): Float =
+        heightDp * CIRCLE_DIAMETER_FRACTION * circleSizePercent / PERCENT
 
     /** A battery glyph filled to the reading's level; the last reading is kept so a fade-out keeps it. */
     @Composable
@@ -123,15 +142,49 @@ data class BatteryWidget(
         val fillColor = color?.resolve()
             ?: if (battery.charging) CHARGING_FILL else LocalContentColor.current
         val trackFill = trackColor?.resolve() ?: fillColor.copy(alpha = TRACK_ALPHA)
-        val autoPercent = if (inside) inkOn(fillColor) else LocalContentColor.current
+        val autoPercent = if (look == BatteryLook.PILL && inside) inkOn(fillColor) else LocalContentColor.current
         val percentColor by animateColorAsState(percentageColor?.resolve() ?: autoPercent, label = "batteryPercent")
-        val density = LocalDensity.current
         val percentFamily = rememberRobotoFlexFamily(percentWidth, percentWeight)
+        val percentText = battery.level.coerceIn(0, 100).toString() + if (percentSign) PERCENT_SIGN else ""
 
+        when (look) {
+            BatteryLook.CIRCLE -> CircleContent(
+                heightDp = heightDp,
+                level = battery.level,
+                fillColor = fillColor,
+                trackFill = trackFill,
+                percentColor = percentColor,
+                percentText = percentText,
+                percentFamily = percentFamily,
+            )
+            BatteryLook.PILL -> PillContent(
+                heightDp = heightDp,
+                level = battery.level,
+                fillColor = fillColor,
+                trackFill = trackFill,
+                percentColor = percentColor,
+                percentText = percentText,
+                percentFamily = percentFamily,
+            )
+        }
+    }
+
+    /** The classic battery glyph: a rounded body filled to [level] with a tip, and the percentage inside or beside it. */
+    @Composable
+    private fun PillContent(
+        heightDp: Int,
+        level: Int,
+        fillColor: Color,
+        trackFill: Color,
+        percentColor: Color,
+        percentText: String,
+        percentFamily: FontFamily,
+    ) {
+        val inside = percentage == BatteryPercentage.INSIDE
+        val density = LocalDensity.current
         val bodyWidth = (heightDp * if (inside) INSIDE_BODY_WIDTH_FRACTION else BODY_WIDTH_FRACTION).dp
         val bodyHeight = (heightDp * (if (inside) INSIDE_BODY_HEIGHT_FRACTION else BODY_HEIGHT_FRACTION) * heightPercent / PERCENT).dp
         val tipWidth = (heightDp * TIP_WIDTH_FRACTION).dp
-        val percentText = battery.level.coerceIn(0, 100).toString() + if (percentSign) PERCENT_SIGN else ""
         val beside = percentage == BatteryPercentage.NEXT_TO
         val besideLeft = beside && percentageSide == InfoSide.LEFT
         val gap = (heightDp * TEXT_GAP_FRACTION).dp
@@ -168,7 +221,7 @@ data class BatteryWidget(
                         cornerRadius = radius
                     )
 
-                    clipRect(right = bodyW * battery.level.coerceIn(0, 100) / 100f) {
+                    clipRect(right = bodyW * level.coerceIn(0, 100) / 100f) {
                         drawRoundRect(
                             fillColor,
                             size = Size(bodyW, size.height),
@@ -210,9 +263,191 @@ data class BatteryWidget(
         }
     }
 
-    /** A battery and empty-container colour, a height, where its percentage goes, and the percentage side, sign, colour and font when shown. */
+    /** A progress ring filled clockwise from the top to [level], with the percentage centred when shown. */
+    @Composable
+    private fun CircleContent(
+        heightDp: Int,
+        level: Int,
+        fillColor: Color,
+        trackFill: Color,
+        percentColor: Color,
+        percentText: String,
+        percentFamily: FontFamily,
+    ) {
+        val density = LocalDensity.current
+        val diameter = circleDiameterDp(heightDp)
+
+        Box(modifier = Modifier.size(diameter.dp), contentAlignment = Alignment.Center) {
+            // Track and progress arcs
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = size.minDimension * circleStrokePercent / PERCENT
+                val inset = strokeWidth / 2f
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                val topLeft = Offset(inset, inset)
+
+                drawArc(
+                    color = trackFill,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth),
+                )
+
+                // A round cap would still draw a dot at level 0
+                if (level > 0) {
+                    drawArc(
+                        color = fillColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * level.coerceIn(0, 100) / 100f,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    )
+                }
+            }
+
+            // Centred percentage
+            if (percentage != BatteryPercentage.NONE) {
+                Text(
+                    text = percentText,
+                    color = percentColor,
+                    fontSize = with(density) {
+                        val scale = if (percentSign) INSIDE_SIGN_SCALE else 1f
+                        (diameter * CIRCLE_TEXT_FRACTION * scale).dp.toSp()
+                    },
+                    fontFamily = percentFamily,
+                    fontWeight = FontWeight(percentWeight),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+    }
+
+    /** A look chooser, then the controls of the chosen look. */
     @Composable
     override fun Controls(onChange: (SweWidget) -> Unit) {
+        Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+            // Look chooser
+            InfoSegmentCard(
+                title = stringResource(R.string.empty_info_battery_look),
+                options = listOf(
+                    stringResource(R.string.empty_info_battery_look_pill),
+                    stringResource(R.string.empty_info_battery_look_circle),
+                ),
+                selectedIndex = look.ordinal,
+                onSelect = { onChange(copy(look = BatteryLook.entries[it])) },
+                shape = groupedShape(isFirst = true),
+            )
+
+            when (look) {
+                BatteryLook.PILL -> PillControls(onChange)
+                BatteryLook.CIRCLE -> CircleControls(onChange)
+            }
+        }
+    }
+
+    /** The ring's progress and empty colours, its size and stroke width, a percentage toggle, and the percent sign and text colour when shown. */
+    @Composable
+    private fun CircleControls(onChange: (SweWidget) -> Unit) {
+        val battery = this
+        val showsPercentage = battery.percentage != BatteryPercentage.NONE
+        var sizeValue by remember(circleSizePercent) { mutableFloatStateOf(circleSizePercent.toFloat()) }
+        var strokeValue by remember(circleStrokePercent) { mutableFloatStateOf(circleStrokePercent.toFloat()) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+            // Progress colour
+            ColorPickerCard(
+                label = stringResource(R.string.empty_info_battery_color),
+                selected = battery.color,
+                onSelect = { onChange(battery.copy(color = it)) },
+                defaultLabel = stringResource(R.string.label_default),
+                defaultColor = MaterialTheme.colorScheme.onSurface,
+                shape = groupedShape(),
+            )
+
+            // Empty progress colour
+            ColorPickerCard(
+                label = stringResource(R.string.empty_info_battery_track_color),
+                selected = battery.trackColor,
+                onSelect = { onChange(battery.copy(trackColor = it)) },
+                defaultLabel = stringResource(R.string.label_default),
+                defaultColor = MaterialTheme.colorScheme.onSurface.copy(alpha = TRACK_ALPHA),
+                dynamicRoles = TRACK_ROLES,
+                shape = groupedShape(),
+            )
+
+            // Ring size and stroke width
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = groupedShape(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AdjustableSlider(
+                        label = stringResource(R.string.size),
+                        valueText = "${sizeValue.roundToInt()}%",
+                        value = sizeValue,
+                        valueRange = MIN_CIRCLE_SIZE_PERCENT.toFloat()..MAX_CIRCLE_SIZE_PERCENT.toFloat(),
+                        step = 5f,
+                        onValueChange = { sizeValue = it },
+                        onCommit = { onChange(battery.copy(circleSizePercent = sizeValue.roundToInt())) },
+                    )
+                    AdjustableSlider(
+                        label = stringResource(R.string.width),
+                        valueText = "${strokeValue.roundToInt()}%",
+                        value = strokeValue,
+                        valueRange = MIN_CIRCLE_STROKE_PERCENT.toFloat()..MAX_CIRCLE_STROKE_PERCENT.toFloat(),
+                        step = 1f,
+                        onValueChange = { strokeValue = it },
+                        onCommit = { onChange(battery.copy(circleStrokePercent = strokeValue.roundToInt())) },
+                    )
+                }
+            }
+
+            // Percentage toggle
+            SettingsToggleCard(
+                shape = groupedShape(isLast = !showsPercentage),
+                title = stringResource(R.string.empty_info_battery_pct_show),
+                description = stringResource(R.string.empty_info_battery_pct_show_desc),
+                checked = showsPercentage,
+                onCheckedChange = {
+                    onChange(battery.copy(percentage = if (it) BatteryPercentage.INSIDE else BatteryPercentage.NONE))
+                },
+            )
+
+            // Percent sign and text colour, only when a percentage is drawn
+            AnimatedVisibility(visible = showsPercentage) {
+                Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+                    SettingsToggleCard(
+                        shape = groupedShape(),
+                        title = stringResource(R.string.empty_info_battery_pct_sign),
+                        description = stringResource(R.string.empty_info_battery_pct_sign_desc),
+                        checked = battery.percentSign,
+                        onCheckedChange = { onChange(battery.copy(percentSign = it)) },
+                    )
+                    ColorPickerCard(
+                        label = stringResource(R.string.empty_info_battery_pct_color),
+                        selected = battery.percentageColor,
+                        onSelect = { onChange(battery.copy(percentageColor = it)) },
+                        defaultLabel = stringResource(R.string.label_default),
+                        defaultColor = MaterialTheme.colorScheme.onSurface,
+                        shape = groupedShape(isLast = true),
+                    )
+                }
+            }
+        }
+    }
+
+    /** A battery and empty-container colour, a height, where its percentage goes, and the percentage side, sign, colour and font when shown. */
+    @Composable
+    private fun PillControls(onChange: (SweWidget) -> Unit) {
         val battery = this
         val showsPercentage = battery.percentage != BatteryPercentage.NONE
         var widthValue by remember(percentWidth) { mutableFloatStateOf(percentWidth) }
@@ -228,7 +463,7 @@ data class BatteryWidget(
                 onSelect = { onChange(battery.copy(color = it)) },
                 defaultLabel = stringResource(R.string.label_default),
                 defaultColor = MaterialTheme.colorScheme.onSurface,
-                shape = groupedShape(isFirst = true),
+                shape = groupedShape(),
             )
 
             // Empty container colour
@@ -371,13 +606,17 @@ data class BatteryWidget(
     /** The percentage's size setting as a fraction of its default size. */
     private val percentScale: Float get() = percentSizePercent / PERCENT
 
-    /** Names where the percentage is drawn: beside the glyph, inside it or not at all. */
+    /** Names the ring look, or where the glyph's percentage is drawn: beside it, inside it or not at all. */
     @Composable
     override fun summary(): String = stringResource(
-        when (percentage) {
-            BatteryPercentage.NEXT_TO -> R.string.empty_info_battery_pct_next_to
-            BatteryPercentage.INSIDE -> R.string.empty_info_battery_pct_inside
-            BatteryPercentage.NONE -> R.string.empty_info_battery_pct_none
+        if (look == BatteryLook.CIRCLE) {
+            R.string.empty_info_battery_look_circle
+        } else {
+            when (percentage) {
+                BatteryPercentage.NEXT_TO -> R.string.empty_info_battery_pct_next_to
+                BatteryPercentage.INSIDE -> R.string.empty_info_battery_pct_inside
+                BatteryPercentage.NONE -> R.string.empty_info_battery_pct_none
+            }
         },
     )
 
@@ -391,6 +630,7 @@ data class BatteryWidget(
 
         override fun fromJson(id: String, obj: JSONObject): SweWidget = BatteryWidget(
             id = id,
+            look = obj.enum<BatteryLook>("look") ?: BatteryLook.PILL,
             color = obj.color("color"),
             percentage = obj.enum<BatteryPercentage>("percentage") ?: BatteryPercentage.INSIDE,
             percentageSide = obj.enum<InfoSide>("percentageSide") ?: InfoSide.RIGHT,
@@ -405,6 +645,10 @@ data class BatteryWidget(
             heightPercent = obj.optInt("heightPercent", ClockWidget.DEFAULT_SIZE_PERCENT)
                 .coerceIn(ClockWidget.MIN_SIZE_PERCENT, ClockWidget.MAX_SIZE_PERCENT),
             trackColor = obj.color("trackColor"),
+            circleSizePercent = obj.optInt("circleSizePercent", ClockWidget.DEFAULT_SIZE_PERCENT)
+                .coerceIn(MIN_CIRCLE_SIZE_PERCENT, MAX_CIRCLE_SIZE_PERCENT),
+            circleStrokePercent = obj.optInt("circleStrokePercent", DEFAULT_CIRCLE_STROKE_PERCENT)
+                .coerceIn(MIN_CIRCLE_STROKE_PERCENT, MAX_CIRCLE_STROKE_PERCENT),
         )
 
         /** The accents, the ink colours and the dark-scheme surface tiers, offered for the empty container. */
@@ -431,6 +675,19 @@ data class BatteryWidget(
         private const val CORNER_RATIO = 0.3f
         private const val TRACK_ALPHA = 0.3f
         private const val TEXT_GAP_FRACTION = 0.1f
+
+        /** The ring look: its default diameter as a fraction of the pill height, and its text size as a fraction of the diameter. */
+        private const val CIRCLE_DIAMETER_FRACTION = 0.78f
+        private const val CIRCLE_TEXT_FRACTION = 0.44f
+
+        /** The ring size setting, in percent of [CIRCLE_DIAMETER_FRACTION]; 125 % keeps the ring inside the pill height. */
+        private const val MIN_CIRCLE_SIZE_PERCENT = 50
+        private const val MAX_CIRCLE_SIZE_PERCENT = 125
+
+        /** The ring stroke width setting, in percent of the diameter. */
+        private const val MIN_CIRCLE_STROKE_PERCENT = 4
+        private const val MAX_CIRCLE_STROKE_PERCENT = 30
+        private const val DEFAULT_CIRCLE_STROKE_PERCENT = 10
 
         /** The battery fill while charging, when the user has not picked a colour. */
         private val CHARGING_FILL = Color(0xFF43A047)
