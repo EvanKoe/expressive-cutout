@@ -2577,17 +2577,24 @@ class IslandOverlayController(private val context: Context) {
      */
     /**
      * A tap on the resting (empty) pill. Its behaviour is the user's "On click" choice: [OPEN_APP]
-     * launches the chosen app; [NONE] (and, for now, the reserved [OPEN_CENTER]) do nothing beyond
-     * the press animation the pill already plays.
+     * launches the chosen app; [OPEN_NOTIFICATIONS] pulls down the notification shade; [NONE] and
+     * [OPEN_CENTER] (handled by the pill itself) do nothing beyond the press animation the pill
+     * already plays.
      */
     private fun onEmptyClick() {
         val behaviour = behaviourState.value
-        if (behaviour.showsWhenEmptyClickAction != EmptyClickAction.OPEN_APP) return
-        val packageName = behaviour.showsWhenEmptyClickPackage ?: return
-        val launch = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        } ?: return
-        runCatching { context.startActivity(launch) }
+        when (behaviour.showsWhenEmptyClickAction) {
+            EmptyClickAction.OPEN_APP -> {
+                val packageName = behaviour.showsWhenEmptyClickPackage ?: return
+                val launch = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                } ?: return
+                runCatching { context.startActivity(launch) }
+            }
+            EmptyClickAction.OPEN_NOTIFICATIONS ->
+                CenterShortcutExecutor.execute(CenterShortcut.Global(GlobalAction.NOTIFICATIONS), context)
+            EmptyClickAction.NONE, EmptyClickAction.OPEN_CENTER -> Unit
+        }
     }
 
     /**

@@ -634,6 +634,7 @@
     <string name="shows_when_empty_click_none">None</string>
     <string name="shows_when_empty_click_open_app">Open app</string>
     <string name="shows_when_empty_click_open_center">Shortcuts</string>
+    <string name="shows_when_empty_click_open_notifications">Open notification panel</string>
     <string name="shows_when_empty_choose_app">Choose app</string>
     <string name="shows_when_empty_no_app">No app selected</string>
     <string name="center_shortcuts_title">Shortcuts</string>

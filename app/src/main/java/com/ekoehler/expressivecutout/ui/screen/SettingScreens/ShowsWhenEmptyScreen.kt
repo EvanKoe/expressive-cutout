@@ -205,6 +205,7 @@ internal fun ShowsWhenEmptyScreen(
                                     EmptyClickAction.NONE -> stringResource(R.string.shows_when_empty_click_none)
                                     EmptyClickAction.OPEN_APP -> stringResource(R.string.shows_when_empty_click_open_app)
                                     EmptyClickAction.OPEN_CENTER -> stringResource(R.string.shows_when_empty_click_open_center)
+                                    EmptyClickAction.OPEN_NOTIFICATIONS -> stringResource(R.string.shows_when_empty_click_open_notifications)
                                 }
                                 Row(
                                     modifier = Modifier

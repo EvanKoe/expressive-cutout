@@ -79,9 +79,10 @@ enum class ActionButtonAnimation { SCALE, EXPAND }
 /**
  * What tapping the resting (event-less) empty pill does. [NONE] only plays the press animation;
  * [OPEN_APP] launches the app chosen in [BehaviourSettings.showsWhenEmptyClickPackage]; [OPEN_CENTER]
- * is reserved for a future feature. Ordered to match the settings selector.
+ * expands the shortcut center; [OPEN_NOTIFICATIONS] pulls down the notification shade. Ordered to
+ * match the settings selector.
  */
-enum class EmptyClickAction { NONE, OPEN_APP, OPEN_CENTER }
+enum class EmptyClickAction { NONE, OPEN_APP, OPEN_CENTER, OPEN_NOTIFICATIONS }
 
 /**
  * How the island behaves once expanded. [expandedAutoCollapse] chooses between collapsing after

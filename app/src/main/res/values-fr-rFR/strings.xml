@@ -614,6 +614,7 @@
     <string name="shows_when_empty_click_none">Aucune action</string>
     <string name="shows_when_empty_click_open_app">Ouvrir une application</string>
     <string name="shows_when_empty_click_open_center">Raccourcis</string>
+    <string name="shows_when_empty_click_open_notifications">Ouvrir le volet des notifications</string>
     <string name="shows_when_empty_choose_app">Choisir une application</string>
     <string name="shows_when_empty_no_app">Aucune application sélectionnée</string>
     <string name="center_shortcuts_title">Raccourcis</string>

@@ -569,6 +569,7 @@
     <string name="shows_when_empty_click_none">Hiçbiri</string>
     <string name="shows_when_empty_click_open_app">Uygulamayı aç</string>
     <string name="shows_when_empty_click_open_center">Kısayollar</string>
+    <string name="shows_when_empty_click_open_notifications">Bildirim panelini aç</string>
     <string name="shows_when_empty_choose_app">Uygulama seç</string>
     <string name="shows_when_empty_no_app">Uygulama seçilmedi</string>
     <string name="center_shortcuts_title">Kısayollar</string>
