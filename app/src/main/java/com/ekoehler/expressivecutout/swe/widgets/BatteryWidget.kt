@@ -316,7 +316,7 @@ data class BatteryWidget(
                     color = percentColor,
                     fontSize = with(density) {
                         val scale = if (percentSign) INSIDE_SIGN_SCALE else 1f
-                        (diameter * CIRCLE_TEXT_FRACTION * scale).dp.toSp()
+                        (diameter * CIRCLE_TEXT_FRACTION * scale * percentScale).dp.toSp()
                     },
                     fontFamily = percentFamily,
                     fontWeight = FontWeight(percentWeight),
@@ -350,13 +350,14 @@ data class BatteryWidget(
         }
     }
 
-    /** The ring's progress and empty colours, its size and stroke width, a percentage toggle, and the percent sign and text colour when shown. */
+    /** The ring's progress and empty colours, its size and stroke width, a percentage toggle, and the percent sign, text colour and text size when shown. */
     @Composable
     private fun CircleControls(onChange: (SweWidget) -> Unit) {
         val battery = this
         val showsPercentage = battery.percentage != BatteryPercentage.NONE
         var sizeValue by remember(circleSizePercent) { mutableFloatStateOf(circleSizePercent.toFloat()) }
         var strokeValue by remember(circleStrokePercent) { mutableFloatStateOf(circleStrokePercent.toFloat()) }
+        var textSizeValue by remember(percentSizePercent) { mutableFloatStateOf(percentSizePercent.toFloat()) }
 
         Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
             // Progress colour
@@ -438,8 +439,27 @@ data class BatteryWidget(
                         onSelect = { onChange(battery.copy(percentageColor = it)) },
                         defaultLabel = stringResource(R.string.label_default),
                         defaultColor = MaterialTheme.colorScheme.onSurface,
-                        shape = groupedShape(isLast = true),
+                        shape = groupedShape(),
                     )
+
+                    // Percentage text size
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = groupedShape(isLast = true),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            AdjustableSlider(
+                                label = stringResource(R.string.size),
+                                valueText = "${textSizeValue.roundToInt()}%",
+                                value = textSizeValue,
+                                valueRange = ClockWidget.MIN_SIZE_PERCENT.toFloat()..ClockWidget.MAX_SIZE_PERCENT.toFloat(),
+                                step = 5f,
+                                onValueChange = { textSizeValue = it },
+                                onCommit = { onChange(battery.copy(percentSizePercent = textSizeValue.roundToInt())) },
+                            )
+                        }
+                    }
                 }
             }
         }

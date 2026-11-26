@@ -719,4 +719,7 @@
     <string name="widgets_spacer_title">Boşluk</string>
     <string name="widgets_spacer_flex_title">Esnek</string>
     <string name="widgets_spacer_flex_desc">Kendi tarafında kalan tüm alanı azami genişliğe kadar doldurur</string>
+    <string name="widgets_soundMode_title">Ses modu</string>
+    <string name="widgets_soundMode_icon_color">Simge rengi</string>
+    <string name="widgets_soundMode_background_color">Arka plan rengi</string>
 </resources>

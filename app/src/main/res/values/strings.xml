@@ -790,6 +790,9 @@
     <string name="widgets_spacer_title">Spacer</string>
     <string name="widgets_spacer_flex_title">Flexible</string>
     <string name="widgets_spacer_flex_desc">Fills all the room left on its side, up to the maximum width</string>
+    <string name="widgets_soundMode_title">Sound mode</string>
+    <string name="widgets_soundMode_icon_color">Icon color</string>
+    <string name="widgets_soundMode_background_color">Background color</string>
     <string name="save">Save</string>
     <string name="weight">Weight</string>
     <string name="width">Width</string>

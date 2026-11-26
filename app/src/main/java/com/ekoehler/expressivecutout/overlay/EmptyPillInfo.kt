@@ -41,7 +41,9 @@ import java.util.Locale
 import kotlin.math.max
 
 private const val ITEM_GAP_FRACTION = 0.2f
-private const val EDGE_INSET_FRACTION = 0.22f
+
+/** The outer-edge inset as a fraction of the pill height; equals the gap above and below a badge (1 - 0.72) / 2, so round widgets sit evenly. */
+private const val EDGE_INSET_FRACTION = 0.14f
 private const val MINUTE_MS = 60_000L
 
 /** How long the items wait after the resting pill appears, so it can settle before they fade in. */

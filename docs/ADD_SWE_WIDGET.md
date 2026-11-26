@@ -137,7 +137,7 @@ See `BatteryWidget` and `UnreadWidget` for the real thing.
 
 Anything a composable can compute or poll on its own (the time, a date, a countdown) needs no
 plumbing: produce it in `Content` with `remember` / `produceState`. `ClockWidget` does this with
-`rememberMinuteClock()` (in `overlay/EmptyPillInfo.kt`), which ticks once a minute.
+`rememberMinuteClock()` (in `overlay/EmptyPillInfo.kt`), which ticks once a minute. `SoundModeWidget` is the example of a value fed from a system broadcast inside `Content`.
 
 ```kotlin
 @Composable
@@ -177,7 +177,7 @@ This is the one case that touches shared code, once per source, not per widget:
 In [`swe/SweWidgets.kt`](../app/src/main/java/com/ekoehler/expressivecutout/swe/SweWidgets.kt):
 
 ```kotlin
-val all: List<SweWidgetType> = listOf(ClockWidget, UnreadWidget, BatteryWidget, MyWidget)
+val all: List<SweWidgetType> = listOf(ClockWidget, UnreadWidget, BatteryWidget, SoundModeWidget, MyWidget)
 ```
 
 The order here is the order in the "Add widget" sheet.

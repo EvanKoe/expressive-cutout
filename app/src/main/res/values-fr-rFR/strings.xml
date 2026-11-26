@@ -767,6 +767,9 @@
     <string name="widgets_spacer_title">Espace</string>
     <string name="widgets_spacer_flex_title">Flexible</string>
     <string name="widgets_spacer_flex_desc">Occupe toute la place restante de son côté, jusqu’à la largeur maximale</string>
+    <string name="widgets_soundMode_title">Mode sonore</string>
+    <string name="widgets_soundMode_icon_color">Couleur de l\'icône</string>
+    <string name="widgets_soundMode_background_color">Couleur de fond</string>
     <string name="save">Sauvegarder</string>
     <string name="weight">Gras</string>
     <string name="width">Largeur</string>
