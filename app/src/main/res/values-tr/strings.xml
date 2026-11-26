@@ -711,4 +711,7 @@
     <string name="hotspot_turn_off_color">Kapat düğmesi rengi</string>
     <string name="hotspot_turn_off">Kapat</string>
     <string name="hotspot_turn_off_failed">Hotspot kapatılamadı</string>
+    <string name="widgets_spacer_title">Boşluk</string>
+    <string name="widgets_spacer_flex_title">Esnek</string>
+    <string name="widgets_spacer_flex_desc">Kendi tarafında kalan tüm alanı azami genişliğe kadar doldurur</string>
 </resources>

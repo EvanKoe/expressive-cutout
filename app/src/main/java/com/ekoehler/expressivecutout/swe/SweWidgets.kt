@@ -8,6 +8,7 @@ import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.swe.widgets.BatteryWidget
 import com.ekoehler.expressivecutout.swe.widgets.ClockWidget
 import com.ekoehler.expressivecutout.swe.widgets.CustomTextWidget
+import com.ekoehler.expressivecutout.swe.widgets.SpacerWidget
 import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,7 +21,7 @@ import java.util.UUID
 object SweWidgets {
     /** Every widget kind, in add-sheet order. Tags must be unique. */
     val all: List<SweWidgetType> = listOf(ClockWidget, UnreadWidget, BatteryWidget,
-        CustomTextWidget)
+        CustomTextWidget, SpacerWidget)
 
     private const val TYPE = "type"
     private const val ID = "id"

@@ -31,6 +31,12 @@ interface SweWidget {
     /** Whether the widget has something to show for [data]; hidden widgets take no width. */
     fun isVisible(data: SweData): Boolean
 
+    /**
+     * Whether the widget takes all the room left on its side, widening the pill to the screen
+     * edge; [widthDp] is then its minimum. Defaults to false.
+     */
+    val isFlexible: Boolean get() = false
+
     /** Worst-case width in dp for a pill [heightDp] tall at [density]; Paint-based, no Compose. */
     fun widthDp(heightDp: Int, density: Float, data: SweData): Float
 

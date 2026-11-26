@@ -759,6 +759,9 @@
     <string name="select_all">Tout sélectionner</string>
     <string name="deselect_all">Tout désélectionner</string>
     <string name="widgets_customText_title">Texte personnalisé</string>
+    <string name="widgets_spacer_title">Espace</string>
+    <string name="widgets_spacer_flex_title">Flexible</string>
+    <string name="widgets_spacer_flex_desc">Occupe toute la place restante de son côté, jusqu’à la largeur maximale</string>
     <string name="save">Sauvegarder</string>
     <string name="weight">Gras</string>
     <string name="width">Largeur</string>

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
@@ -36,6 +38,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 private const val ITEM_GAP_FRACTION = 0.2f
 private const val EDGE_INSET_FRACTION = 0.22f
@@ -67,6 +70,9 @@ private val ItemExit = fadeOut(tween(ITEM_FADE_MS)) + scaleOut(tween(ITEM_FADE_M
  *
  * The Roboto Flex resource can't be loaded without a Context, so a clock is measured on the system
  * font at the same weight, scaled by the width axis's approximate effect, plus a safety margin.
+ *
+ * A side holding a visible flexible widget ([SweWidget.isFlexible]) is at least [sideRoomDp] wide (see
+ * `emptyInfoSideRoomDp`), so the pill reaches the screen edge; other sides are unaffected.
  */
 internal fun emptyPillSideWidthsDp(
     settings: EmptyPillInfoSettings,
@@ -75,15 +81,16 @@ internal fun emptyPillSideWidthsDp(
     data: SweData,
     dotsLeftDp: Float = 0f,
     dotsRightDp: Float = 0f,
+    sideRoomDp: Float = 0f,
 ): Pair<Float, Float> {
     fun sideWidth(side: InfoSide): Float {
-        val widths = settings.on(side)
-            .filter { it.isVisible(data) }
-            .map { it.widthDp(heightDp, density, data) }
+        val visible = settings.on(side).filter { it.isVisible(data) }
+        val widths = visible.map { it.widthDp(heightDp, density, data) }
         val dots = if (side == InfoSide.LEFT) dotsLeftDp else dotsRightDp
         if (widths.isEmpty() && dots <= 0f) return 0f
         val gaps = (widths.size - 1).coerceAtLeast(0) * heightDp * ITEM_GAP_FRACTION
-        return widths.sum() + gaps + heightDp * EDGE_INSET_FRACTION + dots
+        val natural = widths.sum() + gaps + heightDp * EDGE_INSET_FRACTION + dots
+        return if (visible.any { it.isFlexible }) max(natural, sideRoomDp) else natural
     }
     return sideWidth(InfoSide.LEFT) to sideWidth(InfoSide.RIGHT)
 }
@@ -115,6 +122,7 @@ internal fun emptyPillDotRoomDp(usage: PermissionUsage, heightDp: Int, vertical:
  * backdrop rather than the app theme.
  *
  * @param enterDelayMs how long the widgets wait before fading in; 0 shows them at once (previews).
+ * @param sideRoomDp the room a flexible widget's side fills, as given to [emptyPillSideWidthsDp].
  */
 @Composable
 internal fun EmptyPillInfoContent(
@@ -124,6 +132,7 @@ internal fun EmptyPillInfoContent(
     dotsLeftDp: Float = 0f,
     dotsRightDp: Float = 0f,
     enterDelayMs: Long = ENTER_DELAY_MS,
+    sideRoomDp: Float = 0f,
 ) {
     // Held back until the pill has mostly shrunk from whatever it was showing, so the widgets fade in
     // on the settled pill instead of riding its edges as it collapses
@@ -131,6 +140,11 @@ internal fun EmptyPillInfoContent(
     LaunchedEffect(Unit) {
         delay(enterDelayMs)
         settled = true
+    }
+
+    val density = LocalDensity.current.density
+    val (leftWidthDp, rightWidthDp) = remember(settings, heightDp, data, dotsLeftDp, dotsRightDp, sideRoomDp, density) {
+        emptyPillSideWidthsDp(settings, heightDp, density, data, dotsLeftDp, dotsRightDp, sideRoomDp)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -142,6 +156,7 @@ internal fun EmptyPillInfoContent(
             heightDp = heightDp,
             data = data,
             dotsDp = dotsLeftDp,
+            flexWidthDp = leftWidthDp.takeIf { settings.left.hasVisibleFlexible(data) },
             modifier = Modifier.align(Alignment.CenterStart),
         )
 
@@ -153,12 +168,20 @@ internal fun EmptyPillInfoContent(
             heightDp = heightDp,
             data = data,
             dotsDp = dotsRightDp,
+            flexWidthDp = rightWidthDp.takeIf { settings.right.hasVisibleFlexible(data) },
             modifier = Modifier.align(Alignment.CenterEnd),
         )
     }
 }
 
-/** One side's widgets, in list order, with the edge inset on the pill's outer side. */
+/** Whether any widget in this list is flexible and visible right now. */
+private fun List<SweWidget>.hasVisibleFlexible(data: SweData): Boolean = any { it.isFlexible && it.isVisible(data) }
+
+/**
+ * One side's widgets, in list order, with the edge inset on the pill's outer side. [flexWidthDp] is
+ * the side's total width, inset and dots included; non-null only when it holds a flexible widget, so
+ * that widget's weight has room to fill.
+ */
 @Composable
 private fun InfoSideRow(
     side: InfoSide,
@@ -167,12 +190,13 @@ private fun InfoSideRow(
     heightDp: Int,
     data: SweData,
     dotsDp: Float,
+    flexWidthDp: Float?,
     modifier: Modifier = Modifier,
 ) {
     // The dots sit on the outer edge, so the widgets step inward past them
     val inset = (heightDp * EDGE_INSET_FRACTION + dotsDp).dp
     Row(
-        modifier = modifier.padding(
+        modifier = modifier.then(if (flexWidthDp != null) Modifier.width(flexWidthDp.dp) else Modifier).padding(
             start = if (side == InfoSide.LEFT) inset else 0.dp,
             end = if (side == InfoSide.RIGHT) inset else 0.dp,
         ),
@@ -191,7 +215,12 @@ private fun InfoSideRow(
 /** One widget that fades and scales in and out on its own, and only once [settled]. */
 @Composable
 private fun RowScope.WidgetSlot(widget: SweWidget, settled: Boolean, heightDp: Int, data: SweData) {
-    AnimatedVisibility(visible = settled && widget.isVisible(data), enter = ItemEnter, exit = ItemExit) {
+    AnimatedVisibility(
+        visible = settled && widget.isVisible(data),
+        modifier = if (widget.isFlexible) Modifier.weight(1f) else Modifier,
+        enter = ItemEnter,
+        exit = ItemExit,
+    ) {
         widget.Content(data, heightDp)
     }
 }

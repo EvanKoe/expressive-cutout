@@ -279,6 +279,22 @@ fun IslandDimensions.asEmptyInfoCutout(
 }
 
 /**
+ * The room one side of the camera hole gets when a flexible widget fills it: half the widest cutout
+ * ([IslandDimensions.MAX_WIDTH_PERCENT]) less the camera's half-width, its gap and half the safety
+ * margin. The same for both sides. Mirrors the arithmetic of [asEmptyInfoCutout], so with both sides
+ * flexed the pill comes out at exactly the maximum width; the two change together.
+ *
+ * @param displayWidthDp the screen width.
+ * @param cameraRightEdgeDp the camera cutout's right edge from the screen's horizontal centre, or
+ *   null when the device won't report one — then [DEFAULT_CAMERA_RADIUS_DP] stands in.
+ */
+fun emptyInfoSideRoomDp(displayWidthDp: Int, cameraRightEdgeDp: Float? = null): Float {
+    val cameraRight = cameraRightEdgeDp ?: DEFAULT_CAMERA_RADIUS_DP
+    return (displayWidthDp * IslandDimensions.MAX_WIDTH_PERCENT / 200f - cameraRight - TINY_CAMERA_GAP_DP -
+        EMPTY_INFO_SAFETY_DP / 2f).coerceAtLeast(0f)
+}
+
+/**
  * The resting pill's tap area when the pill is hidden: this pill's own geometry with only the width
  * replaced by the user's [widthPercent]. Called by both the overlay's drawing and its touch sizing,
  * so the invisible pill and its window always cover the same area.

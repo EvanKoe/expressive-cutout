@@ -200,6 +200,7 @@ import com.ekoehler.expressivecutout.data.DEFAULT_CAMERA_RADIUS_DP
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.BatteryStatus
@@ -745,6 +746,7 @@ fun DynamicIsland(
             val sweData = SweData(unreadCounts, battery)
             val (left, right) = emptyPillSideWidthsDp(
                 emptyInfo, collapsed.heightDp, density, sweData, emptyDotsLeftDp, emptyDotsRightDp,
+                emptyInfoSideRoomDp(displayWidthDp, cameraRightEdgeDp),
             )
             collapsed.asEmptyInfoCutout(
                 displayWidthDp, left, right, cameraRightEdgeDp,
@@ -1364,7 +1366,14 @@ fun DynamicIsland(
                                     },
                                 )
                             } else if (!isStickToCamera) {
-                                EmptyPillInfoContent(emptyInfo, collapsed.heightDp, SweData(unreadCounts, battery), emptyDotsLeftDp, emptyDotsRightDp)
+                                EmptyPillInfoContent(
+                                    emptyInfo,
+                                    collapsed.heightDp,
+                                    SweData(unreadCounts, battery),
+                                    emptyDotsLeftDp,
+                                    emptyDotsRightDp,
+                                    sideRoomDp = emptyInfoSideRoomDp(displayWidthDp, cameraRightEdgeDp),
+                                )
                             }
                         } else {
                             shownEvent?.let { e ->

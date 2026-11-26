@@ -64,6 +64,7 @@ import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
 import com.ekoehler.expressivecutout.data.IslandDimensions
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryStatus
 import com.ekoehler.expressivecutout.overlay.EmptyPillInfoContent
@@ -168,8 +169,9 @@ internal fun SwePreviewCard(
 ) {
     val displayWidthDp = LocalConfiguration.current.screenWidthDp
     val density = LocalDensity.current.density
+    val sideRoomDp = emptyInfoSideRoomDp(displayWidthDp, DEFAULT_CAMERA_RADIUS_DP)
     val dims = remember(settings, collapsed, displayWidthDp, density) {
-        val (left, right) = emptyPillSideWidthsDp(settings, collapsed.heightDp, density, PreviewData)
+        val (left, right) = emptyPillSideWidthsDp(settings, collapsed.heightDp, density, PreviewData, sideRoomDp = sideRoomDp)
         collapsed.asEmptyInfoCutout(displayWidthDp, left, right, DEFAULT_CAMERA_RADIUS_DP)
     }
     val pillWidthDp = displayWidthDp * dims.widthPercent / 100f
@@ -227,6 +229,7 @@ internal fun SwePreviewCard(
                                 heightDp = collapsed.heightDp,
                                 data = PreviewData,
                                 enterDelayMs = 0L,
+                                sideRoomDp = sideRoomDp,
                             )
                         }
                     }

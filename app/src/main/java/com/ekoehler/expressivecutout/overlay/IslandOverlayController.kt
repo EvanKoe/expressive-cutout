@@ -66,6 +66,7 @@ import com.ekoehler.expressivecutout.data.DynamicRole
 import com.ekoehler.expressivecutout.data.EmptyPillInfoPreferences
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
+import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryBus
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
@@ -1112,6 +1113,7 @@ class IslandOverlayController(private val context: Context) {
             sweData,
             dotsLeftDp,
             dotsRightDp,
+            emptyInfoSideRoomDp(displayWidthDp.value, cameraRightEdgeDp.value),
         )
         return collapsed.asEmptyInfoCutout(
             displayWidthDp.value, left, right, cameraRightEdgeDp.value,

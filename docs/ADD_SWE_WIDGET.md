@@ -193,6 +193,9 @@ Add the title (and any control labels) to `values/strings.xml`, `values-fr-rFR/s
 - **`widthDp` is an estimate.** It runs *before* composition to size the overlay window, so measure
   the widest possible text with `measureDp` (a `Paint`), never with Compose. Too small clips the
   widget. Don't depend on values that tick (the minute, the battery level), or the pill twitches.
+- **`isFlexible` is optional.** Override `val isFlexible: Boolean` to `true` for a widget that
+  takes all the room left on its side (see `SpacerWidget`); `widthDp` is then its minimum.
+  It defaults to `false`, so ordinary widgets need nothing.
 - **`isVisible` false = no width.** Use it to hide a widget with nothing to show (like a count of 0).
 - **Fading out.** If `Content` shows a live value, `remember` the last one so the fade-out
   doesn't flash an empty or zero state. See [Live data](#a-the-value-is-already-in-swedata).
