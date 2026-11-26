@@ -428,28 +428,28 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.CHARGING_STARTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_charging_started),
-        subtitle = "85% • Fast charging",
+        subtitle = context.getString(R.string.sample_charging),
         collapsedBadgeText = "85%",
         actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
     )
     SystemEventType.CHARGING_STOPPED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_charging_stopped),
-        subtitle = "85% remaining",
+        subtitle = context.getString(R.string.preview_battery_remaining),
         collapsedBadgeText = "85%",
         actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
     )
     SystemEventType.CHARGING_COMPLETE -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_charging_complete),
-        subtitle = "100% • Ready to unplug",
+        subtitle = context.getString(R.string.sample_full),
         collapsedBadgeText = "100%",
         actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
     )
     SystemEventType.BATTERY_LOW -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_battery_low),
-        subtitle = "15% • Connect charger",
+        subtitle = context.getString(R.string.sample_low),
         collapsedBadgeText = "15%",
         actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
     )
@@ -462,7 +462,7 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.WIFI_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_wifi_disconnected),
-        subtitle = "Disconnected",
+        subtitle = context.getString(R.string.event_subtitle_disconnected),
         actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
     )
     SystemEventType.HEADPHONES_CONNECTED -> SystemEventPayload(
@@ -474,7 +474,7 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.HEADPHONES_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_headphones_disconnected),
-        subtitle = "Audio routed to speaker",
+        subtitle = context.getString(R.string.event_subtitle_speaker),
         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
     )
     SystemEventType.USB_MOUNTED -> SystemEventPayload(
@@ -486,58 +486,58 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.USB_UNMOUNTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_usb_unmounted),
-        subtitle = "Device disconnected",
+        subtitle = context.getString(R.string.event_subtitle_device_disconnected),
         actionIntentAction = Settings.ACTION_SETTINGS,
     )
     SystemEventType.DEVICE_LOCKED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_device_locked),
-        subtitle = "Device secured",
+        subtitle = context.getString(R.string.event_subtitle_device_locked),
         actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
     )
     SystemEventType.DEVICE_UNLOCKED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_device_unlocked),
-        subtitle = "Device unlocked",
+        subtitle = context.getString(R.string.event_subtitle_device_unlocked),
         actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
     )
     SystemEventType.VPN_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_vpn_connected),
-        subtitle = "Secure tunnel active",
+        subtitle = context.getString(R.string.event_subtitle_vpn_active),
         actionIntentAction = Settings.ACTION_VPN_SETTINGS,
     )
     SystemEventType.VPN_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_vpn_disconnected),
-        subtitle = "Tunnel closed",
+        subtitle = context.getString(R.string.event_subtitle_vpn_closed),
         actionIntentAction = Settings.ACTION_VPN_SETTINGS,
     )
     SystemEventType.ADB_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_adb_connected),
-        subtitle = "Host authorized",
+        subtitle = context.getString(R.string.event_subtitle_host_authorized),
         collapsedBadgeText = "USB",
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.ADB_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_adb_disconnected),
-        subtitle = "Session closed",
+        subtitle = context.getString(R.string.event_subtitle_session_closed),
         collapsedBadgeText = "USB",
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.WIRELESS_DEBUGGING_CONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_wireless_debugging_connected),
-        subtitle = "Network: Pixel_5GHz",
+        subtitle = context.getString(R.string.preview_network),
         collapsedBadgeText = "Wi‑Fi",
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
     SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_wireless_debugging_disconnected),
-        subtitle = "Wireless session closed",
+        subtitle = context.getString(R.string.event_subtitle_wireless_closed),
         collapsedBadgeText = "Wi‑Fi",
         actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
     )
@@ -550,37 +550,37 @@ private fun previewPayloadFor(context: Context, type: SystemEventType): SystemEv
     SystemEventType.BLUETOOTH_DISCONNECTED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_bluetooth_disconnected),
-        subtitle = "Device disconnected",
+        subtitle = context.getString(R.string.event_subtitle_device_disconnected),
         actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
     )
     SystemEventType.HOTSPOT_ENABLED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_hotspot_enabled),
-        subtitle = "Tethering ready",
+        subtitle = context.getString(R.string.event_subtitle_tethering_ready),
         actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
     )
     SystemEventType.HOTSPOT_DISABLED -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_hotspot_disabled),
-        subtitle = "Tethering off",
+        subtitle = context.getString(R.string.event_subtitle_tethering_off),
         actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
     )
     SystemEventType.RINGER_NORMAL -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_ringer_normal),
-        subtitle = "Calls & alerts active",
+        subtitle = context.getString(R.string.preview_calls_active),
         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
     )
     SystemEventType.RINGER_VIBRATE -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_ringer_vibrate),
-        subtitle = "Calls and alerts will vibrate",
+        subtitle = context.getString(R.string.event_subtitle_ringer_vibrate),
         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
     )
     SystemEventType.RINGER_SILENT -> SystemEventPayload(
         type = type,
         title = context.getString(R.string.event_ringer_silent),
-        subtitle = "Calls and alerts muted",
+        subtitle = context.getString(R.string.event_subtitle_ringer_silent),
         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
     )
 }

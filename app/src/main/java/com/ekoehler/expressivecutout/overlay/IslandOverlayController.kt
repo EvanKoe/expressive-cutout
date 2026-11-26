@@ -92,6 +92,8 @@ import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.system.HotspotClients
+import com.ekoehler.expressivecutout.system.LocalizedOverlayContent
+import com.ekoehler.expressivecutout.system.LocalizedStrings
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import android.widget.Toast
@@ -131,6 +133,8 @@ import kotlin.math.roundToInt
  * where that isn't available.
  */
 class IslandOverlayController(private val context: Context) {
+
+    private val strings = LocalizedStrings(context)
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
@@ -351,9 +355,9 @@ class IslandOverlayController(private val context: Context) {
         IslandEvent(
             id = -1L,
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
-            label = context.getString(R.string.preview_label),
-            detail = context.getString(R.string.preview_detail),
-            appName = context.getString(R.string.app_name),
+            label = strings.get(R.string.preview_label),
+            detail = strings.get(R.string.preview_detail),
+            appName = strings.get(R.string.app_name),
             postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
             appColor = Color(0xFF60A5FA),
@@ -740,76 +744,78 @@ class IslandOverlayController(private val context: Context) {
                     behaviour.horizontalCutoutMode == HorizontalCutoutMode.STICK_TO_CAMERA
                 val rot270 = rotation == Surface.ROTATION_270
 
-                ExpressiveCutoutTheme {
-                    DynamicIsland(
-                        event = event,
-                        collapsed = layout.collapsed,
-                        expanded = layout.expanded,
-                        displayWidthDp = widthDp,
-                        displayWidthExactDp = exactWidthDp,
-                        cameraRightEdgeDp = cameraRightDp,
-                        cameraLeftEdgeDp = cameraLeftDp,
-                        forcedExpanded = effectiveForced,
-                        collapseTrigger = collapse,
-                        isStickToCamera = isStickToCamera,
-                        isRotation270 = rot270,
-                        snapGeometry = snapGeometry,
-                        offsetYDp = layout.collapsed.offsetYDp,
-                        animationStyle = behaviour.animationStyle,
-                        animationSpeed = behaviour.animationSpeed,
-                        animationBounce = behaviour.animationBounce,
-                        animationDurationMs = behaviour.animationDurationMs,
-                        autoCollapse = behaviour.expandedAutoCollapse,
-                        autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
-                        appearance = appearance,
-                        showActions = behaviour.showActionButtons,
-                        normalTap = behaviour.normalTap,
-                        normalSwipeUp = behaviour.normalSwipeUp,
-                        expandedTap = behaviour.expandedTap,
-                        expandedSwipeUp = behaviour.expandedSwipeUp,
-                        expandedSwipeDown = behaviour.expandedSwipeDown,
-                        normalSwipeLeft = behaviour.normalSwipeLeft,
-                        normalSwipeRight = behaviour.normalSwipeRight,
-                        expandedSwipeLeft = behaviour.expandedSwipeLeft,
-                        expandedSwipeRight = behaviour.expandedSwipeRight,
-                        showsWhenEmpty = behaviour.emptyPillActive,
-                        showEmptyCutout = behaviour.showEmptyCutout,
-                        hiddenEmptyWidthPercent = behaviour.hiddenEmptyWidthPercent,
-                        emptyInfo = emptyInfo,
-                        unreadCounts = unreadCounts,
-                        hotspot = hotspot,
-                        canTurnOffHotspot = shizukuStatus == ShizukuStatus.READY,
-                        onTurnOffHotspot = ::onTurnOffHotspot,
-                        battery = battery,
-                        emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
-                        centerShortcuts = behaviour.centerShortcuts,
-                        centerShowLabels = behaviour.centerShowLabels,
-                        centerFillContainers = behaviour.centerFillContainers,
-                        centerThemedIcons = behaviour.centerThemedIcons,
-                        actionButtonAnimation = behaviour.actionButtonAnimation,
-                        vibrateOnTap = behaviour.vibrateOnTap,
-                        hapticsOnPop = behaviour.hapticsOnPop,
-                        statusDotEnabled = behaviour.showStatusDot,
-                        statusDotSide = behaviour.statusDotSide,
-                        permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
-                        permissionUsage = permissionUsage,
-                        permissionDotPosition = permissionDotPosition,
-                        permissionDotColors = permissionDotColors,
-                        permissionDotsVertical = permissionDotVertical,
-                        satellite = satellite,
-                        satellitePosition = behaviour.satellitePosition,
-                        onSatelliteClick = ::onSatellitePromote,
-                        onEmptyClick = ::onEmptyClick,
-                        onCenterShortcut = ::onCenterShortcut,
-                        onExpandedChange = ::onExpandedChanged,
-                        onActivate = ::onActivate,
-                        onOpenCall = ::onOpenCall,
-                        onAction = ::onAction,
-                        onReply = ::onReply,
-                        onReplyActiveChange = ::onReplyActive,
-                        onDismiss = ::onDismiss,
-                        onPinToggle = ::onPinToggle,
-                    )
+                LocalizedOverlayContent {
+                    ExpressiveCutoutTheme {
+                        DynamicIsland(
+                            event = event,
+                            collapsed = layout.collapsed,
+                            expanded = layout.expanded,
+                            displayWidthDp = widthDp,
+                            displayWidthExactDp = exactWidthDp,
+                            cameraRightEdgeDp = cameraRightDp,
+                            cameraLeftEdgeDp = cameraLeftDp,
+                            forcedExpanded = effectiveForced,
+                            collapseTrigger = collapse,
+                            isStickToCamera = isStickToCamera,
+                            isRotation270 = rot270,
+                            snapGeometry = snapGeometry,
+                            offsetYDp = layout.collapsed.offsetYDp,
+                            animationStyle = behaviour.animationStyle,
+                            animationSpeed = behaviour.animationSpeed,
+                            animationBounce = behaviour.animationBounce,
+                            animationDurationMs = behaviour.animationDurationMs,
+                            autoCollapse = behaviour.expandedAutoCollapse,
+                            autoCollapseMs = behaviour.expandedCollapseSeconds * 1_000L,
+                            appearance = appearance,
+                            showActions = behaviour.showActionButtons,
+                            normalTap = behaviour.normalTap,
+                            normalSwipeUp = behaviour.normalSwipeUp,
+                            expandedTap = behaviour.expandedTap,
+                            expandedSwipeUp = behaviour.expandedSwipeUp,
+                            expandedSwipeDown = behaviour.expandedSwipeDown,
+                            normalSwipeLeft = behaviour.normalSwipeLeft,
+                            normalSwipeRight = behaviour.normalSwipeRight,
+                            expandedSwipeLeft = behaviour.expandedSwipeLeft,
+                            expandedSwipeRight = behaviour.expandedSwipeRight,
+                            showsWhenEmpty = behaviour.emptyPillActive,
+                            showEmptyCutout = behaviour.showEmptyCutout,
+                            hiddenEmptyWidthPercent = behaviour.hiddenEmptyWidthPercent,
+                            emptyInfo = emptyInfo,
+                            unreadCounts = unreadCounts,
+                            hotspot = hotspot,
+                            canTurnOffHotspot = shizukuStatus == ShizukuStatus.READY,
+                            onTurnOffHotspot = ::onTurnOffHotspot,
+                            battery = battery,
+                            emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
+                            centerShortcuts = behaviour.centerShortcuts,
+                            centerShowLabels = behaviour.centerShowLabels,
+                            centerFillContainers = behaviour.centerFillContainers,
+                            centerThemedIcons = behaviour.centerThemedIcons,
+                            actionButtonAnimation = behaviour.actionButtonAnimation,
+                            vibrateOnTap = behaviour.vibrateOnTap,
+                            hapticsOnPop = behaviour.hapticsOnPop,
+                            statusDotEnabled = behaviour.showStatusDot,
+                            statusDotSide = behaviour.statusDotSide,
+                            permissionDotsEnabled = permissionDotsEnabled || permissionDotPreview,
+                            permissionUsage = permissionUsage,
+                            permissionDotPosition = permissionDotPosition,
+                            permissionDotColors = permissionDotColors,
+                            permissionDotsVertical = permissionDotVertical,
+                            satellite = satellite,
+                            satellitePosition = behaviour.satellitePosition,
+                            onSatelliteClick = ::onSatellitePromote,
+                            onEmptyClick = ::onEmptyClick,
+                            onCenterShortcut = ::onCenterShortcut,
+                            onExpandedChange = ::onExpandedChanged,
+                            onActivate = ::onActivate,
+                            onOpenCall = ::onOpenCall,
+                            onAction = ::onAction,
+                            onReply = ::onReply,
+                            onReplyActiveChange = ::onReplyActive,
+                            onDismiss = ::onDismiss,
+                            onPinToggle = ::onPinToggle,
+                        )
+                    }
                 }
             }
         }
@@ -936,7 +942,7 @@ class IslandOverlayController(private val context: Context) {
         scope.launch(Dispatchers.IO) {
             if (!HotspotClients.stopHotspot()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, R.string.hotspot_turn_off_failed, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, strings.get(R.string.hotspot_turn_off_failed), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -1291,7 +1297,7 @@ class IslandOverlayController(private val context: Context) {
                 currentEvent.value = currentEvent.value?.copy(
                     actions = resolver.timerActions(timer.actions),
                     label = timer.label?.takeIf { it.isNotBlank() }
-                        ?: context.getString(DynamicTile.TIMER.labelRes),
+                        ?: strings.get(DynamicTile.TIMER.labelRes),
                 )
                 lastTimerEvent = currentEvent.value
             }

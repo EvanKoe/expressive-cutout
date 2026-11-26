@@ -417,20 +417,20 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock:
                     imageVector = Icons.Rounded.Square,
                     modifier = Modifier.rotate(45f),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "Notification icon"
+                    contentDescription = stringResource(R.string.cd_notification_icon)
                 )
 
                 Icon(
                     imageVector = Icons.Rounded.Square,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "Notification icon"
+                    contentDescription = stringResource(R.string.cd_notification_icon)
                 )
 
                 Icon(
                     imageVector = Icons.Rounded.Circle,
                     modifier = Modifier.rotate(45f),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "Notification icon"
+                    contentDescription = stringResource(R.string.cd_notification_icon)
                 )
             }
         }
@@ -444,20 +444,20 @@ private fun StatusBarPreview(hideIcons: Boolean, hideSystem: Boolean, hideClock:
                 Icon(
                     imageVector = Icons.Rounded.NetworkWifi,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "System icon"
+                    contentDescription = stringResource(R.string.cd_system_icon)
                 )
 
                 Icon(
                     imageVector = Icons.Rounded.NetworkCell,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "System icon"
+                    contentDescription = stringResource(R.string.cd_system_icon)
                 )
 
                 Icon(
                     imageVector = Icons.Rounded.BatterySaver,
                     modifier = Modifier.rotate(90f),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    contentDescription = "System icon"
+                    contentDescription = stringResource(R.string.cd_system_icon)
                 )
             }
         }

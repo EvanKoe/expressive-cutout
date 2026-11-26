@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,16 +50,16 @@ import com.ekoehler.expressivecutout.R
 
 /**
  * One permission, explained: what it is, and the specific things the app does with it. The copy
- * lives here rather than in strings.xml so a permission is described next to the manifest entry it
- * documents.
+ * is referenced by string resource id and resolved where it is drawn; the manifest identifiers
+ * remain untranslated.
  */
 private data class PermissionDoc(
     val icon: ImageVector,
-    val title: String,
+    @StringRes val titleRes: Int,
     /** The manifest identifier, shown small and monospaced so it can be matched to the manifest. */
     val manifestName: String,
-    val summary: String,
-    val uses: List<String>,
+    @StringRes val summaryRes: Int,
+    val usesRes: List<Int>,
     /** Only asked for on some Android versions, or only when a given feature is used. */
     val optional: Boolean = false,
 )
@@ -71,159 +72,118 @@ private data class PermissionDoc(
 private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
     PermissionDoc(
         icon = Icons.Rounded.Notifications,
-        title = "Notification access",
+        titleRes = R.string.permission_doc_notification_title,
         manifestName = "BIND_NOTIFICATION_LISTENER_SERVICE",
-        summary = "The island exists to show your notifications, so it has to be allowed to see " +
-            "them. This is the one broad permission the app needs. What it reads is held in " +
-            "memory for as long as the island shows it, and never written to disk.",
-        uses = listOf(
-            "Show a notification on the island: the icon the app put on it, its title, text and action buttons",
-            "Let you reply inline, or trigger an action, and pass that straight back to the app that posted it",
-            "Dismiss the real notification when you swipe the island away",
-            "Detect an ongoing or incoming call, and the system countdown behind a timer notification",
-            "Read what is playing for the music tile — track, artist, album art and playback state — " +
-                "and send your previous, play, pause and next taps back to the player. Android ties " +
-                "this to the same grant, so it is this permission that makes the music tile work",
+        summaryRes = R.string.permission_doc_notification_summary,
+        usesRes = listOf(
+            R.string.permission_doc_notification_show,
+            R.string.permission_doc_notification_reply,
+            R.string.permission_doc_notification_dismiss,
+            R.string.permission_doc_notification_call_timer,
+            R.string.permission_doc_notification_music,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Vibration,
-        title = "Vibration permission",
+        titleRes = R.string.permission_doc_vibration_title,
         manifestName = "VIBRATE",
-        summary = "Used to produce vibrations and haptic feedback through the app and the cutout",
-        uses = listOf(
-            "Vibrate when going through the app",
-            "Providing haptic feedback when clicking on the cutout"
+        summaryRes = R.string.permission_doc_vibration_summary,
+        usesRes = listOf(
+            R.string.permission_doc_vibration_navigation,
+            R.string.permission_doc_vibration_cutout
         )
     ),
     PermissionDoc(
         icon = Icons.Rounded.Layers,
-        title = "Accessibility service",
+        titleRes = R.string.permission_doc_accessibility_title,
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
-        summary = "Android only lets an accessibility service draw a window that survives above " +
-            "other apps and the lockscreen. That window is the island, so the service is mostly " +
-            "used as a drawing surface. It reads no screen content: the only thing it looks at is " +
-            "the package name of the foreground app. Anything read is drawn on the island and dropped — never written to " +
-            "disk, never logged, and with no internet permission it cannot leave the device.",
-        uses = listOf(
-            "Draw the island over the camera cutout, above whatever app is in the foreground",
-            "Keep it there across app switches, and tear it down while the device is locked if you asked for that",
-            "Receive your taps and swipes on the island itself",
-            "Read the name of the app in the foreground — its package name only, no screen content — " +
-                "so the music tile can hide itself while the app playing the music is open",
+        summaryRes = R.string.permission_doc_accessibility_summary,
+        usesRes = listOf(
+            R.string.permission_doc_accessibility_draw,
+            R.string.permission_doc_accessibility_lifecycle,
+            R.string.permission_doc_accessibility_gestures,
+            R.string.permission_doc_accessibility_foreground,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.BatterySaver,
-        title = "Ignore battery optimisation",
+        titleRes = R.string.permission_doc_battery_title,
         manifestName = "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
-        summary = "Optional. Without it, aggressive power management can kill the overlay in the " +
-            "background, and the island stops appearing until you reopen the app. There is no " +
-            "sync, no polling and no scheduled job behind it — the app idles until something " +
-            "reaches the island.",
-        uses = listOf(
-            "Ask the system, once, to leave the overlay service running",
+        summaryRes = R.string.permission_doc_battery_summary,
+        usesRes = listOf(
+            R.string.permission_doc_battery_running,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.NotificationsActive,
-        title = "Post notifications",
+        titleRes = R.string.permission_doc_post_notifications_title,
         manifestName = "POST_NOTIFICATIONS",
-        summary = "Optional, and only asked for on Android 13 and later, the first time you tap " +
-            "one of the test buttons on the Permissions screen. The app posts nothing you did " +
-            "not ask for.",
-        uses = listOf(
-            "Post the sample notification, call and reply used to preview the island without waiting for a real one",
+        summaryRes = R.string.permission_doc_post_notifications_summary,
+        usesRes = listOf(
+            R.string.permission_doc_post_notifications_samples,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.VolumeUp,
-        title = "Audio settings",
+        titleRes = R.string.permission_doc_audio_title,
         manifestName = "MODIFY_AUDIO_SETTINGS",
-        summary = "Used by two buttons on the expanded phone tile. No dialer offers mute or " +
-            "speakerphone as a notification action, so the tile drives the audio route itself. " +
-            "It changes nothing on its own, and records no audio — this permission cannot.",
-        uses = listOf(
-            "Mute and unmute the microphone during a call, from the expanded phone tile",
-            "Put a call on speakerphone and take it off again",
+        summaryRes = R.string.permission_doc_audio_summary,
+        usesRes = listOf(
+            R.string.permission_doc_audio_mute,
+            R.string.permission_doc_audio_speaker,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Call,
-        title = "Phone state",
+        titleRes = R.string.permission_doc_phone_title,
         manifestName = "READ_PHONE_STATE",
-        summary = "Optional, and asked for only on the Permissions screen. It reports whether a " +
-            "call is ringing, connected or over — nothing else. It gives no phone number, no " +
-            "caller identity and no call log; the caller shown on the island comes from the " +
-            "dialer's own notification, as it always has. Without it the phone tile still closes " +
-            "when a call ends, just from the notification panel, which can take a few seconds.",
-        uses = listOf(
-            "Close the phone tile the moment a call ends, instead of waiting to notice the " +
-                "dialer's notification is gone",
+        summaryRes = R.string.permission_doc_phone_summary,
+        usesRes = listOf(
+            R.string.permission_doc_phone_end,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.Terminal,
-        title = "Shizuku access",
+        titleRes = R.string.permission_doc_shizuku_title,
         manifestName = "moe.shizuku.manager.permission.API_V23",
-        summary = "Optional, and only used by three features that Android reserves for the shell " +
-            "user. Shizuku is a separate app you install and start yourself; it holds those shell " +
-            "privileges and lends them to apps you approve, one at a time, in its own interface. " +
-            "Without it those features are simply unavailable — everything else works as " +
-            "normal. The app talks to Shizuku only while you have one of them switched on.",
-        uses = listOf(
-            "Hide the system status bar's notification icons, alerts and clock, so the island is " +
-                "the only thing reporting notifications. This needs STATUS_BAR, which an ordinary " +
-                "app cannot hold",
-            "Read which apps are using the microphone, camera or location right now, so the island " +
-                "can draw the privacy dots. This needs GET_APP_OPS_STATS, which an ordinary app " +
-                "cannot hold. The dot says only that something is in use, never which app, and " +
-                "the check runs only while the feature is switched on",
-            "Read the list of devices connected to your hotspot (MAC address and device name), " +
-                "only while the hotspot is on and the option is enabled",
+        summaryRes = R.string.permission_doc_shizuku_summary,
+        usesRes = listOf(
+            R.string.permission_doc_shizuku_status_bar,
+            R.string.permission_doc_shizuku_privacy,
+            R.string.permission_doc_shizuku_hotspot,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.Wifi,
-        title = "Network state",
+        titleRes = R.string.permission_doc_network_title,
         manifestName = "ACCESS_NETWORK_STATE",
-        summary = "Read-only, granted automatically, and never prompted for. It reports whether " +
-            "you are connected and the name of the network you are on — it grants no internet " +
-            "access, and cannot see networks you are not connected to.",
-        uses = listOf(
-            "Show the Wi-Fi connect and disconnect event on the island, with the network name",
+        summaryRes = R.string.permission_doc_network_summary,
+        usesRes = listOf(
+            R.string.permission_doc_network_events,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.WifiTethering,
-        title = "Wi-Fi state",
+        titleRes = R.string.permission_doc_wifi_title,
         manifestName = "ACCESS_WIFI_STATE",
-        summary = "Read-only, granted automatically, and never prompted for. Since Android 12L " +
-            "the system only tells apps holding this permission when the hotspot turns on or " +
-            "off; without it the hotspot event would never fire. It cannot turn Wi-Fi or the " +
-            "hotspot on, cannot see who is connected to it, and grants no internet access. It " +
-            "covers only the on/off event, not the list of connected devices.",
-        uses = listOf(
-            "Show the hotspot enabled and disabled event on the island",
+        summaryRes = R.string.permission_doc_wifi_summary,
+        usesRes = listOf(
+            R.string.permission_doc_wifi_events,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Apps,
-        title = "App list visibility",
+        titleRes = R.string.permission_doc_app_list_title,
         manifestName = "<queries>",
-        summary = "Not a permission you grant, but a manifest entry, so it is listed here too. On " +
-            "Android 11 and later an app sees no other app unless it declares what it needs to " +
-            "see. This one asks for apps that have a launcher icon — the ones in your app drawer. " +
-            "It is deliberately not QUERY_ALL_PACKAGES: apps without a launcher icon stay " +
-            "invisible, and the list is read on screen and never stored or sent.",
-        uses = listOf(
-            "List your apps on the Apps screen, so you can allow or mute each one's notifications",
-            "Look up an app's icon to colour the island from it",
-            "Check whether Shizuku is installed, to tell \"not installed\" apart from \"not running\"",
+        summaryRes = R.string.permission_doc_app_list_summary,
+        usesRes = listOf(
+            R.string.permission_doc_app_list_filter,
+            R.string.permission_doc_app_list_icon,
+            R.string.permission_doc_app_list_shizuku,
         ),
     ),
 )
@@ -307,7 +267,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 )
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    text = doc.title,
+                    text = stringResource(doc.titleRes),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -340,7 +300,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
 
             // Plain-language summary
             Text(
-                text = doc.summary,
+                text = stringResource(doc.summaryRes),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -351,7 +311,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 icon = Icons.Rounded.Check,
                 label = stringResource(R.string.permission_details_uses),
                 accent = MaterialTheme.colorScheme.primary,
-                items = doc.uses,
+                items = doc.usesRes.map { stringResource(it) },
             )
         }
     }

@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.overlay.MaterialIconCatalog
@@ -51,13 +52,17 @@ fun MaterialIconPickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
-    // Case-insensitive substring match on the icon's stable key; lower-cased on both sides to be safe.
-    val filtered = remember(query) {
+    // Match covers both the stable key and the localized label, case-insensitively
+    val context = LocalContext.current
+    val filtered = remember(query, context.resources.configuration) {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) {
             MaterialIconCatalog.options
         } else {
-            MaterialIconCatalog.options.filter { it.key.lowercase().contains(needle) }
+            MaterialIconCatalog.options.filter {
+                it.key.lowercase().contains(needle) ||
+                    context.getString(it.labelRes).lowercase().contains(needle)
+            }
         }
     }
 
@@ -134,7 +139,7 @@ private fun MaterialIconCell(
     ) {
         Icon(
             imageVector = option.icon,
-            contentDescription = option.key,
+            contentDescription = stringResource(option.labelRes),
             tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(28.dp),
         )

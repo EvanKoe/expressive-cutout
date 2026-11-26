@@ -1,6 +1,7 @@
 package com.ekoehler.expressivecutout.overlay
 
 import android.content.Context
+import com.ekoehler.expressivecutout.R
 
 /**
  * Modular helper responsible for resolving and formatting notification header metadata
@@ -40,6 +41,22 @@ object NotificationHeaderResolver {
             elapsedSeconds < 3600L -> "${elapsedSeconds / 60L}m ago"
             elapsedSeconds < 86400L -> "${elapsedSeconds / 3600L}h ago"
             else -> "${elapsedSeconds / 86400L}d ago"
+        }
+    }
+
+    /** Resource-backed counterpart used by the UI, including the selected app language. */
+    fun formatLocalizedRelativeTime(
+        context: Context,
+        postTimeMs: Long,
+        nowMs: Long = System.currentTimeMillis(),
+    ): String {
+        val seconds = ((nowMs - postTimeMs) / 1000L).coerceAtLeast(0L)
+        return when {
+            seconds < 5L -> context.getString(R.string.relative_time_now)
+            seconds < 60L -> context.getString(R.string.relative_time_seconds, seconds)
+            seconds < 3600L -> context.getString(R.string.relative_time_minutes, seconds / 60L)
+            seconds < 86400L -> context.getString(R.string.relative_time_hours, seconds / 3600L)
+            else -> context.getString(R.string.relative_time_days, seconds / 86400L)
         }
     }
 
