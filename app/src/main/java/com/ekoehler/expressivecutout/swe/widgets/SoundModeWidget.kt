@@ -7,76 +7,58 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.Vibration
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import com.ekoehler.expressivecutout.swe.SweGroupPosition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.CutoutColor
 import com.ekoehler.expressivecutout.overlay.badgeIconSizeFor
-import com.ekoehler.expressivecutout.overlay.badgeSizeFor
 import com.ekoehler.expressivecutout.overlay.resolve
-import com.ekoehler.expressivecutout.swe.PERCENT
-import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
+import com.ekoehler.expressivecutout.swe.DEFAULT_BADGE_CORNER_PERCENT
+import com.ekoehler.expressivecutout.swe.DEFAULT_BADGE_WIDTH_PERCENT
+import com.ekoehler.expressivecutout.swe.MAX_BADGE_CORNER_PERCENT
+import com.ekoehler.expressivecutout.swe.MAX_BADGE_WIDTH_PERCENT
+import com.ekoehler.expressivecutout.swe.MIN_BADGE_WIDTH_PERCENT
 import com.ekoehler.expressivecutout.swe.SweData
-import com.ekoehler.expressivecutout.swe.sweBackgroundShape
+import com.ekoehler.expressivecutout.swe.SweIconBadge
+import com.ekoehler.expressivecutout.swe.SweIconBadgeControls
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgetType
 import com.ekoehler.expressivecutout.swe.SweWidgets
 import com.ekoehler.expressivecutout.swe.color
 import com.ekoehler.expressivecutout.swe.inkOn
 import com.ekoehler.expressivecutout.swe.putColor
-import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
-import com.ekoehler.expressivecutout.ui.components.GroupGap
-import com.ekoehler.expressivecutout.ui.components.groupedShape
-import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
+import com.ekoehler.expressivecutout.swe.sweIconBadgeWidthDp
 import org.json.JSONObject
-import kotlin.math.roundToInt
 
 /** The device's sound mode as an icon, on an optional rounded-square background. */
 data class SoundModeWidget(
     override val id: String = SweWidgets.newId(),
     val iconColor: CutoutColor? = null,
     val backgroundColor: CutoutColor? = null,
-    val backgroundWidthPercent: Int = DEFAULT_BACKGROUND_WIDTH_PERCENT,
-    val backgroundCornerPercent: Int = DEFAULT_BACKGROUND_CORNER_PERCENT,
+    val backgroundWidthPercent: Int = DEFAULT_BADGE_WIDTH_PERCENT,
+    val backgroundCornerPercent: Int = DEFAULT_BADGE_CORNER_PERCENT,
 ) : SweWidget {
     override val type: SweWidgetType get() = Companion
 
@@ -95,31 +77,16 @@ data class SoundModeWidget(
 
     /** Depends on the background settings only, never on the mode, so the pill does not twitch. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float =
-        if (backgroundColor != null) backgroundWidthDp(heightDp) else badgeIconSizeFor(heightDp).value
-
-    /** The background's width in dp: the badge size scaled by the width setting. */
-    private fun backgroundWidthDp(heightDp: Int): Float =
-        badgeSizeFor(heightDp).value * backgroundWidthPercent / PERCENT
+        sweIconBadgeWidthDp(backgroundColor != null, backgroundWidthPercent, heightDp)
 
     /** The current sound mode icon, crossfading when the mode changes. */
     @Composable
     override fun Content(data: SweData, heightDp: Int) {
         val mode by rememberSoundMode()
-        val fill = backgroundColor?.resolve()
-        val tint = iconColor?.resolve() ?: if (fill != null) inkOn(fill) else LocalContentColor.current
-        val boxModifier = if (fill != null) {
-            Modifier
-                .size(backgroundWidthDp(heightDp).dp, badgeSizeFor(heightDp))
-                .background(
-                    fill,
-                    sweBackgroundShape(LocalSweGroupPosition.current, heightDp, RoundedCornerShape(backgroundCornerPercent)),
-                )
-        } else {
-            Modifier
-        }
 
-        // Optional background
-        Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
+        SweIconBadge(backgroundColor, backgroundWidthPercent, backgroundCornerPercent, heightDp) { fill ->
+            val tint = iconColor?.resolve() ?: if (fill != null) inkOn(fill) else LocalContentColor.current
+
             // Mode icon
             AnimatedContent(
                 targetState = mode,
@@ -138,77 +105,16 @@ data class SoundModeWidget(
 
     /** The icon colour and background colour pickers, and the background's width and corner radius when it is shown. */
     @Composable
-    override fun Controls(onChange: (SweWidget) -> Unit) {
-        val hasBackground = backgroundColor != null
-        val isGrouped = LocalSweGroupPosition.current != SweGroupPosition.SINGLE
-        var widthValue by remember(backgroundWidthPercent) { mutableFloatStateOf(backgroundWidthPercent.toFloat()) }
-        var cornerValue by remember(backgroundCornerPercent) { mutableFloatStateOf(backgroundCornerPercent.toFloat()) }
-
-        Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-            // Icon colour
-            ColorPickerCard(
-                label = stringResource(R.string.widgets_soundMode_icon_color),
-                selected = iconColor,
-                onSelect = { onChange(copy(iconColor = it)) },
-                defaultLabel = stringResource(R.string.label_default),
-                defaultColor = MaterialTheme.colorScheme.onSurface,
-                shape = groupedShape(isFirst = true),
-            )
-
-            // Background colour
-            ColorPickerCard(
-                label = stringResource(R.string.widgets_soundMode_background_color),
-                selected = backgroundColor,
-                onSelect = { onChange(copy(backgroundColor = it)) },
-                defaultLabel = stringResource(R.string.empty_info_unread_shape_none),
-                defaultColor = MaterialTheme.colorScheme.surfaceVariant,
-                shape = groupedShape(isLast = !hasBackground),
-            )
-
-            // Background width and corner radius, only when a background is drawn
-            AnimatedVisibility(visible = hasBackground) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = groupedShape(isLast = true),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        AdjustableSlider(
-                            label = stringResource(R.string.width),
-                            valueText = "${widthValue.roundToInt()}%",
-                            value = widthValue,
-                            valueRange = MIN_BACKGROUND_WIDTH_PERCENT.toFloat()..MAX_BACKGROUND_WIDTH_PERCENT.toFloat(),
-                            step = 5f,
-                            onValueChange = { widthValue = it },
-                            onCommit = { onChange(copy(backgroundWidthPercent = widthValue.roundToInt())) },
-                        )
-                        AdjustableSlider(
-                            label = stringResource(R.string.appearance_corner),
-                            valueText = "${cornerValue.roundToInt()}%",
-                            value = cornerValue,
-                            valueRange = 0f..MAX_BACKGROUND_CORNER_PERCENT.toFloat(),
-                            step = 1f,
-                            onValueChange = { cornerValue = it },
-                            onCommit = { onChange(copy(backgroundCornerPercent = cornerValue.roundToInt())) },
-                            enabled = !isGrouped,
-                        )
-
-                        // Why the corner slider is off
-                        if (isGrouped) {
-                            Text(
-                                text = stringResource(R.string.widgets_background_corner_auto),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    override fun Controls(onChange: (SweWidget) -> Unit) = SweIconBadgeControls(
+        iconColor = iconColor,
+        backgroundColor = backgroundColor,
+        backgroundWidthPercent = backgroundWidthPercent,
+        backgroundCornerPercent = backgroundCornerPercent,
+        onIconColor = { onChange(copy(iconColor = it)) },
+        onBackgroundColor = { onChange(copy(backgroundColor = it)) },
+        onWidth = { onChange(copy(backgroundWidthPercent = it)) },
+        onCorner = { onChange(copy(backgroundCornerPercent = it)) },
+    )
 
     @Composable
     override fun summary(): String = stringResource(
@@ -220,15 +126,6 @@ data class SoundModeWidget(
         /** Stored in user settings and backups; never change it once shipped. */
         private const val TAG = "sound_mode"
 
-        /** The background's corner radius setting, in percent of its shorter side; 50 % is a full pill. */
-        private const val DEFAULT_BACKGROUND_CORNER_PERCENT = 32
-        private const val MAX_BACKGROUND_CORNER_PERCENT = 50
-
-        /** The background's width setting, in percent of the badge size; 100 % is a square. */
-        private const val DEFAULT_BACKGROUND_WIDTH_PERCENT = 100
-        private const val MIN_BACKGROUND_WIDTH_PERCENT = 100
-        private const val MAX_BACKGROUND_WIDTH_PERCENT = 250
-
         override val tag: String = TAG
         override val icon: ImageVector get() = Icons.AutoMirrored.Rounded.VolumeUp
         override val titleRes: Int = R.string.widgets_soundMode_title
@@ -239,10 +136,10 @@ data class SoundModeWidget(
             id = id,
             iconColor = obj.color("iconColor"),
             backgroundColor = obj.color("backgroundColor"),
-            backgroundWidthPercent = obj.optInt("backgroundWidthPercent", DEFAULT_BACKGROUND_WIDTH_PERCENT)
-                .coerceIn(MIN_BACKGROUND_WIDTH_PERCENT, MAX_BACKGROUND_WIDTH_PERCENT),
-            backgroundCornerPercent = obj.optInt("backgroundCornerPercent", DEFAULT_BACKGROUND_CORNER_PERCENT)
-                .coerceIn(0, MAX_BACKGROUND_CORNER_PERCENT),
+            backgroundWidthPercent = obj.optInt("backgroundWidthPercent", DEFAULT_BADGE_WIDTH_PERCENT)
+                .coerceIn(MIN_BADGE_WIDTH_PERCENT, MAX_BADGE_WIDTH_PERCENT),
+            backgroundCornerPercent = obj.optInt("backgroundCornerPercent", DEFAULT_BADGE_CORNER_PERCENT)
+                .coerceIn(0, MAX_BADGE_CORNER_PERCENT),
         )
     }
 }

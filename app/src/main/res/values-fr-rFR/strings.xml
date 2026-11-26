@@ -770,6 +770,7 @@
     <string name="widgets_soundMode_title">Mode sonore</string>
     <string name="widgets_soundMode_icon_color">Couleur de l\'icône</string>
     <string name="widgets_soundMode_background_color">Couleur de fond</string>
+    <string name="widgets_wifi_title">Wi-Fi</string>
     <string name="widgets_background_corner_auto">Ce widget est à côté d’un autre widget avec un fond, ses coins sont donc gérés automatiquement.</string>
     <string name="save">Sauvegarder</string>
     <string name="weight">Gras</string>

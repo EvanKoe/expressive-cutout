@@ -722,5 +722,6 @@
     <string name="widgets_soundMode_title">Ses modu</string>
     <string name="widgets_soundMode_icon_color">Simge rengi</string>
     <string name="widgets_soundMode_background_color">Arka plan rengi</string>
+    <string name="widgets_wifi_title">Wi-Fi</string>
     <string name="widgets_background_corner_auto">Bu widget arka planı olan başka bir widget\'ın yanında olduğu için köşeleri otomatik ayarlanır.</string>
 </resources>

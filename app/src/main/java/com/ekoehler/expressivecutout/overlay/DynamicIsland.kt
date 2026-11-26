@@ -204,6 +204,7 @@ import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.data.BehaviourSettings
 import com.ekoehler.expressivecutout.events.BatteryStatus
+import com.ekoehler.expressivecutout.events.WifiStatus
 import com.ekoehler.expressivecutout.data.GestureAction
 import com.ekoehler.expressivecutout.data.IconSource
 import com.ekoehler.expressivecutout.data.CALL_MAX_WIDTH_PERCENT
@@ -545,6 +546,7 @@ fun DynamicIsland(
     canTurnOffHotspot: Boolean = false,
     onTurnOffHotspot: () -> Unit = {},
     battery: BatteryStatus? = null,
+    wifi: WifiStatus? = null,
     emptyOpensCenter: Boolean = false,
     centerShortcuts: List<CenterShortcut> = emptyList(),
     centerShowLabels: Boolean = true,
@@ -737,13 +739,13 @@ fun DynamicIsland(
     val emptyDotsLeftDp = if (permissionDotsOnLeft) emptyDotRoomDp else 0f
     val emptyDotsRightDp = if (permissionDotsOnLeft) 0f else emptyDotRoomDp
 
-    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp, showEmptyCutout, hiddenEmptyWidthPercent) {
+    val emptyPillCutout = remember(collapsed, emptyInfo, unreadCounts, battery != null, wifi != null, displayWidthDp, density, cameraRightEdgeDp, isStickToCamera, emptyDotsLeftDp, emptyDotsRightDp, showEmptyCutout, hiddenEmptyWidthPercent) {
         if (isStickToCamera) {
             collapsed
         } else if (!showEmptyCutout) {
             collapsed.asHiddenEmptyCutout(hiddenEmptyWidthPercent)
         } else {
-            val sweData = SweData(unreadCounts, battery)
+            val sweData = SweData(unreadCounts, battery, wifi)
             val (left, right) = emptyPillSideWidthsDp(
                 emptyInfo, collapsed.heightDp, density, sweData, emptyDotsLeftDp, emptyDotsRightDp,
                 emptyInfoSideRoomDp(displayWidthDp, cameraRightEdgeDp),
@@ -1369,7 +1371,7 @@ fun DynamicIsland(
                                 EmptyPillInfoContent(
                                     emptyInfo,
                                     collapsed.heightDp,
-                                    SweData(unreadCounts, battery),
+                                    SweData(unreadCounts, battery, wifi),
                                     emptyDotsLeftDp,
                                     emptyDotsRightDp,
                                     sideRoomDp = emptyInfoSideRoomDp(displayWidthDp, cameraRightEdgeDp),

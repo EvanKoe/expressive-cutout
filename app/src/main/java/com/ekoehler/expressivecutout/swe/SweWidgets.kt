@@ -11,6 +11,7 @@ import com.ekoehler.expressivecutout.swe.widgets.CustomTextWidget
 import com.ekoehler.expressivecutout.swe.widgets.SoundModeWidget
 import com.ekoehler.expressivecutout.swe.widgets.SpacerWidget
 import com.ekoehler.expressivecutout.swe.widgets.UnreadWidget
+import com.ekoehler.expressivecutout.swe.widgets.WifiWidget
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -22,7 +23,7 @@ import java.util.UUID
 object SweWidgets {
     /** Every widget kind, in add-sheet order. Tags must be unique. */
     val all: List<SweWidgetType> = listOf(ClockWidget, UnreadWidget, BatteryWidget,
-        SoundModeWidget, CustomTextWidget, SpacerWidget)
+        SoundModeWidget, WifiWidget, CustomTextWidget, SpacerWidget)
 
     private const val TYPE = "type"
     private const val ID = "id"

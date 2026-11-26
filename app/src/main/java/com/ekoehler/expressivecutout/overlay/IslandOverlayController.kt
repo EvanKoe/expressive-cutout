@@ -69,6 +69,7 @@ import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
 import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryBus
+import com.ekoehler.expressivecutout.events.WifiBus
 import com.ekoehler.expressivecutout.data.DynamicTilePreferences
 import com.ekoehler.expressivecutout.data.EventPreferences
 import com.ekoehler.expressivecutout.data.IconPreferences
@@ -722,6 +723,7 @@ class IslandOverlayController(private val context: Context) {
                 val hotspot by HotspotClients.state.collectAsStateWithLifecycle()
                 val shizukuStatus by ShizukuState.status.collectAsStateWithLifecycle()
                 val battery by BatteryBus.status.collectAsStateWithLifecycle()
+                val wifi by WifiBus.status.collectAsStateWithLifecycle()
                 val cameraLeftDp by cameraLeftEdgeDp.collectAsStateWithLifecycle()
                 val orientation by orientationState.collectAsStateWithLifecycle()
                 val rotation by rotationState.collectAsStateWithLifecycle()
@@ -782,6 +784,7 @@ class IslandOverlayController(private val context: Context) {
                         canTurnOffHotspot = shizukuStatus == ShizukuStatus.READY,
                         onTurnOffHotspot = ::onTurnOffHotspot,
                         battery = battery,
+                        wifi = wifi,
                         emptyOpensCenter = behaviour.showsWhenEmptyClickAction == EmptyClickAction.OPEN_CENTER,
                         centerShortcuts = behaviour.centerShortcuts,
                         centerShowLabels = behaviour.centerShowLabels,
@@ -1068,7 +1071,7 @@ class IslandOverlayController(private val context: Context) {
 
     /**
      * Mirrors the resting pill's info settings into [emptyInfoState], and keeps the window and touch
-     * region in step with the unread count and battery presence, which both change the pill's width.
+     * region in step with the unread count and battery / Wi-Fi presence, which all change the pill's width.
      */
     private fun observeEmptyPillInfo() {
         scope.launch {
@@ -1081,7 +1084,8 @@ class IslandOverlayController(private val context: Context) {
             combine(
                 CutoutNotificationListenerService.unreadCounts,
                 BatteryBus.status.map { it != null },
-            ) { counts, hasBattery -> counts to hasBattery }
+                WifiBus.status.map { it != null },
+            ) { counts, hasBattery, hasWifi -> Triple(counts, hasBattery, hasWifi) }
                 .distinctUntilChanged()
                 .collect { syncWindowSize() }
         }
@@ -1096,7 +1100,11 @@ class IslandOverlayController(private val context: Context) {
         val behaviour = behaviourState.value
         if (!behaviour.showEmptyCutout) return collapsed.asHiddenEmptyCutout(behaviour.hiddenEmptyWidthPercent)
         val info = emptyInfoState.value
-        val sweData = SweData(CutoutNotificationListenerService.unreadCounts.value, BatteryBus.status.value)
+        val sweData = SweData(
+            CutoutNotificationListenerService.unreadCounts.value,
+            BatteryBus.status.value,
+            WifiBus.status.value,
+        )
         val dotsEnabled = permissionDotEnabledState.value || PermissionDotPreviewBus.active.value
         val dotRoomDp = if (dotsEnabled) {
             emptyPillDotRoomDp(PermissionUsageMonitor.usage.value, collapsed.heightDp, permissionDotVerticalState.value)

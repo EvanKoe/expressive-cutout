@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material3.Card
@@ -36,7 +35,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -57,6 +55,9 @@ import com.ekoehler.expressivecutout.ui.components.InfoSegmentCard
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
 import com.ekoehler.expressivecutout.ui.screen.SettingsToggleCard
+import com.ekoehler.expressivecutout.swe.MAX_BADGE_WIDTH_PERCENT
+import com.ekoehler.expressivecutout.swe.MIN_BADGE_WIDTH_PERCENT
+import com.ekoehler.expressivecutout.swe.SweBackground
 import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgetType
@@ -98,6 +99,8 @@ data class UnreadWidget(
     private fun count(counts: UnreadCounts): Int = if (countSilent) counts.all else counts.nonSilent
 
     override fun isVisible(data: SweData): Boolean = count(data.counts) > 0
+
+    override val hasBackground: Boolean get() = shape == UnreadShape.PILL
 
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float =
         widthDp(count(data.counts), heightDp, density)
@@ -144,24 +147,7 @@ data class UnreadWidget(
             transitionSpec = { (fadeIn() + scaleIn()) togetherWith (fadeOut() + scaleOut()) },
             label = "unreadShape",
         ) { targetShape ->
-            val boxShape: Shape = when (targetShape) {
-                UnreadShape.STAR -> StarBadgeShape
-                UnreadShape.PILL -> RoundedCornerShape(50)
-                UnreadShape.NONE -> RectangleShape
-            }
-
-            val boxModifier = when (targetShape) {
-                UnreadShape.NONE -> Modifier
-                UnreadShape.STAR -> Modifier.size(badge).background(fill, boxShape)
-                UnreadShape.PILL -> Modifier
-                    .size(
-                        width = copy(shape = targetShape).widthDp(lastCount, heightDp, density.density).dp,
-                        height = (heightDp * UNREAD_PILL_HEIGHT_FRACTION).dp,
-                    )
-                    .background(fill, boxShape)
-            }
-
-            Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
+            val number: @Composable () -> Unit = {
                 Text(
                     text = unreadText(lastCount),
                     color = numberColor,
@@ -170,6 +156,22 @@ data class UnreadWidget(
                     maxLines = 1,
                     softWrap = false,
                 )
+            }
+
+            when (targetShape) {
+                UnreadShape.PILL -> SweBackground(
+                    fill = fill,
+                    width = copy(shape = targetShape).widthDp(lastCount, heightDp, density.density).dp,
+                    heightDp = heightDp,
+                    content = number,
+                )
+
+                UnreadShape.STAR -> Box(
+                    modifier = Modifier.size(badge).background(fill, StarBadgeShape),
+                    contentAlignment = Alignment.Center,
+                ) { number() }
+
+                UnreadShape.NONE -> number()
             }
         }
     }
@@ -205,11 +207,9 @@ data class UnreadWidget(
 
     /** The registry entry for unread widgets, plus their setting ranges. */
     companion object : SweWidgetType {
-        /** Smallest pill width, as a percentage of the badge size. */
-        const val MIN_PILL_WIDTH_PERCENT = 100
-
-        /** Widest pill width, as a percentage of the badge size. */
-        const val MAX_PILL_WIDTH_PERCENT = 300
+        /** Pill width range, as a percentage of the badge size; shared with the icon widgets' backgrounds. */
+        const val MIN_PILL_WIDTH_PERCENT = MIN_BADGE_WIDTH_PERCENT
+        const val MAX_PILL_WIDTH_PERCENT = MAX_BADGE_WIDTH_PERCENT
 
         private const val TAG = "unread"
 
@@ -221,9 +221,6 @@ data class UnreadWidget(
         private const val UNREAD_CAP = 99
         private const val UNREAD_TEXT_FRACTION = 0.4f
         private const val UNREAD_PILL_TEXT_PAD_FRACTION = 0.16f
-
-        /** The pill height share; must match the battery's inside-body height so the two line up. */
-        private const val UNREAD_PILL_HEIGHT_FRACTION = 0.58f
 
         override val tag: String = TAG
         override val icon: ImageVector get() = Icons.Rounded.Notifications
@@ -310,7 +307,7 @@ internal fun BadgeStyleControls(widget: UnreadWidget, onChange: (UnreadWidget) -
                         valueText = "${pillWidth.roundToInt()}%",
                         value = pillWidth,
                         valueRange = UnreadWidget.MIN_PILL_WIDTH_PERCENT.toFloat()..UnreadWidget.MAX_PILL_WIDTH_PERCENT.toFloat(),
-                        step = 10f,
+                        step = 5f,
                         onValueChange = { pillWidth = it },
                         onCommit = { onChange(widget.copy(pillWidthPercent = pillWidth.roundToInt())) },
                     )

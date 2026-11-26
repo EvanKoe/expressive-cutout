@@ -343,7 +343,15 @@ class SystemEventMonitor(
             )
         }
 
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+            // The 2-arg overload is the only one available below API 30
+            @Suppress("DEPRECATION")
+            val level = WifiManager.calculateSignalLevel(caps.signalStrength, WIFI_LEVELS)
+            WifiBus.publish(WifiStatus(level))
+        }
+
         override fun onLost(network: Network) {
+            WifiBus.publish(null)
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIFI_DISCONNECTED,
@@ -443,6 +451,7 @@ class SystemEventMonitor(
         stopLockPolling()
         isDeviceCurrentlyLocked = false
         BatteryBus.publish(null)
+        WifiBus.publish(null)
         scope.cancel()
         runCatching { context.unregisterReceiver(broadcastReceiver) }
         runCatching { context.contentResolver.unregisterContentObserver(adbWifiObserver) }
@@ -764,6 +773,7 @@ class SystemEventMonitor(
         const val KEY_SAMSUNG_PROTECT_BATTERY = "protect_battery"
         const val KEY_SAMSUNG_BATTERY_THRESHOLD = "battery_protection_threshold"
         const val KEY_GENERIC_CHARGE_LIMIT = "battery_charge_limit"
+        const val WIFI_LEVELS = 5
 
         val HEADPHONE_TYPES = setOf(
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES,

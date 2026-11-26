@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
@@ -33,7 +31,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.CutoutColor
-import com.ekoehler.expressivecutout.overlay.badgeSizeFor
 import com.ekoehler.expressivecutout.overlay.rememberMinuteClock
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
@@ -44,9 +41,9 @@ import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
-import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
+import com.ekoehler.expressivecutout.swe.MAX_BADGE_CORNER_PERCENT
+import com.ekoehler.expressivecutout.swe.SweBackground
 import com.ekoehler.expressivecutout.swe.SweData
-import com.ekoehler.expressivecutout.swe.sweBackgroundShape
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgetType
 import com.ekoehler.expressivecutout.swe.SweWidgets
@@ -105,19 +102,8 @@ data class ClockWidget(
         }
 
         val fill = backgroundColor?.resolve()
-        val boxModifier = if (fill != null) {
-            Modifier
-                .size(widthDp.dp, badgeSizeFor(heightDp))
-                .background(
-                    fill,
-                    sweBackgroundShape(LocalSweGroupPosition.current, heightDp, RoundedCornerShape(BACKGROUND_CORNER_PERCENT)),
-                )
-        } else {
-            Modifier.width(widthDp.dp)
-        }
 
-        // Optional background
-        Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
+        SweBackground(fill = fill, width = widthDp.dp, heightDp = heightDp) {
             // Time
             Text(
                 text = rememberMinuteClock(),
@@ -178,7 +164,7 @@ data class ClockWidget(
                             text = "12:34",
                             modifier = if (previewFill != null) {
                                 Modifier
-                                    .background(previewFill, RoundedCornerShape(BACKGROUND_CORNER_PERCENT))
+                                    .background(previewFill, RoundedCornerShape(MAX_BADGE_CORNER_PERCENT))
                                     .padding(horizontal = 12.dp)
                             } else {
                                 Modifier
@@ -252,9 +238,6 @@ data class ClockWidget(
 
         /** Horizontal padding per side when a background is set, as a fraction of the pill height. */
         private const val BACKGROUND_PADDING_FRACTION = 0.12f
-
-        /** The background's corner radius, in percent of its shorter side. */
-        private const val BACKGROUND_CORNER_PERCENT = 32
 
         private const val TAG = "clock"
 

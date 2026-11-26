@@ -793,6 +793,7 @@
     <string name="widgets_soundMode_title">Sound mode</string>
     <string name="widgets_soundMode_icon_color">Icon color</string>
     <string name="widgets_soundMode_background_color">Background color</string>
+    <string name="widgets_wifi_title">Wi-Fi</string>
     <string name="widgets_background_corner_auto">This widget sits next to another widget with a background, so its corners are set automatically.</string>
     <string name="save">Save</string>
     <string name="weight">Weight</string>

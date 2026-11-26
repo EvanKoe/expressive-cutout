@@ -67,6 +67,7 @@ import com.ekoehler.expressivecutout.data.asEmptyInfoCutout
 import com.ekoehler.expressivecutout.data.emptyInfoSideRoomDp
 import com.ekoehler.expressivecutout.data.asHiddenEmptyCutout
 import com.ekoehler.expressivecutout.events.BatteryStatus
+import com.ekoehler.expressivecutout.events.WifiStatus
 import com.ekoehler.expressivecutout.overlay.EmptyPillInfoContent
 import com.ekoehler.expressivecutout.overlay.emptyPillSideWidthsDp
 import com.ekoehler.expressivecutout.service.UnreadCounts
@@ -87,8 +88,11 @@ private val PreviewCounts = UnreadCounts(all = 3, nonSilent = 3)
 /** The battery reading the preview shows. */
 private val PreviewBattery = BatteryStatus(level = 82, charging = false)
 
+/** The Wi-Fi reading the preview shows. */
+private val PreviewWifi = WifiStatus(level = 3)
+
 /** The live values the preview widgets draw and are sized from. */
-private val PreviewData = SweData(PreviewCounts, PreviewBattery)
+private val PreviewData = SweData(PreviewCounts, PreviewBattery, PreviewWifi)
 
 /**
  * The resting pill's widget editor: one block per side listing its widgets in order with
