@@ -7,9 +7,12 @@ import java.util.Locale
 
 /** One language the app ships strings for: its BCP-47 [tag] and the [locale] it resolves to. */
 data class AppLanguage(val tag: String, val locale: Locale) {
-    /** The language's own name for itself — "English", "Türkçe" — as shown in the picker. */
+    /**
+     * The language's own name for itself — "English", "Türkçe" — as shown in the picker. A tag with a
+     * script subtag shows the script too, so Simplified and Traditional variants stay distinguishable.
+     */
     val displayName: String
-        get() = if (tag == "zh-Hans") "简体中文" else locale.getDisplayLanguage(locale)
+        get() = (if (locale.script.isEmpty()) locale.getDisplayLanguage(locale) else locale.getDisplayName(locale))
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
 }
 

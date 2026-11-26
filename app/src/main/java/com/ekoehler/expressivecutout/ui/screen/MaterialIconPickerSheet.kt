@@ -52,14 +52,17 @@ fun MaterialIconPickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
-    // Case-insensitive substring match on the icon's stable key; lower-cased on both sides to be safe.
+    // Match covers both the stable key and the localized label, case-insensitively
     val context = LocalContext.current
     val filtered = remember(query, context.resources.configuration) {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) {
             MaterialIconCatalog.options
         } else {
-            MaterialIconCatalog.options.filter { it.key.lowercase().contains(needle) || context.getString(it.labelRes).lowercase().contains(needle) }
+            MaterialIconCatalog.options.filter {
+                it.key.lowercase().contains(needle) ||
+                    context.getString(it.labelRes).lowercase().contains(needle)
+            }
         }
     }
 

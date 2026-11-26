@@ -2,13 +2,18 @@ package com.ekoehler.expressivecutout.data
 
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Covers the Simplified Chinese picker label and the tag matching that routes Chinese locales to it. */
 class ChineseLanguageTest {
     private val tags = listOf("en", "fr-FR", "tr", "zh-Hans")
 
     @Test fun `picker shows an explicit Simplified Chinese name`() {
-        assertEquals("简体中文", AppLanguage("zh-Hans", Locale.forLanguageTag("zh-Hans")).displayName)
+        val name = AppLanguage("zh-Hans", Locale.forLanguageTag("zh-Hans")).displayName
+        assertTrue(name, name.contains("简体"))
+        assertNotEquals(Locale.forLanguageTag("zh").let { it.getDisplayLanguage(it) }, name)
     }
 
     @Test fun `Chinese regional and script tags resolve to the bundled translation`() {

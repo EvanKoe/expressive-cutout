@@ -5,6 +5,9 @@ import json
 import re
 import xml.etree.ElementTree as ET
 
+if not __debug__:
+    raise SystemExit('Run without -O: these checks use assert')
+
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / 'app/src/main/res'
 
@@ -56,8 +59,8 @@ for key, source in required.items():
 locales = [n.get('{http://schemas.android.com/apk/res/android}name') for n in ET.parse(RES / 'xml/locales_config.xml').getroot()]
 assert len(locales) == len(set(locales)) and 'zh-Hans' in locales
 assets = ROOT / 'app/src/main/assets'
-en_notes = json.loads((assets / 'changelog.json').read_text())
-zh_notes = json.loads((assets / 'changelog-zh-Hans.json').read_text())
+en_notes = json.loads((assets / 'changelog.json').read_text(encoding='utf-8'))
+zh_notes = json.loads((assets / 'changelog-zh-Hans.json').read_text(encoding='utf-8'))
 assert len(en_notes) == len(zh_notes)
 notes_count = 0
 for en, cn in zip(en_notes, zh_notes):
@@ -69,15 +72,14 @@ for en, cn in zip(en_notes, zh_notes):
         assert all(a and a != b for a,b in zip(cn[section],en[section]))
         notes_count += len(cn[section])
 # Stable icon IDs must remain machine-readable; only separate labels are translated.
-catalog = (ROOT / 'app/src/main/java/com/ekoehler/expressivecutout/overlay/MaterialIconCatalog.kt').read_text()
+catalog = (ROOT / 'app/src/main/java/com/ekoehler/expressivecutout/overlay/MaterialIconCatalog.kt').read_text(encoding='utf-8')
 keys = re.findall(r'MaterialIconOption\("([^"]+)"',catalog)
-assert len(keys) == len(set(keys)) == 61
+assert keys and len(keys) == len(set(keys))
 assert all('icon_label_' + k in zh for k in keys)
-resolver = (ROOT / 'app/src/main/java/com/ekoehler/expressivecutout/overlay/IconResolver.kt').read_text()
+resolver = (ROOT / 'app/src/main/java/com/ekoehler/expressivecutout/overlay/IconResolver.kt').read_text(encoding='utf-8')
 assert all('"' + k + '"' in resolver for k in ('answer', 'decline', 'hang up', '接听', '拒接', '挂断'))
 identical = [k for k in required if ''.join(required[k].itertext()) == ''.join(zh[k].itertext())]
 print(json.dumps({'translatable_resources': len(required), 'zh_resources': len(zh),
-                  'missing_resources': 0, 'format_mismatches': 0,
                   'formatted_resources': sum(v.get('formatted') != 'false' and bool(tokens(''.join(v.itertext()))) for v in required.values()),
                   'plural_resources': sum(v.tag == 'plurals' for v in required.values()),
                   'string_array_resources': sum(v.tag == 'string-array' for v in required.values()), 'changelog_entries': len(zh_notes),

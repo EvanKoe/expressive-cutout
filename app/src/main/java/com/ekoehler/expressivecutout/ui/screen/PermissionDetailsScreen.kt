@@ -1,5 +1,6 @@
 package com.ekoehler.expressivecutout.ui.screen
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,15 +50,16 @@ import com.ekoehler.expressivecutout.R
 
 /**
  * One permission, explained: what it is, and the specific things the app does with it. The copy
- * lives in resources while the manifest identifiers remain untranslated.
+ * is referenced by string resource id and resolved where it is drawn; the manifest identifiers
+ * remain untranslated.
  */
 private data class PermissionDoc(
     val icon: ImageVector,
-    val title: String,
+    @StringRes val titleRes: Int,
     /** The manifest identifier, shown small and monospaced so it can be matched to the manifest. */
     val manifestName: String,
-    val summary: String,
-    val uses: List<String>,
+    @StringRes val summaryRes: Int,
+    val usesRes: List<Int>,
     /** Only asked for on some Android versions, or only when a given feature is used. */
     val optional: Boolean = false,
 )
@@ -67,122 +69,121 @@ private data class PermissionDoc(
  * the quiet ones — network state and package visibility — that are granted automatically and never
  * prompt. This list is the whole manifest — if an entry is added there, it belongs here too.
  */
-@Composable
-private fun permissionDocs(): List<PermissionDoc> = listOf(
+private val PERMISSION_DOCS: List<PermissionDoc> = listOf(
     PermissionDoc(
         icon = Icons.Rounded.Notifications,
-        title = stringResource(R.string.permission_doc_notification_title),
+        titleRes = R.string.permission_doc_notification_title,
         manifestName = "BIND_NOTIFICATION_LISTENER_SERVICE",
-        summary = stringResource(R.string.permission_doc_notification_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_notification_show),
-            stringResource(R.string.permission_doc_notification_reply),
-            stringResource(R.string.permission_doc_notification_dismiss),
-            stringResource(R.string.permission_doc_notification_call_timer),
-            stringResource(R.string.permission_doc_notification_music),
+        summaryRes = R.string.permission_doc_notification_summary,
+        usesRes = listOf(
+            R.string.permission_doc_notification_show,
+            R.string.permission_doc_notification_reply,
+            R.string.permission_doc_notification_dismiss,
+            R.string.permission_doc_notification_call_timer,
+            R.string.permission_doc_notification_music,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Vibration,
-        title = stringResource(R.string.permission_doc_vibration_title),
+        titleRes = R.string.permission_doc_vibration_title,
         manifestName = "VIBRATE",
-        summary = stringResource(R.string.permission_doc_vibration_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_vibration_navigation),
-            stringResource(R.string.permission_doc_vibration_cutout)
+        summaryRes = R.string.permission_doc_vibration_summary,
+        usesRes = listOf(
+            R.string.permission_doc_vibration_navigation,
+            R.string.permission_doc_vibration_cutout
         )
     ),
     PermissionDoc(
         icon = Icons.Rounded.Layers,
-        title = stringResource(R.string.permission_doc_accessibility_title),
+        titleRes = R.string.permission_doc_accessibility_title,
         manifestName = "BIND_ACCESSIBILITY_SERVICE",
-        summary = stringResource(R.string.permission_doc_accessibility_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_accessibility_draw),
-            stringResource(R.string.permission_doc_accessibility_lifecycle),
-            stringResource(R.string.permission_doc_accessibility_gestures),
-            stringResource(R.string.permission_doc_accessibility_foreground),
+        summaryRes = R.string.permission_doc_accessibility_summary,
+        usesRes = listOf(
+            R.string.permission_doc_accessibility_draw,
+            R.string.permission_doc_accessibility_lifecycle,
+            R.string.permission_doc_accessibility_gestures,
+            R.string.permission_doc_accessibility_foreground,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.BatterySaver,
-        title = stringResource(R.string.permission_doc_battery_title),
+        titleRes = R.string.permission_doc_battery_title,
         manifestName = "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
-        summary = stringResource(R.string.permission_doc_battery_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_battery_running),
+        summaryRes = R.string.permission_doc_battery_summary,
+        usesRes = listOf(
+            R.string.permission_doc_battery_running,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.NotificationsActive,
-        title = stringResource(R.string.permission_doc_post_notifications_title),
+        titleRes = R.string.permission_doc_post_notifications_title,
         manifestName = "POST_NOTIFICATIONS",
-        summary = stringResource(R.string.permission_doc_post_notifications_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_post_notifications_samples),
+        summaryRes = R.string.permission_doc_post_notifications_summary,
+        usesRes = listOf(
+            R.string.permission_doc_post_notifications_samples,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.VolumeUp,
-        title = stringResource(R.string.permission_doc_audio_title),
+        titleRes = R.string.permission_doc_audio_title,
         manifestName = "MODIFY_AUDIO_SETTINGS",
-        summary = stringResource(R.string.permission_doc_audio_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_audio_mute),
-            stringResource(R.string.permission_doc_audio_speaker),
+        summaryRes = R.string.permission_doc_audio_summary,
+        usesRes = listOf(
+            R.string.permission_doc_audio_mute,
+            R.string.permission_doc_audio_speaker,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Call,
-        title = stringResource(R.string.permission_doc_phone_title),
+        titleRes = R.string.permission_doc_phone_title,
         manifestName = "READ_PHONE_STATE",
-        summary = stringResource(R.string.permission_doc_phone_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_phone_end),
+        summaryRes = R.string.permission_doc_phone_summary,
+        usesRes = listOf(
+            R.string.permission_doc_phone_end,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.Terminal,
-        title = stringResource(R.string.permission_doc_shizuku_title),
+        titleRes = R.string.permission_doc_shizuku_title,
         manifestName = "moe.shizuku.manager.permission.API_V23",
-        summary = stringResource(R.string.permission_doc_shizuku_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_shizuku_status_bar),
-            stringResource(R.string.permission_doc_shizuku_privacy),
-            stringResource(R.string.permission_doc_shizuku_hotspot),
+        summaryRes = R.string.permission_doc_shizuku_summary,
+        usesRes = listOf(
+            R.string.permission_doc_shizuku_status_bar,
+            R.string.permission_doc_shizuku_privacy,
+            R.string.permission_doc_shizuku_hotspot,
         ),
         optional = true,
     ),
     PermissionDoc(
         icon = Icons.Rounded.Wifi,
-        title = stringResource(R.string.permission_doc_network_title),
+        titleRes = R.string.permission_doc_network_title,
         manifestName = "ACCESS_NETWORK_STATE",
-        summary = stringResource(R.string.permission_doc_network_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_network_events),
+        summaryRes = R.string.permission_doc_network_summary,
+        usesRes = listOf(
+            R.string.permission_doc_network_events,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.WifiTethering,
-        title = stringResource(R.string.permission_doc_wifi_title),
+        titleRes = R.string.permission_doc_wifi_title,
         manifestName = "ACCESS_WIFI_STATE",
-        summary = stringResource(R.string.permission_doc_wifi_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_wifi_events),
+        summaryRes = R.string.permission_doc_wifi_summary,
+        usesRes = listOf(
+            R.string.permission_doc_wifi_events,
         ),
     ),
     PermissionDoc(
         icon = Icons.Rounded.Apps,
-        title = stringResource(R.string.permission_doc_app_list_title),
+        titleRes = R.string.permission_doc_app_list_title,
         manifestName = "<queries>",
-        summary = stringResource(R.string.permission_doc_app_list_summary),
-        uses = listOf(
-            stringResource(R.string.permission_doc_app_list_filter),
-            stringResource(R.string.permission_doc_app_list_icon),
-            stringResource(R.string.permission_doc_app_list_shizuku),
+        summaryRes = R.string.permission_doc_app_list_summary,
+        usesRes = listOf(
+            R.string.permission_doc_app_list_filter,
+            R.string.permission_doc_app_list_icon,
+            R.string.permission_doc_app_list_shizuku,
         ),
     ),
 )
@@ -202,7 +203,7 @@ fun PermissionDetailsScreen(contentPadding: PaddingValues) {
     ) {
         IntroCard()
 
-        permissionDocs().forEach { doc -> PermissionDocCard(doc) }
+        PERMISSION_DOCS.forEach { doc -> PermissionDocCard(doc) }
 
         FooterCard()
     }
@@ -266,7 +267,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 )
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    text = doc.title,
+                    text = stringResource(doc.titleRes),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -299,7 +300,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
 
             // Plain-language summary
             Text(
-                text = doc.summary,
+                text = stringResource(doc.summaryRes),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -310,7 +311,7 @@ private fun PermissionDocCard(doc: PermissionDoc) {
                 icon = Icons.Rounded.Check,
                 label = stringResource(R.string.permission_details_uses),
                 accent = MaterialTheme.colorScheme.primary,
-                items = doc.uses,
+                items = doc.usesRes.map { stringResource(it) },
             )
         }
     }

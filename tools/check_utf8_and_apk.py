@@ -8,6 +8,9 @@ import subprocess
 import xml.etree.ElementTree as ET
 import zipfile
 
+if not __debug__:
+    raise SystemExit('Run without -O: these checks use assert')
+
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 artifact = parser.add_mutually_exclusive_group()
@@ -36,8 +39,7 @@ for path in ROOT.rglob('*'):
     source_count += 1
     chinese_files += bool(re.search(r'[\u3400-\u9fff]', text))
 
-report = {'strict_utf8_source_files': source_count, 'source_files_containing_chinese': chinese_files,
-          'BOM_count': 0, 'replacement_character_count': 0, 'XML_encoding_mismatches': 0}
+report = {'strict_utf8_source_files': source_count, 'source_files_containing_chinese': chinese_files}
 if args.apk or args.resources:
     archive_path = args.apk or args.resources
     result = subprocess.run([args.aapt2, 'dump', 'resources', str(archive_path)], check=True, stdout=subprocess.PIPE)
@@ -67,7 +69,5 @@ if args.apk or args.resources:
             assert archive.read('assets/changelog-zh-Hans.json') == (ROOT/note).read_bytes()
             archive.read('assets/changelog-zh-Hans.json').decode('utf-8', errors='strict')
             report['apk_changelog_utf8_and_bytes'] = 'MATCH'
-    report.update({'compiled_zh_resources_exactly_matched': len(expected),
-                   'compiled_source_mismatches': 0,
-                   'newline_and_android_escape_roundtrip': 'MATCH', 'archive_zip_integrity': 'PASS'})
+    report.update({'compiled_zh_resources_exactly_matched': len(expected)})
 print(json.dumps(report, ensure_ascii=False, indent=2))

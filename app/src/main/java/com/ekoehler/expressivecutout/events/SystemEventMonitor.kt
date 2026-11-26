@@ -4,7 +4,6 @@ import android.app.KeyguardManager
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
-import com.ekoehler.expressivecutout.system.AppLocale
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -33,6 +32,7 @@ import com.ekoehler.expressivecutout.core.IslandEventBus
 import com.ekoehler.expressivecutout.core.SystemEventPayload
 import com.ekoehler.expressivecutout.core.SystemEventType
 import com.ekoehler.expressivecutout.system.HotspotClients
+import com.ekoehler.expressivecutout.system.LocalizedStrings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,6 +52,8 @@ class SystemEventMonitor(
     private val keyguardManager: KeyguardManager? = context.getSystemService(),
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
 ) {
+
+    private val strings = LocalizedStrings(context)
 
     private val connectivityManager = context.getSystemService<ConnectivityManager>()
     private val audioManager = context.getSystemService<AudioManager>()
@@ -98,7 +100,7 @@ class SystemEventMonitor(
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.CHARGING_STARTED,
-                            title = AppLocale.localizedContext(context).getString(R.string.event_charging_started),
+                            title = strings.get(R.string.event_charging_started),
                             subtitle = subtitle,
                             collapsedBadgeText = "$level%",
                             actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
@@ -111,8 +113,8 @@ class SystemEventMonitor(
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.CHARGING_STOPPED,
-                            title = AppLocale.localizedContext(context).getString(R.string.event_charging_stopped),
-                            subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_battery_remaining, level),
+                            title = strings.get(R.string.event_charging_stopped),
+                            subtitle = strings.get(R.string.event_subtitle_battery_remaining, level),
                             collapsedBadgeText = "$level%",
                             actionIntentAction = Intent.ACTION_POWER_USAGE_SUMMARY,
                         ),
@@ -128,8 +130,8 @@ class SystemEventMonitor(
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.BATTERY_LOW,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_battery_low),
-                                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_connect_charger, level),
+                                title = strings.get(R.string.event_battery_low),
+                                subtitle = strings.get(R.string.event_subtitle_connect_charger, level),
                                 collapsedBadgeText = "$level%",
                                 actionIntentAction = Settings.ACTION_BATTERY_SAVER_SETTINGS,
                             ),
@@ -153,11 +155,11 @@ class SystemEventMonitor(
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
                     val device = getUsbDevice(intent)
-                    val name = device?.productName?.takeIf { it.isNotBlank() } ?: AppLocale.localizedContext(context).getString(R.string.event_subtitle_accessory_connected)
+                    val name = device?.productName?.takeIf { it.isNotBlank() } ?: strings.get(R.string.event_subtitle_accessory_connected)
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.USB_MOUNTED,
-                            title = AppLocale.localizedContext(context).getString(R.string.event_usb_mounted),
+                            title = strings.get(R.string.event_usb_mounted),
                             subtitle = name,
                             actionIntentAction = Settings.ACTION_SETTINGS,
                         ),
@@ -167,8 +169,8 @@ class SystemEventMonitor(
                     emit(
                         SystemEventPayload(
                             type = SystemEventType.USB_UNMOUNTED,
-                            title = AppLocale.localizedContext(context).getString(R.string.event_usb_unmounted),
-                            subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_device_disconnected),
+                            title = strings.get(R.string.event_usb_unmounted),
+                            subtitle = strings.get(R.string.event_subtitle_device_disconnected),
                             actionIntentAction = Settings.ACTION_SETTINGS,
                         ),
                     )
@@ -181,8 +183,8 @@ class SystemEventMonitor(
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.ADB_CONNECTED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_adb_connected),
-                                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_host_authorized),
+                                title = strings.get(R.string.event_adb_connected),
+                                subtitle = strings.get(R.string.event_subtitle_host_authorized),
                                 collapsedBadgeText = "USB",
                                 actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                             ),
@@ -192,8 +194,8 @@ class SystemEventMonitor(
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.ADB_DISCONNECTED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_adb_disconnected),
-                                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_session_closed),
+                                title = strings.get(R.string.event_adb_disconnected),
+                                subtitle = strings.get(R.string.event_subtitle_session_closed),
                                 collapsedBadgeText = "USB",
                                 actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                             ),
@@ -208,11 +210,11 @@ class SystemEventMonitor(
                     }.getOrDefault(false)
                     if (!isAudio) {
                         val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
-                            ?: AppLocale.localizedContext(context).getString(R.string.event_subtitle_bluetooth_accessory)
+                            ?: strings.get(R.string.event_subtitle_bluetooth_accessory)
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.BLUETOOTH_CONNECTED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_bluetooth_connected),
+                                title = strings.get(R.string.event_bluetooth_connected),
                                 subtitle = name,
                                 actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
                             ),
@@ -226,11 +228,11 @@ class SystemEventMonitor(
                     }.getOrDefault(false)
                     if (!isAudio) {
                         val name = runCatching { device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
-                            ?: AppLocale.localizedContext(context).getString(R.string.event_subtitle_device_disconnected)
+                            ?: strings.get(R.string.event_subtitle_device_disconnected)
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.BLUETOOTH_DISCONNECTED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_bluetooth_disconnected),
+                                title = strings.get(R.string.event_bluetooth_disconnected),
                                 subtitle = name,
                                 actionIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS,
                             ),
@@ -244,8 +246,8 @@ class SystemEventMonitor(
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_ENABLED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_hotspot_enabled),
-                                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_tethering_ready),
+                                title = strings.get(R.string.event_hotspot_enabled),
+                                subtitle = strings.get(R.string.event_subtitle_tethering_ready),
                                 actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
                             ),
                         )
@@ -254,8 +256,8 @@ class SystemEventMonitor(
                         emit(
                             SystemEventPayload(
                                 type = SystemEventType.HOTSPOT_DISABLED,
-                                title = AppLocale.localizedContext(context).getString(R.string.event_hotspot_disabled),
-                                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_tethering_off),
+                                title = strings.get(R.string.event_hotspot_disabled),
+                                subtitle = strings.get(R.string.event_subtitle_tethering_off),
                                 actionIntentAction = Settings.ACTION_WIRELESS_SETTINGS,
                             ),
                         )
@@ -271,24 +273,24 @@ class SystemEventMonitor(
                             AudioManager.RINGER_MODE_NORMAL -> emit(
                                 SystemEventPayload(
                                     type = SystemEventType.RINGER_NORMAL,
-                                    title = AppLocale.localizedContext(context).getString(R.string.event_ringer_normal),
-                                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_ringer_normal),
+                                    title = strings.get(R.string.event_ringer_normal),
+                                    subtitle = strings.get(R.string.event_subtitle_ringer_normal),
                                     actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
                                 ),
                             )
                             AudioManager.RINGER_MODE_VIBRATE -> emit(
                                 SystemEventPayload(
                                     type = SystemEventType.RINGER_VIBRATE,
-                                    title = AppLocale.localizedContext(context).getString(R.string.event_ringer_vibrate),
-                                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_ringer_vibrate),
+                                    title = strings.get(R.string.event_ringer_vibrate),
+                                    subtitle = strings.get(R.string.event_subtitle_ringer_vibrate),
                                     actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
                                 ),
                             )
                             AudioManager.RINGER_MODE_SILENT -> emit(
                                 SystemEventPayload(
                                     type = SystemEventType.RINGER_SILENT,
-                                    title = AppLocale.localizedContext(context).getString(R.string.event_ringer_silent),
-                                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_ringer_silent),
+                                    title = strings.get(R.string.event_ringer_silent),
+                                    subtitle = strings.get(R.string.event_subtitle_ringer_silent),
                                     actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
                                 ),
                             )
@@ -304,11 +306,11 @@ class SystemEventMonitor(
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             val headphone = addedDevices.firstOrNull { it.isHeadphone }
             if (headphone != null) {
-                val name = headphone.productName?.toString()?.takeIf { it.isNotBlank() } ?: AppLocale.localizedContext(context).getString(R.string.event_subtitle_audio_device)
+                val name = headphone.productName?.toString()?.takeIf { it.isNotBlank() } ?: strings.get(R.string.event_subtitle_audio_device)
                 emit(
                     SystemEventPayload(
                         type = SystemEventType.HEADPHONES_CONNECTED,
-                        title = AppLocale.localizedContext(context).getString(R.string.event_headphones_connected),
+                        title = strings.get(R.string.event_headphones_connected),
                         subtitle = name,
                         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
                     ),
@@ -321,8 +323,8 @@ class SystemEventMonitor(
                 emit(
                     SystemEventPayload(
                         type = SystemEventType.HEADPHONES_DISCONNECTED,
-                        title = AppLocale.localizedContext(context).getString(R.string.event_headphones_disconnected),
-                        subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_speaker),
+                        title = strings.get(R.string.event_headphones_disconnected),
+                        subtitle = strings.get(R.string.event_subtitle_speaker),
                         actionIntentAction = Settings.ACTION_SOUND_SETTINGS,
                     ),
                 )
@@ -333,11 +335,11 @@ class SystemEventMonitor(
     private val wifiCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             val ssid = getWifiSsid(context)
-            val subtitle = ssid ?: AppLocale.localizedContext(context).getString(R.string.event_subtitle_connected)
+            val subtitle = ssid ?: strings.get(R.string.event_subtitle_connected)
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIFI_CONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_wifi_connected),
+                    title = strings.get(R.string.event_wifi_connected),
                     subtitle = subtitle,
                     actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
                 ),
@@ -348,8 +350,8 @@ class SystemEventMonitor(
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIFI_DISCONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_wifi_disconnected),
-                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_disconnected),
+                    title = strings.get(R.string.event_wifi_disconnected),
+                    subtitle = strings.get(R.string.event_subtitle_disconnected),
                     actionIntentAction = Settings.ACTION_WIFI_SETTINGS,
                 ),
             )
@@ -361,8 +363,8 @@ class SystemEventMonitor(
             emit(
                 SystemEventPayload(
                     type = SystemEventType.VPN_CONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_vpn_connected),
-                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_vpn_active),
+                    title = strings.get(R.string.event_vpn_connected),
+                    subtitle = strings.get(R.string.event_subtitle_vpn_active),
                     actionIntentAction = Settings.ACTION_VPN_SETTINGS,
                 ),
             )
@@ -372,8 +374,8 @@ class SystemEventMonitor(
             emit(
                 SystemEventPayload(
                     type = SystemEventType.VPN_DISCONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_vpn_disconnected),
-                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_vpn_closed),
+                    title = strings.get(R.string.event_vpn_disconnected),
+                    subtitle = strings.get(R.string.event_subtitle_vpn_closed),
                     actionIntentAction = Settings.ACTION_VPN_SETTINGS,
                 ),
             )
@@ -461,11 +463,11 @@ class SystemEventMonitor(
         if (enabled && !isWirelessAdbConnected) {
             isWirelessAdbConnected = true
             val ssid = getWifiSsid(context)
-            val subtitle = if (ssid != null) AppLocale.localizedContext(context).getString(R.string.event_subtitle_network, ssid) else AppLocale.localizedContext(context).getString(R.string.event_subtitle_active)
+            val subtitle = if (ssid != null) strings.get(R.string.event_subtitle_network, ssid) else strings.get(R.string.event_subtitle_active)
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIRELESS_DEBUGGING_CONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_wireless_debugging_connected),
+                    title = strings.get(R.string.event_wireless_debugging_connected),
                     subtitle = subtitle,
                     collapsedBadgeText = "Wi‑Fi",
                     actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
@@ -476,8 +478,8 @@ class SystemEventMonitor(
             emit(
                 SystemEventPayload(
                     type = SystemEventType.WIRELESS_DEBUGGING_DISCONNECTED,
-                    title = AppLocale.localizedContext(context).getString(R.string.event_wireless_debugging_disconnected),
-                    subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_wireless_closed),
+                    title = strings.get(R.string.event_wireless_debugging_disconnected),
+                    subtitle = strings.get(R.string.event_subtitle_wireless_closed),
                     collapsedBadgeText = "Wi‑Fi",
                     actionIntentAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
                 ),
@@ -491,8 +493,8 @@ class SystemEventMonitor(
         emit(
             SystemEventPayload(
                 type = SystemEventType.DEVICE_LOCKED,
-                title = AppLocale.localizedContext(context).getString(R.string.event_device_locked),
-                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_device_locked),
+                title = strings.get(R.string.event_device_locked),
+                subtitle = strings.get(R.string.event_subtitle_device_locked),
                 actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
             ),
         )
@@ -545,8 +547,8 @@ class SystemEventMonitor(
         emit(
             SystemEventPayload(
                 type = SystemEventType.DEVICE_UNLOCKED,
-                title = AppLocale.localizedContext(context).getString(R.string.event_device_unlocked),
-                subtitle = AppLocale.localizedContext(context).getString(R.string.event_subtitle_device_unlocked),
+                title = strings.get(R.string.event_device_unlocked),
+                subtitle = strings.get(R.string.event_subtitle_device_unlocked),
                 actionIntentAction = Settings.ACTION_SECURITY_SETTINGS,
             ),
         )
@@ -585,9 +587,9 @@ class SystemEventMonitor(
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         when (status?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)) {
-            BatteryManager.BATTERY_PLUGGED_AC -> AppLocale.localizedContext(context).getString(R.string.event_subtitle_fast_charging)
-            BatteryManager.BATTERY_PLUGGED_USB -> AppLocale.localizedContext(context).getString(R.string.event_subtitle_usb_charging)
-            BatteryManager.BATTERY_PLUGGED_WIRELESS -> AppLocale.localizedContext(context).getString(R.string.event_subtitle_wireless_charging)
+            BatteryManager.BATTERY_PLUGGED_AC -> strings.get(R.string.event_subtitle_fast_charging)
+            BatteryManager.BATTERY_PLUGGED_USB -> strings.get(R.string.event_subtitle_usb_charging)
+            BatteryManager.BATTERY_PLUGGED_WIRELESS -> strings.get(R.string.event_subtitle_wireless_charging)
             else -> null
         }
     }.getOrNull()
@@ -694,13 +696,13 @@ class SystemEventMonitor(
             if (!isFullyChargedState) {
                 isFullyChargedState = true
                 val isCapped = cap < 100 && level <= cap + 1
-                val title = AppLocale.localizedContext(context).getString(
+                val title = strings.get(
                     if (isCapped) R.string.event_charging_limit_reached else R.string.event_charging_complete,
                 )
                 val subtitle = if (isCapped) {
-                    AppLocale.localizedContext(context).getString(R.string.event_subtitle_charge_limit, level)
+                    strings.get(R.string.event_subtitle_charge_limit, level)
                 } else {
-                    AppLocale.localizedContext(context).getString(R.string.event_subtitle_ready_to_unplug, level)
+                    strings.get(R.string.event_subtitle_ready_to_unplug, level)
                 }
                 emit(
                     SystemEventPayload(

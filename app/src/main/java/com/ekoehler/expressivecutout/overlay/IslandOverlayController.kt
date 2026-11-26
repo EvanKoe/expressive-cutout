@@ -5,8 +5,6 @@ import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.content.BroadcastReceiver
-import com.ekoehler.expressivecutout.system.AppLocale
-import com.ekoehler.expressivecutout.system.LocalizedOverlayContent
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -94,6 +92,8 @@ import com.ekoehler.expressivecutout.data.TimerTileSettings
 import com.ekoehler.expressivecutout.service.CutoutNotificationListenerService
 import com.ekoehler.expressivecutout.swe.SweData
 import com.ekoehler.expressivecutout.system.HotspotClients
+import com.ekoehler.expressivecutout.system.LocalizedOverlayContent
+import com.ekoehler.expressivecutout.system.LocalizedStrings
 import com.ekoehler.expressivecutout.system.ShizukuState
 import com.ekoehler.expressivecutout.system.ShizukuStatus
 import android.widget.Toast
@@ -133,6 +133,8 @@ import kotlin.math.roundToInt
  * where that isn't available.
  */
 class IslandOverlayController(private val context: Context) {
+
+    private val strings = LocalizedStrings(context)
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val windowManager = requireNotNull(context.getSystemService<WindowManager>())
@@ -353,9 +355,9 @@ class IslandOverlayController(private val context: Context) {
         IslandEvent(
             id = -1L,
             icon = IslandIcon.Vector(Icons.Rounded.Tune),
-            label = AppLocale.localizedContext(context).getString(R.string.preview_label),
-            detail = AppLocale.localizedContext(context).getString(R.string.preview_detail),
-            appName = AppLocale.localizedContext(context).getString(R.string.app_name),
+            label = strings.get(R.string.preview_label),
+            detail = strings.get(R.string.preview_detail),
+            appName = strings.get(R.string.app_name),
             postTimeMs = System.currentTimeMillis(),
             accent = Color(0xFF60A5FA),
             appColor = Color(0xFF60A5FA),
@@ -940,7 +942,7 @@ class IslandOverlayController(private val context: Context) {
         scope.launch(Dispatchers.IO) {
             if (!HotspotClients.stopHotspot()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(AppLocale.localizedContext(context), R.string.hotspot_turn_off_failed, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, strings.get(R.string.hotspot_turn_off_failed), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -1295,7 +1297,7 @@ class IslandOverlayController(private val context: Context) {
                 currentEvent.value = currentEvent.value?.copy(
                     actions = resolver.timerActions(timer.actions),
                     label = timer.label?.takeIf { it.isNotBlank() }
-                        ?: AppLocale.localizedContext(context).getString(DynamicTile.TIMER.labelRes),
+                        ?: strings.get(DynamicTile.TIMER.labelRes),
                 )
                 lastTimerEvent = currentEvent.value
             }

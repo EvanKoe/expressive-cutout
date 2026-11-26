@@ -56,15 +56,12 @@ In this example, the first argument is `Hello`. So it will display `Reply sent: 
 
 Android uses `b+` qualifiers for script-specific BCP-47 resource folders. For example,
 Simplified Chinese is `values-b+zh+Hans`, paired with `zh-Hans` in `locales_config.xml`.
-Its picker name is explicitly “简体中文”, rather than the ambiguous language-only “中文”.
+The picker name comes from the platform's display name for the locale, and includes the script when the tag has one.
 
 In addition to `strings.xml`, translate `additional_strings.xml` and `permission_docs.xml`.
 These hold formerly hardcoded event subtitles, permission explanations, accessibility labels,
 and searchable icon names. Keep persisted icon IDs and manifest permission names unchanged.
-French and Turkish retain the previous English fallback for these extracted strings until
-community translations are available. The Simplified Chinese release history is maintained in
-`app/src/main/assets/changelog-zh-Hans.json`, with the same versions and list structure as
-`changelog.json`.
+French and Turkish don't ship `additional_strings.xml`/`permission_docs.xml`, so Android falls back to `values/` until a translator adds them. A translated release history is `app/src/main/assets/changelog-<tag>.json` (e.g. `changelog-zh-Hans.json`), with the same versions and list structure as `changelog.json`, picked automatically by language tag.
 
 Run the dependency-free checks from the repository root:
 

@@ -37,16 +37,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
+import com.ekoehler.expressivecutout.data.AppLanguages
 import com.ekoehler.expressivecutout.ui.components.PageTitle
 import org.json.JSONArray
 
 /** The asset holding the release history, edited by hand when a release is cut. */
 private const val ChangelogAsset = "changelog.json"
 
+/** The per-language variant of [ChangelogAsset] for a supported language [tag]. */
+private fun localizedChangelogAsset(tag: String) = "changelog-$tag.json"
+
 /**
  * One entry in the release history. The bullet text lives in [ChangelogAsset] rather than in
- * strings.xml so each release is described in one place. A corresponding Simplified Chinese
- * asset preserves the same versions and section structure.
+ * strings.xml so each release is described in one place. A language may ship its own
+ * `changelog-<tag>.json` with the same versions and section structure; it is used when present,
+ * otherwise [ChangelogAsset] applies.
  */
 internal data class Release(
     val version: String,
@@ -61,8 +66,9 @@ internal data class Release(
  * typo while filling the file in only costs the changelog its content.
  */
 internal fun loadReleases(context: Context): List<Release> = runCatching {
-    val asset = if (context.resources.configuration.locales[0].language == "zh")
-        "changelog-zh-Hans.json" else ChangelogAsset
+    val tag = AppLanguages.normalise(context, context.resources.configuration.locales[0].toLanguageTag())
+    val localized = localizedChangelogAsset(tag)
+    val asset = if (localized in context.assets.list("").orEmpty()) localized else ChangelogAsset
     val text = context.assets.open(asset).bufferedReader().use { it.readText() }
     val entries = JSONArray(text)
     List(entries.length()) { index ->
