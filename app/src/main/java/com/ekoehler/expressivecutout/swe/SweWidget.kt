@@ -16,6 +16,8 @@ import org.json.JSONObject
  *   with Compose APIs. Too small a value clips the widget; it must not depend on values that
  *   change often (such as the minute or the battery level) or the pill width would twitch.
  * - [isVisible] is also called outside Compose; a widget that returns false takes no width.
+ * - A widget whose [hasBackground] is true must draw that background `badgeSizeFor(heightDp)` tall
+ *   and shape it with `sweBackgroundShape`, so neighbouring backgrounds join into one pill.
  * - [Content] draws the widget and keeps its own "last value" so a fade-out shows the old reading.
  */
 interface SweWidget {
@@ -36,6 +38,12 @@ interface SweWidget {
      * edge; [widthDp] is then its minimum. Defaults to false.
      */
     val isFlexible: Boolean get() = false
+
+    /**
+     * Whether the widget currently draws a filled background that can join its neighbours'
+     * into one segmented pill. Defaults to false.
+     */
+    val hasBackground: Boolean get() = false
 
     /** Worst-case width in dp for a pill [heightDp] tall at [density]; Paint-based, no Compose. */
     fun widthDp(heightDp: Int, density: Float, data: SweData): Float

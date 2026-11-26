@@ -31,6 +31,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import com.ekoehler.expressivecutout.swe.SweGroupPosition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
@@ -52,7 +54,9 @@ import com.ekoehler.expressivecutout.overlay.badgeIconSizeFor
 import com.ekoehler.expressivecutout.overlay.badgeSizeFor
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.swe.PERCENT
+import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.sweBackgroundShape
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgetType
 import com.ekoehler.expressivecutout.swe.SweWidgets
@@ -87,6 +91,8 @@ data class SoundModeWidget(
 
     override fun isVisible(data: SweData): Boolean = true
 
+    override val hasBackground: Boolean get() = backgroundColor != null
+
     /** Depends on the background settings only, never on the mode, so the pill does not twitch. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float =
         if (backgroundColor != null) backgroundWidthDp(heightDp) else badgeIconSizeFor(heightDp).value
@@ -104,7 +110,10 @@ data class SoundModeWidget(
         val boxModifier = if (fill != null) {
             Modifier
                 .size(backgroundWidthDp(heightDp).dp, badgeSizeFor(heightDp))
-                .background(fill, RoundedCornerShape(backgroundCornerPercent))
+                .background(
+                    fill,
+                    sweBackgroundShape(LocalSweGroupPosition.current, heightDp, RoundedCornerShape(backgroundCornerPercent)),
+                )
         } else {
             Modifier
         }
@@ -131,6 +140,7 @@ data class SoundModeWidget(
     @Composable
     override fun Controls(onChange: (SweWidget) -> Unit) {
         val hasBackground = backgroundColor != null
+        val isGrouped = LocalSweGroupPosition.current != SweGroupPosition.SINGLE
         var widthValue by remember(backgroundWidthPercent) { mutableFloatStateOf(backgroundWidthPercent.toFloat()) }
         var cornerValue by remember(backgroundCornerPercent) { mutableFloatStateOf(backgroundCornerPercent.toFloat()) }
 
@@ -183,7 +193,17 @@ data class SoundModeWidget(
                             step = 1f,
                             onValueChange = { cornerValue = it },
                             onCommit = { onChange(copy(backgroundCornerPercent = cornerValue.roundToInt())) },
+                            enabled = !isGrouped,
                         )
+
+                        // Why the corner slider is off
+                        if (isGrouped) {
+                            Text(
+                                text = stringResource(R.string.widgets_background_corner_auto),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

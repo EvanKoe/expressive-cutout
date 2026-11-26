@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -17,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +31,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.data.EmptyPillInfoSettings
 import com.ekoehler.expressivecutout.data.InfoSide
+import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.SweGroupPosition
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.system.PermissionUsage
 import kotlinx.coroutines.delay
@@ -40,7 +42,13 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
+/**
+ * The gap between neighbouring widgets as a fraction of the pill height: [ITEM_GAP_FRACTION] in
+ * general, the narrower [GROUP_GAP_FRACTION] between two widgets that both draw a background, so they
+ * read as one segmented pill.
+ */
 private const val ITEM_GAP_FRACTION = 0.2f
+private const val GROUP_GAP_FRACTION = 0.08f
 
 /** The outer-edge inset as a fraction of the pill height; equals the gap above and below a badge (1 - 0.72) / 2, so round widgets sit evenly. */
 private const val EDGE_INSET_FRACTION = 0.14f
@@ -90,11 +98,39 @@ internal fun emptyPillSideWidthsDp(
         val widths = visible.map { it.widthDp(heightDp, density, data) }
         val dots = if (side == InfoSide.LEFT) dotsLeftDp else dotsRightDp
         if (widths.isEmpty() && dots <= 0f) return 0f
-        val gaps = (widths.size - 1).coerceAtLeast(0) * heightDp * ITEM_GAP_FRACTION
+        val gaps = visible.indices.sumOf { gapBeforeDp(visible.getOrNull(it - 1), visible[it], heightDp).toDouble() }.toFloat()
         val natural = widths.sum() + gaps + heightDp * EDGE_INSET_FRACTION + dots
         return if (visible.any { it.isFlexible }) max(natural, sideRoomDp) else natural
     }
     return sideWidth(InfoSide.LEFT) to sideWidth(InfoSide.RIGHT)
+}
+
+/**
+ * The gap in dp before [widget] when [previous] is the visible widget to its left (null for the first
+ * one): none for the first, [GROUP_GAP_FRACTION] between two background widgets, else
+ * [ITEM_GAP_FRACTION]. The single source of truth for gaps, shared by the row and its measurement.
+ */
+private fun gapBeforeDp(previous: SweWidget?, widget: SweWidget, heightDp: Int): Float = when {
+    previous == null -> 0f
+    previous.hasBackground && widget.hasBackground -> heightDp * GROUP_GAP_FRACTION
+    else -> heightDp * ITEM_GAP_FRACTION
+}
+
+/**
+ * Where [widget] sits in a run of adjacent background widgets among the [visible] ones: [SINGLE][SweGroupPosition.SINGLE]
+ * when it, or both its visible neighbours, have no background.
+ */
+internal fun groupPosition(visible: List<SweWidget>, widget: SweWidget): SweGroupPosition {
+    val index = visible.indexOf(widget)
+    if (index < 0 || !widget.hasBackground) return SweGroupPosition.SINGLE
+    val joinsPrevious = visible.getOrNull(index - 1)?.hasBackground == true
+    val joinsNext = visible.getOrNull(index + 1)?.hasBackground == true
+    return when {
+        joinsPrevious && joinsNext -> SweGroupPosition.MIDDLE
+        joinsPrevious -> SweGroupPosition.END
+        joinsNext -> SweGroupPosition.START
+        else -> SweGroupPosition.SINGLE
+    }
 }
 
 /**
@@ -197,33 +233,51 @@ private fun InfoSideRow(
 ) {
     // The dots sit on the outer edge, so the widgets step inward past them
     val inset = (heightDp * EDGE_INSET_FRACTION + dotsDp).dp
+    val visible = widgets.filter { it.isVisible(data) }
     Row(
         modifier = modifier.then(if (flexWidthDp != null) Modifier.width(flexWidthDp.dp) else Modifier).padding(
             start = if (side == InfoSide.LEFT) inset else 0.dp,
             end = if (side == InfoSide.RIGHT) inset else 0.dp,
         ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy((heightDp * ITEM_GAP_FRACTION).dp),
     ) {
         widgets.forEach { widget ->
+            val index = visible.indexOf(widget)
+            val gapDp = if (index < 0) 0f else gapBeforeDp(visible.getOrNull(index - 1), widget, heightDp)
             // Keyed by id so reordering moves a widget instead of restarting its animation
             key(widget.id) {
-                WidgetSlot(widget, settled, heightDp, data)
+                WidgetSlot(widget, settled, heightDp, data, gapDp, groupPosition(visible, widget))
             }
         }
     }
 }
 
-/** One widget that fades and scales in and out on its own, and only once [settled]. */
+/**
+ * One widget that fades and scales in and out on its own, and only once [settled]. [gapDp] is the gap
+ * before it, kept inside the animated slot so it opens and closes with the widget; [position] is
+ * handed to the widget through [LocalSweGroupPosition].
+ */
 @Composable
-private fun RowScope.WidgetSlot(widget: SweWidget, settled: Boolean, heightDp: Int, data: SweData) {
+private fun RowScope.WidgetSlot(
+    widget: SweWidget,
+    settled: Boolean,
+    heightDp: Int,
+    data: SweData,
+    gapDp: Float,
+    position: SweGroupPosition,
+) {
     AnimatedVisibility(
         visible = settled && widget.isVisible(data),
         modifier = if (widget.isFlexible) Modifier.weight(1f) else Modifier,
         enter = ItemEnter,
         exit = ItemExit,
     ) {
-        widget.Content(data, heightDp)
+        // Widget with its leading gap
+        Box(modifier = Modifier.padding(start = gapDp.dp)) {
+            CompositionLocalProvider(LocalSweGroupPosition provides position) {
+                widget.Content(data, heightDp)
+            }
+        }
     }
 }
 

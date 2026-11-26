@@ -75,7 +75,7 @@ import kotlinx.coroutines.withContext
 // Shared building blocks used by more than one settings sub-screen. Kept `internal` so each
 // screen file (same package, split across the SettingScreens/ folder) can reach them.
 
-/** A labelled slider flanked by step buttons; commits on release or on each step tap. */
+/** A labelled slider flanked by step buttons; commits on release or on each step tap. Greyed out and inert when not [enabled]. */
 @Composable
 internal fun AdjustableSlider(
     label: String,
@@ -85,6 +85,7 @@ internal fun AdjustableSlider(
     step: Float,
     onValueChange: (Float) -> Unit,
     onCommit: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Column {
         Row(
@@ -105,6 +106,7 @@ internal fun AdjustableSlider(
             step = step,
             onValueChange = onValueChange,
             onCommit = onCommit,
+            enabled = enabled,
         )
     }
 }
@@ -117,6 +119,7 @@ private fun SliderRow(
     step: Float,
     onValueChange: (Float) -> Unit,
     onCommit: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         FilledTonalIconButton(
@@ -124,6 +127,7 @@ private fun SliderRow(
                 onValueChange((value - step).coerceIn(valueRange))
                 onCommit()
             },
+            enabled = enabled,
         ) {
             Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.cd_decrease))
         }
@@ -133,6 +137,7 @@ private fun SliderRow(
             onValueChange = onValueChange,
             onValueChangeFinished = onCommit,
             valueRange = valueRange,
+            enabled = enabled,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 6.dp),
@@ -143,6 +148,7 @@ private fun SliderRow(
                 onValueChange((value + step).coerceIn(valueRange))
                 onCommit()
             },
+            enabled = enabled,
         ) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.cd_increase))
         }

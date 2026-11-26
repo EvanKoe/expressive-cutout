@@ -1,11 +1,15 @@
 package com.ekoehler.expressivecutout.swe.widgets
 
 import android.graphics.Typeface
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Card
@@ -18,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -28,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.R
 import com.ekoehler.expressivecutout.data.CutoutColor
+import com.ekoehler.expressivecutout.overlay.badgeSizeFor
 import com.ekoehler.expressivecutout.overlay.rememberMinuteClock
 import com.ekoehler.expressivecutout.overlay.resolve
 import com.ekoehler.expressivecutout.ui.components.ColorPickerCard
@@ -38,22 +44,29 @@ import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
 import com.ekoehler.expressivecutout.ui.components.groupedShape
 import com.ekoehler.expressivecutout.ui.components.rememberRobotoFlexFamily
 import com.ekoehler.expressivecutout.ui.screen.AdjustableSlider
+import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.sweBackgroundShape
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgetType
 import com.ekoehler.expressivecutout.swe.SweWidgets
 import com.ekoehler.expressivecutout.swe.putColor
 import com.ekoehler.expressivecutout.swe.color
+import com.ekoehler.expressivecutout.swe.inkOn
 import com.ekoehler.expressivecutout.swe.measureDp
 import com.ekoehler.expressivecutout.swe.robotoFlexScaleX
 import com.ekoehler.expressivecutout.swe.PERCENT
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-/** The time, in Roboto Flex at the chosen width, weight, size and colour. Null colour = default ink. */
+/**
+ * The time, in Roboto Flex at the chosen width, weight, size and colour, on an optional rounded background.
+ * Null colour = default ink; null background = none.
+ */
 data class ClockWidget(
     override val id: String = SweWidgets.newId(),
     val color: CutoutColor? = null,
+    val backgroundColor: CutoutColor? = null,
     val width: Float = ROBOTO_FLEX_DEFAULT_WIDTH,
     val weight: Int = DEFAULT_WEIGHT,
     val sizePercent: Int = DEFAULT_SIZE_PERCENT,
@@ -64,6 +77,7 @@ data class ClockWidget(
         put("type", TAG)
         put("id", id)
         putColor("color", color)
+        putColor("backgroundColor", backgroundColor)
         put("width", width.toDouble())
         put("weight", weight)
         put("sizePercent", sizePercent)
@@ -71,13 +85,17 @@ data class ClockWidget(
 
     override fun isVisible(data: SweData): Boolean = true
 
-    /** The width the clock's worst-case string takes at the chosen weight and width. */
+    override val hasBackground: Boolean get() = backgroundColor != null
+
+    /** The width the clock's worst-case string takes at the chosen weight and width, plus padding when a background is set. */
     override fun widthDp(heightDp: Int, density: Float, data: SweData): Float {
         val typeface = Typeface.create(Typeface.DEFAULT, weight, false)
-        return measureDp(WORST_CASE, fontDp(heightDp), density, typeface, robotoFlexScaleX(width))
+        val textDp = measureDp(WORST_CASE, fontDp(heightDp), density, typeface, robotoFlexScaleX(width))
+        val paddingDp = if (backgroundColor != null) 2 * heightDp * BACKGROUND_PADDING_FRACTION else 0f
+        return textDp + paddingDp
     }
 
-    /** The current time in the user's chosen font width and weight, with tabular figures. */
+    /** The current time in the user's chosen font width and weight, with tabular figures, on the optional background. */
     @Composable
     override fun Content(data: SweData, heightDp: Int) {
         val family = rememberRobotoFlexFamily(width, weight)
@@ -86,26 +104,42 @@ data class ClockWidget(
             widthDp(heightDp, density.density, data)
         }
 
-        Text(
-            text = rememberMinuteClock(),
-            modifier = Modifier.width(widthDp.dp),
-            color = color?.resolve() ?: LocalContentColor.current,
-            fontSize = with(density) { fontDp(heightDp).dp.toSp() },
-            fontFamily = family,
-            fontWeight = FontWeight(weight),
-            style = TextStyle(fontFeatureSettings = "tnum"),
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-        )
+        val fill = backgroundColor?.resolve()
+        val boxModifier = if (fill != null) {
+            Modifier
+                .size(widthDp.dp, badgeSizeFor(heightDp))
+                .background(
+                    fill,
+                    sweBackgroundShape(LocalSweGroupPosition.current, heightDp, RoundedCornerShape(BACKGROUND_CORNER_PERCENT)),
+                )
+        } else {
+            Modifier.width(widthDp.dp)
+        }
+
+        // Optional background
+        Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
+            // Time
+            Text(
+                text = rememberMinuteClock(),
+                color = color?.resolve() ?: fill?.let { inkOn(it) } ?: LocalContentColor.current,
+                fontSize = with(density) { fontDp(heightDp).dp.toSp() },
+                fontFamily = family,
+                fontWeight = FontWeight(weight),
+                style = TextStyle(fontFeatureSettings = "tnum"),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
     }
 
-    /** The colour, then width, weight and size sliders under a centred live preview. */
+    /** The text and background colour pickers, then width, weight and size sliders under a centred live preview. */
     @Composable
     override fun Controls(onChange: (SweWidget) -> Unit) {
         var widthValue by remember(width) { mutableFloatStateOf(width) }
         var weightValue by remember(weight) { mutableFloatStateOf(weight.toFloat()) }
         var sizeValue by remember(sizePercent) { mutableFloatStateOf(sizePercent.toFloat()) }
+        val previewFill = backgroundColor?.resolve()
 
         Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
             // Text colour
@@ -116,6 +150,16 @@ data class ClockWidget(
                 defaultLabel = stringResource(R.string.label_default),
                 defaultColor = MaterialTheme.colorScheme.onSurface,
                 shape = groupedShape(isFirst = true),
+            )
+
+            // Background colour
+            ColorPickerCard(
+                label = stringResource(R.string.appearance_background_color),
+                selected = backgroundColor,
+                onSelect = { onChange(copy(backgroundColor = it)) },
+                defaultLabel = stringResource(R.string.empty_info_unread_shape_none),
+                defaultColor = MaterialTheme.colorScheme.surfaceVariant,
+                shape = groupedShape(),
             )
 
             // Width, weight, size and live preview
@@ -129,16 +173,26 @@ data class ClockWidget(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     // Preview
-                    Text(
-                        text = "12:34",
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontSize = MaterialTheme.typography.headlineMedium.fontSize * (sizeValue / PERCENT),
-                        fontFamily = rememberRobotoFlexFamily(widthValue, weightValue.roundToInt()),
-                        fontWeight = FontWeight(weightValue.roundToInt()),
-                        color = color?.resolve() ?: MaterialTheme.colorScheme.onSurface,
-                    )
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "12:34",
+                            modifier = if (previewFill != null) {
+                                Modifier
+                                    .background(previewFill, RoundedCornerShape(BACKGROUND_CORNER_PERCENT))
+                                    .padding(horizontal = 12.dp)
+                            } else {
+                                Modifier
+                            },
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * (sizeValue / PERCENT),
+                            fontFamily = rememberRobotoFlexFamily(widthValue, weightValue.roundToInt()),
+                            fontWeight = FontWeight(weightValue.roundToInt()),
+                            color = color?.resolve()
+                                ?: previewFill?.let { inkOn(it) }
+                                ?: MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
 
                     // Font width
                     AdjustableSlider(
@@ -196,6 +250,12 @@ data class ClockWidget(
         private const val WORST_CASE = "88:88"
         private const val TEXT_FRACTION = 0.5f
 
+        /** Horizontal padding per side when a background is set, as a fraction of the pill height. */
+        private const val BACKGROUND_PADDING_FRACTION = 0.12f
+
+        /** The background's corner radius, in percent of its shorter side. */
+        private const val BACKGROUND_CORNER_PERCENT = 32
+
         private const val TAG = "clock"
 
         override val tag: String = TAG
@@ -207,16 +267,25 @@ data class ClockWidget(
         override fun fromJson(id: String, obj: JSONObject): SweWidget = clamped(
             id = id,
             color = obj.color("color"),
+            backgroundColor = obj.color("backgroundColor"),
             width = obj.optDouble("width", ROBOTO_FLEX_DEFAULT_WIDTH.toDouble()).toFloat(),
             weight = obj.optInt("weight", DEFAULT_WEIGHT),
             sizePercent = obj.optInt("sizePercent", DEFAULT_SIZE_PERCENT),
         )
 
         /** A clock with width, weight and size forced into their valid ranges. */
-        fun clamped(id: String, color: CutoutColor?, width: Float, weight: Int, sizePercent: Int): ClockWidget =
+        fun clamped(
+            id: String,
+            color: CutoutColor?,
+            width: Float,
+            weight: Int,
+            sizePercent: Int,
+            backgroundColor: CutoutColor? = null,
+        ): ClockWidget =
             ClockWidget(
                 id = id,
                 color = color,
+                backgroundColor = backgroundColor,
                 width = width.coerceIn(ROBOTO_FLEX_MIN_WIDTH, ROBOTO_FLEX_MAX_WIDTH),
                 weight = weight.coerceIn(MIN_WEIGHT, MAX_WEIGHT),
                 sizePercent = sizePercent.coerceIn(MIN_SIZE_PERCENT, MAX_SIZE_PERCENT),

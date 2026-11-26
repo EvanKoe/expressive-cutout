@@ -2,8 +2,11 @@ package com.ekoehler.expressivecutout.swe
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_DEFAULT_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MAX_WIDTH
 import com.ekoehler.expressivecutout.ui.components.ROBOTO_FLEX_MIN_WIDTH
@@ -39,6 +42,22 @@ internal fun robotoFlexScaleX(width: Float): Float {
     val span = if (clamped <= ROBOTO_FLEX_DEFAULT_WIDTH) ROBOTO_FLEX_DEFAULT_WIDTH - ROBOTO_FLEX_MIN_WIDTH
     else ROBOTO_FLEX_MAX_WIDTH - ROBOTO_FLEX_DEFAULT_WIDTH
     return 1f + (clamped - ROBOTO_FLEX_DEFAULT_WIDTH) / span * WIDTH_SWING
+}
+
+/** Corner radius between neighbouring backgrounds, as a fraction of the pill height. */
+private const val GROUP_INNER_CORNER_FRACTION = 0.06f
+
+/**
+ * The background shape for a widget at [position] in a run of backgrounds: [single] when alone,
+ * otherwise fully rounded on the outer ends of the run and small between neighbours.
+ */
+internal fun sweBackgroundShape(position: SweGroupPosition, heightDp: Int, single: RoundedCornerShape): RoundedCornerShape {
+    if (position == SweGroupPosition.SINGLE) return single
+    val outer = CornerSize(50)
+    val inner = CornerSize((heightDp * GROUP_INNER_CORNER_FRACTION).dp)
+    val start = if (position == SweGroupPosition.START) outer else inner
+    val end = if (position == SweGroupPosition.END) outer else inner
+    return RoundedCornerShape(topStart = start, topEnd = end, bottomEnd = end, bottomStart = start)
 }
 
 /** Dark ink on a light [fill], light ink on a dark one. */

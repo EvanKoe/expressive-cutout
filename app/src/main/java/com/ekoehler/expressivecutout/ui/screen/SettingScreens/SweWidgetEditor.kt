@@ -71,6 +71,10 @@ import com.ekoehler.expressivecutout.overlay.EmptyPillInfoContent
 import com.ekoehler.expressivecutout.overlay.emptyPillSideWidthsDp
 import com.ekoehler.expressivecutout.service.UnreadCounts
 import com.ekoehler.expressivecutout.swe.SweData
+import com.ekoehler.expressivecutout.swe.LocalSweGroupPosition
+import com.ekoehler.expressivecutout.swe.SweGroupPosition
+import com.ekoehler.expressivecutout.overlay.groupPosition
+import androidx.compose.runtime.CompositionLocalProvider
 import com.ekoehler.expressivecutout.swe.SweWidget
 import com.ekoehler.expressivecutout.swe.SweWidgets
 import com.ekoehler.expressivecutout.ui.components.GroupGap
@@ -146,6 +150,7 @@ internal fun SweWidgetEditor(
             SweWidgetSheet(
                 widget = widget,
                 side = side,
+                position = groupPosition(settings.on(side), widget),
                 onSideChange = { onSetSide(id, it) },
                 onChange = onUpdate,
                 onDismiss = { editingId = null },
@@ -471,13 +476,15 @@ private fun AddWidgetSheet(onPick: (SweWidget) -> Unit, onDismiss: () -> Unit) {
 
 /**
  * The settings of one widget in a bottom sheet: which side it sits on, then its own controls. Each
- * change is sent as a whole new widget through [onChange].
+ * change is sent as a whole new widget through [onChange]. [position] is where the widget sits in a
+ * run of background widgets, given to its controls through [LocalSweGroupPosition].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SweWidgetSheet(
     widget: SweWidget,
     side: InfoSide,
+    position: SweGroupPosition,
     onSideChange: (InfoSide) -> Unit,
     onChange: (SweWidget) -> Unit,
     onDismiss: () -> Unit,
@@ -510,7 +517,9 @@ private fun SweWidgetSheet(
             )
 
             // The widget's own settings
-            widget.Controls(onChange)
+            CompositionLocalProvider(LocalSweGroupPosition provides position) {
+                widget.Controls(onChange)
+            }
         }
     }
 }
