@@ -11,11 +11,11 @@
 
 Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、会“活”起来的灵动岛。通知会落在这里，系统事件会从这里掠过，正在播放的内容、来电对象和计时器剩余时间，也都会以实时磁贴的形式出现在屏幕顶端——全部采用 Material Expressive 的形状与弹性动画，以及 Material You 配色，连圆角半径都可以逐项调整。
 
-它完全在本地运行。应用没有任何网络权限，因此什么都不会被上传：没有账号、没有分析、也没有追踪。
+它完全在本地运行。应用未申请互联网访问权限，因此什么都不会被上传：没有账号、没有分析、也没有追踪。
 
-本说明对应原项目 [EvanKoe/expressive-cutout](https://github.com/EvanKoe/expressive-cutout) 的简体中文本地化分支，原作者为 EvanKoe，许可证为 [GNU GPL-3.0](LICENSE)。
+本说明对应 EvanKoe 发布的 [0.4.1-beta](https://github.com/EvanKoe/expressive-cutout/releases/tag/0.4.1-beta)。
 
-[![下载最新正式版](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
+[![下载最新版本](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
 [![Stars](https://img.shields.io/github/stars/EvanKoe/expressive-cutout?style=for-the-badge)](https://github.com/EvanKoe/expressive-cutout/stargazers)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -27,6 +27,7 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 
 ## 目录
 
+- [本版更新](#本版更新)
 - [截图](#截图)
 - [下载与安装](#下载与安装)
 - [功能](#功能)
@@ -36,9 +37,25 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 
 ---
 
-## 截图
+## 本版更新
 
-<!-- Screenshots go here. -->
+### 新增与调整
+
+- 开启热点时，灵动岛会显示已连接的设备数量。
+- 状态指示点可以放在左侧或右侧。展开灵动岛后，指示点显示在标题栏中。
+- 重新设计了“个人”标签页。
+- 导航栏新增模糊效果，返回按钮新增动画。模糊效果需要 Android API 37.2 或更高版本。
+- 使用三键导航时，导航栏背后不再显示用于增强对比度的遮罩。
+
+### 问题修复
+
+- 锁屏再解锁后，点按空闲灵动岛（SWE）可正常播放动画并执行操作。
+- 状态指示点的位置更靠近前置摄像头。
+- 修复了状态指示点的动画数值变为负数时导致应用崩溃的问题。
+- 系统事件现在能正确识别热点关闭。
+- 计时器磁贴现在会显示即将开始的计时器。
+- 支持识别滴答清单（TickTick）等第三方应用的计时器，并显示相应的操作按钮。
+- 修正了应用启动时模糊效果的颜色。
 
 ---
 
@@ -46,13 +63,15 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 
 <div align="center">
 
-[![下载最新正式版](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
+[![下载最新版本](https://img.shields.io/badge/Download-latest%20release-005AC1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/EvanKoe/expressive-cutout/releases)
 
 </div>
 
 需要 Android 10（API 29）或更新版本。首次启动时，应用会引导你完成它所需要的三项设置：通知使用权（用于镜像通知）、无障碍服务（用于绘制悬浮层），以及可选的电池优化豁免，让灵动岛在后台也能稳定工作。
 
 欢迎加入我们的 [Discord 服务器](https://discord.gg/SNfcuuJeYF)，提交反馈、功能建议和问题报告，并与 Expressive by Evan 社区交流。
+
+## 截图
 
 <table>
  <tr>
@@ -63,7 +82,7 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 
   <td>
    <img width="1080" height="2410" alt="Screenshot_20261006-105118" src="https://github.com/user-attachments/assets/fc0cb5d9-268f-446c-9404-01523cb73ef3" />
-   <sub><b>主页面</b></sub>
+   <sub><b>主页</b></sub>
   </td>
 
   <td>
@@ -112,7 +131,7 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 | **操作按钮** | 四种按钮样式（Expressive 色调、Expressive 填充、Material You、描边） · 四种回复栏样式，包括分段条 · 可调整按钮颜色和高度 · 取消按钮可放在左侧或发送按钮旁边 · 通话和计时器磁贴可使用各自的按钮颜色 |
 | **动画** | Expressive 弹簧或缓入缓出风格 · 慢速 / 默认 / 快速 · 大弹跳 / 普通 / 小弹跳 · 动画时长可在 0 到 1000 毫秒之间缩放 · 可对照实时示例进行调节 |
 | **行为与手势** | 可在延迟后自动收起，也可保持展开直到点按 · 收起后也可选择完全消失 · 上滑收起 · 左右滑动关闭，普通岛和展开岛可分别设置 · 可在锁屏时隐藏，并彻底拆除悬浮层，不再占用资源 |
-| **隐私** | 完全没有网络权限，因此任何数据都无法离开设备 · 没有分析和追踪 · 屏幕内容仅用于实现功能，既不会存储，也不会发送 · 每项权限都会在应用内说明，完整清单可在“权限详情”页面查看 |
+| **隐私** | 未申请互联网访问权限，数据仅在设备上处理 · 没有分析和追踪 · 屏幕内容仅用于实现功能，既不会存储，也不会发送 · 每项权限都会在应用内说明，完整清单可在“权限详情”页面查看 |
 | **测试** | 可给自己发送带回复和操作按钮的测试通知 · 可触发测试中的通话和测试来电 · 可在各事件的详情页预览该系统事件在岛上的效果 |
 
 ---
@@ -122,15 +141,15 @@ Expressive Cutout 把 Android 手机上的挖孔摄像头变成一块小巧、�
 你的数据隐私很重要。应用只会申请维持功能所必需的最低权限。此外，它没有 `INTERNET` 网络访问权限，这意味着不会有任何内容被发送到互联网：没有分析、没有使用数据，通知内容也不会存储到任何地方。一切始终只留在你的手机上。下面列出的是完整清单，每项权限也会在应用内的“权限详情”页面有更详细的说明：
 
 - 通知使用权：用于在灵动岛中显示通知。Android 把媒体访问也绑定到同一授权，因此音乐磁贴也靠它来显示正在播放的内容并进行控制。
-- 无障碍服务：用于在其他应用上方显示悬浮层。它也可能读取屏幕内容，但只是为了让功能生效：会读取当前前台是哪个应用（以便在你使用该应用时隐藏相应磁贴）。它只看这些——对其余应用而言，看到的只是一个包名，没有更多内容。读取到的信息会显示在岛上，随即丢弃：不会写入存储，不会记录日志，而且由于应用没有网络权限，也无法发送到任何地方。
+- 无障碍服务：用于在其他应用上方显示悬浮层。它也可能读取屏幕内容，但只是为了让功能生效：会读取当前前台是哪个应用（以便在你使用该应用时隐藏相应磁贴）。它只看这些——对其余应用而言，看到的只是一个包名，没有更多内容。读取到的信息会显示在岛上，随即丢弃：不会写入存储，不会记录日志，而且由于应用没有互联网访问权限，也无法发送到任何地方。
 - 振动：用于应用内和挖孔区的触觉反馈。
 - 忽略电池优化（可选）：确保电池优化不会把应用杀掉。
 - 发送通知（可选）：仅用于测试。
-- 音频设置：以便展开后的通话磁贴可以使用“静音”和“扬声器”按钮来路由正在进行的通话音频，因为没有拨号应用会把这两项作为通知操作提供。它不会录音——此权限也做不到这一点。
+- 音频设置：拨号应用的通知不提供静音和扬声器操作。展开通话磁贴后，可用这项权限将通话静音或切换到扬声器。该权限无法录音。
 - 电话状态（可选）：只报告当前是正在振铃、已接通还是已结束——不会读取电话号码、来电身份或通话记录。有了它，通话磁贴可以在你挂断的瞬间关闭，而不必等到发现拨号应用的通知消失。没有这项权限时，磁贴同样会关闭，只是会晚几秒。
 - Shizuku（可选）：仅用于 Android 保留给 shell 用户的两项功能——隐藏系统状态栏图标，以及读取哪些应用正在使用麦克风、相机或位置，以便显示隐私指示点。Shizuku 是你需要自行安装并启动的独立应用，并且要在其界面中批准本应用。没有 Shizuku 时，这两项功能不可用，其余功能仍可正常工作。
 - 网络状态：只能读取你是否已连接到网络（用于 Wi-Fi 事件），并不能真正访问网络。
-- Wi-Fi 状态：从 Android 12L 起，系统只会向持有此权限的应用通报热点的开关，因此热点事件要靠它触发。该权限为只读，会自动授予：不能开关 Wi-Fi 或热点，不能查看已连接设备，也不会提供网络访问。
+- Wi-Fi 状态：从 Android 12L 起，系统只会向持有此权限的应用通报热点的开关，因此热点事件要靠它触发。该权限为只读，会自动授予：不能开关 Wi-Fi 或热点，不能查看具体有哪些设备连接，也不会提供网络访问。
 - 应用列表可见性（`<queries>`，不是需要你手动授予的权限）：在 Android 11 及以上，应用默认看不到其他应用，除非说明自己需要看到什么。本应用申请查看带启动器图标的应用，以便“应用”页面列出它们供按应用开关使用，也能用应用图标为灵动岛着色，并判断是否已安装 Shizuku。这里有意没有申请 `QUERY_ALL_PACKAGES`。
 
 ---
